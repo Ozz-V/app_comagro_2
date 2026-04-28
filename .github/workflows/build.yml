@@ -50,7 +50,6 @@ jobs:
         run: npm install -g eas-cli@latest
 
       # 5. Compilar en la nube de Expo (EAS Build)
-      #    --wait  → espera hasta que el build termine antes de continuar
       - name: Build APK (EAS Cloud)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -61,30 +60,10 @@ jobs:
             --non-interactive \
             --wait
 
-      # 6. Descargar el APK terminado desde los servidores de Expo
-      - name: Download APK from EAS
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: |
-          eas build:download \
-            --platform android \
-            --latest \
-            --output ./comagro-docs.apk
-
-      # 7. Subir APK como artefacto descargable (30 días)
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: comagro-docs-apk
-          path: ./comagro-docs.apk
-          retention-days: 30
-
-      # 8. Resumen en la UI de GitHub Actions
+      # 6. Resumen en la UI de GitHub Actions
       - name: Build Summary
         run: |
           echo "## ✅ Build completado" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📦 **Descargá el APK desde:**" >> $GITHUB_STEP_SUMMARY
-          echo "Actions → este workflow → Artifacts → \`comagro-docs-apk\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 También disponible en: https://expo.dev/accounts/[tu-usuario]/projects/comagro-docs/builds" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **Descargá el APK directamente desde Expo:**" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 https://expo.dev/accounts/ozzstriker/projects/comagro-catalogo/builds" >> $GITHUB_STEP_SUMMARY
