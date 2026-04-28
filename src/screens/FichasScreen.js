@@ -4,6 +4,7 @@ import {
   StyleSheet, Image, SafeAreaView, StatusBar, ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import LottieView from 'lottie-react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from '../supabase';
 import { COLORS, FONTS } from '../theme';
@@ -139,7 +140,13 @@ export default function FichasScreen({ navigation }) {
 
       {/* Topbar */}
       <View style={styles.topbar}>
-        <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+        <LottieView
+          source={require('../../assets/iso.json')}
+          autoPlay
+          loop={true}
+          style={{ width: 110, height: 40 }}
+          resizeMode="contain"
+        />
         <View style={styles.searchWrap}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput

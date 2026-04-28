@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   Image, SafeAreaView, StatusBar, ScrollView,
 } from 'react-native';
+import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 
@@ -43,7 +44,13 @@ export default function PortalScreen({ navigation }) {
 
       {/* Topbar */}
       <View style={styles.topbar}>
-        <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+        <LottieView
+          source={require('../../assets/iso.json')}
+          autoPlay
+          loop={true}
+          style={{ width: 110, height: 40 }}
+          resizeMode="contain"
+        />
         <TouchableOpacity onPress={cerrarSesion}>
           <Text style={styles.btnSalir}>Cerrar sesión</Text>
         </TouchableOpacity>

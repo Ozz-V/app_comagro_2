@@ -4,6 +4,7 @@ import {
   StyleSheet, Image, SafeAreaView, StatusBar,
   ActivityIndicator, useWindowDimensions, RefreshControl,
 } from 'react-native';
+import LottieView from 'lottie-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../supabase';
@@ -137,7 +138,13 @@ export default function CatalogosScreen({ navigation }) {
 
       {/* Topbar */}
       <View style={styles.topbar}>
-        <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+        <LottieView
+          source={require('../../assets/iso.json')}
+          autoPlay
+          loop={true}
+          style={{ width: 110, height: 40 }}
+          resizeMode="contain"
+        />
         <View style={styles.topActions}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.btnVolver}>← Volver</Text>

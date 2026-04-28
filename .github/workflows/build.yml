@@ -1,26 +1,13 @@
-name: Build APK Comagro Docs
+name: Build APK Comagro
 
 on:
-  # Build manual desde GitHub → pestaña Actions → "Run workflow"
   workflow_dispatch:
-    inputs:
-      profile:
-        description: 'Perfil de build'
-        required: true
-        default: 'preview'
-        type: choice
-        options:
-          - preview
-          - production
-
-  # Build automático al hacer push a main con cambios relevantes
   push:
     branches: [main]
     paths:
       - 'src/**'
       - 'App.js'
       - 'app.json'
-      - 'eas.json'
       - 'package.json'
       - 'assets/**'
 
@@ -30,40 +17,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Bajar código del repo
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Node.js 20
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      # 3. Instalar dependencias (npm ci es más rápido y reproducible que npm install)
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
       - name: Install dependencies
         run: npm ci
 
-      # 4. Instalar EAS CLI
-      - name: Install EAS CLI
-        run: npm install -g eas-cli@latest
+      - name: Prebuild Android Project
+        run: npx expo prebuild --platform android --clean
 
-      # 5. Compilar en la nube de Expo (EAS Build)
-      - name: Build APK (EAS Cloud)
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Build APK
         run: |
-          eas build \
-            --platform android \
-            --profile ${{ github.event.inputs.profile || 'preview' }} \
-            --non-interactive \
-            --wait
+          cd android
+          ./gradlew assembleRelease
 
-      # 6. Resumen en la UI de GitHub Actions
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: comagro-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+
       - name: Build Summary
         run: |
-          echo "## ✅ Build completado" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Build Súper Rápido Completado" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📦 **Descargá el APK directamente desde Expo:**" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 https://expo.dev/accounts/ozzstriker/projects/comagro-catalogo/builds" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **Descargá el APK desde:**" >> $GITHUB_STEP_SUMMARY
+          echo "Actions → este workflow → Artifacts → \`comagro-apk\`" >> $GITHUB_STEP_SUMMARY
