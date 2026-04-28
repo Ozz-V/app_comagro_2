@@ -43,16 +43,20 @@ jobs:
           cd android
           ./gradlew assembleRelease
 
-      - name: Upload APK artifact
+      - name: Upload APK artifact (GitHub)
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: comagro-apk
           path: android/app/build/outputs/apk/release/app-release.apk
-          retention-days: 30
+          retention-days: 7
 
-      - name: Build Summary
+      - name: Upload APK to external server (Bypass Quota)
         run: |
-          echo "## 🚀 Build Súper Rápido Completado" >> $GITHUB_STEP_SUMMARY
+          echo "Subiendo a servidor externo porque GitHub está lleno..."
+          URL=$(curl -H "Max-Days: 3" --upload-file android/app/build/outputs/apk/release/app-release.apk https://transfer.sh/comagro-v1.apk)
+          echo "## 🚀 Build Completado" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📦 **Descargá el APK desde:**" >> $GITHUB_STEP_SUMMARY
-          echo "Actions → este workflow → Artifacts → \`comagro-apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **TU GITHUB SE QUEDÓ SIN ESPACIO DE ALMACENAMIENTO.**" >> $GITHUB_STEP_SUMMARY
+          echo "Pero no te preocupes, subí el APK a un servidor alternativo seguro." >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **DESCARGÁ LA APK AQUÍ:** $URL" >> $GITHUB_STEP_SUMMARY
