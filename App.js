@@ -52,18 +52,57 @@ export default function App() {
       setSession(sess ?? null);
     });
 
+    async function procesarUrl(url) {
+      if (!url) return;
+      try {
+        if (url.includes('access_token=') && url.includes('refresh_token=')) {
+          const qs = url.split('#')[1] || url.split('?')[1];
+          if (!qs) return;
+          const params = qs.split('&').reduce((acc, curr) => {
+            const [k, v] = curr.split('=');
+            acc[k] = v;
+            return acc;
+          }, {});
+          
+          if (params.access_token && params.refresh_token) {
+            // Alert para depuración y frenar la ejecución instantánea que puede crashear
+            Alert.alert("Link Recibido", "Iniciando sesión segura...", [
+              {
+                text: "Aceptar",
+                onPress: async () => {
+                  try {
+                    await supabase.auth.setSession({
+                      access_token: params.access_token,
+                      refresh_token: params.refresh_token
+                    });
+                  } catch (err) {
+                    Alert.alert("Error Supabase", err.message);
+                  }
+                }
+              }
+            ]);
+          }
+        } else if (url.includes('error=')) {
+           Alert.alert("Error en el Link", "El enlace ya fue usado o expiró.");
+        }
+      } catch (e) {
+        Alert.alert("Error URL", e.message);
+      }
+    }
+
     // Escucha URLs entrantes (Deep Linking de Magic Links)
     const sub = Linking.addEventListener('url', (event) => {
-      if (event.url) {
-        supabase.auth.getSessionFromUrl(event.url);
-      }
+      // Pequeño delay para que Android termine de traer la app al frente
+      setTimeout(() => {
+        procesarUrl(event.url);
+      }, 800);
     });
 
     // Procesa URL inicial si la app estaba cerrada
     Linking.getInitialURL().then((url) => {
-      if (url) {
-        supabase.auth.getSessionFromUrl(url);
-      }
+      setTimeout(() => {
+        procesarUrl(url);
+      }, 800);
     });
 
     // --- COMPROBADOR DE ACTUALIZACIONES (OTA APK) ---
