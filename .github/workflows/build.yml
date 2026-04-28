@@ -52,12 +52,27 @@ jobs:
           path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 7
 
-      - name: Upload APK to external server (Bypass Quota)
+      - name: Upload APK to Repository Branch (Bypass Quota)
         run: |
-          echo "Subiendo a servidor externo alternativo (bashupload)..."
-          curl -s -T android/app/build/outputs/apk/release/app-release.apk bashupload.com > upload_result.txt
-          URL=$(grep -o 'http.*bashupload.com/.*' upload_result.txt)
-          echo "## 🚀 Build Completado" >> $GITHUB_STEP_SUMMARY
+          echo "Subiendo APK a la rama 'apk-builds' del repositorio..."
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          # Mover la APK a la raíz temporalmente
+          cp android/app/build/outputs/apk/release/app-release.apk /tmp/comagro.apk
+          # Crear una rama limpia
+          git checkout --orphan apk-builds
+          git rm -rf .
+          # Mover la APK de vuelta
+          mv /tmp/comagro.apk ./comagro-app.apk
+          git add comagro-app.apk
+          git commit -m "Deploy APK"
+          # Pushear forzando (sobrescribe el anterior para no ocupar espacio infinito)
+          git push origin apk-builds --force
+          
+          echo "## 🚀 Build Completado con Éxito" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📦 **TU GITHUB SE QUEDÓ SIN ESPACIO DE ALMACENAMIENTO.**" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 **DESCARGÁ LA APK AQUÍ:** $URL" >> $GITHUB_STEP_SUMMARY
+          echo "Pero subí el APK directamente al código fuente de tu repositorio." >> $GITHUB_STEP_SUMMARY
+          echo "👉 Entrá a la página principal de tu repositorio." >> $GITHUB_STEP_SUMMARY
+          echo "👉 Cambiá la rama de 'main' a 'apk-builds'." >> $GITHUB_STEP_SUMMARY
+          echo "👉 Descargá el archivo 'comagro-app.apk'." >> $GITHUB_STEP_SUMMARY
