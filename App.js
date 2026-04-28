@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import Constants from 'expo-constants';
 import {
   useFonts,
   BarlowCondensed_400Regular,
@@ -23,11 +24,13 @@ import PortalScreen   from './src/screens/PortalScreen';
 import CatalogosScreen from './src/screens/CatalogosScreen';
 import FichasScreen   from './src/screens/FichasScreen';
 import ProductosScreen from './src/screens/ProductosScreen';
+import LottieSplashScreen from './src/screens/LottieSplashScreen';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = cargando
+  const [showLottie, setShowLottie] = useState(true);
 
   const [fontsLoaded] = useFonts({
     BarlowCondensed_400Regular,
@@ -63,37 +66,71 @@ export default function App() {
       }
     });
 
+    // --- COMPROBADOR DE ACTUALIZACIONES (OTA APK) ---
+    async function checkUpdate() {
+      try {
+        const { data, error } = await supabase
+          .from('version_apk')
+          .select('*')
+          .eq('id', 1)
+          .single();
+        
+        if (data && data.version) {
+          const currentVersion = Constants.expoConfig?.version || '1.0.0';
+          if (data.version !== currentVersion) {
+            Alert.alert(
+              'Actualización Disponible',
+              'Hay una nueva versión de Comagro Catálogo. Por favor actualizá para continuar.',
+              [
+                { 
+                  text: 'Descargar Actualización', 
+                  onPress: () => {
+                    Linking.openURL(data.link_descarga);
+                  } 
+                }
+              ],
+              { cancelable: false } // Obligatorio actualizar
+            );
+          }
+        }
+      } catch (err) {
+        console.log('Error checkUpdate:', err);
+      }
+    }
+    checkUpdate();
+
     return () => {
       subscription.unsubscribe();
       sub.remove();
     };
   }, []);
 
-  // Splash mientras cargan fuentes y sesión
+  // Splash nativo si todavía ni siquiera carga React o las fuentes básicas
   if (!fontsLoaded || session === undefined) {
-    return (
-      <View style={{ flex: 1, backgroundColor: COLORS.navy, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#fff" />
-      </View>
-    );
+    return null; // El SplashScreen nativo se encarga
   }
 
   const autenticado = !!(session && session.user?.email?.endsWith('@comagro.com.py'));
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-        {!autenticado ? (
-          <Stack.Screen name="Login" component={LoginScreen} />
-        ) : (
-          <>
-            <Stack.Screen name="Portal"    component={PortalScreen} />
-            <Stack.Screen name="Catalogos" component={CatalogosScreen} />
-            <Stack.Screen name="Fichas"    component={FichasScreen} />
-            <Stack.Screen name="Productos" component={ProductosScreen} />
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+          {!autenticado ? (
+            <Stack.Screen name="Login" component={LoginScreen} />
+          ) : (
+            <>
+              <Stack.Screen name="Portal"    component={PortalScreen} />
+              <Stack.Screen name="Catalogos" component={CatalogosScreen} />
+              <Stack.Screen name="Fichas"    component={FichasScreen} />
+              <Stack.Screen name="Productos" component={ProductosScreen} />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+      
+      {/* Superposición del Lottie Splash durante 3 seg */}
+      {showLottie && <LottieSplashScreen onFinish={() => setShowLottie(false)} />}
+    </>
   );
 }
