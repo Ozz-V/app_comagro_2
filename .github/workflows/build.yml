@@ -1,0 +1,90 @@
+name: Build APK Comagro Docs
+
+on:
+  # Build manual desde GitHub → pestaña Actions → "Run workflow"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Perfil de build'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
+
+  # Build automático al hacer push a main con cambios relevantes
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'App.js'
+      - 'app.json'
+      - 'eas.json'
+      - 'package.json'
+      - 'assets/**'
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Bajar código del repo
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Node.js 20
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 3. Instalar dependencias (npm ci es más rápido y reproducible que npm install)
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Instalar EAS CLI
+      - name: Install EAS CLI
+        run: npm install -g eas-cli@latest
+
+      # 5. Compilar en la nube de Expo (EAS Build)
+      #    --wait  → espera hasta que el build termine antes de continuar
+      - name: Build APK (EAS Cloud)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ github.event.inputs.profile || 'preview' }} \
+            --non-interactive \
+            --wait
+
+      # 6. Descargar el APK terminado desde los servidores de Expo
+      - name: Download APK from EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build:download \
+            --platform android \
+            --latest \
+            --output ./comagro-docs.apk
+
+      # 7. Subir APK como artefacto descargable (30 días)
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: comagro-docs-apk
+          path: ./comagro-docs.apk
+          retention-days: 30
+
+      # 8. Resumen en la UI de GitHub Actions
+      - name: Build Summary
+        run: |
+          echo "## ✅ Build completado" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **Descargá el APK desde:**" >> $GITHUB_STEP_SUMMARY
+          echo "Actions → este workflow → Artifacts → \`comagro-docs-apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 También disponible en: https://expo.dev/accounts/[tu-usuario]/projects/comagro-docs/builds" >> $GITHUB_STEP_SUMMARY
