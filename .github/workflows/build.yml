@@ -12,6 +12,9 @@ on:
       - 'package.json'
       - 'assets/**'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build Android APK
