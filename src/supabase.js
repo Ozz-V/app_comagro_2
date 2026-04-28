@@ -10,7 +10,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: false, // CRITICO: en React Native debe ser false o crashea la app al usar Magic Links
   },
 });
 

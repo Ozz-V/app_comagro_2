@@ -10,12 +10,12 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1f2f6b"
+      "backgroundColor": "#FFFFFF"
     },
     "assetBundlePatterns": ["**/*"],
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1f2f6b"
+        "backgroundColor": "#FFFFFF"
       },
       "package": "com.comagro.catalogo",
       "versionCode": 1,
