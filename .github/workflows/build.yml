@@ -54,10 +54,10 @@ jobs:
 
       - name: Upload APK to external server (Bypass Quota)
         run: |
-          echo "Subiendo a servidor externo porque GitHub está lleno..."
-          URL=$(curl -H "Max-Days: 3" --upload-file android/app/build/outputs/apk/release/app-release.apk https://transfer.sh/comagro-v1.apk)
+          echo "Subiendo a servidor externo alternativo (bashupload)..."
+          curl -s -T android/app/build/outputs/apk/release/app-release.apk bashupload.com > upload_result.txt
+          URL=$(grep -o 'http.*bashupload.com/.*' upload_result.txt)
           echo "## 🚀 Build Completado" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📦 **TU GITHUB SE QUEDÓ SIN ESPACIO DE ALMACENAMIENTO.**" >> $GITHUB_STEP_SUMMARY
-          echo "Pero no te preocupes, subí el APK a un servidor alternativo seguro." >> $GITHUB_STEP_SUMMARY
           echo "🔗 **DESCARGÁ LA APK AQUÍ:** $URL" >> $GITHUB_STEP_SUMMARY
