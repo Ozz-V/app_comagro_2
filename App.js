@@ -16,6 +16,7 @@ import {
 
 import { supabase } from './src/supabase';
 import { COLORS } from './src/theme';
+import * as Linking from 'expo-linking';
 
 import LoginScreen    from './src/screens/LoginScreen';
 import PortalScreen   from './src/screens/PortalScreen';
@@ -48,7 +49,24 @@ export default function App() {
       setSession(sess ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    // Escucha URLs entrantes (Deep Linking de Magic Links)
+    const sub = Linking.addEventListener('url', (event) => {
+      if (event.url) {
+        supabase.auth.getSessionFromUrl(event.url);
+      }
+    });
+
+    // Procesa URL inicial si la app estaba cerrada
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        supabase.auth.getSessionFromUrl(url);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      sub.remove();
+    };
   }, []);
 
   // Splash mientras cargan fuentes y sesión

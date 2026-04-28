@@ -4,6 +4,7 @@ import {
   StyleSheet, Image, KeyboardAvoidingView,
   Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
+import * as Linking from 'expo-linking';
 import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 
@@ -33,9 +34,14 @@ export default function LoginScreen() {
     setLoading(true);
     setStatus({ msg: 'Enviando enlace…', color: COLORS.navy });
 
+    const redirectUrl = Linking.createURL('/');
+
     const { error } = await supabase.auth.signInWithOtp({
       email: correo,
-      options: { shouldCreateUser: false },
+      options: { 
+        shouldCreateUser: false,
+        emailRedirectTo: redirectUrl,
+      },
     });
 
     setLoading(false);

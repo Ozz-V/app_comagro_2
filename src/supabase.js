@@ -10,6 +10,17 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    detectSessionInUrl: true,
   },
+});
+
+// Importante para React Native: manejar el estado de la app para refrescar el token
+import { AppState } from 'react-native';
+
+AppState.addEventListener('change', (state) => {
+  if (state === 'active') {
+    supabase.auth.startAutoRefresh();
+  } else {
+    supabase.auth.stopAutoRefresh();
+  }
 });
