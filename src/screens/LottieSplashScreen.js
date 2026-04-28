@@ -38,7 +38,7 @@ export default function LottieSplashScreen({ onFinish }) {
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: COLORS.navy,
+    backgroundColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 9999, // Para asegurar que tape todo al inicio
