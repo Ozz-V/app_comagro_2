@@ -231,7 +231,7 @@ export default function ProductosScreen({ navigation }) {
   }
 
   // ─── GENERAR HTML CORPORATIVO (siempre vertical, imagen arriba, specs abajo) ──
-  function generarHtmlFicha(specs, imgUrl, logoUrl) {
+  function generarHtmlFicha(specs, base64Img, logoUrl) {
     const specsHtml = specs.length > 0 ? `
       <table class="specs">
         <thead><tr><td colspan="2" class="specs-head">ESPECIFICACIONES TÉCNICAS</td></tr></thead>
@@ -265,7 +265,7 @@ export default function ProductosScreen({ navigation }) {
           
           /* IMAGEN - flex:1 se achica si las specs son muchas */
           .img-wrap { flex: 1; min-height: 120px; max-height: 320px; width: 100%; display: flex; align-items: center; justify-content: center; border: 1px solid #d7d7d7; border-radius: 8px; background: #fff; padding: 15px; overflow: hidden; margin-bottom: 12px; }
-          .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+          .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
           
           /* TÍTULO PRODUCTO */
           .title-sec { display: flex; margin-bottom: 15px; align-items: stretch; flex-shrink: 0; }
@@ -294,7 +294,7 @@ export default function ProductosScreen({ navigation }) {
           </div>
           
           <div class="img-wrap">
-            <img src="${imgUrl}" class="prod-img" />
+            <img id="prodImg" class="prod-img" src="${base64Img}" />
           </div>
           
           <div class="title-sec">
@@ -310,9 +310,73 @@ export default function ProductosScreen({ navigation }) {
           
           <div class="footer"></div>
         </div>
+        
+        <script>
+          (function() {
+            var img = new Image();
+            img.onload = function() {
+              var tmp = document.createElement('canvas');
+              tmp.width = img.width; tmp.height = img.height;
+              var ctx = tmp.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+              
+              try {
+                var d = ctx.getImageData(0, 0, tmp.width, tmp.height).data;
+                var w = tmp.width, h = tmp.height;
+                var top = h, left = w, right = -1, bottom = -1;
+                
+                for (var y = 0; y < h; y++) {
+                  for (var x = 0; x < w; x++) {
+                    var i = (y * w + x) * 4;
+                    if (d[i+3] > 10 && !(d[i] >= 245 && d[i+1] >= 245 && d[i+2] >= 245)) {
+                      if (x < left) left = x;
+                      if (x > right) right = x;
+                      if (y < top) top = y;
+                      if (y > bottom) bottom = y;
+                    }
+                  }
+                }
+                
+                if (right < left || bottom < top) return; // todo blanco, dejar original
+                
+                var p = 8;
+                left = Math.max(0, left-p); top = Math.max(0, top-p);
+                right = Math.min(w-1, right+p); bottom = Math.min(h-1, bottom+p);
+                
+                var cw = right-left+1, ch = bottom-top+1;
+                var out = document.createElement('canvas');
+                out.width = cw; out.height = ch;
+                out.getContext('2d').drawImage(tmp, left, top, cw, ch, 0, 0, cw, ch);
+                
+                // Reemplazar la imagen con la versión recortada
+                document.getElementById('prodImg').src = out.toDataURL('image/png');
+              } catch(e) {
+                // Si falla el canvas, la imagen original queda visible
+              }
+            };
+            img.src = '${base64Img}';
+          })();
+        </script>
       </body>
       </html>
     `;
+  }
+
+  // ─── Helper: obtener imagen como base64 ──────────────────────────
+  async function fetchImageBase64(url) {
+    if (!url) return '';
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      console.log('Error obteniendo base64:', err);
+      return '';
+    }
   }
 
   async function compartirPdf() {
@@ -321,10 +385,10 @@ export default function ProductosScreen({ navigation }) {
       
       const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
       const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg`;
-      const imgUrl = modalProd?.imagen || '';
+      const base64Img = await fetchImageBase64(modalProd?.imagen);
       const specs = modalProd?.specs || [];
       
-      const htmlContent = generarHtmlFicha(specs, imgUrl, logoUrl);
+      const htmlContent = generarHtmlFicha(specs, base64Img, logoUrl);
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
       
       await Sharing.shareAsync(uri, {
@@ -353,10 +417,10 @@ export default function ProductosScreen({ navigation }) {
       
       const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
       const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg`;
-      const imgUrl = modalProd?.imagen || '';
+      const base64Img = await fetchImageBase64(modalProd?.imagen);
       const specs = modalProd?.specs || [];
       
-      const htmlContent = generarHtmlFicha(specs, imgUrl, logoUrl);
+      const htmlContent = generarHtmlFicha(specs, base64Img, logoUrl);
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
       
       await Sharing.shareAsync(uri, {
