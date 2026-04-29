@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Image, SafeAreaView, StatusBar, ScrollView,
+  Image, SafeAreaView, StatusBar, ScrollView, Platform
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
@@ -48,7 +48,7 @@ export default function PortalScreen({ navigation }) {
           source={require('../../assets/iso.json')}
           autoPlay
           loop={true}
-          style={{ width: 110, height: 40 }}
+          style={styles.logoAnimado}
           resizeMode="contain"
         />
         <TouchableOpacity onPress={cerrarSesion}>
@@ -86,14 +86,15 @@ const styles = StyleSheet.create({
 
   topbar: {
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingBottom: 14,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: COLORS.white,
   },
   topBorder: { height: 1, backgroundColor: COLORS.border },
-  logo: { width: 110, height: 40 },
+  logoAnimado: { width: 100, height: 40 },
   btnSalir: {
     fontFamily: FONTS.body,
     fontSize: 12,

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, Image, SafeAreaView, StatusBar, ActivityIndicator,
-  RefreshControl,
+  RefreshControl, Platform,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import * as WebBrowser from 'expo-web-browser';
@@ -140,13 +140,24 @@ export default function FichasScreen({ navigation }) {
 
       {/* Topbar */}
       <View style={styles.topbar}>
-        <LottieView
-          source={require('../../assets/iso.json')}
-          autoPlay
-          loop={true}
-          style={{ width: 110, height: 40 }}
-          resizeMode="contain"
-        />
+        <View style={styles.topbarHeader}>
+          <LottieView
+            source={require('../../assets/iso.json')}
+            autoPlay
+            loop={true}
+            style={styles.logoAnimado}
+            resizeMode="contain"
+          />
+          <View style={styles.topActions}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Text style={styles.btnVolver}>← Volver</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => supabase.auth.signOut()}>
+              <Text style={styles.btnSalir}>Cerrar sesión</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.searchWrap}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
@@ -156,14 +167,6 @@ export default function FichasScreen({ navigation }) {
             value={busqueda}
             onChangeText={setBusqueda}
           />
-        </View>
-        <View style={styles.topActions}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.btnVolver}>← Volver</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => supabase.auth.signOut()}>
-            <Text style={styles.btnSalir}>Cerrar sesión</Text>
-          </TouchableOpacity>
         </View>
       </View>
       <View style={styles.topBorder} />
@@ -226,13 +229,18 @@ const styles = StyleSheet.create({
 
   topbar: {
     backgroundColor: COLORS.white,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44,
+    gap: 12,
+  },
+  topbarHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
   },
   topBorder: { height: 1, backgroundColor: COLORS.border },
-  logo: { width: 100, height: 36 },
+  logoAnimado: { width: 100, height: 40 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -252,8 +260,8 @@ const styles = StyleSheet.create({
   },
   topActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
+    alignItems: 'center',
+    gap: 16,
   },
   btnVolver: {
     fontFamily: FONTS.body,

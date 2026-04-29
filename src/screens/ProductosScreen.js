@@ -1,13 +1,16 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, Image, SafeAreaView, StatusBar,
   ActivityIndicator, useWindowDimensions, Modal, ScrollView,
-  RefreshControl,
+  RefreshControl, Platform, Alert,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
+import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
+import { captureRef } from 'react-native-view-shot';
 import { supabase, EDGE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 
@@ -49,11 +52,16 @@ export default function ProductosScreen({ navigation }) {
   const [marcas, setMarcas]           = useState([]);
   const [filtroMarca, setFiltroMarca] = useState('');
   const [busqueda, setBusqueda]       = useState('');
-  const [modalProd, setModalProd]     = useState(null);
+  // Estado de generación
+  const [generandoPdf, setGenerandoPdf]   = useState(false);
+  const [compartiendo, setCompartiendo]   = useState(false);
 
-  // Estado del botón de ficha
-  const [abriendoFicha, setAbriendoFicha] = useState(false);
-  const [fichaNoDisp, setFichaNoDisp]     = useState(false);
+  // Tabs y Asistente IA
+  const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
+  const [aiData, setAiData]       = useState(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+
+  const fichaRef = useRef(null);
 
   const { width } = useWindowDimensions();
   const numCols = width >= 600 ? 3 : 2;
@@ -167,31 +175,214 @@ export default function ProductosScreen({ navigation }) {
     setMarcas([...new Set(productos.map(p => p.marca))].sort());
   }
 
-  // ─── FICHA PDF — busca en TODAS las subcarpetas ───────────────────
-  async function abrirFicha(modelo) {
-    setAbriendoFicha(true);
-    setFichaNoDisp(false);
+  // ─── GENERAR PDF AL VUELO CON DISEÑO CORPORATIVO ────────────────
+  async function compartirPdf() {
     try {
-      // Buscar en paralelo en todas las carpetas del bucket Fichas
-      const intentos = await Promise.all(
-        CATS_FICHAS.map(async cat => {
-          const path = `${cat}/${modelo}.pdf`;
-          const { data, error } = await supabase.storage
-            .from('Fichas')
-            .createSignedUrl(path, 300);
-          return (!error && data) ? data.signedUrl : null;
-        })
-      );
-      const url = intentos.find(u => u !== null);
-      if (url) {
-        await WebBrowser.openBrowserAsync(url);
-      } else {
-        setFichaNoDisp(true); // mostrar mensaje al usuario
+      setGenerandoPdf(true);
+      
+      const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
+      const logoUrl = \`https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/\${marcaSlug}.jpg\`;
+      
+      // 1. Obtener la imagen original como Base64 para poder recortarla sincrónicamente en el HTML
+      let base64Img = '';
+      if (modalProd?.imagen) {
+        try {
+          const res = await fetch(modalProd.imagen);
+          const blob = await res.blob();
+          base64Img = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        } catch (err) {
+          console.log('Error obteniendo base64:', err);
+        }
       }
-    } catch (_) {
-      setFichaNoDisp(true);
+      
+      const htmlContent = \`
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            @page { margin: 0; size: A4 portrait; }
+            body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1A1A1A; height: 100vh; }
+            .page { width: 100%; height: 100vh; padding: 40px 60px 50px; box-sizing: border-box; display: flex; flex-direction: column; }
+            
+            .header { display: flex; align-items: center; height: 80px; flex-shrink: 0; border-bottom: 6px solid #1c9f4b; margin-bottom: 20px; }
+            .brand { display: flex; align-items: center; justify-content: flex-start; width: 220px; height: 100%; }
+            .brand-logo { max-width: 100%; max-height: 60px; object-fit: contain; }
+            .brand-text { font-size: 24pt; font-weight: bold; color: #1f2f6b; }
+            .separator { width: 2px; height: 50px; background-color: #cfcfcf; margin: 0 25px; }
+            .title-ficha { font-size: 20pt; font-weight: bold; color: #1f2f6b; letter-spacing: 2px; }
+            
+            /* La imagen toma el espacio sobrante (flex: 1) para achicarse si la tabla es grande */
+            .img-wrap { flex: 1; min-height: 150px; width: 100%; display: flex; align-items: center; justify-content: center; border: 1px solid #d7d7d7; border-radius: 10px; margin-bottom: 20px; background: #fff; padding: 15px; box-sizing: border-box; overflow: hidden; }
+            .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+            
+            .title-sec { display: flex; flex-shrink: 0; margin-bottom: 20px; align-items: stretch; }
+            .green-accent { width: 6px; background-color: #1c9f4b; margin-right: 20px; border-radius: 3px; }
+            .prod-modelo { font-size: 28pt; font-weight: bold; color: #1f2f6b; line-height: 1.1; margin: 0; }
+            .prod-subcat { font-size: 12pt; font-weight: bold; color: #1c9f4b; margin-top: 5px; }
+            
+            /* Tabla con anchos fijos y salto de línea para evitar solapamiento */
+            .specs { width: 100%; border-collapse: collapse; margin-top: 0; flex-shrink: 0; table-layout: fixed; }
+            .specs-head { background-color: #1f2f6b; color: white; padding: 8px 16px; font-size: 11pt; font-weight: bold; }
+            .specs td { padding: 8px 16px; border: 1px solid #e7e7e7; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
+            .specs tr:nth-child(even) { background-color: #f7f7f7; }
+            .spec-name { font-size: 10pt; font-weight: bold; color: #4f5963; width: 40%; text-transform: uppercase; padding-right: 15px; }
+            .spec-val { font-size: 11pt; color: #1A1A1A; }
+            
+            .footer { position: fixed; bottom: 0; left: 0; right: 0; height: 25px; background-color: #1f2f6b; }
+          </style>
+        </head>
+        <body>
+          <div class="page">
+            <div class="header">
+              <div class="brand">
+                <img src="\${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class=\\'brand-text\\'>\${modalProd?.marca || ''}</span>'" />
+              </div>
+              <div class="separator"></div>
+              <div class="title-ficha">FICHA TÉCNICA</div>
+            </div>
+            
+            <div class="img-wrap">
+              <img id="rawImg" src="\${base64Img}" style="display:none;" />
+              <img id="prodImg" src="" class="prod-img" />
+            </div>
+            
+            <div class="title-sec">
+              <div class="green-accent"></div>
+              <div>
+                <h1 class="prod-modelo">\${modalProd?.modelo || ''}</h1>
+                <div class="prod-subcat">\${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
+              </div>
+            </div>
+            
+            \${modalProd?.specs && modalProd.specs.length > 0 ? \`
+            <table class="specs">
+              <thead>
+                <tr><td colspan="2" class="specs-head">ESPECIFICACIONES TÉCNICAS</td></tr>
+              </thead>
+              <tbody>
+                \${modalProd.specs.map(s => \`
+                  <tr>
+                    <td class="spec-name">\${s[0]}</td>
+                    <td class="spec-val">\${s[1]}</td>
+                  </tr>
+                \`).join('')}
+              </tbody>
+            </table>
+            \` : ''}
+            
+            <div class="footer"></div>
+          </div>
+          
+          <script>
+            // Lógica idéntica al HTML: Recortar el lienzo blanco excedente
+            function getCroppedImageBase64(img) {
+              const temp = document.createElement("canvas");
+              const tctx = temp.getContext("2d", { willReadFrequently: true });
+              temp.width = img.naturalWidth || img.width || 800;
+              temp.height = img.naturalHeight || img.height || 800;
+              tctx.drawImage(img, 0, 0);
+
+              const imgData = tctx.getImageData(0, 0, temp.width, temp.height);
+              const data = imgData.data;
+              const width = imgData.width;
+              const height = imgData.height;
+
+              let top = height, left = width, right = -1, bottom = -1;
+
+              for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                  const i = (y * width + x) * 4;
+                  const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+
+                  const isWhiteLike = a <= 10 || (r >= 245 && g >= 245 && b >= 245);
+
+                  if (!isWhiteLike) {
+                    if (x < left) left = x;
+                    if (x > right) right = x;
+                    if (y < top) top = y;
+                    if (y > bottom) bottom = y;
+                  }
+                }
+              }
+
+              if (right < left || bottom < top) return img.src; // Si está todo blanco o vacío
+
+              const pad = 10;
+              left = Math.max(0, left - pad);
+              top = Math.max(0, top - pad);
+              right = Math.min(width - 1, right + pad);
+              bottom = Math.min(height - 1, bottom + pad);
+
+              const cropW = right - left + 1;
+              const cropH = bottom - top + 1;
+
+              const out = document.createElement("canvas");
+              out.width = cropW;
+              out.height = cropH;
+              const octx = out.getContext("2d");
+              octx.drawImage(temp, left, top, cropW, cropH, 0, 0, cropW, cropH);
+
+              return out.toDataURL("image/jpeg", 0.95);
+            }
+
+            window.onload = function() {
+              const rawImg = document.getElementById("rawImg");
+              const prodImg = document.getElementById("prodImg");
+              if (rawImg.src && rawImg.src.startsWith("data:image")) {
+                prodImg.src = getCroppedImageBase64(rawImg);
+              }
+            };
+          </script>
+        </body>
+        </html>
+      \`;
+
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      
+      await Sharing.shareAsync(uri, {
+        dialogTitle: \`Ficha \${modalProd?.modelo}\`,
+        mimeType: 'application/pdf',
+        UTI: 'com.adobe.pdf'
+      });
+
+    } catch (e) {
+      console.log('Error generando PDF:', e);
+      Alert.alert('Error', 'No se pudo generar el PDF corporativo.');
     } finally {
-      setAbriendoFicha(false);
+      setGenerandoPdf(false);
+    }
+  }
+
+  // ─── COMPARTIR IMAGEN ─────────────────────────────────────────────
+  async function compartirImagen() {
+    if (!fichaRef.current) return;
+    try {
+      setCompartiendo(true);
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('Error', 'Compartir no está disponible en este dispositivo');
+        return;
+      }
+      
+      const uri = await captureRef(fichaRef, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile'
+      });
+      
+      await Sharing.shareAsync(uri, {
+        dialogTitle: `Compartir ficha - ${modalProd?.modelo}`,
+      });
+    } catch (e) {
+      console.log('Error al compartir:', e);
+      Alert.alert('Error', 'No se pudo generar la imagen para compartir.');
+    } finally {
+      setCompartiendo(false);
     }
   }
 
@@ -231,7 +422,7 @@ export default function ProductosScreen({ navigation }) {
     <TouchableOpacity
       style={[styles.card, { width: cardW }]}
       activeOpacity={0.85}
-      onPress={() => { setModalProd(item); setFichaNoDisp(false); }}
+      onPress={() => setModalProd(item)}
     >
       <View style={[styles.cardImg, { height: cardW * 0.85 }]}>
         <Image source={{ uri: item.imagen }} style={styles.cardImgI} resizeMode="contain" />
@@ -254,13 +445,29 @@ export default function ProductosScreen({ navigation }) {
 
       {/* Topbar */}
       <View style={styles.topbar}>
-        <LottieView
-          source={require('../../assets/iso.json')}
-          autoPlay
-          loop={true}
-          style={{ width: 110, height: 40 }}
-          resizeMode="contain"
-        />
+        <View style={styles.topbarHeader}>
+          <LottieView
+            source={require('../../assets/iso.json')}
+            autoPlay
+            loop={true}
+            style={styles.logoAnimado}
+            resizeMode="contain"
+          />
+          <View style={styles.topActions}>
+            <TouchableOpacity onPress={() => {
+              if (filtroMarca || busqueda) { setFiltroMarca(''); setBusqueda(''); }
+              else navigation.goBack();
+            }}>
+              <Text style={styles.btnVolver}>
+                {(filtroMarca || busqueda) ? '← Volver a marcas' : '← Volver'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => supabase.auth.signOut()}>
+              <Text style={styles.btnSalir}>Cerrar sesión</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.searchWrap}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
@@ -275,19 +482,6 @@ export default function ProductosScreen({ navigation }) {
               <Text style={styles.clearBtn}>✕</Text>
             </TouchableOpacity>
           ) : null}
-        </View>
-        <View style={styles.topActions}>
-          <TouchableOpacity onPress={() => {
-            if (filtroMarca || busqueda) { setFiltroMarca(''); setBusqueda(''); }
-            else navigation.goBack();
-          }}>
-            <Text style={styles.btnVolver}>
-              {(filtroMarca || busqueda) ? '← Volver a marcas' : '← Volver'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => supabase.auth.signOut()}>
-            <Text style={styles.btnSalir}>Cerrar sesión</Text>
-          </TouchableOpacity>
         </View>
       </View>
       <View style={styles.topBorder} />
@@ -378,51 +572,125 @@ export default function ProductosScreen({ navigation }) {
                 <Text style={styles.modalClose}>✕ Cerrar</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              <Image
-                source={{ uri: modalProd?.imagen }}
-                style={styles.modalImg}
-                resizeMode="contain"
-              />
-              <View style={styles.greenBar} />
-              <Text style={styles.modalMarca}>{modalProd?.marca}</Text>
-              <Text style={styles.modalModelo}>{modalProd?.modelo}</Text>
-              <Text style={styles.modalSubcat}>{modalProd?.subcategoria}</Text>
+              {/* TABS DE NAVEGACIÓN */}
+              <View style={styles.tabsWrap}>
+                <TouchableOpacity onPress={() => setActiveTab('FICHA')} style={[styles.tabBtn, activeTab === 'FICHA' && styles.tabBtnActive]}>
+                  <Text style={[styles.tabText, activeTab === 'FICHA' && styles.tabTextActive]}>📝 Ficha</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setActiveTab('ASISTENTE')} style={[styles.tabBtn, activeTab === 'ASISTENTE' && styles.tabBtnActive]}>
+                  <Text style={[styles.tabText, activeTab === 'ASISTENTE' && styles.tabTextActive]}>🤖 Asistente</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setActiveTab('SIMILARES')} style={[styles.tabBtn, activeTab === 'SIMILARES' && styles.tabBtnActive]}>
+                  <Text style={[styles.tabText, activeTab === 'SIMILARES' && styles.tabTextActive]}>🔄 Similares</Text>
+                </TouchableOpacity>
+              </View>
 
-              {/* Botón Ver Ficha Técnica */}
-              <TouchableOpacity
-                style={[styles.fichaBtn, abriendoFicha && styles.fichaBtnDis]}
-                onPress={() => abrirFicha(modalProd?.modelo)}
-                disabled={abriendoFicha}
-                activeOpacity={0.8}
-              >
-                {abriendoFicha ? (
-                  <ActivityIndicator size="small" color={COLORS.white} />
-                ) : (
-                  <Text style={styles.fichaBtnText}>📄  Ver Ficha Técnica PDF</Text>
-                )}
-              </TouchableOpacity>
+              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                
+                {/* PESTAÑA FICHA TÉCNICA */}
+                {activeTab === 'FICHA' && (
+                  <View>
+                    <View ref={fichaRef} collapsable={false} style={{ backgroundColor: COLORS.white, paddingBottom: 10 }}>
+                      <Image
+                        source={{ uri: modalProd?.imagen }}
+                        style={styles.modalImg}
+                        resizeMode="contain"
+                      />
+                      
+                      <View style={styles.titleSec}>
+                        <View style={styles.greenAccent} />
+                        <View style={{flex: 1}}>
+                          <Text style={styles.modalMarca}>{modalProd?.marca}</Text>
+                          <Text style={styles.modalModelo}>{modalProd?.modelo}</Text>
+                          <Text style={styles.modalSubcat}>{modalProd?.subcategoria}</Text>
+                        </View>
+                      </View>
 
-              {fichaNoDisp && (
-                <Text style={styles.fichaMsgError}>
-                  Ficha técnica no disponible para este modelo.
-                </Text>
-              )}
-
-              {modalProd?.specs?.length > 0 && (
-                <View style={styles.specsWrap}>
-                  <View style={styles.specsHead}>
-                    <Text style={styles.specsHeadText}>Especificaciones técnicas</Text>
-                  </View>
-                  {modalProd.specs.map(([n, v], i) => (
-                    <View key={i} style={[styles.specRow, i % 2 === 1 && styles.specRowAlt]}>
-                      <Text style={styles.specName}>{n}</Text>
-                      <Text style={styles.specVal}>{v}</Text>
+                      {modalProd?.specs?.length > 0 && (
+                        <View style={styles.specsWrap}>
+                          <View style={styles.specsHead}>
+                            <Text style={styles.specsHeadText}>Especificaciones técnicas</Text>
+                          </View>
+                          {modalProd.specs.map(([n, v], i) => (
+                            <View key={i} style={[styles.specRow, i % 2 === 1 && styles.specRowAlt]}>
+                              <Text style={styles.specName}>{n}</Text>
+                              <Text style={styles.specVal}>{v}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
                     </View>
-                  ))}
-                </View>
-              )}
-            </ScrollView>
+
+                    {/* Botones de acción (PDF e Imagen) */}
+                    <View style={styles.modalActionsWrap}>
+                      <TouchableOpacity
+                        style={[styles.fichaBtn, generandoPdf && styles.fichaBtnDis, {flex: 1, marginBottom: 0}]}
+                        onPress={compartirPdf}
+                        disabled={generandoPdf || compartiendo}
+                        activeOpacity={0.8}
+                      >
+                        {generandoPdf ? (
+                          <ActivityIndicator size="small" color={COLORS.white} />
+                        ) : (
+                          <Text style={styles.fichaBtnText}>📄 Compartir PDF</Text>
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.fichaBtn, {flex: 1, marginBottom: 0, backgroundColor: COLORS.green}]}
+                        onPress={compartirImagen}
+                        disabled={compartiendo || generandoPdf}
+                        activeOpacity={0.8}
+                      >
+                        {compartiendo ? (
+                          <ActivityIndicator size="small" color={COLORS.white} />
+                        ) : (
+                          <Text style={styles.fichaBtnText}>🖼️ Compartir Ficha</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {/* PESTAÑA ASISTENTE IA */}
+                {activeTab === 'ASISTENTE' && (
+                  <View style={styles.tabContent}>
+                    <View style={styles.aiHeader}>
+                      <Text style={styles.aiTitle}>Inteligencia de Ventas (Gemini)</Text>
+                    </View>
+                    {loadingAi ? (
+                      <ActivityIndicator size="large" color={COLORS.navy} style={{marginTop: 20}} />
+                    ) : (
+                      <Text style={styles.aiBodyText}>{aiData}</Text>
+                    )}
+                    {aiData && aiData !== 'Texto inteligente en preparación para este producto.' && (
+                      <TouchableOpacity style={styles.copyBtn}>
+                        <Text style={styles.copyBtnText}>📋 Copiar para WhatsApp</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* PESTAÑA PRODUCTOS SIMILARES */}
+                {activeTab === 'SIMILARES' && (
+                  <View style={styles.tabContent}>
+                    {productosSimilares.length === 0 ? (
+                      <Text style={styles.aiBodyText}>No hay productos similares.</Text>
+                    ) : (
+                      productosSimilares.map((sim) => (
+                        <TouchableOpacity key={sim.modelo} style={styles.simCard} onPress={() => handleOpenModal(sim)}>
+                          <Image source={{ uri: sim.imagen }} style={styles.simImg} resizeMode="contain" />
+                          <View style={styles.simInfo}>
+                            <Text style={styles.simMarca}>{sim.marca}</Text>
+                            <Text style={styles.simModelo} numberOfLines={2}>{sim.modelo}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </View>
+                )}
+
+              </ScrollView>
           </View>
         </View>
       </Modal>
@@ -435,13 +703,18 @@ const styles = StyleSheet.create({
 
   topbar: {
     backgroundColor: COLORS.white,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44,
+    gap: 12,
+  },
+  topbarHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
   },
   topBorder: { height: 1, backgroundColor: COLORS.border },
-  logo: { width: 100, height: 36 },
+  logoAnimado: { width: 100, height: 40 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -455,7 +728,7 @@ const styles = StyleSheet.create({
   searchIcon: { fontSize: 13, marginRight: 8 },
   searchInput: { flex: 1, fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy },
   clearBtn: { color: COLORS.gray4, fontSize: 16, padding: 4 },
-  topActions: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   btnVolver: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.navy, textDecorationLine: 'underline' },
   btnSalir:  { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, textDecorationLine: 'underline' },
 
@@ -590,17 +863,25 @@ const styles = StyleSheet.create({
   },
 
   // Specs
-  specsWrap: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, overflow: 'hidden', marginBottom: 30, marginTop: 10 },
+  specsWrap: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, overflow: 'hidden', marginTop: 10 },
   specsHead: { backgroundColor: COLORS.navy, padding: 10 },
   specsHeadText: {
     fontFamily: FONTS.bodySemi, fontSize: 12, fontWeight: '700',
     letterSpacing: 0.8, textTransform: 'uppercase', color: COLORS.white,
   },
-  specRow: { flexDirection: 'row', padding: 10, borderTopWidth: 1, borderTopColor: '#edf1f5' },
+  specRow: { flexDirection: 'row', padding: 12, borderTopWidth: 1, borderTopColor: '#edf1f5' },
   specRowAlt: { backgroundColor: '#fafbfc' },
   specName: {
     fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4,
-    fontWeight: '700', width: '35%', textTransform: 'uppercase', letterSpacing: 0.3,
+    fontWeight: '700', width: '45%', textTransform: 'uppercase', letterSpacing: 0.3,
+    paddingRight: 10,
   },
-  specVal: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray1, flex: 1 },
+  specVal: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray1, flex: 1, flexWrap: 'wrap' },
+  
+  modalActionsWrap: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 20,
+    marginBottom: 30,
+  },
 });

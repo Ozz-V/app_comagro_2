@@ -111,24 +111,25 @@ export default function App() {
         const { data, error } = await supabase
           .from('version_apk')
           .select('*')
-          .eq('id', 1)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .single();
         
-        if (data && data.version) {
+        if (data && data.version_name) {
           const currentVersion = Constants.expoConfig?.version || '1.0.0';
-          if (data.version !== currentVersion) {
+          if (data.version_name !== currentVersion) {
             Alert.alert(
               'Actualización Disponible',
-              'Hay una nueva versión de Comagro Catálogo. Por favor actualizá para continuar.',
+              data.release_notes || 'Hay una nueva versión de Comagro Catálogo. Por favor actualizá para continuar.',
               [
                 { 
                   text: 'Descargar Actualización', 
                   onPress: () => {
-                    Linking.openURL(data.link_descarga);
+                    Linking.openURL(data.download_url);
                   } 
                 }
               ],
-              { cancelable: false } // Obligatorio actualizar
+              { cancelable: !data.is_mandatory }
             );
           }
         }

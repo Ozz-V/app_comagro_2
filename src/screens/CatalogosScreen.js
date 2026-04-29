@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, Image, SafeAreaView, StatusBar,
-  ActivityIndicator, useWindowDimensions, RefreshControl,
+  ActivityIndicator, useWindowDimensions, RefreshControl, Platform,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -142,7 +142,7 @@ export default function CatalogosScreen({ navigation }) {
           source={require('../../assets/iso.json')}
           autoPlay
           loop={true}
-          style={{ width: 110, height: 40 }}
+          style={styles.logoAnimado}
           resizeMode="contain"
         />
         <View style={styles.topActions}>
@@ -206,16 +206,18 @@ const styles = StyleSheet.create({
   topbar: {
     backgroundColor: COLORS.white,
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingBottom: 14,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
   },
   topBorder: { height: 1, backgroundColor: COLORS.border },
-  logo: { width: 110, height: 40 },
+  logoAnimado: { width: 100, height: 40 },
   topActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
+    alignItems: 'center',
+    gap: 16,
   },
   btnVolver: {
     fontFamily: FONTS.body, fontSize: 12,

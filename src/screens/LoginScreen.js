@@ -4,6 +4,7 @@ import {
   StyleSheet, Image, KeyboardAvoidingView,
   Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
+import LottieView from 'lottie-react-native';
 import * as Linking from 'expo-linking';
 import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
@@ -12,6 +13,8 @@ const LOGO = { uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_C
 
 export default function LoginScreen() {
   const [email, setEmail]   = useState('');
+  const [code, setCode]     = useState('');
+  const [step, setStep]     = useState(1); // 1 = correo, 2 = código
   const [status, setStatus] = useState({ msg: '', color: COLORS.navy });
   const [loading, setLoading] = useState(false);
 
@@ -47,14 +50,37 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (error) {
-      setStatus({ msg: 'No fue posible enviar el enlace. Intentá de nuevo.', color: 'red' });
+      setStatus({ msg: 'No fue posible enviar el código. Intentá de nuevo.', color: 'red' });
       return;
     }
 
+    setStep(2);
     setStatus({
-      msg: 'Revisá tu correo corporativo y abrí el enlace de acceso.',
+      msg: 'Te enviamos un código de 6 dígitos al correo. Ingresalo abajo.',
       color: COLORS.green,
     });
+  }
+
+  async function verificar() {
+    if (!code || code.length < 6) {
+      setStatus({ msg: 'Ingresá el código de 6 dígitos.', color: 'red' });
+      return;
+    }
+
+    setLoading(true);
+    setStatus({ msg: 'Verificando…', color: COLORS.navy });
+
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: code.trim(),
+      type: 'email'
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setStatus({ msg: 'Código incorrecto o expirado.', color: 'red' });
+    }
   }
 
   return (
@@ -66,8 +92,14 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Logo */}
-        <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+        {/* Logo Animado Lottie */}
+        <LottieView
+          source={require('../../assets/iso.json')}
+          autoPlay
+          loop={true}
+          style={{ width: 160, height: 160, marginBottom: 10 }}
+          resizeMode="contain"
+        />
 
         {/* Título */}
         <Text style={styles.title}>Catálogos digitales{'\n'}Fichas técnicas</Text>
@@ -79,34 +111,57 @@ export default function LoginScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Acceso</Text>
           <Text style={styles.cardDesc}>
-            Escribí tu correo{' '}
-            <Text style={styles.bold}>@comagro.com.py</Text>
-            {' '}y te enviaremos un enlace para ingresar.
+            {step === 1 
+              ? <>Escribí tu correo <Text style={styles.bold}>@comagro.com.py</Text> y te enviaremos un código de acceso.</>
+              : <>Ingresá el código numérico de 6 dígitos que enviamos a <Text style={styles.bold}>{email}</Text></>
+            }
           </Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="correo@comagro.com.py"
-            placeholderTextColor={COLORS.gray4}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!loading}
-          />
+          {step === 1 ? (
+            <TextInput
+              style={styles.input}
+              placeholder="correo@comagro.com.py"
+              placeholderTextColor={COLORS.gray4}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+            />
+          ) : (
+            <TextInput
+              style={styles.inputCode}
+              placeholder="000000"
+              placeholderTextColor={COLORS.gray4}
+              value={code}
+              onChangeText={setCode}
+              keyboardType="number-pad"
+              maxLength={6}
+              editable={!loading}
+              textAlign="center"
+            />
+          )}
 
           <TouchableOpacity
             style={[styles.btn, loading && styles.btnDisabled]}
-            onPress={enviar}
+            onPress={step === 1 ? enviar : verificar}
             disabled={loading}
             activeOpacity={0.8}
           >
             {loading
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Text style={styles.btnText}>Enviar enlace de acceso</Text>
+              : <Text style={styles.btnText}>{step === 1 ? 'Enviar código' : 'Verificar e Ingresar'}</Text>
             }
           </TouchableOpacity>
+
+          {step === 2 && !loading && (
+            <TouchableOpacity onPress={() => { setStep(1); setCode(''); setStatus({msg:'', color: COLORS.navy}); }} style={{marginTop: 14}}>
+              <Text style={{textAlign: 'center', color: COLORS.navy, textDecorationLine: 'underline', fontSize: 13, fontFamily: FONTS.body}}>
+                Usar otro correo
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {status.msg ? (
             <Text style={[styles.statusMsg, { color: status.color }]}>
@@ -200,6 +255,19 @@ const styles = StyleSheet.create({
     color: COLORS.navy,
     marginBottom: 10,
     backgroundColor: COLORS.white,
+  },
+  inputCode: {
+    width: '100%',
+    height: 54,
+    borderWidth: 1,
+    borderColor: COLORS.inputBorder,
+    fontFamily: FONTS.heading,
+    fontSize: 24,
+    letterSpacing: 4,
+    color: COLORS.navy,
+    marginBottom: 10,
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
   },
 
   btn: {
