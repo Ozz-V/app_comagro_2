@@ -11,8 +11,10 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { captureRef } from 'react-native-view-shot';
+import * as FileSystem from 'expo-file-system';
 import { supabase, EDGE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
+import SvgIcon from '../components/SvgIcon';
 
 const LOGO      = { uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png' };
 const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
@@ -526,7 +528,7 @@ export default function ProductosScreen({ navigation }) {
       
       // Renombrar a .jpg para que WhatsApp lo trate como imagen
       const jpgUri = uri.replace('.pdf', '.jpg');
-      await require('expo-file-system').moveAsync({ from: uri, to: jpgUri });
+      await FileSystem.moveAsync({ from: uri, to: jpgUri });
       
       await Sharing.shareAsync(jpgUri, {
         dialogTitle: `Ficha ${modalProd?.modelo}`,
@@ -624,7 +626,7 @@ export default function ProductosScreen({ navigation }) {
         </View>
 
         <View style={styles.searchWrap}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <SvgIcon name="buscar" size={18} color={COLORS.gray4} />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar producto…"
@@ -730,13 +732,13 @@ export default function ProductosScreen({ navigation }) {
               {/* TABS DE NAVEGACIÓN */}
               <View style={styles.tabsWrap}>
                 <TouchableOpacity onPress={() => setActiveTab('FICHA')} style={[styles.tabBtn, activeTab === 'FICHA' && styles.tabBtnActive]}>
-                  <Text style={[styles.tabText, activeTab === 'FICHA' && styles.tabTextActive]}>📝 Ficha</Text>
+                  <View style={{flexDirection:'row',alignItems:'center',gap:6}}><SvgIcon name="doc4" size={16} color={activeTab==='FICHA' ? COLORS.navy : COLORS.gray4} /><Text style={[styles.tabText, activeTab === 'FICHA' && styles.tabTextActive]}>Ficha</Text></View>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setActiveTab('ASISTENTE')} style={[styles.tabBtn, activeTab === 'ASISTENTE' && styles.tabBtnActive]}>
-                  <Text style={[styles.tabText, activeTab === 'ASISTENTE' && styles.tabTextActive]}>🤖 Asistente</Text>
+                  <View style={{flexDirection:'row',alignItems:'center',gap:6}}><SvgIcon name="agenteIA" size={16} color={activeTab==='ASISTENTE' ? COLORS.navy : COLORS.gray4} /><Text style={[styles.tabText, activeTab === 'ASISTENTE' && styles.tabTextActive]}>Asistente</Text></View>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setActiveTab('SIMILARES')} style={[styles.tabBtn, activeTab === 'SIMILARES' && styles.tabBtnActive]}>
-                  <Text style={[styles.tabText, activeTab === 'SIMILARES' && styles.tabTextActive]}>🔄 Similares</Text>
+                  <View style={{flexDirection:'row',alignItems:'center',gap:6}}><SvgIcon name="actualizar" size={16} color={activeTab==='SIMILARES' ? COLORS.navy : COLORS.gray4} /><Text style={[styles.tabText, activeTab === 'SIMILARES' && styles.tabTextActive]}>Similares</Text></View>
                 </TouchableOpacity>
               </View>
 
@@ -787,7 +789,7 @@ export default function ProductosScreen({ navigation }) {
                         {generandoPdf ? (
                           <ActivityIndicator size="small" color={COLORS.white} />
                         ) : (
-                          <Text style={styles.fichaBtnText}>📄 Compartir PDF</Text>
+                          <View style={{flexDirection:'row',alignItems:'center',gap:8}}><SvgIcon name="descarga" size={16} color="#fff" /><Text style={styles.fichaBtnText}>Compartir PDF</Text></View>
                         )}
                       </TouchableOpacity>
 
@@ -800,7 +802,7 @@ export default function ProductosScreen({ navigation }) {
                         {compartiendo ? (
                           <ActivityIndicator size="small" color={COLORS.white} />
                         ) : (
-                          <Text style={styles.fichaBtnText}>🖼️ Compartir Ficha</Text>
+                          <View style={{flexDirection:'row',alignItems:'center',gap:8}}><SvgIcon name="share" size={16} color="#fff" /><Text style={styles.fichaBtnText}>Compartir Imagen</Text></View>
                         )}
                       </TouchableOpacity>
                     </View>
@@ -820,7 +822,7 @@ export default function ProductosScreen({ navigation }) {
                     )}
                     {aiData && aiData !== 'Texto inteligente en preparación para este producto.' && (
                       <TouchableOpacity style={styles.copyBtn}>
-                        <Text style={styles.copyBtnText}>📋 Copiar para WhatsApp</Text>
+                        <View style={{flexDirection:'row',alignItems:'center',gap:8}}><SvgIcon name="share" size={16} color={COLORS.navy} /><Text style={styles.copyBtnText}>Copiar para WhatsApp</Text></View>
                       </TouchableOpacity>
                     )}
                   </View>
