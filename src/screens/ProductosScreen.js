@@ -52,6 +52,7 @@ export default function ProductosScreen({ navigation }) {
   const [marcas, setMarcas]           = useState([]);
   const [filtroMarca, setFiltroMarca] = useState('');
   const [busqueda, setBusqueda]       = useState('');
+  const [modalProd, setModalProd]     = useState(null);
   // Estado de generación
   const [generandoPdf, setGenerandoPdf]   = useState(false);
   const [compartiendo, setCompartiendo]   = useState(false);
@@ -60,6 +61,21 @@ export default function ProductosScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [aiData, setAiData]       = useState(null);
   const [loadingAi, setLoadingAi] = useState(false);
+
+  // Productos similares (misma subcategoría, diferente modelo)
+  const productosSimilares = useMemo(() => {
+    if (!modalProd) return [];
+    return allProducts
+      .filter(p => p.subcategoria === modalProd.subcategoria && p.modelo !== modalProd.modelo)
+      .slice(0, 8);
+  }, [modalProd, allProducts]);
+
+  // Abrir otro producto desde la pestaña Similares
+  function handleOpenModal(prod) {
+    setActiveTab('FICHA');
+    setAiData(null);
+    setModalProd(prod);
+  }
 
   const fichaRef = useRef(null);
 
@@ -422,7 +438,7 @@ export default function ProductosScreen({ navigation }) {
     <TouchableOpacity
       style={[styles.card, { width: cardW }]}
       activeOpacity={0.85}
-      onPress={() => setModalProd(item)}
+      onPress={() => handleOpenModal(item)}
     >
       <View style={[styles.cardImg, { height: cardW * 0.85 }]}>
         <Image source={{ uri: item.imagen }} style={styles.cardImgI} resizeMode="contain" />
@@ -884,4 +900,26 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 30,
   },
+
+  // Tabs
+  tabsWrap: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: '#edf1f5', marginBottom: 0 },
+  tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center' },
+  tabBtnActive: { borderBottomWidth: 3, borderBottomColor: COLORS.navy },
+  tabText: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4 },
+  tabTextActive: { color: COLORS.navy, fontWeight: '700' },
+  tabContent: { padding: 16 },
+
+  // Asistente IA
+  aiHeader: { marginBottom: 12 },
+  aiTitle: { fontFamily: FONTS.bodySemi, fontSize: 16, fontWeight: '700', color: COLORS.navy },
+  aiBodyText: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray1, lineHeight: 22 },
+  copyBtn: { backgroundColor: COLORS.green, paddingVertical: 12, alignItems: 'center', borderRadius: 8, marginTop: 16 },
+  copyBtnText: { fontFamily: FONTS.bodySemi, fontSize: 14, color: COLORS.white, fontWeight: '700' },
+
+  // Productos similares
+  simCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#edf1f5' },
+  simImg: { width: 60, height: 60, borderRadius: 6, marginRight: 12, backgroundColor: '#f7f8fa' },
+  simInfo: { flex: 1 },
+  simMarca: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4, fontWeight: '700', textTransform: 'uppercase' },
+  simModelo: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray1, marginTop: 2 },
 });
