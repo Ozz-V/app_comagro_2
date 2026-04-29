@@ -181,7 +181,7 @@ export default function ProductosScreen({ navigation }) {
       setGenerandoPdf(true);
       
       const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
-      const logoUrl = \`https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/\${marcaSlug}.jpg\`;
+      const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg`;
       
       // 1. Obtener la imagen original como Base64 para poder recortarla sincrónicamente en el HTML
       let base64Img = '';
