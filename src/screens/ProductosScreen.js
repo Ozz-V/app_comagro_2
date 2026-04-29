@@ -80,11 +80,29 @@ export default function ProductosScreen({ navigation }) {
       .slice(0, 8);
   }, [modalProd, allProducts]);
 
+  // ─── ANALYTICS: registrar acciones en Supabase ──────────────────
+  async function trackAnalytics(prod, action) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase.from('producto_analytics').insert({
+        user_email: user.email,
+        sku: prod?.modelo || '',
+        modelo: prod?.modelo || '',
+        marca: prod?.marca || '',
+        action: action,
+      });
+    } catch (e) {
+      // No bloquear UX por error de analytics
+    }
+  }
+
   // Abrir otro producto desde la pestaña Similares
   function handleOpenModal(prod) {
     setActiveTab('FICHA');
     setAiData(null);
     setModalProd(prod);
+    trackAnalytics(prod, 'view');
   }
 
   // Cargar datos de IA cuando se abre la pestaña Asistente
@@ -263,8 +281,8 @@ export default function ProductosScreen({ navigation }) {
           .separator { width: 2px; height: 50px; background-color: #cfcfcf; margin: 0 25px; }
           .title-ficha { font-size: 20pt; font-weight: bold; color: #1f2f6b; letter-spacing: 2px; }
           
-          /* IMAGEN - flex:1 se achica si las specs son muchas */
-          .img-wrap { flex: 1; min-height: 120px; max-height: 320px; width: 100%; display: flex; align-items: center; justify-content: center; border: 1px solid #d7d7d7; border-radius: 8px; background: #fff; padding: 15px; overflow: hidden; margin-bottom: 12px; }
+          /* IMAGEN - altura fija, nunca desborda */
+          .img-wrap { height: 250px; width: 100%; display: flex; align-items: center; justify-content: center; border: 1px solid #d7d7d7; border-radius: 8px; background: #fff; padding: 15px; overflow: hidden; margin-bottom: 12px; }
           .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
           
           /* TÍTULO PRODUCTO */
@@ -396,6 +414,7 @@ export default function ProductosScreen({ navigation }) {
         mimeType: 'application/pdf',
         UTI: 'com.adobe.pdf'
       });
+      trackAnalytics(modalProd, 'share_pdf');
 
     } catch (e) {
       console.log('Error generando PDF:', e);
@@ -405,7 +424,7 @@ export default function ProductosScreen({ navigation }) {
     }
   }
 
-  // ─── COMPARTIR IMAGEN (genera el mismo PDF corporativo) ──
+  // ─── COMPARTIR COMO IMAGEN (genera HTML compacto tipo tarjeta) ──
   async function compartirImagen() {
     try {
       setCompartiendo(true);
@@ -420,16 +439,103 @@ export default function ProductosScreen({ navigation }) {
       const base64Img = await fetchImageBase64(modalProd?.imagen);
       const specs = modalProd?.specs || [];
       
-      const htmlContent = generarHtmlFicha(specs, base64Img, logoUrl);
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      // HTML compacto tipo tarjeta (sin @page A4, renderiza al tamaño del contenido)
+      const cardHtml = `
+        <!DOCTYPE html>
+        <html><head><meta charset="UTF-8">
+        <style>
+          @page { margin: 0; size: 600px 900px; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { width: 600px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; -webkit-print-color-adjust: exact; }
+          .card { width: 600px; padding: 25px 30px 20px; }
+          .header { display: flex; align-items: center; border-bottom: 4px solid #1c9f4b; padding-bottom: 8px; margin-bottom: 14px; }
+          .brand-logo { max-width: 160px; max-height: 50px; object-fit: contain; }
+          .brand-text { font-size: 20pt; font-weight: bold; color: #1f2f6b; }
+          .sep { width: 2px; height: 35px; background: #ccc; margin: 0 16px; }
+          .title-f { font-size: 16pt; font-weight: bold; color: #1f2f6b; letter-spacing: 1px; }
+          .img-area { width: 100%; height: 220px; display: flex; align-items: center; justify-content: center; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; margin-bottom: 10px; background: #fff; }
+          .img-area img { max-width: 100%; max-height: 100%; object-fit: contain; }
+          .prod-info { display: flex; margin-bottom: 12px; }
+          .accent { width: 5px; background: #1c9f4b; margin-right: 14px; border-radius: 3px; }
+          .marca { font-size: 10pt; font-weight: bold; color: #1c9f4b; text-transform: uppercase; }
+          .modelo { font-size: 22pt; font-weight: bold; color: #1f2f6b; line-height: 1.1; margin-top: 2px; }
+          .subcat { font-size: 10pt; color: #6f7b87; text-transform: uppercase; margin-top: 2px; }
+          table { width: 100%; border-collapse: collapse; }
+          .sh { background: #1f2f6b; color: #fff; padding: 6px 12px; font-size: 9pt; font-weight: bold; }
+          td { padding: 5px 12px; border-bottom: 1px solid #eee; font-size: 9pt; }
+          tr.a { background: #f7f8fa; }
+          .sn { font-weight: bold; color: #4f5963; width: 38%; text-transform: uppercase; }
+          .footer { height: 14px; background: #1f2f6b; margin-top: 10px; }
+        </style></head>
+        <body>
+          <div class="card">
+            <div class="header">
+              <img src="${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class=brand-text>${modalProd?.marca || ''}</span>'" />
+              <div class="sep"></div>
+              <div class="title-f">FICHA TÉCNICA</div>
+            </div>
+            <div class="img-area">
+              <img id="prodImg" src="${base64Img}" />
+            </div>
+            <div class="prod-info">
+              <div class="accent"></div>
+              <div>
+                <div class="marca">${modalProd?.marca || ''}</div>
+                <div class="modelo">${modalProd?.modelo || ''}</div>
+                <div class="subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
+              </div>
+            </div>
+            ${specs.length > 0 ? `<table>
+              <thead><tr><td colspan="2" class="sh">ESPECIFICACIONES TÉCNICAS</td></tr></thead>
+              <tbody>${specs.map((s, i) => `<tr${i%2===1?' class="a"':''}><td class="sn">${s[0]}</td><td>${s[1]}</td></tr>`).join('')}</tbody>
+            </table>` : ''}
+            <div class="footer"></div>
+          </div>
+          <script>
+            (function() {
+              var img = new Image();
+              img.onload = function() {
+                var tmp = document.createElement('canvas');
+                tmp.width = img.width; tmp.height = img.height;
+                var ctx = tmp.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                try {
+                  var d = ctx.getImageData(0,0,tmp.width,tmp.height).data;
+                  var w=tmp.width, h=tmp.height, t=h, l=w, r=-1, b=-1;
+                  for(var y=0;y<h;y++) for(var x=0;x<w;x++){
+                    var i=(y*w+x)*4;
+                    if(d[i+3]>10&&!(d[i]>=245&&d[i+1]>=245&&d[i+2]>=245)){
+                      if(x<l)l=x;if(x>r)r=x;if(y<t)t=y;if(y>b)b=y;
+                    }
+                  }
+                  if(r<l||b<t)return;
+                  var p=8;l=Math.max(0,l-p);t=Math.max(0,t-p);r=Math.min(w-1,r+p);b=Math.min(h-1,b+p);
+                  var cw=r-l+1,ch=b-t+1,out=document.createElement('canvas');
+                  out.width=cw;out.height=ch;
+                  out.getContext('2d').drawImage(tmp,l,t,cw,ch,0,0,cw,ch);
+                  document.getElementById('prodImg').src=out.toDataURL('image/png');
+                }catch(e){}
+              };
+              img.src='${base64Img}';
+            })();
+          </script>
+        </body></html>
+      `;
       
-      await Sharing.shareAsync(uri, {
-        dialogTitle: `Compartir ficha - ${modalProd?.modelo}`,
-        mimeType: 'application/pdf',
+      const { uri } = await Print.printToFileAsync({ html: cardHtml, width: 600, height: 900 });
+      
+      // Renombrar a .jpg para que WhatsApp lo trate como imagen
+      const jpgUri = uri.replace('.pdf', '.jpg');
+      await require('expo-file-system').moveAsync({ from: uri, to: jpgUri });
+      
+      await Sharing.shareAsync(jpgUri, {
+        dialogTitle: `Ficha ${modalProd?.modelo}`,
+        mimeType: 'image/jpeg',
       });
+      trackAnalytics(modalProd, 'share_image');
     } catch (e) {
-      console.log('Error al compartir:', e);
-      Alert.alert('Error', 'No se pudo generar la ficha para compartir.');
+      console.log('Error al compartir imagen:', e);
+      Alert.alert('Error', 'No se pudo generar la ficha como imagen.');
     } finally {
       setCompartiendo(false);
     }

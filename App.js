@@ -27,6 +27,7 @@ import PortalScreen   from './src/screens/PortalScreen';
 import CatalogosScreen from './src/screens/CatalogosScreen';
 import FichasScreen   from './src/screens/FichasScreen';
 import ProductosScreen from './src/screens/ProductosScreen';
+import ConfigScreen   from './src/screens/ConfigScreen';
 import LottieSplashScreen from './src/screens/LottieSplashScreen';
 
 const Stack = createNativeStackNavigator();
@@ -255,6 +256,7 @@ export default function App() {
               <Stack.Screen name="Catalogos" component={CatalogosScreen} />
               <Stack.Screen name="Fichas"    component={FichasScreen} />
               <Stack.Screen name="Productos" component={ProductosScreen} />
+              <Stack.Screen name="Config"    component={ConfigScreen} />
             </>
           )}
         </Stack.Navigator>
