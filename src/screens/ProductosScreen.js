@@ -77,6 +77,35 @@ export default function ProductosScreen({ navigation }) {
     setModalProd(prod);
   }
 
+  // Cargar datos de IA cuando se abre la pestaña Asistente
+  useEffect(() => {
+    if (activeTab === 'ASISTENTE' && modalProd?.modelo) {
+      fetchAiData(modalProd.modelo);
+    }
+  }, [activeTab, modalProd]);
+
+  async function fetchAiData(sku) {
+    setLoadingAi(true);
+    try {
+      const { data, error } = await supabase
+        .from('productos_ai_data')
+        .select('sales_pitch')
+        .eq('sku', sku)
+        .single();
+      
+      if (data && data.sales_pitch) {
+        setAiData(data.sales_pitch);
+      } else {
+        setAiData('Texto inteligente en preparación para este producto.');
+      }
+    } catch (err) {
+      console.log('Error fetch AI:', err);
+      setAiData('Texto inteligente en preparación para este producto.');
+    } finally {
+      setLoadingAi(false);
+    }
+  }
+
   const fichaRef = useRef(null);
 
   const { width } = useWindowDimensions();
