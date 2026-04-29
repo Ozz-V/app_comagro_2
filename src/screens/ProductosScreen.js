@@ -160,7 +160,7 @@ export default function ProductosScreen({ navigation }) {
   function procesarDatos(rows) {
     const productos = rows.map(row => {
       const imagen = (row['imagen 1'] || '').toString().trim();
-      if (!imagen || !/^https?:\/\//i.test(imagen)) return null;
+      if (!imagen || !/^https?:///i.test(imagen)) return null;
       const marca = (row['Brand'] || row['Marca'] || '').toString().trim().toUpperCase();
       if (!marca) return null;
       const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim();
@@ -180,7 +180,7 @@ export default function ProductosScreen({ navigation }) {
     try {
       setGenerandoPdf(true);
       
-      const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
+      const marcaSlug = modalProd?.marca?.toUpperCase().replace(/s+/g, '_') || '';
       const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg`;
       
       // 1. Obtener la imagen original como Base64 para poder recortarla sincrónicamente en el HTML
@@ -199,7 +199,7 @@ export default function ProductosScreen({ navigation }) {
         }
       }
       
-      const htmlContent = \`
+      const htmlContent = `
         <!DOCTYPE html>
         <html lang="es">
         <head>
@@ -240,40 +240,40 @@ export default function ProductosScreen({ navigation }) {
           <div class="page">
             <div class="header">
               <div class="brand">
-                <img src="\${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class=\\'brand-text\\'>\${modalProd?.marca || ''}</span>'" />
+                <img src="${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class='brand-text'>${modalProd?.marca || ''}</span>'" />
               </div>
               <div class="separator"></div>
               <div class="title-ficha">FICHA TÉCNICA</div>
             </div>
             
             <div class="img-wrap">
-              <img id="rawImg" src="\${base64Img}" style="display:none;" />
+              <img id="rawImg" src="${base64Img}" style="display:none;" />
               <img id="prodImg" src="" class="prod-img" />
             </div>
             
             <div class="title-sec">
               <div class="green-accent"></div>
               <div>
-                <h1 class="prod-modelo">\${modalProd?.modelo || ''}</h1>
-                <div class="prod-subcat">\${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
+                <h1 class="prod-modelo">${modalProd?.modelo || ''}</h1>
+                <div class="prod-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
               </div>
             </div>
             
-            \${modalProd?.specs && modalProd.specs.length > 0 ? \`
+            ${modalProd?.specs && modalProd.specs.length > 0 ? `
             <table class="specs">
               <thead>
                 <tr><td colspan="2" class="specs-head">ESPECIFICACIONES TÉCNICAS</td></tr>
               </thead>
               <tbody>
-                \${modalProd.specs.map(s => \`
+                ${modalProd.specs.map(s => `
                   <tr>
-                    <td class="spec-name">\${s[0]}</td>
-                    <td class="spec-val">\${s[1]}</td>
+                    <td class="spec-name">${s[0]}</td>
+                    <td class="spec-val">${s[1]}</td>
                   </tr>
-                \`).join('')}
+                `).join('')}
               </tbody>
             </table>
-            \` : ''}
+            ` : ''}
             
             <div class="footer"></div>
           </div>
@@ -340,12 +340,12 @@ export default function ProductosScreen({ navigation }) {
           </script>
         </body>
         </html>
-      \`;
+      `;
 
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
       
       await Sharing.shareAsync(uri, {
-        dialogTitle: \`Ficha \${modalProd?.modelo}\`,
+        dialogTitle: `Ficha ${modalProd?.modelo}`,
         mimeType: 'application/pdf',
         UTI: 'com.adobe.pdf'
       });
@@ -403,7 +403,7 @@ export default function ProductosScreen({ navigation }) {
 
   // ─── RENDERS ──────────────────────────────────────────────────────
   const renderMarcaBtn = useCallback(({ item: marca }) => {
-    const logoUri = `${LOGO_BASE}${marca.replace(/\s+/g, '_')}.jpg`;
+    const logoUri = `${LOGO_BASE}${marca.replace(/s+/g, '_')}.jpg`;
     const activo = filtroMarca === marca;
     return (
       <TouchableOpacity
