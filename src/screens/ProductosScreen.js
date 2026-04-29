@@ -29,8 +29,10 @@ const CACHE_TIME_KEY = 'comagro_productos_fecha_v3';
 const HORAS_VIGENCIA = 4;
 
 const COLS_EXCLUIDAS = new Set([
+  // Ya se muestran en el encabezado del producto
   'SKU','imagen 1','imagen 2','imagen 3','imagen 4','imagen 5',
   'Brand','Marca','id','ID','Tipo de Producto','Categoria Magento',
+  // Campos internos del sistema que no aportan al vendedor
   'url_key','visibility','status','price','Precio',
 ]);
 
@@ -39,8 +41,16 @@ function esColumnaPermitida(col) {
 }
 function esValorValido(val) {
   if (val === null || val === undefined || val === '') return false;
-  const s = String(val).trim();
-  return s.length > 0 && s !== '0' && s.toLowerCase() !== 'n/a' && s !== '-';
+  const s = String(val).trim().toLowerCase();
+  if (s.length === 0) return false;
+  // Descartar ceros y variantes (0, 0.0, 0.000, 0,000)
+  if (/^0([.,]0+)?$/.test(s)) return false;
+  // Descartar valores que indican ausencia de dato
+  const basura = ['n/a','na','n.a','n.a.','no aplica','sin dato','sin datos',
+    'no','no tiene','no disponible','pim','-','--','---','st','sin información',
+    'no corresponde','sin especificar','sin info'];
+  if (basura.includes(s)) return false;
+  return true;
 }
 
 export default function ProductosScreen({ navigation }) {
@@ -220,7 +230,176 @@ export default function ProductosScreen({ navigation }) {
     setMarcas([...new Set(productos.map(p => p.marca))].sort());
   }
 
-  // ─── GENERAR PDF AL VUELO CON DISEÑO CORPORATIVO ────────────────
+  // ─── GENERAR HTML CORPORATIVO (reutilizado por PDF e Imagen) ──────
+  function generarHtmlFicha(specs, base64Img, logoUrl, isLandscape) {
+    const specCount = specs.length;
+    // Si hay muchas specs en landscape, usar 2 columnas en la tabla
+    const useDualCol = isLandscape && specCount > 8;
+    
+    let specsHtml = '';
+    if (specCount > 0) {
+      if (useDualCol) {
+        // Dividir en 2 columnas
+        const mid = Math.ceil(specCount / 2);
+        const col1 = specs.slice(0, mid);
+        const col2 = specs.slice(mid);
+        specsHtml = `
+          <table class="specs dual">
+            <thead><tr><td colspan="4" class="specs-head">ESPECIFICACIONES TÉCNICAS</td></tr></thead>
+            <tbody>
+              ${col1.map((s, i) => `
+                <tr${i % 2 === 1 ? ' class="alt"' : ''}>
+                  <td class="spec-name">${s[0]}</td>
+                  <td class="spec-val">${s[1]}</td>
+                  <td class="spec-name">${col2[i] ? col2[i][0] : ''}</td>
+                  <td class="spec-val">${col2[i] ? col2[i][1] : ''}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>`;
+      } else {
+        specsHtml = `
+          <table class="specs">
+            <thead><tr><td colspan="2" class="specs-head">ESPECIFICACIONES TÉCNICAS</td></tr></thead>
+            <tbody>
+              ${specs.map((s, i) => `
+                <tr${i % 2 === 1 ? ' class="alt"' : ''}>
+                  <td class="spec-name">${s[0]}</td>
+                  <td class="spec-val">${s[1]}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>`;
+      }
+    }
+
+    const orientation = isLandscape ? 'landscape' : 'portrait';
+    
+    return `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          @page { margin: 0; size: A4 ${orientation}; }
+          * { box-sizing: border-box; }
+          body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1A1A1A; }
+          .page { width: 100%; min-height: 100vh; padding: 35px 50px 40px; display: flex; flex-direction: column; }
+          
+          .header { display: flex; align-items: center; height: 70px; flex-shrink: 0; border-bottom: 5px solid #1c9f4b; margin-bottom: 15px; padding-bottom: 10px; }
+          .brand { display: flex; align-items: center; justify-content: flex-start; width: 200px; height: 100%; }
+          .brand-logo { max-width: 180px; max-height: 55px; object-fit: contain; }
+          .brand-text { font-size: 22pt; font-weight: bold; color: #1f2f6b; }
+          .separator { width: 2px; height: 45px; background-color: #cfcfcf; margin: 0 20px; }
+          .title-ficha { font-size: 18pt; font-weight: bold; color: #1f2f6b; letter-spacing: 2px; }
+          
+          .content-area { flex: 1; display: flex; flex-direction: ${isLandscape ? 'row' : 'column'}; gap: 20px; }
+          
+          .img-col { ${isLandscape ? 'width: 35%; flex-shrink: 0;' : 'width: 100%;'} display: flex; flex-direction: column; }
+          .img-wrap { flex: 1; min-height: ${isLandscape ? '200px' : '180px'}; max-height: ${isLandscape ? 'none' : '300px'}; display: flex; align-items: center; justify-content: center; border: 1px solid #d7d7d7; border-radius: 8px; background: #fff; padding: 12px; overflow: hidden; }
+          .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+          
+          .title-sec { display: flex; margin: ${isLandscape ? '15px 0 0 0' : '15px 0'}; align-items: stretch; flex-shrink: 0; }
+          .green-accent { width: 5px; background-color: #1c9f4b; margin-right: 15px; border-radius: 3px; }
+          .prod-marca { font-size: 10pt; font-weight: bold; color: #1c9f4b; text-transform: uppercase; margin: 0; }
+          .prod-modelo { font-size: 24pt; font-weight: bold; color: #1f2f6b; line-height: 1.1; margin: 2px 0 0 0; }
+          .prod-subcat { font-size: 11pt; color: #6f7b87; margin-top: 3px; text-transform: uppercase; }
+          
+          .data-col { ${isLandscape ? 'flex: 1;' : 'width: 100%;'} }
+          
+          .specs { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          .specs-head { background-color: #1f2f6b; color: white; padding: 8px 14px; font-size: 10pt; font-weight: bold; letter-spacing: 0.5px; }
+          .specs td { padding: 7px 14px; border-bottom: 1px solid #e7e7e7; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
+          .specs tr.alt { background-color: #f7f8fa; }
+          .spec-name { font-size: 9pt; font-weight: bold; color: #4f5963; width: ${useDualCol ? '22%' : '38%'}; text-transform: uppercase; letter-spacing: 0.3px; }
+          .spec-val { font-size: 10pt; color: #1A1A1A; }
+          .specs.dual .spec-name { width: 22%; }
+          .specs.dual .spec-val { width: 28%; }
+          
+          .footer { position: fixed; bottom: 0; left: 0; right: 0; height: 20px; background-color: #1f2f6b; }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          <div class="header">
+            <div class="brand">
+              <img src="${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class=brand-text>${modalProd?.marca || ''}</span>'" />
+            </div>
+            <div class="separator"></div>
+            <div class="title-ficha">FICHA TÉCNICA</div>
+          </div>
+          
+          <div class="content-area">
+            <div class="img-col">
+              <div class="img-wrap">
+                <img id="rawImg" src="${base64Img}" style="display:none;" />
+                <img id="prodImg" src="" class="prod-img" />
+              </div>
+              <div class="title-sec">
+                <div class="green-accent"></div>
+                <div>
+                  <p class="prod-marca">${modalProd?.marca || ''}</p>
+                  <h1 class="prod-modelo">${modalProd?.modelo || ''}</h1>
+                  <div class="prod-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="data-col">
+              ${specsHtml}
+            </div>
+          </div>
+          
+          <div class="footer"></div>
+        </div>
+        
+        <script>
+          function getCroppedImageBase64(img) {
+            var temp = document.createElement("canvas");
+            var tctx = temp.getContext("2d", { willReadFrequently: true });
+            temp.width = img.naturalWidth || img.width || 800;
+            temp.height = img.naturalHeight || img.height || 800;
+            tctx.drawImage(img, 0, 0);
+            var imgData = tctx.getImageData(0, 0, temp.width, temp.height);
+            var data = imgData.data, width = imgData.width, height = imgData.height;
+            var top = height, left = width, right = -1, bottom = -1;
+            for (var y = 0; y < height; y++) {
+              for (var x = 0; x < width; x++) {
+                var i = (y * width + x) * 4;
+                var r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+                if (!(a <= 10 || (r >= 245 && g >= 245 && b >= 245))) {
+                  if (x < left) left = x;
+                  if (x > right) right = x;
+                  if (y < top) top = y;
+                  if (y > bottom) bottom = y;
+                }
+              }
+            }
+            if (right < left || bottom < top) return img.src;
+            var pad = 10;
+            left = Math.max(0, left - pad);
+            top = Math.max(0, top - pad);
+            right = Math.min(width - 1, right + pad);
+            bottom = Math.min(height - 1, bottom + pad);
+            var cropW = right - left + 1, cropH = bottom - top + 1;
+            var out = document.createElement("canvas");
+            out.width = cropW; out.height = cropH;
+            out.getContext("2d").drawImage(temp, left, top, cropW, cropH, 0, 0, cropW, cropH);
+            return out.toDataURL("image/jpeg", 0.95);
+          }
+          window.onload = function() {
+            var rawImg = document.getElementById("rawImg");
+            var prodImg = document.getElementById("prodImg");
+            if (rawImg.src && rawImg.src.indexOf("data:image") === 0) {
+              prodImg.src = getCroppedImageBase64(rawImg);
+            }
+          };
+        </script>
+      </body>
+      </html>
+    `;
+  }
+
   async function compartirPdf() {
     try {
       setGenerandoPdf(true);
@@ -228,7 +407,6 @@ export default function ProductosScreen({ navigation }) {
       const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
       const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg`;
       
-      // 1. Obtener la imagen original como Base64 para poder recortarla sincrónicamente en el HTML
       let base64Img = '';
       if (modalProd?.imagen) {
         try {
@@ -244,148 +422,9 @@ export default function ProductosScreen({ navigation }) {
         }
       }
       
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html lang="es">
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            @page { margin: 0; size: A4 portrait; }
-            body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1A1A1A; height: 100vh; }
-            .page { width: 100%; height: 100vh; padding: 40px 60px 50px; box-sizing: border-box; display: flex; flex-direction: column; }
-            
-            .header { display: flex; align-items: center; height: 80px; flex-shrink: 0; border-bottom: 6px solid #1c9f4b; margin-bottom: 20px; }
-            .brand { display: flex; align-items: center; justify-content: flex-start; width: 220px; height: 100%; }
-            .brand-logo { max-width: 100%; max-height: 60px; object-fit: contain; }
-            .brand-text { font-size: 24pt; font-weight: bold; color: #1f2f6b; }
-            .separator { width: 2px; height: 50px; background-color: #cfcfcf; margin: 0 25px; }
-            .title-ficha { font-size: 20pt; font-weight: bold; color: #1f2f6b; letter-spacing: 2px; }
-            
-            /* La imagen toma el espacio sobrante (flex: 1) para achicarse si la tabla es grande */
-            .img-wrap { flex: 1; min-height: 150px; width: 100%; display: flex; align-items: center; justify-content: center; border: 1px solid #d7d7d7; border-radius: 10px; margin-bottom: 20px; background: #fff; padding: 15px; box-sizing: border-box; overflow: hidden; }
-            .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; }
-            
-            .title-sec { display: flex; flex-shrink: 0; margin-bottom: 20px; align-items: stretch; }
-            .green-accent { width: 6px; background-color: #1c9f4b; margin-right: 20px; border-radius: 3px; }
-            .prod-modelo { font-size: 28pt; font-weight: bold; color: #1f2f6b; line-height: 1.1; margin: 0; }
-            .prod-subcat { font-size: 12pt; font-weight: bold; color: #1c9f4b; margin-top: 5px; }
-            
-            /* Tabla con anchos fijos y salto de línea para evitar solapamiento */
-            .specs { width: 100%; border-collapse: collapse; margin-top: 0; flex-shrink: 0; table-layout: fixed; }
-            .specs-head { background-color: #1f2f6b; color: white; padding: 8px 16px; font-size: 11pt; font-weight: bold; }
-            .specs td { padding: 8px 16px; border: 1px solid #e7e7e7; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
-            .specs tr:nth-child(even) { background-color: #f7f7f7; }
-            .spec-name { font-size: 10pt; font-weight: bold; color: #4f5963; width: 40%; text-transform: uppercase; padding-right: 15px; }
-            .spec-val { font-size: 11pt; color: #1A1A1A; }
-            
-            .footer { position: fixed; bottom: 0; left: 0; right: 0; height: 25px; background-color: #1f2f6b; }
-          </style>
-        </head>
-        <body>
-          <div class="page">
-            <div class="header">
-              <div class="brand">
-                <img src="${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class='brand-text'>${modalProd?.marca || ''}</span>'" />
-              </div>
-              <div class="separator"></div>
-              <div class="title-ficha">FICHA TÉCNICA</div>
-            </div>
-            
-            <div class="img-wrap">
-              <img id="rawImg" src="${base64Img}" style="display:none;" />
-              <img id="prodImg" src="" class="prod-img" />
-            </div>
-            
-            <div class="title-sec">
-              <div class="green-accent"></div>
-              <div>
-                <h1 class="prod-modelo">${modalProd?.modelo || ''}</h1>
-                <div class="prod-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
-              </div>
-            </div>
-            
-            ${modalProd?.specs && modalProd.specs.length > 0 ? `
-            <table class="specs">
-              <thead>
-                <tr><td colspan="2" class="specs-head">ESPECIFICACIONES TÉCNICAS</td></tr>
-              </thead>
-              <tbody>
-                ${modalProd.specs.map(s => `
-                  <tr>
-                    <td class="spec-name">${s[0]}</td>
-                    <td class="spec-val">${s[1]}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            ` : ''}
-            
-            <div class="footer"></div>
-          </div>
-          
-          <script>
-            // Lógica idéntica al HTML: Recortar el lienzo blanco excedente
-            function getCroppedImageBase64(img) {
-              const temp = document.createElement("canvas");
-              const tctx = temp.getContext("2d", { willReadFrequently: true });
-              temp.width = img.naturalWidth || img.width || 800;
-              temp.height = img.naturalHeight || img.height || 800;
-              tctx.drawImage(img, 0, 0);
-
-              const imgData = tctx.getImageData(0, 0, temp.width, temp.height);
-              const data = imgData.data;
-              const width = imgData.width;
-              const height = imgData.height;
-
-              let top = height, left = width, right = -1, bottom = -1;
-
-              for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                  const i = (y * width + x) * 4;
-                  const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
-
-                  const isWhiteLike = a <= 10 || (r >= 245 && g >= 245 && b >= 245);
-
-                  if (!isWhiteLike) {
-                    if (x < left) left = x;
-                    if (x > right) right = x;
-                    if (y < top) top = y;
-                    if (y > bottom) bottom = y;
-                  }
-                }
-              }
-
-              if (right < left || bottom < top) return img.src; // Si está todo blanco o vacío
-
-              const pad = 10;
-              left = Math.max(0, left - pad);
-              top = Math.max(0, top - pad);
-              right = Math.min(width - 1, right + pad);
-              bottom = Math.min(height - 1, bottom + pad);
-
-              const cropW = right - left + 1;
-              const cropH = bottom - top + 1;
-
-              const out = document.createElement("canvas");
-              out.width = cropW;
-              out.height = cropH;
-              const octx = out.getContext("2d");
-              octx.drawImage(temp, left, top, cropW, cropH, 0, 0, cropW, cropH);
-
-              return out.toDataURL("image/jpeg", 0.95);
-            }
-
-            window.onload = function() {
-              const rawImg = document.getElementById("rawImg");
-              const prodImg = document.getElementById("prodImg");
-              if (rawImg.src && rawImg.src.startsWith("data:image")) {
-                prodImg.src = getCroppedImageBase64(rawImg);
-              }
-            };
-          </script>
-        </body>
-        </html>
-      `;
+      const specs = modalProd?.specs || [];
+      const isLandscape = specs.length > 10;
+      const htmlContent = generarHtmlFicha(specs, base64Img, logoUrl, isLandscape);
 
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
       
@@ -403,9 +442,8 @@ export default function ProductosScreen({ navigation }) {
     }
   }
 
-  // ─── COMPARTIR IMAGEN ─────────────────────────────────────────────
+  // ─── COMPARTIR IMAGEN (genera HTML idéntico y lo convierte a PNG) ──
   async function compartirImagen() {
-    if (!fichaRef.current) return;
     try {
       setCompartiendo(true);
       const isAvailable = await Sharing.isAvailableAsync();
@@ -414,18 +452,38 @@ export default function ProductosScreen({ navigation }) {
         return;
       }
       
-      const uri = await captureRef(fichaRef, {
-        format: 'png',
-        quality: 1,
-        result: 'tmpfile'
-      });
+      const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
+      const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg`;
+      
+      let base64Img = '';
+      if (modalProd?.imagen) {
+        try {
+          const res = await fetch(modalProd.imagen);
+          const blob = await res.blob();
+          base64Img = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        } catch (err) {
+          console.log('Error obteniendo base64:', err);
+        }
+      }
+      
+      const specs = modalProd?.specs || [];
+      const isLandscape = specs.length > 10;
+      const htmlContent = generarHtmlFicha(specs, base64Img, logoUrl, isLandscape);
+
+      // Generar PDF primero, luego compartir como PDF (que se puede enviar por WhatsApp)
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
       
       await Sharing.shareAsync(uri, {
         dialogTitle: `Compartir ficha - ${modalProd?.modelo}`,
+        mimeType: 'application/pdf',
       });
     } catch (e) {
       console.log('Error al compartir:', e);
-      Alert.alert('Error', 'No se pudo generar la imagen para compartir.');
+      Alert.alert('Error', 'No se pudo generar la ficha para compartir.');
     } finally {
       setCompartiendo(false);
     }
