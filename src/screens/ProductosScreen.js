@@ -160,7 +160,7 @@ export default function ProductosScreen({ navigation }) {
   function procesarDatos(rows) {
     const productos = rows.map(row => {
       const imagen = (row['imagen 1'] || '').toString().trim();
-      if (!imagen || !/^https?:///i.test(imagen)) return null;
+      if (!imagen || !/^https?:\/\//i.test(imagen)) return null;
       const marca = (row['Brand'] || row['Marca'] || '').toString().trim().toUpperCase();
       if (!marca) return null;
       const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim();
@@ -180,7 +180,7 @@ export default function ProductosScreen({ navigation }) {
     try {
       setGenerandoPdf(true);
       
-      const marcaSlug = modalProd?.marca?.toUpperCase().replace(/s+/g, '_') || '';
+      const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
       const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg`;
       
       // 1. Obtener la imagen original como Base64 para poder recortarla sincrónicamente en el HTML
@@ -403,7 +403,7 @@ export default function ProductosScreen({ navigation }) {
 
   // ─── RENDERS ──────────────────────────────────────────────────────
   const renderMarcaBtn = useCallback(({ item: marca }) => {
-    const logoUri = `${LOGO_BASE}${marca.replace(/s+/g, '_')}.jpg`;
+    const logoUri = `${LOGO_BASE}${marca.replace(/\s+/g, '_')}.jpg`;
     const activo = filtroMarca === marca;
     return (
       <TouchableOpacity
