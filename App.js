@@ -172,12 +172,24 @@ export default function App() {
     setUpdateState('downloading');
     setDownloadProgress(0);
     try {
+      // Normalizar URL de GitHub: blob → raw para descarga directa
+      let directUrl = url;
+      if (directUrl.includes('github.com') && directUrl.includes('/blob/')) {
+        directUrl = directUrl.replace('/blob/', '/raw/');
+      }
+      
       const fileUri = FileSystem.cacheDirectory + 'comagro-update.apk';
       
+      // Eliminar descarga anterior si existe
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (fileInfo.exists) {
+        await FileSystem.deleteAsync(fileUri, { idempotent: true });
+      }
+      
       const downloadResumable = FileSystem.createDownloadResumable(
-        url,
+        directUrl,
         fileUri,
-        {},
+        { headers: { 'Accept': 'application/octet-stream' } },
         (downloadProgress) => {
           const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
           setDownloadProgress(progress);
@@ -198,8 +210,11 @@ export default function App() {
       }
     } catch (err) {
       console.log('Error descargando APK:', err);
-      // Fallback: abrir en navegador
-      Linking.openURL(url);
+      Alert.alert(
+        'Error de descarga',
+        'No se pudo descargar la actualización. Intentá más tarde.',
+        [{ text: 'OK' }]
+      );
       setUpdateState('none');
     }
   }
