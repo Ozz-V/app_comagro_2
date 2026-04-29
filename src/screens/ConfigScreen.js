@@ -83,8 +83,8 @@ export default function ConfigScreen({ navigation }) {
       if (data && data.version_code > versionCode) {
         Alert.alert(
           'Actualización disponible',
-          `Versión ${data.version_name} disponible.\n${data.release_notes || ''}`,
-          [{ text: 'OK' }]
+          `Versión ${data.version_name} disponible.\n${data.release_notes || ''}\n\nPor favor, cerrá la app y volvé a abrirla para que se descargue e instale automáticamente de forma silenciosa.`,
+          [{ text: 'Entendido' }]
         );
       } else {
         Alert.alert('Actualizado', 'Ya tenés la última versión instalada.');
