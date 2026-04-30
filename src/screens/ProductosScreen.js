@@ -300,23 +300,24 @@ export default function ProductosScreen({ navigation, route }) {
           .page { width: 100%; min-height: 100vh; padding: 30px 45px 40px; display: flex; flex-direction: column; }
           
           /* HEADER */
-          .header { display: flex; align-items: center; height: 80px; flex-shrink: 0; border-bottom: 5px solid #1c9f4b; margin-bottom: 15px; padding-bottom: 10px; justify-content: space-between; }
-          .comagro-logo { max-height: 55px; max-width: 180px; object-fit: contain; }
-          .brand-logo { max-height: 55px; max-width: 150px; object-fit: contain; }
-          .header-left { display: flex; align-items: center; }
-          .separator { width: 2px; height: 50px; background-color: #cfcfcf; margin: 0 20px; }
+          .header { display: flex; align-items: center; justify-content: space-between; height: 70px; flex-shrink: 0; border-bottom: 3px solid #1c9f4b; margin-bottom: 20px; padding-bottom: 10px; }
+          .brand-logo { max-height: 55px; max-width: 200px; object-fit: contain; }
+          .brand-text { font-size: 26pt; font-weight: bold; color: #1f2f6b; }
           .title-ficha { font-size: 20pt; font-weight: bold; color: #1f2f6b; letter-spacing: 2px; }
           
-          /* IMAGEN - altura fija, nunca desborda */
-          .img-wrap { height: 250px; width: 100%; display: flex; align-items: center; justify-content: center; border: 1px solid #d7d7d7; border-radius: 8px; background: #fff; padding: 15px; overflow: hidden; margin-bottom: 12px; }
+          /* MIDDLE ROW */
+          .middle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; }
+          
+          /* IMAGEN - a la izquierda */
+          .img-wrap { flex: 1.5; height: 280px; display: flex; align-items: center; justify-content: center; padding-right: 30px; }
           .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
           
-          /* TÍTULO PRODUCTO */
-          .title-sec { display: flex; margin-bottom: 15px; align-items: stretch; flex-shrink: 0; }
-          .green-accent { width: 6px; background-color: #1c9f4b; margin-right: 18px; border-radius: 3px; }
-          .prod-marca { font-size: 11pt; font-weight: bold; color: #1c9f4b; text-transform: uppercase; margin: 0; }
-          .prod-modelo { font-size: 26pt; font-weight: bold; color: #1f2f6b; line-height: 1.1; margin: 3px 0 0 0; }
-          .prod-subcat { font-size: 11pt; color: #6f7b87; margin-top: 4px; text-transform: uppercase; }
+          /* TÍTULO PRODUCTO - a la derecha */
+          .title-sec { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+          .green-accent { width: 8px; height: 25px; background-color: #1c9f4b; margin-bottom: 12px; border-radius: 4px; }
+          .prod-marca { font-size: 12pt; font-weight: bold; color: #1c9f4b; text-transform: uppercase; margin: 0; }
+          .prod-modelo { font-size: 28pt; font-weight: bold; color: #1f2f6b; line-height: 1.1; margin: 8px 0; word-wrap: break-word; }
+          .prod-subcat { font-size: 12pt; color: #6f7b87; margin: 0; text-transform: uppercase; }
           
           /* TABLA SPECS - una sola columna */
           .specs { width: 100%; border-collapse: collapse; table-layout: fixed; flex-shrink: 0; }
@@ -332,17 +333,17 @@ export default function ProductosScreen({ navigation, route }) {
       <body>
         <div class="page">
           <div class="header">
-            <div class="title-ficha">FICHA TÉCNICA</div>
             <img src="${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class=brand-text>${modalProd?.marca || ''}</span>'" />
+            <div class="title-ficha">FICHA TÉCNICA</div>
           </div>
           
-          <div class="img-wrap">
-            <img id="prodImg" class="prod-img" src="${base64Img}" />
-          </div>
-          
-          <div class="title-sec">
-            <div class="green-accent"></div>
-            <div>
+          <div class="middle-row">
+            <div class="img-wrap">
+              <img id="prodImg" class="prod-img" src="${base64Img}" />
+            </div>
+            
+            <div class="title-sec">
+              <div class="green-accent"></div>
               <p class="prod-marca">${modalProd?.marca || ''}</p>
               <h1 class="prod-modelo">${modalProd?.modelo || ''}</h1>
               <div class="prod-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
@@ -688,22 +689,27 @@ export default function ProductosScreen({ navigation, route }) {
                   <View>
                     <View ref={fichaRef} collapsable={false} style={{ backgroundColor: COLORS.white, padding: 15, borderRadius: 8 }}>
                       
-                      {/* HEADER PARA EXPORTACIÓN Y UI (SOLO MARCA) */}
-                      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 12, marginBottom: 16 }}>
+                      {/* HEADER: LOGO DE MARCA Y FICHA TECNICA */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 12, marginBottom: 16 }}>
+                        <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={{ width: 120, height: 40 }} resizeMode="contain" />
                         <Text style={{ fontFamily: FONTS.heading, fontSize: 18, color: COLORS.navy, letterSpacing: 1 }}>FICHA TÉCNICA</Text>
                       </View>
 
-                      <Image
-                        source={{ uri: modalProd?.imagen }}
-                        style={styles.modalImg}
-                        resizeMode="contain"
-                      />
-                      
-                      <View style={styles.modalHeaderInfo}>
-                        <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={styles.modalMarcaLogo} resizeMode="contain" />
-                        <View style={{flex: 1}}>
-                          <Text style={styles.modalModelo}>{modalProd?.modelo}</Text>
-                          <Text style={styles.modalSubcat}>{modalProd?.subcategoria}</Text>
+                      {/* MIDDLE ROW: IMAGEN + DATOS */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                        <View style={{ flex: 1.5, height: 220, paddingRight: 15 }}>
+                          <Image
+                            source={{ uri: modalProd?.imagen }}
+                            style={{ width: '100%', height: '100%' }}
+                            resizeMode="contain"
+                          />
+                        </View>
+                        
+                        <View style={{ flex: 1 }}>
+                          <View style={{ width: 6, height: 20, backgroundColor: COLORS.green, borderRadius: 3, marginBottom: 8 }} />
+                          <Text style={{ fontFamily: FONTS.body, fontSize: 12, fontWeight: 'bold', color: COLORS.green, textTransform: 'uppercase' }}>{modalProd?.marca}</Text>
+                          <Text style={{ fontFamily: FONTS.heading, fontSize: 20, color: COLORS.navy, marginVertical: 4 }}>{modalProd?.modelo}</Text>
+                          <Text style={{ fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, textTransform: 'uppercase' }}>{modalProd?.subcategoria}</Text>
                         </View>
                       </View>
 
