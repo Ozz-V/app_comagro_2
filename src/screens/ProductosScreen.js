@@ -70,6 +70,13 @@ export default function ProductosScreen({ navigation, route }) {
   const [generandoPdf, setGenerandoPdf]   = useState(false);
   const [compartiendo, setCompartiendo]   = useState(false);
 
+  // Comparador Inteligente
+  const [isComparing, setIsComparing] = useState(false);
+  const [compareItems, setCompareItems] = useState([]);
+  const [showCompareGrid, setShowCompareGrid] = useState(false);
+  const [itemToReplaceIndex, setItemToReplaceIndex] = useState(null);
+  const [showReplaceSelector, setShowReplaceSelector] = useState(false);
+
   // Tabs y Asistente IA
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [aiData, setAiData]       = useState(null);
@@ -146,6 +153,7 @@ export default function ProductosScreen({ navigation, route }) {
   }
 
   const fichaRef = useRef(null);
+  const openedDirectlyRef = useRef(false);
 
   const { width } = useWindowDimensions();
   const numCols = width >= 600 ? 3 : 2;
@@ -162,6 +170,7 @@ export default function ProductosScreen({ navigation, route }) {
         setModalProd(prod);
         setActiveTab('FICHA');
         trackAnalytics(prod, 'view');
+        openedDirectlyRef.current = true;
         // Limpiar el param para no re-abrir si vuelven
         navigation.setParams({ openProductSku: undefined });
       }
@@ -298,34 +307,37 @@ export default function ProductosScreen({ navigation, route }) {
           @page { margin: 0; size: A4 portrait; }
           * { box-sizing: border-box; }
           body { margin: 0; padding: 0; font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1A1A1A; }
-          .page { width: 100%; min-height: 100vh; padding: 30px 45px 40px; display: flex; flex-direction: column; }
+          .page { width: 100%; min-height: 100vh; padding: 0; display: flex; flex-direction: column; position: relative; }
           
+          /* CONTENEDOR INTERNO PARA MARGENES */
+          .inner-content { padding: 0 45px; display: flex; flex-direction: column; flex: 1; }
+
           /* HEADER */
-          .header { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 15px; padding-top: 10px; }
-          .brand-logo-container { width: 250px; display: flex; align-items: center; justify-content: center; margin-right: 20px; }
-          .brand-logo { max-height: 80px; max-width: 100%; object-fit: contain; }
-          .header-separator { width: 2px; height: 60px; background-color: #a0a0a0; margin: 0 30px; }
-          .title-ficha { font-size: 20pt; font-weight: bold; color: #0a2566; letter-spacing: 1px; }
-          .header-line { width: 100%; height: 2px; background-color: #0d8a39; margin-bottom: 20px; }
+          .header { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 15px; padding-top: 30px; padding-left: 45px; padding-right: 45px; }
+          .brand-logo-container { width: 350px; display: flex; align-items: center; justify-content: center; margin-right: 20px; }
+          .brand-logo { max-height: 180px; max-width: 100%; object-fit: contain; }
+          .header-separator { width: 2px; height: 90px; background-color: #a0a0a0; margin: 0 30px; }
+          .title-ficha { font-size: 24pt; font-weight: bold; color: #0a2566; letter-spacing: 1px; }
+          .header-line { width: 100%; height: 4px; background-color: #0d8a39; margin-bottom: 20px; }
           
           /* MIDDLE BOX */
           .middle-box { display: flex; align-items: stretch; border: 2px solid #a0a0a0; border-radius: 15px; padding: 20px; margin-bottom: 30px; }
           
           /* IMAGEN - a la izquierda */
-          .img-wrap { flex: 1.5; height: 300px; display: flex; align-items: center; justify-content: center; padding-right: 20px; }
+          .img-wrap { flex: 1.5; height: 350px; display: flex; align-items: center; justify-content: center; padding-right: 20px; }
           .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
           
           /* TÍTULO PRODUCTO - a la derecha */
           .title-sec-wrapper { flex: 1; display: flex; align-items: center; }
-          .green-accent { width: 4px; height: 100px; background-color: #0d8a39; margin-right: 15px; }
+          .green-accent { width: 4px; height: 120px; background-color: #0d8a39; margin-right: 15px; }
           .title-sec { display: flex; flex-direction: column; justify-content: center; }
-          .prod-marca { font-size: 14pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; margin: 0 0 4px 0; }
-          .prod-modelo { font-size: 28pt; font-weight: bold; color: #0a2566; line-height: 1.1; margin: 0 0 6px 0; word-wrap: break-word; }
-          .prod-subcat { font-size: 13pt; font-weight: bold; color: #8a939c; margin: 0 0 4px 0; text-transform: uppercase; }
-          .prod-name { font-size: 11pt; font-weight: bold; color: #0d8a39; margin: 0; }
+          .prod-marca { font-size: 16pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; margin: 0 0 4px 0; }
+          .prod-modelo { font-size: 30pt; font-weight: bold; color: #0a2566; line-height: 1.1; margin: 0 0 6px 0; word-wrap: break-word; }
+          .prod-subcat { font-size: 14pt; font-weight: bold; color: #8a939c; margin: 0 0 4px 0; text-transform: uppercase; }
+          .prod-name { font-size: 12pt; font-weight: bold; color: #0d8a39; margin: 0; }
           
           /* TABLA SPECS */
-          .specs { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          .specs { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 60px; }
           .specs-head { background-color: #0a2566; color: white; padding: 12px 20px; font-size: 14pt; font-weight: bold; letter-spacing: 0.5px; }
           .specs td { padding: 8px 20px; vertical-align: middle; word-wrap: break-word; overflow-wrap: break-word; }
           .specs tr:nth-child(even) { background-color: #f2f2f2; }
@@ -349,22 +361,24 @@ export default function ProductosScreen({ navigation, route }) {
           
           <div class="header-line"></div>
           
-          <div class="middle-box">
-            <div class="img-wrap">
-              <img id="prodImg" class="prod-img" src="${base64Img}" />
-            </div>
-            
-            <div class="title-sec-wrapper">
-              <div class="green-accent"></div>
-              <div class="title-sec">
-                <p class="prod-marca">${modalProd?.marca || ''}</p>
-                <h1 class="prod-modelo">${modalProd?.modelo || ''}</h1>
-                <div class="prod-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
+          <div class="inner-content">
+            <div class="middle-box">
+              <div class="img-wrap">
+                <img id="prodImg" class="prod-img" src="${base64Img}" />
+              </div>
+              
+              <div class="title-sec-wrapper">
+                <div class="green-accent"></div>
+                <div class="title-sec">
+                  <p class="prod-marca">${modalProd?.marca || ''}</p>
+                  <h1 class="prod-modelo">${modalProd?.modelo || ''}</h1>
+                  <div class="prod-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
+                </div>
               </div>
             </div>
+            
+            ${specsHtml}
           </div>
-          
-          ${specsHtml}
           
           <div class="footer-blue"></div>
         </div>
@@ -512,6 +526,17 @@ export default function ProductosScreen({ navigation, route }) {
     return lista;
   }, [allProducts, filtroMarca, busqueda]);
 
+  const activeSliderList = useMemo(() => {
+    if (openedDirectlyRef.current && route?.params?.contextSkus) {
+       return route.params.contextSkus.map(sku => allProducts.find(p => p.modelo === sku || p.sku === sku)).filter(Boolean);
+    }
+    return productosFiltrados;
+  }, [openedDirectlyRef.current, route?.params?.contextSkus, productosFiltrados, allProducts]);
+  
+  const currentIndex = modalProd ? activeSliderList.findIndex(p => p.modelo === modalProd.modelo) : -1;
+  const prevProd = currentIndex > 0 ? activeSliderList[currentIndex - 1] : null;
+  const nextProd = currentIndex !== -1 && currentIndex < activeSliderList.length - 1 ? activeSliderList[currentIndex + 1] : null;
+
   // ─── RENDERS ──────────────────────────────────────────────────────
   const renderMarcaBtn = useCallback(({ item: marca }) => {
     const logoUri = `${LOGO_BASE}${marca.replace(/\s+/g, '_')}.jpg`;
@@ -529,23 +554,43 @@ export default function ProductosScreen({ navigation, route }) {
     );
   }, [filtroMarca]);
 
-  const renderProducto = useCallback(({ item }) => (
-    <TouchableOpacity
-      style={[styles.card, { width: cardW }]}
-      activeOpacity={0.85}
-      onPress={() => handleOpenModal(item)}
-    >
-      <View style={[styles.cardImg, { height: cardW * 0.85 }]}>
-        <Image source={{ uri: item.imagen }} style={styles.cardImgI} resizeMode="contain" />
-      </View>
-      <View style={styles.greenBar} />
-      <View style={styles.cardBody}>
-        <Text style={styles.cardMarca}>{item.marca}</Text>
-        <Text style={styles.cardModelo} numberOfLines={2}>{item.modelo}</Text>
-        <Text style={styles.cardSubcat} numberOfLines={1}>{item.subcategoria}</Text>
-      </View>
-    </TouchableOpacity>
-  ), [cardW]);
+  const renderProducto = useCallback(({ item }) => {
+    const isSelected = isComparing && compareItems.some(c => c.modelo === item.modelo);
+    return (
+      <TouchableOpacity
+        style={[styles.card, { width: cardW }, isSelected && { borderColor: COLORS.navy, borderWidth: 2 }]}
+        activeOpacity={0.85}
+        onPress={() => {
+          if (isComparing) {
+            if (isSelected) {
+              setCompareItems(prev => prev.filter(c => c.modelo !== item.modelo));
+            } else if (compareItems.length < 4) {
+              setCompareItems(prev => [...prev, item]);
+            } else {
+              Alert.alert('Límite', 'Podés comparar hasta 4 productos a la vez.');
+            }
+          } else {
+            handleOpenModal(item);
+          }
+        }}
+      >
+        <View style={[styles.cardImg, { height: cardW * 0.85 }]}>
+          <Image source={{ uri: item.imagen }} style={styles.cardImgI} resizeMode="contain" />
+          {isSelected && (
+            <View style={{ position: 'absolute', top: 5, right: 5, backgroundColor: COLORS.navy, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: 'white', fontWeight: 'bold' }}>✓</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.greenBar} />
+        <View style={styles.cardBody}>
+          <Text style={styles.cardMarca}>{item.marca}</Text>
+          <Text style={styles.cardModelo} numberOfLines={2}>{item.modelo}</Text>
+          <Text style={styles.cardSubcat} numberOfLines={1}>{item.subcategoria}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }, [cardW, isComparing, compareItems]);
 
   const mostrarLista = filtroMarca || busqueda.trim();
 
@@ -579,20 +624,28 @@ export default function ProductosScreen({ navigation, route }) {
           </View>
         </View>
 
-        <View style={styles.searchWrap}>
-          <SvgIcon name="buscar" size={18} color={COLORS.gray4} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar producto…"
-            placeholderTextColor={COLORS.gray4}
-            value={busqueda}
-            onChangeText={v => { setBusqueda(v); if (v) setFiltroMarca(''); }}
-          />
-          {busqueda ? (
-            <TouchableOpacity onPress={() => setBusqueda('')}>
-              <Text style={styles.clearBtn}>✕</Text>
-            </TouchableOpacity>
-          ) : null}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[styles.searchWrap, { flex: 1, marginBottom: 0 }]}>
+            <SvgIcon name="buscar" size={18} color={COLORS.gray4} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar producto…"
+              placeholderTextColor={COLORS.gray4}
+              value={busqueda}
+              onChangeText={v => { setBusqueda(v); if (v) setFiltroMarca(''); }}
+            />
+            {busqueda ? (
+              <TouchableOpacity onPress={() => setBusqueda('')}>
+                <Text style={styles.clearBtn}>✕</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <TouchableOpacity 
+            onPress={() => { setIsComparing(!isComparing); setCompareItems([]); }}
+            style={{ backgroundColor: isComparing ? COLORS.navy : COLORS.bg, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border }}
+          >
+            <Text style={{ color: isComparing ? COLORS.white : COLORS.navy, fontWeight: 'bold' }}>{isComparing ? 'Cancelar' : 'Comparar'}</Text>
+          </TouchableOpacity>
         </View>
       </View>
       <View style={styles.topBorder} />
@@ -668,18 +721,63 @@ export default function ProductosScreen({ navigation, route }) {
         )
       )}
 
+      {/* Floating Compare Toolbar */}
+      {isComparing && (
+        <View style={{ position: 'absolute', bottom: 20, left: 20, right: 20, backgroundColor: COLORS.white, padding: 15, borderRadius: 12, elevation: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: COLORS.border }}>
+          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Seleccionados: {compareItems.length}/4</Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity onPress={() => { setIsComparing(false); setCompareItems([]); }} style={{ padding: 10, backgroundColor: COLORS.bg, borderRadius: 8 }}>
+              <Text style={{ color: COLORS.gray4 }}>Limpiar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => { if(compareItems.length > 1) setShowCompareGrid(true); else Alert.alert('Aviso', 'Seleccioná al menos 2 productos para comparar.'); }}
+              style={{ padding: 10, backgroundColor: compareItems.length > 1 ? COLORS.navy : COLORS.gray4, borderRadius: 8 }}
+            >
+              <Text style={{ color: COLORS.white, fontWeight: 'bold' }}>Comparar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* Modal producto */}
       <Modal
         visible={!!modalProd}
         animationType="slide"
         transparent
-        onRequestClose={() => setModalProd(null)}
+        onRequestClose={() => {
+          setModalProd(null);
+          if (openedDirectlyRef.current) {
+            openedDirectlyRef.current = false;
+            navigation.goBack();
+          }
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalDialog}>
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle} numberOfLines={1}>{modalProd?.modelo}</Text>
-              <TouchableOpacity onPress={() => setModalProd(null)}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                {prevProd ? (
+                  <TouchableOpacity onPress={() => handleOpenModal(prevProd)} style={{ padding: 5, marginRight: 5 }}>
+                    <Text style={{ fontSize: 32, color: COLORS.navy, lineHeight: 32 }}>‹</Text>
+                  </TouchableOpacity>
+                ) : <View style={{ width: 25 }} />}
+                
+                <Text style={[styles.modalTitle, { flex: 1, textAlign: 'center' }]} numberOfLines={1}>{modalProd?.modelo}</Text>
+                
+                {nextProd ? (
+                  <TouchableOpacity onPress={() => handleOpenModal(nextProd)} style={{ padding: 5, marginLeft: 5 }}>
+                    <Text style={{ fontSize: 32, color: COLORS.navy, lineHeight: 32 }}>›</Text>
+                  </TouchableOpacity>
+                ) : <View style={{ width: 25 }} />}
+              </View>
+
+              <TouchableOpacity onPress={() => {
+                setModalProd(null);
+                if (openedDirectlyRef.current) {
+                  openedDirectlyRef.current = false;
+                  navigation.goBack();
+                }
+              }} style={{ marginLeft: 15, padding: 5 }}>
                 <Text style={styles.modalClose}>✕ Cerrar</Text>
               </TouchableOpacity>
             </View>
@@ -701,29 +799,23 @@ export default function ProductosScreen({ navigation, route }) {
                 {/* PESTAÑA FICHA TÉCNICA */}
                 {activeTab === 'FICHA' && (
                   <View>
-                    <View ref={fichaRef} collapsable={false} style={{ backgroundColor: COLORS.white, padding: 15, borderRadius: 8 }}>
-                      
-                      {/* HEADER: LOGO DE MARCA Y FICHA TECNICA */}
+                    {/* VISTA MÓVIL (Lo que ve el usuario en pantalla) */}
+                    <View style={{ backgroundColor: COLORS.white, padding: 15, borderRadius: 8 }}>
+                      {/* HEADER MÓVIL */}
                       <View style={{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', marginBottom: 10 }}>
                         <View style={{ width: 140, justifyContent: 'center', alignItems: 'center' }}>
                           <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={{ width: 120, height: 40 }} resizeMode="contain" />
                         </View>
-                        <View style={{ width: 1, height: 30, backgroundColor: '#a0a0a0', marginHorizontal: 20 }} />
-                        <Text style={{ fontFamily: FONTS.heading, fontSize: 18, color: '#0a2566', letterSpacing: 1 }}>FICHA TÉCNICA</Text>
+                        <View style={{ width: 1, height: 30, backgroundColor: '#a0a0a0', marginHorizontal: 10 }} />
+                        <Text style={{ fontFamily: FONTS.heading, fontSize: 16, color: '#0a2566', letterSpacing: 1 }}>FICHA TÉCNICA</Text>
                       </View>
-                      
                       <View style={{ height: 2, backgroundColor: '#0d8a39', width: '100%', marginBottom: 16 }} />
 
-                      {/* MIDDLE ROW: CAJA CON BORDE - IMAGEN + DATOS */}
+                      {/* MIDDLE ROW MÓVIL */}
                       <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: '#a0a0a0', borderRadius: 12, padding: 15, marginBottom: 16 }}>
                         <View style={{ flex: 1.5, height: 180, paddingRight: 10 }}>
-                          <Image
-                            source={{ uri: modalProd?.imagen }}
-                            style={{ width: '100%', height: '100%' }}
-                            resizeMode="contain"
-                          />
+                          <Image source={{ uri: modalProd?.imagen }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
                         </View>
-                        
                         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
                           <View style={{ width: 4, height: 60, backgroundColor: '#0d8a39', marginRight: 10 }} />
                           <View style={{ flex: 1 }}>
@@ -853,9 +945,142 @@ export default function ProductosScreen({ navigation, route }) {
                 )}
 
               </ScrollView>
+            </View>
+
+            {/* VISTA OCULTA PARA CAPTURA DE IMAGEN (Idéntica al PDF) */}
+            <View style={{ position: 'absolute', left: -9000, top: 0 }}>
+              <View ref={fichaRef} collapsable={false} style={{ width: 800, backgroundColor: '#fff', paddingBottom: 40, paddingTop: 30 }}>
+                {/* HEADER */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 45, marginBottom: 15 }}>
+                  <View style={{ width: 250, alignItems: 'center', justifyContent: 'center', marginRight: 20 }}>
+                    <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={{ width: 250, height: 180 }} resizeMode="contain" />
+                  </View>
+                  <View style={{ width: 2, height: 90, backgroundColor: '#a0a0a0', marginHorizontal: 30 }} />
+                  <Text style={{ fontFamily: FONTS.heading, fontSize: 32, fontWeight: 'bold', color: '#0a2566', letterSpacing: 1 }}>FICHA TÉCNICA</Text>
+                </View>
+                
+                <View style={{ height: 4, backgroundColor: '#0d8a39', width: '100%', marginBottom: 20 }} />
+
+                <View style={{ paddingHorizontal: 45 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'stretch', borderWidth: 2, borderColor: '#a0a0a0', borderRadius: 15, padding: 20, marginBottom: 30 }}>
+                    <View style={{ flex: 1.5, height: 350, paddingRight: 20, alignItems: 'center', justifyContent: 'center' }}>
+                      <Image source={{ uri: modalProd?.imagen }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                    </View>
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ width: 4, height: 120, backgroundColor: '#0d8a39', marginRight: 15 }} />
+                      <View style={{ flex: 1, justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0d8a39', textTransform: 'uppercase', marginBottom: 4 }}>{modalProd?.marca}</Text>
+                        <Text style={{ fontSize: 38, fontWeight: 'bold', color: '#0a2566', lineHeight: 40, marginBottom: 6 }}>{modalProd?.modelo}</Text>
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#8a939c', textTransform: 'uppercase', marginBottom: 4 }}>{modalProd?.subcategoria}</Text>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0d8a39' }}>{modalProd?.nombre_producto}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {modalProd?.specs?.length > 0 && (
+                    <View style={{ width: '100%', marginBottom: 60 }}>
+                      <View style={{ backgroundColor: '#0a2566', paddingVertical: 12, paddingHorizontal: 20 }}>
+                        <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', letterSpacing: 0.5 }}>Especificaciones técnicas</Text>
+                      </View>
+                      {modalProd.specs.map(([n, v], i) => (
+                        <View key={i} style={{ flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 20, backgroundColor: i % 2 === 0 ? '#f2f2f2' : '#ffffff' }}>
+                          <Text style={{ width: '40%', fontSize: 14, fontWeight: 'bold', color: '#000', textTransform: 'uppercase' }}>{n}</Text>
+                          <Text style={{ flex: 1, fontSize: 14, color: '#000' }}>{v}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+
+                {/* FOOTER AZUL */}
+                <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 40, backgroundColor: '#0a2566' }} />
+              </View>
+            </View>
+
+          </View>
+      </Modal>
+
+      {/* Modal de Comparación Inteligente */}
+      <Modal visible={showCompareGrid} animationType="slide" onRequestClose={() => setShowCompareGrid(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 15, backgroundColor: COLORS.white, borderBottomWidth: 1, borderColor: COLORS.border }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.navy }}>Comparando {compareItems.length} productos</Text>
+            <TouchableOpacity onPress={() => setShowCompareGrid(false)}>
+              <Text style={{ fontSize: 24, color: COLORS.gray4 }}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView contentContainerStyle={{ padding: 15 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+              {compareItems.map((prod, idx) => (
+                <View key={prod.modelo} style={{ width: '48%', backgroundColor: COLORS.white, borderRadius: 12, padding: 10, marginBottom: 15, borderWidth: 1, borderColor: COLORS.border }}>
+                  <Image source={{ uri: prod.imagen }} style={{ width: '100%', height: 100 }} resizeMode="contain" />
+                  <Text style={{ fontSize: 12, color: COLORS.green, fontWeight: 'bold', marginTop: 10 }}>{prod.marca}</Text>
+                  <Text style={{ fontSize: 14, color: COLORS.navy, fontWeight: 'bold' }} numberOfLines={2}>{prod.modelo}</Text>
+                  
+                  <View style={{ marginTop: 10, borderTopWidth: 1, borderColor: COLORS.border, paddingTop: 10 }}>
+                    {prod.specs?.slice(0, 6).map(([n, v], i) => (
+                      <View key={i} style={{ marginBottom: 5 }}>
+                        <Text style={{ fontSize: 10, color: COLORS.gray4, textTransform: 'uppercase' }}>{n}</Text>
+                        <Text style={{ fontSize: 11, color: COLORS.black, fontWeight: '500' }}>{v}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  
+                  <TouchableOpacity 
+                    onPress={() => { setItemToReplaceIndex(idx); setShowReplaceSelector(true); }}
+                    style={{ marginTop: 10, padding: 8, backgroundColor: COLORS.bg, borderRadius: 6, alignItems: 'center' }}
+                  >
+                    <Text style={{ fontSize: 12, color: COLORS.navy, fontWeight: 'bold' }}>🔄 Cambiar</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modal Selector de Reemplazo (Similares) */}
+      <Modal visible={showReplaceSelector} animationType="fade" transparent onRequestClose={() => setShowReplaceSelector(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: COLORS.white, borderRadius: 15, maxHeight: '80%', overflow: 'hidden' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 15, borderBottomWidth: 1, borderColor: COLORS.border }}>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy }}>Elegir reemplazo</Text>
+              <TouchableOpacity onPress={() => setShowReplaceSelector(false)}>
+                <Text style={{ fontSize: 20, color: COLORS.gray4 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ padding: 10 }}>
+              {allProducts.filter(p => p.subcategoria === (compareItems[0]?.subcategoria)).slice(0, 30).map(sim => {
+                const isAlreadyInGrid = compareItems.some(c => c.modelo === sim.modelo);
+                return (
+                  <TouchableOpacity 
+                    key={sim.modelo} 
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderColor: COLORS.border, opacity: isAlreadyInGrid ? 0.4 : 1 }}
+                    disabled={isAlreadyInGrid}
+                    onPress={() => {
+                      setCompareItems(prev => {
+                        const newArr = [...prev];
+                        newArr[itemToReplaceIndex] = sim;
+                        return newArr;
+                      });
+                      setShowReplaceSelector(false);
+                    }}
+                  >
+                    <Image source={{ uri: sim.imagen }} style={{ width: 50, height: 50, marginRight: 10 }} resizeMode="contain" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.navy }}>{sim.modelo}</Text>
+                      <Text style={{ fontSize: 12, color: COLORS.green }}>{sim.marca}</Text>
+                    </View>
+                    {isAlreadyInGrid && <Text style={{ fontSize: 10, color: COLORS.gray4 }}>Ya en grilla</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
         </View>
       </Modal>
+
     </SafeAreaView>
   );
 }

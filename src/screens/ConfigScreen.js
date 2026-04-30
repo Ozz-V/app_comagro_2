@@ -118,7 +118,10 @@ export default function ConfigScreen({ navigation }) {
               key={idx} 
               style={styles.rankRow}
               activeOpacity={0.7}
-              onPress={() => navigation.navigate('Productos', { openProductSku: item.sku || item.modelo })}
+              onPress={() => navigation.navigate('Productos', { 
+                openProductSku: item.sku || item.modelo,
+                contextSkus: data.map(d => d.sku || d.modelo)
+              })}
             >
               <Text style={styles.rankNum}>{idx + 1}</Text>
               <View style={styles.rankInfo}>

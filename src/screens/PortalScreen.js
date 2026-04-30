@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Image, SafeAreaView, StatusBar, ScrollView, Platform
+  Image, SafeAreaView, StatusBar, ScrollView, Platform, Modal, TextInput
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
@@ -43,6 +43,11 @@ const OPCIONES = [
 
 export default function PortalScreen({ navigation }) {
   const [recientes, setRecientes] = useState([]);
+  
+  // Calculadora Beta
+  const [showCalcModal, setShowCalcModal] = useState(false);
+  const [calcMode, setCalcMode] = useState(''); // 'gen', 'motor', 'bomba'
+  const [calcInput, setCalcInput] = useState('');
 
   useEffect(() => {
     cargarRecientes();
@@ -125,6 +130,20 @@ export default function PortalScreen({ navigation }) {
           </TouchableOpacity>
         ))}
 
+        <TouchableOpacity
+          style={[styles.card, { backgroundColor: COLORS.navy, borderColor: COLORS.navy, marginTop: 10 }]}
+          activeOpacity={0.8}
+          onPress={() => { setCalcMode(''); setCalcInput(''); setShowCalcModal(true); }}
+        >
+          <View style={[styles.iconWrap, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+            <Text style={{ fontSize: 24 }}>🧮</Text>
+          </View>
+          <View style={styles.cardTexts}>
+            <Text style={[styles.cardTitulo, { color: COLORS.white }]}>Calculadora Beta</Text>
+            <Text style={[styles.cardDesc, { color: 'rgba(255,255,255,0.7)' }]}>Dimensionamiento rápido de equipos</Text>
+          </View>
+        </TouchableOpacity>
+
         {/* Productos recientes */}
         {recientes.length > 0 && (
           <View style={styles.recientesSection}>
@@ -135,7 +154,10 @@ export default function PortalScreen({ navigation }) {
                   key={idx}
                   style={styles.recienteCard}
                   activeOpacity={0.7}
-                  onPress={() => navigation.navigate('Productos', { openProductSku: item.sku || item.modelo })}
+                  onPress={() => navigation.navigate('Productos', { 
+                    openProductSku: item.sku || item.modelo,
+                    contextSkus: recientes.map(r => r.sku || r.modelo)
+                  })}
                 >
                   <Image
                     source={{ uri: `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}
@@ -150,6 +172,80 @@ export default function PortalScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
+
+      {/* Modal Calculadora Beta */}
+      <Modal visible={showCalcModal} animationType="slide" transparent onRequestClose={() => setShowCalcModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: COLORS.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, minHeight: '60%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.navy }}>Calculadora Beta</Text>
+              <TouchableOpacity onPress={() => setShowCalcModal(false)}><Text style={{ fontSize: 24, color: COLORS.gray4 }}>✕</Text></TouchableOpacity>
+            </View>
+            
+            <Text style={{ color: COLORS.gray4, marginBottom: 15 }}>Seleccioná un tipo de equipo para hacer un cálculo rápido:</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+              <TouchableOpacity onPress={() => setCalcMode('gen')} style={[{ flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }, calcMode === 'gen' && { backgroundColor: COLORS.navy, borderColor: COLORS.navy }]}>
+                <Text style={{ fontSize: 20, marginBottom: 5 }}>⚡</Text>
+                <Text style={{ fontSize: 12, fontWeight: 'bold', color: calcMode === 'gen' ? COLORS.white : COLORS.navy, textAlign: 'center' }}>Generador (KVA)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setCalcMode('motor')} style={[{ flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }, calcMode === 'motor' && { backgroundColor: COLORS.navy, borderColor: COLORS.navy }]}>
+                <Text style={{ fontSize: 20, marginBottom: 5 }}>⚙️</Text>
+                <Text style={{ fontSize: 12, fontWeight: 'bold', color: calcMode === 'motor' ? COLORS.white : COLORS.navy, textAlign: 'center' }}>Motor Eléctrico (HP)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setCalcMode('bomba')} style={[{ flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }, calcMode === 'bomba' && { backgroundColor: COLORS.navy, borderColor: COLORS.navy }]}>
+                <Text style={{ fontSize: 20, marginBottom: 5 }}>💧</Text>
+                <Text style={{ fontSize: 12, fontWeight: 'bold', color: calcMode === 'bomba' ? COLORS.white : COLORS.navy, textAlign: 'center' }}>Bomba de Agua (HP/Caudal)</Text>
+              </TouchableOpacity>
+            </View>
+
+            {calcMode ? (
+              <View>
+                <Text style={{ fontWeight: 'bold', color: COLORS.navy, marginBottom: 10 }}>
+                  Ingresá el valor {calcMode === 'gen' ? '(KVA)' : '(HP)'}
+                </Text>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 15, fontSize: 18, color: COLORS.black, backgroundColor: '#F0F4F8', marginBottom: 20 }}
+                  keyboardType="numeric"
+                  placeholder="Ej: 2"
+                  value={calcInput}
+                  onChangeText={setCalcInput}
+                />
+
+                {parseFloat(calcInput) > 0 && (
+                  <View style={{ backgroundColor: '#E3FAED', padding: 15, borderRadius: 8, borderWidth: 1, borderColor: COLORS.green }}>
+                    <Text style={{ fontWeight: 'bold', color: COLORS.green, marginBottom: 10 }}>Estimación rápida:</Text>
+                    {calcMode === 'gen' && (
+                      <View>
+                        {parseFloat(calcInput) < 2 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💡 3 Luces{'\n'}📺 1 TV{'\n'}💻 1 Notebook{'\n'}📡 1 WiFi</Text> :
+                         parseFloat(calcInput) < 4 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>❄️ 1 Heladera pequeña{'\n'}💡 5 Luces{'\n'}📺 1 TV{'\n'}📡 1 WiFi</Text> :
+                         parseFloat(calcInput) < 6 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>🌬️ 1 Aire (12.000 BTU){'\n'}❄️ 1 Heladera{'\n'}💡 8 Luces{'\n'}📺 2 TV</Text> :
+                         parseFloat(calcInput) < 10 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>🌬️ 2 Aires (12.000 BTU){'\n'}❄️ 1 Heladera{'\n'}💡 Toda la casa{'\n'}📺 3 TV</Text> :
+                         <Text style={{ color: COLORS.navy, fontSize: 14 }}>🏠 Capacidad para casi toda una residencia o negocio comercial pequeño (Varias luces, aires, heladeras, portones automáticos)</Text>}
+                      </View>
+                    )}
+                    {calcMode === 'motor' && (
+                      <View>
+                        {parseFloat(calcInput) <= 1 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Hormigoneras chicas, cortadoras de fiambre, portones eléctricos residenciales, ventiladores grandes.</Text> :
+                         parseFloat(calcInput) <= 3 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Compresores medianos, sierras circulares, tornos pequeños, cintas transportadoras livianas.</Text> :
+                         parseFloat(calcInput) <= 5 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Amasadoras industriales, elevadores de autos, extractores pesados, trituradoras medianas.</Text> :
+                         <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Maquinaria pesada industrial, bombas de gran caudal, molinos, prensas hidráulicas.</Text>}
+                      </View>
+                    )}
+                    {calcMode === 'bomba' && (
+                      <View>
+                        {parseFloat(calcInput) <= 0.5 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso: Llenado de tanques domésticos bajos, riego de jardines chicos, circulación de agua.</Text> :
+                         parseFloat(calcInput) <= 1 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso: Extracción de pozos medianos, llenado de tanques elevados (hasta 15m), riego de parques.</Text> :
+                         parseFloat(calcInput) <= 2 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso: Riego por aspersión, llenado de piscinas rápido, edificios de 3-4 pisos.</Text> :
+                         <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso: Agricultura, edificios de varios pisos, sistemas contra incendios, extracción profunda.</Text>}
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
