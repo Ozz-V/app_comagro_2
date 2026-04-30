@@ -49,6 +49,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           cp android/app/build/outputs/apk/release/app-release.apk /tmp/comagro.apk
+          cp app.json /tmp/app.json
           git checkout --orphan apk-builds
           git rm -rf .
           mv /tmp/comagro.apk ./comagro-app.apk
@@ -66,8 +67,8 @@ jobs:
           
       - name: Notify Supabase (Auto-Update)
         run: |
-          VERSION=$(node -p "require('./app.json').expo.version")
-          VERSION_CODE=$(node -p "require('./app.json').expo.android.versionCode")
+          VERSION=$(node -p "require('/tmp/app.json').expo.version")
+          VERSION_CODE=$(node -p "require('/tmp/app.json').expo.android.versionCode")
           curl -X POST 'https://itylpvuzflqlmmqvdhbz.supabase.co/rest/v1/version_apk' \
           -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-Isxd04ySP_ZgDLit1fQDsxoeb25GmU_C_5I" \
           -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-Isxd04ySP_ZgDLit1fQDsxoeb25GmU_C_5I" \
