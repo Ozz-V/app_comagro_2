@@ -296,36 +296,35 @@ export default function ProductosScreen({ navigation, route }) {
         <style>
           @page { margin: 0; size: A4 portrait; }
           * { box-sizing: border-box; }
-          body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1A1A1A; }
+          body { margin: 0; padding: 0; font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1A1A1A; }
           .page { width: 100%; min-height: 100vh; padding: 30px 45px 40px; display: flex; flex-direction: column; }
           
           /* HEADER */
-          .header { display: flex; align-items: center; justify-content: space-between; height: 70px; flex-shrink: 0; border-bottom: 3px solid #1c9f4b; margin-bottom: 20px; padding-bottom: 10px; }
-          .brand-logo { max-height: 55px; max-width: 200px; object-fit: contain; }
-          .brand-text { font-size: 26pt; font-weight: bold; color: #1f2f6b; }
-          .title-ficha { font-size: 20pt; font-weight: bold; color: #1f2f6b; letter-spacing: 2px; }
+          .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 5px solid #1c9f4b; margin-bottom: 25px; padding-bottom: 15px; }
+          .brand-logo { max-height: 90px; max-width: 300px; object-fit: contain; }
+          .title-ficha { font-size: 24pt; font-weight: bold; color: #1f2f6b; letter-spacing: 1px; margin-top: 10px; }
           
           /* MIDDLE ROW */
-          .middle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; }
+          .middle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
           
           /* IMAGEN - a la izquierda */
-          .img-wrap { flex: 1.5; height: 280px; display: flex; align-items: center; justify-content: center; padding-right: 30px; }
+          .img-wrap { flex: 1.5; height: 350px; display: flex; align-items: center; justify-content: center; padding-right: 40px; }
           .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
           
           /* TÍTULO PRODUCTO - a la derecha */
           .title-sec { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-          .green-accent { width: 8px; height: 25px; background-color: #1c9f4b; margin-bottom: 12px; border-radius: 4px; }
-          .prod-marca { font-size: 12pt; font-weight: bold; color: #1c9f4b; text-transform: uppercase; margin: 0; }
-          .prod-modelo { font-size: 28pt; font-weight: bold; color: #1f2f6b; line-height: 1.1; margin: 8px 0; word-wrap: break-word; }
-          .prod-subcat { font-size: 12pt; color: #6f7b87; margin: 0; text-transform: uppercase; }
+          .green-accent { width: 8px; height: 35px; background-color: #1c9f4b; margin-bottom: 15px; border-radius: 4px; }
+          .prod-marca { font-size: 14pt; font-weight: bold; color: #1c9f4b; text-transform: uppercase; margin: 0 0 8px 0; }
+          .prod-modelo { font-size: 32pt; font-weight: bold; color: #1f2f6b; line-height: 1.1; margin: 0 0 10px 0; word-wrap: break-word; }
+          .prod-subcat { font-size: 14pt; color: #6f7b87; margin: 0; text-transform: uppercase; }
           
           /* TABLA SPECS - una sola columna */
           .specs { width: 100%; border-collapse: collapse; table-layout: fixed; flex-shrink: 0; }
-          .specs-head { background-color: #1f2f6b; color: white; padding: 8px 14px; font-size: 10pt; font-weight: bold; letter-spacing: 0.5px; }
-          .specs td { padding: 7px 14px; border-bottom: 1px solid #e7e7e7; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
+          .specs-head { background-color: #1f2f6b; color: white; padding: 10px 16px; font-size: 12pt; font-weight: bold; letter-spacing: 0.5px; }
+          .specs td { padding: 10px 16px; border-bottom: 1px solid #e7e7e7; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
           .specs tr.alt { background-color: #f7f8fa; }
-          .spec-name { font-size: 9pt; font-weight: bold; color: #4f5963; width: 38%; text-transform: uppercase; letter-spacing: 0.3px; }
-          .spec-val { font-size: 10pt; color: #1A1A1A; }
+          .spec-name { font-size: 11pt; font-weight: bold; color: #4f5963; width: 38%; text-transform: uppercase; letter-spacing: 0.3px; }
+          .spec-val { font-size: 12pt; color: #1A1A1A; }
           
           .footer { position: fixed; bottom: 0; left: 0; right: 0; height: 20px; background-color: #1f2f6b; }
         </style>
