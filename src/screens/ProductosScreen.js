@@ -332,12 +332,8 @@ export default function ProductosScreen({ navigation, route }) {
       <body>
         <div class="page">
           <div class="header">
-            <div class="header-left">
-              <img src="https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png" class="comagro-logo" />
-              <div class="separator"></div>
-              <div class="title-ficha">FICHA TÉCNICA</div>
-            </div>
-            <img src="${logoUrl}" class="brand-logo" onerror="this.style.display='none'" />
+            <div class="title-ficha">FICHA TÉCNICA</div>
+            <img src="${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class=brand-text>${modalProd?.marca || ''}</span>'" />
           </div>
           
           <div class="img-wrap">
@@ -692,10 +688,9 @@ export default function ProductosScreen({ navigation, route }) {
                   <View>
                     <View ref={fichaRef} collapsable={false} style={{ backgroundColor: COLORS.white, padding: 15, borderRadius: 8 }}>
                       
-                      {/* HEADER COMAGRO PARA EXPORTACIÓN Y UI */}
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 12, marginBottom: 16 }}>
-                        <Image source={{ uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png' }} style={{ width: 120, height: 35 }} resizeMode="contain" />
-                        <Text style={{ fontFamily: FONTS.heading, fontSize: 16, color: COLORS.navy }}>Ficha Técnica</Text>
+                      {/* HEADER PARA EXPORTACIÓN Y UI (SOLO MARCA) */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 12, marginBottom: 16 }}>
+                        <Text style={{ fontFamily: FONTS.heading, fontSize: 18, color: COLORS.navy, letterSpacing: 1 }}>FICHA TÉCNICA</Text>
                       </View>
 
                       <Image
@@ -725,11 +720,6 @@ export default function ProductosScreen({ navigation, route }) {
                           ))}
                         </View>
                       )}
-
-                      {/* FOOTER OFICIAL */}
-                      <View style={{ marginTop: 24, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#eee', alignItems: 'center' }}>
-                         <Text style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4 }}>Generado desde la App Oficial de Comagro S.A.</Text>
-                      </View>
                     </View>
 
                     {/* Botones de acción (PDF e Imagen) */}
