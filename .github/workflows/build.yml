@@ -63,3 +63,13 @@ jobs:
           files: comagro-app.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Notify Supabase (Auto-Update)
+        run: |
+          VERSION=$(node -p "require('./app.json').expo.version")
+          VERSION_CODE=$(node -p "require('./app.json').expo.android.versionCode")
+          curl -X POST 'https://itylpvuzflqlmmqvdhbz.supabase.co/rest/v1/version_apk' \
+          -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-Isxd04ySP_ZgDLit1fQDsxoeb25GmU_C_5I" \
+          -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-Isxd04ySP_ZgDLit1fQDsxoeb25GmU_C_5I" \
+          -H "Content-Type: application/json" \
+          -d "{ \"version_code\": $VERSION_CODE, \"version_name\": \"$VERSION\", \"release_notes\": \"Actualización automática v$VERSION (Build $VERSION_CODE)\", \"download_url\": \"https://github.com/Ozz-V/app_comagro_2/releases/download/v${{ github.run_number }}/comagro-app.apk\" }"
