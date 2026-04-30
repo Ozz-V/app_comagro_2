@@ -135,7 +135,7 @@ export default function PortalScreen({ navigation }) {
                   key={idx}
                   style={styles.recienteCard}
                   activeOpacity={0.7}
-                  onPress={() => navigation.navigate('Productos', { searchQuery: item.modelo })}
+                  onPress={() => navigation.navigate('Productos', { openProductSku: item.sku || item.modelo })}
                 >
                   <Image
                     source={{ uri: `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}

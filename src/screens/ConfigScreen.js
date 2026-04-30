@@ -114,14 +114,19 @@ export default function ConfigScreen({ navigation }) {
           <Text style={styles.emptyText}>Sin datos aún</Text>
         ) : (
           data.map((item, idx) => (
-            <View key={idx} style={styles.rankRow}>
+            <TouchableOpacity 
+              key={idx} 
+              style={styles.rankRow}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Productos', { openProductSku: item.sku || item.modelo })}
+            >
               <Text style={styles.rankNum}>{idx + 1}</Text>
               <View style={styles.rankInfo}>
                 <Text style={styles.rankModelo} numberOfLines={1}>{item.modelo}</Text>
                 <Text style={styles.rankMarca}>{item.marca}</Text>
               </View>
               <Text style={styles.rankCount}>{item.count}</Text>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </View>
