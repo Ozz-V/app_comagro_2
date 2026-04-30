@@ -55,13 +55,11 @@ jobs:
           git add comagro-app.apk
           git commit -m "Deploy APK"
           git push origin apk-builds --force
-      - name: Rename APK
-        run: mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/comagro-app.apk
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ github.run_number }}
           name: v${{ github.run_number }}
-          files: android/app/build/outputs/apk/release/comagro-app.apk
+          files: comagro-app.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
