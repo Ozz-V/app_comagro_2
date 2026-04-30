@@ -686,17 +686,23 @@ export default function ProductosScreen({ navigation, route }) {
                 {/* PESTAÑA FICHA TÉCNICA */}
                 {activeTab === 'FICHA' && (
                   <View>
-                    <View ref={fichaRef} collapsable={false} style={{ backgroundColor: COLORS.white, paddingBottom: 10 }}>
+                    <View ref={fichaRef} collapsable={false} style={{ backgroundColor: COLORS.white, padding: 15, borderRadius: 8 }}>
+                      
+                      {/* HEADER COMAGRO PARA EXPORTACIÓN Y UI */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 12, marginBottom: 16 }}>
+                        <Image source={{ uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png' }} style={{ width: 120, height: 35 }} resizeMode="contain" />
+                        <Text style={{ fontFamily: FONTS.heading, fontSize: 16, color: COLORS.navy }}>Ficha Técnica</Text>
+                      </View>
+
                       <Image
                         source={{ uri: modalProd?.imagen }}
                         style={styles.modalImg}
                         resizeMode="contain"
                       />
                       
-                      <View style={styles.titleSec}>
-                        <View style={styles.greenAccent} />
+                      <View style={styles.modalHeaderInfo}>
+                        <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={styles.modalMarcaLogo} resizeMode="contain" />
                         <View style={{flex: 1}}>
-                          <Text style={styles.modalMarca}>{modalProd?.marca}</Text>
                           <Text style={styles.modalModelo}>{modalProd?.modelo}</Text>
                           <Text style={styles.modalSubcat}>{modalProd?.subcategoria}</Text>
                         </View>
@@ -715,6 +721,11 @@ export default function ProductosScreen({ navigation, route }) {
                           ))}
                         </View>
                       )}
+
+                      {/* FOOTER OFICIAL */}
+                      <View style={{ marginTop: 24, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#eee', alignItems: 'center' }}>
+                         <Text style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4 }}>Generado desde la App Oficial de Comagro S.A.</Text>
+                      </View>
                     </View>
 
                     {/* Botones de acción (PDF e Imagen) */}
