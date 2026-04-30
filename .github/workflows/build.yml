@@ -1,5 +1,4 @@
 name: Build APK Comagro
-
 on:
   workflow_dispatch:
   push:
@@ -11,15 +10,12 @@ on:
       - 'app.json'
       - 'package.json'
       - 'assets/**'
-
 permissions:
   contents: write
-
 jobs:
   build:
     name: Build Android APK
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,25 +53,21 @@ jobs:
 
       - name: Upload APK to Repository Branch (Bypass Quota)
         run: |
-          echo "Subiendo APK a la rama 'apk-builds' del repositorio..."
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          # Mover la APK a la raíz temporalmente
           cp android/app/build/outputs/apk/release/app-release.apk /tmp/comagro.apk
-          # Crear una rama limpia
           git checkout --orphan apk-builds
           git rm -rf .
-          # Mover la APK de vuelta
           mv /tmp/comagro.apk ./comagro-app.apk
           git add comagro-app.apk
           git commit -m "Deploy APK"
-          # Pushear forzando (sobrescribe el anterior para no ocupar espacio infinito)
           git push origin apk-builds --force
-          
-          echo "## 🚀 Build Completado con Éxito" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📦 **TU GITHUB SE QUEDÓ SIN ESPACIO DE ALMACENAMIENTO.**" >> $GITHUB_STEP_SUMMARY
-          echo "Pero subí el APK directamente al código fuente de tu repositorio." >> $GITHUB_STEP_SUMMARY
-          echo "👉 Entrá a la página principal de tu repositorio." >> $GITHUB_STEP_SUMMARY
-          echo "👉 Cambiá la rama de 'main' a 'apk-builds'." >> $GITHUB_STEP_SUMMARY
-          echo "👉 Descargá el archivo 'comagro-app.apk'." >> $GITHUB_STEP_SUMMARY
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: v${{ github.run_number }}
+          files: android/app/build/outputs/apk/release/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
