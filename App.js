@@ -129,14 +129,22 @@ export default function App() {
       }, 800);
     });
 
-    // --- COMPROBADOR DE ACTUALIZACIONES (OTA APK) ---
-    checkUpdate();
-
     return () => {
       subscription.unsubscribe();
       sub.remove();
     };
   }, []);
+
+  // --- COMPROBADOR DE ACTUALIZACIONES: solo después de autenticarse ---
+  useEffect(() => {
+    const authed = !!(session && session.user?.email?.endsWith('@comagro.com.py'));
+    if (authed) {
+      checkUpdate();
+    } else {
+      // Si no está autenticado, no hacer nada con updates
+      setUpdateState('none');
+    }
+  }, [session]);
 
   async function checkUpdate() {
     setUpdateState('checking');
