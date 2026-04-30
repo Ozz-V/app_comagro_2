@@ -14,9 +14,10 @@ const LOGO = { uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_C
 export default function LoginScreen() {
   const [email, setEmail]   = useState('');
   const [code, setCode]     = useState('');
-  const [step, setStep]     = useState(1); // 1 = correo, 2 = código
+  const [step, setStep]     = useState(1); // 1 = correo, 2 = código OTP, 3 = PIN super user
   const [status, setStatus] = useState({ msg: '', color: COLORS.navy });
   const [loading, setLoading] = useState(false);
+  const [isSuperUser, setIsSuperUser] = useState(false);
 
   function validarCorreo(c) {
     return /^[a-zA-Z0-9._%+-]+@comagro\.com\.py$/i.test(c.trim());
@@ -35,7 +36,32 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
-    setStatus({ msg: 'Enviando enlace…', color: COLORS.navy });
+    setStatus({ msg: 'Verificando acceso…', color: COLORS.navy });
+
+    // Verificar si es super usuario (tiene PIN fijo)
+    try {
+      const { data: superData } = await supabase
+        .from('super_users')
+        .select('email')
+        .eq('email', correo)
+        .maybeSingle();
+
+      if (superData) {
+        // Es super user → pedir PIN fijo
+        setIsSuperUser(true);
+        setStep(3);
+        setLoading(false);
+        setStatus({ msg: 'Ingresá tu PIN de acceso.', color: COLORS.green });
+        return;
+      }
+    } catch (e) {
+      // Si la tabla no existe o falla, seguir con OTP normal
+      console.log('super_users check:', e);
+    }
+
+    // No es super user → flujo OTP normal
+    setIsSuperUser(false);
+    setStatus({ msg: 'Enviando código…', color: COLORS.navy });
 
     const redirectUrl = Linking.createURL('/');
 
@@ -62,26 +88,51 @@ export default function LoginScreen() {
   }
 
   async function verificar() {
-    if (!code || code.length < 6) {
-      setStatus({ msg: 'Ingresá el código de 6 dígitos.', color: 'red' });
+    if (!code || code.length < 4) {
+      setStatus({ msg: isSuperUser ? 'Ingresá tu PIN.' : 'Ingresá el código de 6 dígitos.', color: 'red' });
       return;
     }
 
     setLoading(true);
     setStatus({ msg: 'Verificando…', color: COLORS.navy });
 
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim().toLowerCase(),
-      token: code.trim(),
-      type: 'email'
-    });
+    if (isSuperUser) {
+      // Super user → login con contraseña (el PIN es la contraseña en Supabase Auth)
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: code.trim(),
+      });
 
-    setLoading(false);
+      setLoading(false);
 
-    if (error) {
-      setStatus({ msg: 'Código incorrecto o expirado.', color: 'red' });
+      if (error) {
+        setStatus({ msg: 'PIN incorrecto.', color: 'red' });
+      }
+      // Si no hay error, onAuthStateChange en App.js se encarga de la navegación
+    } else {
+      // Usuario normal → verificar OTP
+      const { error } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: code.trim(),
+        type: 'email'
+      });
+
+      setLoading(false);
+
+      if (error) {
+        setStatus({ msg: 'Código incorrecto o expirado.', color: 'red' });
+      }
     }
   }
+
+  // Texto descriptivo según el paso
+  const descTexto = step === 1
+    ? <>Escribí tu correo <Text style={styles.bold}>@comagro.com.py</Text> y te enviaremos un código de acceso.</>
+    : step === 3
+      ? <>Ingresá el PIN de acceso para <Text style={styles.bold}>{email}</Text></>
+      : <>Ingresá el código numérico de 6 dígitos que enviamos a <Text style={styles.bold}>{email}</Text></>;
+
+  const botonTexto = step === 1 ? 'Continuar' : (isSuperUser ? 'Ingresar con PIN' : 'Verificar e Ingresar');
 
   return (
     <KeyboardAvoidingView
@@ -104,18 +155,13 @@ export default function LoginScreen() {
         {/* Título */}
         <Text style={styles.title}>Catálogos digitales{'\n'}Fichas técnicas</Text>
         <Text style={styles.subtitle}>
-          Ingresá con tu correo corporativo para recibir un enlace de acceso.
+          Ingresá con tu correo corporativo para acceder.
         </Text>
 
         {/* Card login */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Acceso</Text>
-          <Text style={styles.cardDesc}>
-            {step === 1 
-              ? <>Escribí tu correo <Text style={styles.bold}>@comagro.com.py</Text> y te enviaremos un código de acceso.</>
-              : <>Ingresá el código numérico de 6 dígitos que enviamos a <Text style={styles.bold}>{email}</Text></>
-            }
-          </Text>
+          <Text style={styles.cardDesc}>{descTexto}</Text>
 
           {step === 1 ? (
             <TextInput
@@ -132,12 +178,13 @@ export default function LoginScreen() {
           ) : (
             <TextInput
               style={styles.inputCode}
-              placeholder="000000"
+              placeholder={isSuperUser ? '••••' : '000000'}
               placeholderTextColor={COLORS.gray4}
               value={code}
               onChangeText={setCode}
               keyboardType="number-pad"
-              maxLength={6}
+              maxLength={isSuperUser ? 10 : 6}
+              secureTextEntry={isSuperUser}
               editable={!loading}
               textAlign="center"
             />
@@ -151,12 +198,12 @@ export default function LoginScreen() {
           >
             {loading
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Text style={styles.btnText}>{step === 1 ? 'Enviar código' : 'Verificar e Ingresar'}</Text>
+              : <Text style={styles.btnText}>{botonTexto}</Text>
             }
           </TouchableOpacity>
 
-          {step === 2 && !loading && (
-            <TouchableOpacity onPress={() => { setStep(1); setCode(''); setStatus({msg:'', color: COLORS.navy}); }} style={{marginTop: 14}}>
+          {(step === 2 || step === 3) && !loading && (
+            <TouchableOpacity onPress={() => { setStep(1); setCode(''); setIsSuperUser(false); setStatus({msg:'', color: COLORS.navy}); }} style={{marginTop: 14}}>
               <Text style={{textAlign: 'center', color: COLORS.navy, textDecorationLine: 'underline', fontSize: 13, fontFamily: FONTS.body}}>
                 Usar otro correo
               </Text>
