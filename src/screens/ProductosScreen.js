@@ -12,6 +12,7 @@ import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { captureRef } from 'react-native-view-shot';
 import * as FileSystem from 'expo-file-system';
+import * as Clipboard from 'expo-clipboard';
 import { supabase, EDGE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
@@ -791,8 +792,17 @@ export default function ProductosScreen({ navigation, route }) {
                       <Text style={styles.aiBodyText}>{aiData}</Text>
                     )}
                     {aiData && aiData !== 'Texto inteligente en preparación para este producto.' && (
-                      <TouchableOpacity style={styles.copyBtn}>
-                        <View style={{flexDirection:'row',alignItems:'center',gap:8}}><SvgIcon name="share" size={16} color={COLORS.navy} /><Text style={styles.copyBtnText}>Copiar para WhatsApp</Text></View>
+                      <TouchableOpacity 
+                        style={styles.copyBtn}
+                        onPress={async () => {
+                          await Clipboard.setStringAsync(aiData);
+                          Alert.alert('Copiado', 'El texto ha sido copiado al portapapeles.');
+                        }}
+                      >
+                        <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+                          <SvgIcon name="share" size={16} color={COLORS.navy} />
+                          <Text style={styles.copyBtnText}>Copiar Texto</Text>
+                        </View>
                       </TouchableOpacity>
                     )}
                   </View>
