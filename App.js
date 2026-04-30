@@ -222,20 +222,27 @@ export default function App() {
   async function installUpdate() {
     if (!apkLocalUri) return;
     try {
-      // Usar expo-sharing para abrir el instalador de Android
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(apkLocalUri, {
-          mimeType: 'application/vnd.android.package-archive',
-          dialogTitle: 'Instalar actualización Comagro',
-        });
-      } else {
-        // Fallback
-        await Linking.openURL(apkLocalUri);
-      }
+      // Usar expo-intent-launcher para lanzar el instalador de Android directamente
+      const contentUri = await FileSystem.getContentUriAsync(apkLocalUri);
+      await require('expo-intent-launcher').startActivityAsync('android.intent.action.VIEW', {
+        data: contentUri,
+        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+        type: 'application/vnd.android.package-archive',
+      });
     } catch (err) {
       console.log('Error instalando:', err);
-      Alert.alert('Error', 'No se pudo abrir el instalador. Intentá de nuevo.');
+      // Fallback a Sharing si IntentLauncher falla por permisos en algún dispositivo muy viejo
+      try {
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(apkLocalUri, {
+            mimeType: 'application/vnd.android.package-archive',
+            dialogTitle: 'Instalar actualización Comagro',
+          });
+        }
+      } catch (err2) {
+        Alert.alert('Error', 'No se pudo abrir el instalador. Intentá de nuevo.');
+      }
     }
   }
 
