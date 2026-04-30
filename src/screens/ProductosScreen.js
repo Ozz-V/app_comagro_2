@@ -299,11 +299,12 @@ export default function ProductosScreen({ navigation, route }) {
           body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1A1A1A; }
           .page { width: 100%; min-height: 100vh; padding: 30px 45px 40px; display: flex; flex-direction: column; }
           
-          /* HEADER con logo grande */
-          .header { display: flex; align-items: center; height: 80px; flex-shrink: 0; border-bottom: 5px solid #1c9f4b; margin-bottom: 15px; padding-bottom: 10px; }
-          .brand-logo { max-width: 220px; max-height: 70px; object-fit: contain; }
-          .brand-text { font-size: 26pt; font-weight: bold; color: #1f2f6b; }
-          .separator { width: 2px; height: 50px; background-color: #cfcfcf; margin: 0 25px; }
+          /* HEADER */
+          .header { display: flex; align-items: center; height: 80px; flex-shrink: 0; border-bottom: 5px solid #1c9f4b; margin-bottom: 15px; padding-bottom: 10px; justify-content: space-between; }
+          .comagro-logo { max-height: 55px; max-width: 180px; object-fit: contain; }
+          .brand-logo { max-height: 55px; max-width: 150px; object-fit: contain; }
+          .header-left { display: flex; align-items: center; }
+          .separator { width: 2px; height: 50px; background-color: #cfcfcf; margin: 0 20px; }
           .title-ficha { font-size: 20pt; font-weight: bold; color: #1f2f6b; letter-spacing: 2px; }
           
           /* IMAGEN - altura fija, nunca desborda */
@@ -331,9 +332,12 @@ export default function ProductosScreen({ navigation, route }) {
       <body>
         <div class="page">
           <div class="header">
-            <img src="${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class=brand-text>${modalProd?.marca || ''}</span>'" />
-            <div class="separator"></div>
-            <div class="title-ficha">FICHA TÉCNICA</div>
+            <div class="header-left">
+              <img src="https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png" class="comagro-logo" />
+              <div class="separator"></div>
+              <div class="title-ficha">FICHA TÉCNICA</div>
+            </div>
+            <img src="${logoUrl}" class="brand-logo" onerror="this.style.display='none'" />
           </div>
           
           <div class="img-wrap">
