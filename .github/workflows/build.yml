@@ -69,7 +69,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('/tmp/app.json').expo.version")
           VERSION_CODE=$(node -p "require('/tmp/app.json').expo.android.versionCode")
-          curl -X POST 'https://itylpvuzflqlmmqvdhbz.supabase.co/rest/v1/version_apk' \
+          curl --fail-with-body -X POST 'https://itylpvuzflqlmmqvdhbz.supabase.co/rest/v1/version_apk' \
           -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-Isxd04ySP_ZgDLit1fQDsxoeb25GmU_C_5I" \
           -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-Isxd04ySP_ZgDLit1fQDsxoeb25GmU_C_5I" \
           -H "Content-Type: application/json" \

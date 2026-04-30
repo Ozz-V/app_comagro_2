@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, Image, SafeAreaView, StatusBar,
   ActivityIndicator, useWindowDimensions, Modal, ScrollView,
-  RefreshControl, Platform, Alert,
+  RefreshControl, Platform, Alert, PanResponder
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -64,8 +64,10 @@ export default function ProductosScreen({ navigation, route }) {
   const [error, setError]             = useState(null);
   const [marcas, setMarcas]           = useState([]);
   const [filtroMarca, setFiltroMarca] = useState('');
+  const [filtroSubcategoria, setFiltroSubcategoria] = useState('');
   const [busqueda, setBusqueda]       = useState('');
   const [modalProd, setModalProd]     = useState(null);
+  const [isInitializingDirect, setIsInitializingDirect] = useState(!!route.params?.openProductSku);
   // Estado de generación
   const [generandoPdf, setGenerandoPdf]   = useState(false);
   const [compartiendo, setCompartiendo]   = useState(false);
@@ -163,16 +165,20 @@ export default function ProductosScreen({ navigation, route }) {
 
   // Abrir producto directamente si viene con openProductSku (desde recientes/config)
   useEffect(() => {
-    if (allProducts.length > 0 && route?.params?.openProductSku) {
-      const sku = route.params.openProductSku;
-      const prod = allProducts.find(p => p.modelo === sku);
-      if (prod) {
-        setModalProd(prod);
-        setActiveTab('FICHA');
-        trackAnalytics(prod, 'view');
-        openedDirectlyRef.current = true;
-        // Limpiar el param para no re-abrir si vuelven
-        navigation.setParams({ openProductSku: undefined });
+    if (allProducts.length > 0) {
+      if (route?.params?.openProductSku) {
+        const sku = route.params.openProductSku;
+        const prod = allProducts.find(p => p.modelo === sku);
+        if (prod) {
+          setModalProd(prod);
+          setActiveTab('FICHA');
+          trackAnalytics(prod, 'view');
+          openedDirectlyRef.current = true;
+          navigation.setParams({ openProductSku: undefined });
+        }
+      }
+      if (isInitializingDirect) {
+        setIsInitializingDirect(false);
       }
     }
   }, [allProducts, route?.params?.openProductSku]);
@@ -512,8 +518,20 @@ export default function ProductosScreen({ navigation, route }) {
 
 
   // ─── FILTRADO ─────────────────────────────────────────────────────
+  const subcategoriasDisponibles = useMemo(() => {
+    if (!filtroMarca) return [];
+    const prodMarca = allProducts.filter(p => p.marca === filtroMarca);
+    const subs = Array.from(new Set(prodMarca.map(p => p.subcategoria).filter(Boolean)));
+    return subs.sort();
+  }, [allProducts, filtroMarca]);
+
   const productosFiltrados = useMemo(() => {
     let lista = filtroMarca ? allProducts.filter(p => p.marca === filtroMarca) : allProducts;
+    
+    if (filtroSubcategoria) {
+      lista = lista.filter(p => p.subcategoria === filtroSubcategoria);
+    }
+    
     const q = busqueda.toLowerCase().trim();
     if (q) {
       lista = lista.filter(p =>
@@ -536,6 +554,20 @@ export default function ProductosScreen({ navigation, route }) {
   const currentIndex = modalProd ? activeSliderList.findIndex(p => p.modelo === modalProd.modelo) : -1;
   const prevProd = currentIndex > 0 ? activeSliderList[currentIndex - 1] : null;
   const nextProd = currentIndex !== -1 && currentIndex < activeSliderList.length - 1 ? activeSliderList[currentIndex + 1] : null;
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (evt, gestureState) => {
+      // Only set pan responder if the swipe is clearly horizontal
+      return Math.abs(gestureState.dx) > 30 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+    },
+    onPanResponderRelease: (evt, gestureState) => {
+      if (gestureState.dx > 50 && prevProd) {
+        handleOpenModal(prevProd);
+      } else if (gestureState.dx < -50 && nextProd) {
+        handleOpenModal(nextProd);
+      }
+    }
+  }), [prevProd, nextProd]);
 
   // ─── RENDERS ──────────────────────────────────────────────────────
   const renderMarcaBtn = useCallback(({ item: marca }) => {
@@ -595,6 +627,15 @@ export default function ProductosScreen({ navigation, route }) {
   const mostrarLista = filtroMarca || busqueda.trim();
 
   // ─── RENDER PRINCIPAL ─────────────────────────────────────────────
+  if (isInitializingDirect) {
+    return (
+      <SafeAreaView style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]}>
+        <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
+        <ActivityIndicator size="large" color={COLORS.navy} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
@@ -611,7 +652,7 @@ export default function ProductosScreen({ navigation, route }) {
           />
           <View style={styles.topActions}>
             <TouchableOpacity onPress={() => {
-              if (filtroMarca || busqueda) { setFiltroMarca(''); setBusqueda(''); }
+              if (filtroMarca || busqueda) { setFiltroMarca(''); setFiltroSubcategoria(''); setBusqueda(''); setIsComparing(false); setCompareItems([]); }
               else navigation.goBack();
             }}>
               <Text style={styles.btnVolver}>
@@ -632,7 +673,7 @@ export default function ProductosScreen({ navigation, route }) {
               placeholder="Buscar producto…"
               placeholderTextColor={COLORS.gray4}
               value={busqueda}
-              onChangeText={v => { setBusqueda(v); if (v) setFiltroMarca(''); }}
+              onChangeText={v => { setBusqueda(v); if (v) { setFiltroMarca(''); setFiltroSubcategoria(''); setIsComparing(false); } }}
             />
             {busqueda ? (
               <TouchableOpacity onPress={() => setBusqueda('')}>
@@ -640,13 +681,35 @@ export default function ProductosScreen({ navigation, route }) {
               </TouchableOpacity>
             ) : null}
           </View>
-          <TouchableOpacity 
-            onPress={() => { setIsComparing(!isComparing); setCompareItems([]); }}
-            style={{ backgroundColor: isComparing ? COLORS.navy : COLORS.bg, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border }}
-          >
-            <Text style={{ color: isComparing ? COLORS.white : COLORS.navy, fontWeight: 'bold' }}>{isComparing ? 'Cancelar' : 'Comparar'}</Text>
-          </TouchableOpacity>
+          {filtroSubcategoria ? (
+            <TouchableOpacity 
+              onPress={() => { setIsComparing(!isComparing); setCompareItems([]); }}
+              style={{ backgroundColor: isComparing ? COLORS.navy : COLORS.bg, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border }}
+            >
+              <Text style={{ color: isComparing ? COLORS.white : COLORS.navy, fontWeight: 'bold' }}>{isComparing ? 'Cancelar' : 'Comparar'}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
+
+        {filtroMarca && subcategoriasDisponibles.length > 1 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10, marginBottom: 5 }}>
+            <TouchableOpacity
+              onPress={() => { setFiltroSubcategoria(''); setIsComparing(false); setCompareItems([]); }}
+              style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: !filtroSubcategoria ? COLORS.navy : '#E0E0E0', marginRight: 10 }}
+            >
+              <Text style={{ color: !filtroSubcategoria ? COLORS.white : COLORS.navy, fontWeight: 'bold' }}>Todos</Text>
+            </TouchableOpacity>
+            {subcategoriasDisponibles.map(sub => (
+              <TouchableOpacity
+                key={sub}
+                onPress={() => { setFiltroSubcategoria(sub); setIsComparing(false); setCompareItems([]); }}
+                style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: filtroSubcategoria === sub ? COLORS.navy : '#E0E0E0', marginRight: 10 }}
+              >
+                <Text style={{ color: filtroSubcategoria === sub ? COLORS.white : COLORS.navy, fontWeight: 'bold' }}>{sub}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : null}
       </View>
       <View style={styles.topBorder} />
 
@@ -753,22 +816,23 @@ export default function ProductosScreen({ navigation, route }) {
         }}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalDialog}>
+          
+          {prevProd && (
+            <TouchableOpacity onPress={() => handleOpenModal(prevProd)} style={{ position: 'absolute', left: 5, top: '50%', zIndex: 999, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 30 }}>
+              <Text style={{ fontSize: 40, color: COLORS.white, fontWeight: 'bold' }}>‹</Text>
+            </TouchableOpacity>
+          )}
+          
+          {nextProd && (
+            <TouchableOpacity onPress={() => handleOpenModal(nextProd)} style={{ position: 'absolute', right: 5, top: '50%', zIndex: 999, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 30 }}>
+              <Text style={{ fontSize: 40, color: COLORS.white, fontWeight: 'bold' }}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.modalDialog} {...panResponder.panHandlers}>
             <View style={styles.modalHead}>
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                {prevProd ? (
-                  <TouchableOpacity onPress={() => handleOpenModal(prevProd)} style={{ padding: 5, marginRight: 5 }}>
-                    <Text style={{ fontSize: 32, color: COLORS.navy, lineHeight: 32 }}>‹</Text>
-                  </TouchableOpacity>
-                ) : <View style={{ width: 25 }} />}
-                
                 <Text style={[styles.modalTitle, { flex: 1, textAlign: 'center' }]} numberOfLines={1}>{modalProd?.modelo}</Text>
-                
-                {nextProd ? (
-                  <TouchableOpacity onPress={() => handleOpenModal(nextProd)} style={{ padding: 5, marginLeft: 5 }}>
-                    <Text style={{ fontSize: 32, color: COLORS.navy, lineHeight: 32 }}>›</Text>
-                  </TouchableOpacity>
-                ) : <View style={{ width: 25 }} />}
               </View>
 
               <TouchableOpacity onPress={() => {

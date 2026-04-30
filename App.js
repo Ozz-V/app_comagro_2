@@ -199,13 +199,15 @@ export default function App() {
         fileUri,
         { headers: { 'Accept': 'application/octet-stream' } },
         (downloadProgress) => {
-          const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-          setDownloadProgress(progress);
-          Animated.timing(progressAnim, {
-            toValue: progress,
-            duration: 200,
-            useNativeDriver: false,
-          }).start();
+          if (downloadProgress.totalBytesExpectedToWrite > 0) {
+            const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+            setDownloadProgress(progress);
+            Animated.timing(progressAnim, {
+              toValue: progress,
+              duration: 200,
+              useNativeDriver: false,
+            }).start();
+          }
         }
       );
 
@@ -277,7 +279,7 @@ export default function App() {
   return (
     <>
       <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+        <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: '#FFFFFF' } }}>
           {!autenticado ? (
             <Stack.Screen name="Login" component={LoginScreen} />
           ) : (

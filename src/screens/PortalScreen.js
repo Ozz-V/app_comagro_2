@@ -201,15 +201,39 @@ export default function PortalScreen({ navigation }) {
             {calcMode ? (
               <View>
                 <Text style={{ fontWeight: 'bold', color: COLORS.navy, marginBottom: 10 }}>
-                  Ingresá el valor {calcMode === 'gen' ? '(KVA)' : '(HP)'}
+                  Ingresá el valor {calcMode === 'gen' ? '(1 a 3000 KVA)' : calcMode === 'motor' ? '(1 a 500 HP)' : '(Caudal L/min o HP)'}
                 </Text>
-                <TextInput
-                  style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 15, fontSize: 18, color: COLORS.black, backgroundColor: '#F0F4F8', marginBottom: 20 }}
-                  keyboardType="numeric"
-                  placeholder="Ej: 2"
-                  value={calcInput}
-                  onChangeText={setCalcInput}
-                />
+                
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                  <TouchableOpacity 
+                    style={{ backgroundColor: COLORS.navy, width: 50, height: 50, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
+                    onPress={() => {
+                      const current = parseFloat(calcInput) || 0;
+                      if (current > 1) setCalcInput(String(current - 1));
+                    }}
+                  >
+                    <Text style={{ color: COLORS.white, fontSize: 24, fontWeight: 'bold' }}>-</Text>
+                  </TouchableOpacity>
+                  
+                  <TextInput
+                    style={{ flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, fontSize: 18, color: COLORS.black, backgroundColor: '#F0F4F8', marginHorizontal: 10, textAlign: 'center' }}
+                    keyboardType="numeric"
+                    placeholder="Ej: 2"
+                    value={calcInput}
+                    onChangeText={setCalcInput}
+                  />
+
+                  <TouchableOpacity 
+                    style={{ backgroundColor: COLORS.navy, width: 50, height: 50, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
+                    onPress={() => {
+                      const current = parseFloat(calcInput) || 0;
+                      const max = calcMode === 'gen' ? 3000 : 500;
+                      if (current < max) setCalcInput(String(current + 1));
+                    }}
+                  >
+                    <Text style={{ color: COLORS.white, fontSize: 24, fontWeight: 'bold' }}>+</Text>
+                  </TouchableOpacity>
+                </View>
 
                 {parseFloat(calcInput) > 0 && (
                   <View style={{ backgroundColor: '#E3FAED', padding: 15, borderRadius: 8, borderWidth: 1, borderColor: COLORS.green }}>
@@ -219,24 +243,30 @@ export default function PortalScreen({ navigation }) {
                         {parseFloat(calcInput) < 2 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💡 3 Luces{'\n'}📺 1 TV{'\n'}💻 1 Notebook{'\n'}📡 1 WiFi</Text> :
                          parseFloat(calcInput) < 4 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>❄️ 1 Heladera pequeña{'\n'}💡 5 Luces{'\n'}📺 1 TV{'\n'}📡 1 WiFi</Text> :
                          parseFloat(calcInput) < 6 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>🌬️ 1 Aire (12.000 BTU){'\n'}❄️ 1 Heladera{'\n'}💡 8 Luces{'\n'}📺 2 TV</Text> :
-                         parseFloat(calcInput) < 10 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>🌬️ 2 Aires (12.000 BTU){'\n'}❄️ 1 Heladera{'\n'}💡 Toda la casa{'\n'}📺 3 TV</Text> :
-                         <Text style={{ color: COLORS.navy, fontSize: 14 }}>🏠 Capacidad para casi toda una residencia o negocio comercial pequeño (Varias luces, aires, heladeras, portones automáticos)</Text>}
+                         parseFloat(calcInput) <= 10 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>🌬️ 2 Aires (12.000 BTU){'\n'}❄️ 1 Heladera{'\n'}💡 Toda la casa{'\n'}📺 3 TV</Text> :
+                         parseFloat(calcInput) <= 50 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>🏢 Capacidad para locales comerciales medianos, oficinas con varios aires acondicionados, servidores y cámaras frigoríficas.</Text> :
+                         parseFloat(calcInput) <= 250 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>🏭 Uso Industrial Liviano: Fábricas pequeñas, supermercados completos, estaciones de servicio, edificios residenciales enteros.</Text> :
+                         parseFloat(calcInput) <= 1000 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>🏗️ Uso Industrial Pesado: Centros comerciales (Shoppings), hospitales, grandes fábricas, frigoríficos industriales.</Text> :
+                         <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚡ Gran Escala: Industrias electrointensivas, minería, respaldo para barrios enteros o centros de datos masivos.</Text>}
                       </View>
                     )}
                     {calcMode === 'motor' && (
                       <View>
                         {parseFloat(calcInput) <= 1 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Hormigoneras chicas, cortadoras de fiambre, portones eléctricos residenciales, ventiladores grandes.</Text> :
                          parseFloat(calcInput) <= 3 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Compresores medianos, sierras circulares, tornos pequeños, cintas transportadoras livianas.</Text> :
-                         parseFloat(calcInput) <= 5 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Amasadoras industriales, elevadores de autos, extractores pesados, trituradoras medianas.</Text> :
-                         <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Maquinaria pesada industrial, bombas de gran caudal, molinos, prensas hidráulicas.</Text>}
+                         parseFloat(calcInput) <= 10 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Amasadoras industriales, elevadores de autos, extractores pesados, trituradoras medianas, bombas centrífugas grandes.</Text> :
+                         parseFloat(calcInput) <= 50 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Maquinaria industrial de planta, cintas transportadoras largas, molinos, prensas hidráulicas pesadas.</Text> :
+                         parseFloat(calcInput) <= 200 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso: Industria pesada, grandes compresores de planta, trituradoras de piedra, maquinaria minera liviana.</Text> :
+                         <Text style={{ color: COLORS.navy, fontSize: 14 }}>⚙️ Uso Extremo: Industria naviera, minería pesada, bombas de acueductos, grandes molinos industriales.</Text>}
                       </View>
                     )}
                     {calcMode === 'bomba' && (
                       <View>
-                        {parseFloat(calcInput) <= 0.5 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso: Llenado de tanques domésticos bajos, riego de jardines chicos, circulación de agua.</Text> :
-                         parseFloat(calcInput) <= 1 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso: Extracción de pozos medianos, llenado de tanques elevados (hasta 15m), riego de parques.</Text> :
-                         parseFloat(calcInput) <= 2 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso: Riego por aspersión, llenado de piscinas rápido, edificios de 3-4 pisos.</Text> :
-                         <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso: Agricultura, edificios de varios pisos, sistemas contra incendios, extracción profunda.</Text>}
+                        {parseFloat(calcInput) <= 1 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso doméstico: Llenado de tanques (hasta 15m), riego de jardines chicos, circulación de agua, pozos poco profundos.</Text> :
+                         parseFloat(calcInput) <= 3 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso comercial/Residencial: Edificios de 3-5 pisos, riego por aspersión mediano, llenado de piscinas rápido.</Text> :
+                         parseFloat(calcInput) <= 10 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso agrícola/Edificios: Riego agrícola por goteo/aspersión, edificios altos (más de 10 pisos), sistemas contra incendios pequeños.</Text> :
+                         parseFloat(calcInput) <= 50 ? <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso Industrial: Torres de refrigeración, sistemas contra incendios industriales, extracción de pozos artesianos profundos.</Text> :
+                         <Text style={{ color: COLORS.navy, fontSize: 14 }}>💧 Uso Gran Escala: Plantas de tratamiento de agua, acueductos, riego agrícola masivo, drenaje de minas.</Text>}
                       </View>
                     )}
                   </View>
