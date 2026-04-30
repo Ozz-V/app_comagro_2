@@ -300,58 +300,72 @@ export default function ProductosScreen({ navigation, route }) {
           .page { width: 100%; min-height: 100vh; padding: 30px 45px 40px; display: flex; flex-direction: column; }
           
           /* HEADER */
-          .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 5px solid #1c9f4b; margin-bottom: 25px; padding-bottom: 15px; }
-          .brand-logo { max-height: 90px; max-width: 300px; object-fit: contain; }
-          .title-ficha { font-size: 24pt; font-weight: bold; color: #1f2f6b; letter-spacing: 1px; margin-top: 10px; }
+          .header { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 15px; padding-top: 10px; }
+          .brand-logo-container { width: 250px; display: flex; align-items: center; justify-content: center; margin-right: 20px; }
+          .brand-logo { max-height: 80px; max-width: 100%; object-fit: contain; }
+          .header-separator { width: 2px; height: 60px; background-color: #a0a0a0; margin: 0 30px; }
+          .title-ficha { font-size: 20pt; font-weight: bold; color: #0a2566; letter-spacing: 1px; }
+          .header-line { width: 100%; height: 2px; background-color: #0d8a39; margin-bottom: 20px; }
           
-          /* MIDDLE ROW */
-          .middle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+          /* MIDDLE BOX */
+          .middle-box { display: flex; align-items: stretch; border: 2px solid #a0a0a0; border-radius: 15px; padding: 20px; margin-bottom: 30px; }
           
           /* IMAGEN - a la izquierda */
-          .img-wrap { flex: 1.5; height: 350px; display: flex; align-items: center; justify-content: center; padding-right: 40px; }
+          .img-wrap { flex: 1.5; height: 300px; display: flex; align-items: center; justify-content: center; padding-right: 20px; }
           .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
           
           /* TÍTULO PRODUCTO - a la derecha */
-          .title-sec { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-          .green-accent { width: 8px; height: 35px; background-color: #1c9f4b; margin-bottom: 15px; border-radius: 4px; }
-          .prod-marca { font-size: 14pt; font-weight: bold; color: #1c9f4b; text-transform: uppercase; margin: 0 0 8px 0; }
-          .prod-modelo { font-size: 32pt; font-weight: bold; color: #1f2f6b; line-height: 1.1; margin: 0 0 10px 0; word-wrap: break-word; }
-          .prod-subcat { font-size: 14pt; color: #6f7b87; margin: 0; text-transform: uppercase; }
+          .title-sec-wrapper { flex: 1; display: flex; align-items: center; }
+          .green-accent { width: 4px; height: 100px; background-color: #0d8a39; margin-right: 15px; }
+          .title-sec { display: flex; flex-direction: column; justify-content: center; }
+          .prod-marca { font-size: 14pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; margin: 0 0 4px 0; }
+          .prod-modelo { font-size: 28pt; font-weight: bold; color: #0a2566; line-height: 1.1; margin: 0 0 6px 0; word-wrap: break-word; }
+          .prod-subcat { font-size: 13pt; font-weight: bold; color: #8a939c; margin: 0 0 4px 0; text-transform: uppercase; }
+          .prod-name { font-size: 11pt; font-weight: bold; color: #0d8a39; margin: 0; }
           
-          /* TABLA SPECS - una sola columna */
-          .specs { width: 100%; border-collapse: collapse; table-layout: fixed; flex-shrink: 0; }
-          .specs-head { background-color: #1f2f6b; color: white; padding: 10px 16px; font-size: 12pt; font-weight: bold; letter-spacing: 0.5px; }
-          .specs td { padding: 10px 16px; border-bottom: 1px solid #e7e7e7; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
-          .specs tr.alt { background-color: #f7f8fa; }
-          .spec-name { font-size: 11pt; font-weight: bold; color: #4f5963; width: 38%; text-transform: uppercase; letter-spacing: 0.3px; }
-          .spec-val { font-size: 12pt; color: #1A1A1A; }
+          /* TABLA SPECS */
+          .specs { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          .specs-head { background-color: #0a2566; color: white; padding: 12px 20px; font-size: 14pt; font-weight: bold; letter-spacing: 0.5px; }
+          .specs td { padding: 8px 20px; vertical-align: middle; word-wrap: break-word; overflow-wrap: break-word; }
+          .specs tr:nth-child(even) { background-color: #f2f2f2; }
+          .specs tr:nth-child(odd) { background-color: #ffffff; }
+          .spec-name { font-size: 11pt; font-weight: bold; color: #000; width: 40%; text-transform: uppercase; }
+          .spec-val { font-size: 11pt; color: #000; }
           
-          .footer { position: fixed; bottom: 0; left: 0; right: 0; height: 20px; background-color: #1f2f6b; }
+          /* FOOTER AZUL */
+          .footer-blue { position: absolute; bottom: 0; left: 0; right: 0; height: 40px; background-color: #0a2566; }
         </style>
       </head>
       <body>
-        <div class="page">
+        <div class="page" style="position: relative;">
           <div class="header">
-            <img src="${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class=brand-text>${modalProd?.marca || ''}</span>'" />
+            <div class="brand-logo-container">
+              <img src="${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class=title-ficha style=color:#a0a0a0;>${modalProd?.marca || ''}</span>'" />
+            </div>
+            <div class="header-separator"></div>
             <div class="title-ficha">FICHA TÉCNICA</div>
           </div>
           
-          <div class="middle-row">
+          <div class="header-line"></div>
+          
+          <div class="middle-box">
             <div class="img-wrap">
               <img id="prodImg" class="prod-img" src="${base64Img}" />
             </div>
             
-            <div class="title-sec">
+            <div class="title-sec-wrapper">
               <div class="green-accent"></div>
-              <p class="prod-marca">${modalProd?.marca || ''}</p>
-              <h1 class="prod-modelo">${modalProd?.modelo || ''}</h1>
-              <div class="prod-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
+              <div class="title-sec">
+                <p class="prod-marca">${modalProd?.marca || ''}</p>
+                <h1 class="prod-modelo">${modalProd?.modelo || ''}</h1>
+                <div class="prod-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
+              </div>
             </div>
           </div>
           
           ${specsHtml}
           
-          <div class="footer"></div>
+          <div class="footer-blue"></div>
         </div>
         
         <script>
@@ -689,14 +703,19 @@ export default function ProductosScreen({ navigation, route }) {
                     <View ref={fichaRef} collapsable={false} style={{ backgroundColor: COLORS.white, padding: 15, borderRadius: 8 }}>
                       
                       {/* HEADER: LOGO DE MARCA Y FICHA TECNICA */}
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 12, marginBottom: 16 }}>
-                        <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={{ width: 120, height: 40 }} resizeMode="contain" />
-                        <Text style={{ fontFamily: FONTS.heading, fontSize: 18, color: COLORS.navy, letterSpacing: 1 }}>FICHA TÉCNICA</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', marginBottom: 10 }}>
+                        <View style={{ width: 140, justifyContent: 'center', alignItems: 'center' }}>
+                          <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={{ width: 120, height: 40 }} resizeMode="contain" />
+                        </View>
+                        <View style={{ width: 1, height: 30, backgroundColor: '#a0a0a0', marginHorizontal: 20 }} />
+                        <Text style={{ fontFamily: FONTS.heading, fontSize: 18, color: '#0a2566', letterSpacing: 1 }}>FICHA TÉCNICA</Text>
                       </View>
+                      
+                      <View style={{ height: 2, backgroundColor: '#0d8a39', width: '100%', marginBottom: 16 }} />
 
-                      {/* MIDDLE ROW: IMAGEN + DATOS */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                        <View style={{ flex: 1.5, height: 220, paddingRight: 15 }}>
+                      {/* MIDDLE ROW: CAJA CON BORDE - IMAGEN + DATOS */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: '#a0a0a0', borderRadius: 12, padding: 15, marginBottom: 16 }}>
+                        <View style={{ flex: 1.5, height: 180, paddingRight: 10 }}>
                           <Image
                             source={{ uri: modalProd?.imagen }}
                             style={{ width: '100%', height: '100%' }}
@@ -704,11 +723,13 @@ export default function ProductosScreen({ navigation, route }) {
                           />
                         </View>
                         
-                        <View style={{ flex: 1 }}>
-                          <View style={{ width: 6, height: 20, backgroundColor: COLORS.green, borderRadius: 3, marginBottom: 8 }} />
-                          <Text style={{ fontFamily: FONTS.body, fontSize: 12, fontWeight: 'bold', color: COLORS.green, textTransform: 'uppercase' }}>{modalProd?.marca}</Text>
-                          <Text style={{ fontFamily: FONTS.heading, fontSize: 20, color: COLORS.navy, marginVertical: 4 }}>{modalProd?.modelo}</Text>
-                          <Text style={{ fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, textTransform: 'uppercase' }}>{modalProd?.subcategoria}</Text>
+                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ width: 4, height: 60, backgroundColor: '#0d8a39', marginRight: 10 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontFamily: FONTS.body, fontSize: 11, fontWeight: 'bold', color: '#0d8a39', textTransform: 'uppercase' }}>{modalProd?.marca}</Text>
+                            <Text style={{ fontFamily: FONTS.heading, fontSize: 18, color: '#0a2566', marginVertical: 4 }}>{modalProd?.modelo}</Text>
+                            <Text style={{ fontFamily: FONTS.body, fontSize: 11, fontWeight: 'bold', color: '#8a939c', textTransform: 'uppercase' }}>{modalProd?.subcategoria}</Text>
+                          </View>
                         </View>
                       </View>
 
