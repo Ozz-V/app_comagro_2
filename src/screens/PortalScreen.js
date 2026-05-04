@@ -43,6 +43,8 @@ const OPCIONES = [
 
 export default function PortalScreen({ navigation }) {
   const [recientes, setRecientes] = useState([]);
+  const [tendencias, setTendencias] = useState({ vistos: [], buscados: [], compartidos: [] });
+  const [activeTrendTab, setActiveTrendTab] = useState('Vistos'); // Vistos | Buscados | Compartidos
   
   // Calculadora Beta
   const [showCalcModal, setShowCalcModal] = useState(false);
@@ -51,12 +53,14 @@ export default function PortalScreen({ navigation }) {
 
   useEffect(() => {
     cargarRecientes();
+    cargarTendencias();
   }, []);
 
   // Recargar al volver a esta pantalla
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       cargarRecientes();
+      cargarTendencias();
     });
     return unsubscribe;
   }, [navigation]);
@@ -75,7 +79,6 @@ export default function PortalScreen({ navigation }) {
         .limit(20);
 
       if (data) {
-        // Eliminar duplicados (quedarse con el más reciente de cada SKU)
         const seen = new Set();
         const unique = [];
         for (const item of data) {
@@ -89,6 +92,42 @@ export default function PortalScreen({ navigation }) {
       }
     } catch (e) {
       console.log('Error cargando recientes:', e);
+    }
+  }
+
+  async function cargarTendencias() {
+    try {
+      // Función para obtener top por acción
+      const getTop = async (action) => {
+        const { data } = await supabase
+          .from('producto_analytics')
+          .select('modelo, marca, sku, action')
+          .eq('action', action);
+        
+        if (!data) return [];
+        
+        // Contar ocurrencias por SKU
+        const counts = {};
+        data.forEach(item => {
+          const key = item.sku || item.modelo;
+          if (!counts[key]) counts[key] = { ...item, count: 0 };
+          counts[key].count++;
+        });
+
+        return Object.values(counts)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10);
+      };
+
+      const [v, b, c] = await Promise.all([
+        getTop('view'),
+        getTop('search'),
+        getTop('share')
+      ]);
+
+      setTendencias({ vistos: v, buscados: b, compartidos: c });
+    } catch (e) {
+      console.log('Error cargando tendencias:', e);
     }
   }
 
@@ -147,7 +186,9 @@ export default function PortalScreen({ navigation }) {
         {/* Productos recientes */}
         {recientes.length > 0 && (
           <View style={styles.recientesSection}>
-            <Text style={styles.recientesTitulo}>Vistos recientemente</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={styles.recientesTitulo}>Vistos recientemente</Text>
+            </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recientesScroll}>
               {recientes.map((item, idx) => (
                 <TouchableOpacity
@@ -155,8 +196,7 @@ export default function PortalScreen({ navigation }) {
                   style={styles.recienteCard}
                   activeOpacity={0.7}
                   onPress={() => navigation.navigate('Productos', { 
-                    openProductSku: item.sku || item.modelo,
-                    contextSkus: recientes.map(r => r.sku || r.modelo)
+                    openProductSku: item.sku || item.modelo
                   })}
                 >
                   <Image
@@ -171,6 +211,49 @@ export default function PortalScreen({ navigation }) {
             </ScrollView>
           </View>
         )}
+
+        {/* Tendencias de la empresa */}
+        <View style={[styles.recientesSection, { marginTop: 32 }]}>
+          <Text style={styles.recientesTitulo}>Tendencias de la empresa</Text>
+          
+          <View style={styles.trendTabs}>
+            {['Vistos', 'Buscados', 'Compartidos'].map(tab => (
+              <TouchableOpacity 
+                key={tab} 
+                onPress={() => setActiveTrendTab(tab)}
+                style={[styles.trendTab, activeTrendTab === tab && styles.trendTabActive]}
+              >
+                <Text style={[styles.trendTabText, activeTrendTab === tab && styles.trendTabTextActive]}>{tab}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recientesScroll}>
+            {(activeTrendTab === 'Vistos' ? tendencias.vistos : 
+              activeTrendTab === 'Buscados' ? tendencias.buscados : 
+              tendencias.compartidos).map((item, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[styles.recienteCard, { backgroundColor: '#F0F4F8' }]}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('Productos', { 
+                  openProductSku: item.sku || item.modelo
+                })}
+              >
+                <View style={styles.badgeTrend}>
+                  <Text style={styles.badgeTrendText}>{idx + 1}</Text>
+                </View>
+                <Image
+                  source={{ uri: `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}
+                  style={styles.recienteLogo}
+                  resizeMode="contain"
+                />
+                <Text style={styles.recienteModelo} numberOfLines={1}>{item.modelo}</Text>
+                <Text style={styles.recienteMarca} numberOfLines={1}>{item.marca}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
       </ScrollView>
 
       {/* Modal Calculadora Beta */}
@@ -392,5 +475,54 @@ const styles = StyleSheet.create({
     color: COLORS.gray4,
     textAlign: 'center',
     marginTop: 2,
+  },
+
+  // Tendencias
+  trendTabs: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F4F8',
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 16,
+  },
+  trendTab: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  trendTabActive: {
+    backgroundColor: COLORS.white,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  trendTabText: {
+    fontFamily: FONTS.body,
+    fontSize: 12,
+    color: COLORS.gray4,
+  },
+  trendTabTextActive: {
+    color: COLORS.navy,
+    fontWeight: '700',
+  },
+  badgeTrend: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: COLORS.green,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  badgeTrendText: {
+    color: COLORS.white,
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });

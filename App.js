@@ -258,8 +258,9 @@ export default function App() {
   }
 
   // Splash nativo si todavía ni siquiera carga React o las fuentes
+  // IMPORTANTE: Retornar fondo blanco para evitar parpadeo gris/negro
   if (!fontsLoaded || session === undefined) {
-    return null;
+    return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
   }
 
   const spin = spinAnim.interpolate({

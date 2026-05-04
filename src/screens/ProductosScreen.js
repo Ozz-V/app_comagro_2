@@ -163,21 +163,24 @@ export default function ProductosScreen({ navigation, route }) {
 
   useEffect(() => { cargarDatos(false); }, []);
 
-  // Abrir producto directamente si viene con openProductSku (desde recientes/config)
-  useEffect(() => {
-    if (allProducts.length > 0) {
       if (route?.params?.openProductSku) {
         const sku = route.params.openProductSku;
         const prod = allProducts.find(p => p.modelo === sku);
         if (prod) {
-          setModalProd(prod);
-          setActiveTab('FICHA');
-          trackAnalytics(prod, 'view');
-          openedDirectlyRef.current = true;
-          navigation.setParams({ openProductSku: undefined });
+          // Pequeño delay para asegurar que el render del modal sea fluido
+          setTimeout(() => {
+            setModalProd(prod);
+            setActiveTab('FICHA');
+            trackAnalytics(prod, 'view');
+            openedDirectlyRef.current = true;
+            navigation.setParams({ openProductSku: undefined });
+            // Solo quitamos el estado de inicialización después de abrir el modal
+            setIsInitializingDirect(false);
+          }, 100);
+        } else {
+          setIsInitializingDirect(false);
         }
-      }
-      if (isInitializingDirect) {
+      } else if (isInitializingDirect) {
         setIsInitializingDirect(false);
       }
     }
@@ -629,10 +632,10 @@ export default function ProductosScreen({ navigation, route }) {
   // ─── RENDER PRINCIPAL ─────────────────────────────────────────────
   if (isInitializingDirect) {
     return (
-      <SafeAreaView style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.safe, { backgroundColor: COLORS.white, justifyContent: 'center', alignItems: 'center' }]}>
         <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
         <ActivityIndicator size="large" color={COLORS.navy} />
-      </SafeAreaView>
+      </View>
     );
   }
 
