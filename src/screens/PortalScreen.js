@@ -51,6 +51,10 @@ export default function PortalScreen({ navigation }) {
   const [calcMode, setCalcMode] = useState(''); // 'gen', 'motor', 'bomba'
   const [calcInput, setCalcInput] = useState('');
 
+  // Modales para listas
+  const [showRecientesModal, setShowRecientesModal] = useState(false);
+  const [showCompartidosModal, setShowCompartidosModal] = useState(false);
+
   useEffect(() => {
     cargarRecientes();
     cargarTendencias();
@@ -183,22 +187,23 @@ export default function PortalScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        {/* Productos recientes */}
-        {recientes.length > 0 && (
-          <View style={styles.recientesSection}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={styles.recientesTitulo}>Vistos recientemente</Text>
-            </View>
+        {/* Más vistos - Carrusel abajo */}
+        {tendencias.vistos.length > 0 && (
+          <View style={[styles.recientesSection, { marginTop: 32 }]}>
+            <Text style={styles.recientesTitulo}>Más vistos</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recientesScroll}>
-              {recientes.map((item, idx) => (
+              {tendencias.vistos.map((item, idx) => (
                 <TouchableOpacity
                   key={idx}
-                  style={styles.recienteCard}
+                  style={[styles.recienteCard, { backgroundColor: '#F0F4F8' }]}
                   activeOpacity={0.7}
                   onPress={() => navigation.navigate('Productos', { 
                     openProductSku: item.sku || item.modelo
                   })}
                 >
+                  <View style={styles.badgeTrend}>
+                    <Text style={styles.badgeTrendText}>{idx + 1}</Text>
+                  </View>
                   <Image
                     source={{ uri: `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}
                     style={styles.recienteLogo}
@@ -212,49 +217,105 @@ export default function PortalScreen({ navigation }) {
           </View>
         )}
 
-        {/* Tendencias de la empresa */}
-        <View style={[styles.recientesSection, { marginTop: 32 }]}>
-          <Text style={styles.recientesTitulo}>Tendencias de la empresa</Text>
-          
-          <View style={styles.trendTabs}>
-            {['Vistos', 'Buscados', 'Compartidos'].map(tab => (
-              <TouchableOpacity 
-                key={tab} 
-                onPress={() => setActiveTrendTab(tab)}
-                style={[styles.trendTab, activeTrendTab === tab && styles.trendTabActive]}
-              >
-                <Text style={[styles.trendTabText, activeTrendTab === tab && styles.trendTabTextActive]}>{tab}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recientesScroll}>
-            {(activeTrendTab === 'Vistos' ? tendencias.vistos : 
-              activeTrendTab === 'Buscados' ? tendencias.buscados : 
-              tendencias.compartidos).map((item, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[styles.recienteCard, { backgroundColor: '#F0F4F8' }]}
-                activeOpacity={0.7}
-                onPress={() => navigation.navigate('Productos', { 
-                  openProductSku: item.sku || item.modelo
-                })}
-              >
-                <View style={styles.badgeTrend}>
-                  <Text style={styles.badgeTrendText}>{idx + 1}</Text>
-                </View>
-                <Image
-                  source={{ uri: `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}
-                  style={styles.recienteLogo}
-                  resizeMode="contain"
-                />
-                <Text style={styles.recienteModelo} numberOfLines={1}>{item.modelo}</Text>
-                <Text style={styles.recienteMarca} numberOfLines={1}>{item.marca}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+        {/* Botones para más recientes y más compartidos */}
+        <View style={{ flexDirection: 'row', gap: 15, marginTop: 20, marginBottom: 20 }}>
+          <TouchableOpacity
+            style={[styles.card, { flex: 1, backgroundColor: COLORS.navy, borderColor: COLORS.navy }]}
+            activeOpacity={0.8}
+            onPress={() => setShowRecientesModal(true)}
+          >
+            <View style={[styles.iconWrap, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <SvgIcon name="clock" size={20} color={COLORS.white} />
+            </View>
+            <View style={styles.cardTexts}>
+              <Text style={[styles.cardTitulo, { color: COLORS.white }]}>Más recientes</Text>
+              <Text style={[styles.cardDesc, { color: 'rgba(255,255,255,0.7)' }]}>Tus vistas recientes</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { flex: 1, backgroundColor: COLORS.navy, borderColor: COLORS.navy }]}
+            activeOpacity={0.8}
+            onPress={() => setShowCompartidosModal(true)}
+          >
+            <View style={[styles.iconWrap, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <SvgIcon name="share" size={20} color={COLORS.white} />
+            </View>
+            <View style={styles.cardTexts}>
+              <Text style={[styles.cardTitulo, { color: COLORS.white }]}>Más compartidos</Text>
+              <Text style={[styles.cardDesc, { color: 'rgba(255,255,255,0.7)' }]}>Compartidos en la empresa</Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Modal Más recientes */}
+      <Modal visible={showRecientesModal} animationType="slide" transparent onRequestClose={() => setShowRecientesModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: COLORS.white, borderRadius: 20, padding: 24, width: '90%', maxHeight: '70%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.navy }}>Más recientes</Text>
+              <TouchableOpacity onPress={() => setShowRecientesModal(false)}><Text style={{ fontSize: 24, color: COLORS.gray4 }}>✕</Text></TouchableOpacity>
+            </View>
+            <FlatList
+              data={recientes}
+              keyExtractor={(item, idx) => idx.toString()}
+              renderItem={({ item, index }) => (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border }}
+                  onPress={() => { setShowRecientesModal(false); navigation.navigate('Productos', { openProductSku: item.sku || item.modelo }); }}
+                >
+                  <Image
+                    source={{ uri: `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}
+                    style={{ width: 40, height: 40, marginRight: 10 }}
+                    resizeMode="contain"
+                  />
+                  <View>
+                    <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>{item.modelo}</Text>
+                    <Text style={{ color: COLORS.gray4 }}>{item.marca}</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={{ textAlign: 'center', color: COLORS.gray4 }}>No hay productos recientes</Text>}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Más compartidos */}
+      <Modal visible={showCompartidosModal} animationType="slide" transparent onRequestClose={() => setShowCompartidosModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: COLORS.white, borderRadius: 20, padding: 24, width: '90%', maxHeight: '70%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.navy }}>Más compartidos</Text>
+              <TouchableOpacity onPress={() => setShowCompartidosModal(false)}><Text style={{ fontSize: 24, color: COLORS.gray4 }}>✕</Text></TouchableOpacity>
+            </View>
+            <FlatList
+              data={tendencias.compartidos}
+              keyExtractor={(item, idx) => idx.toString()}
+              renderItem={({ item, index }) => (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border }}
+                  onPress={() => { setShowCompartidosModal(false); navigation.navigate('Productos', { openProductSku: item.sku || item.modelo }); }}
+                >
+                  <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.navy, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                    <Text style={{ color: COLORS.white, fontSize: 12, fontWeight: 'bold' }}>{index + 1}</Text>
+                  </View>
+                  <Image
+                    source={{ uri: `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}
+                    style={{ width: 40, height: 40, marginRight: 10 }}
+                    resizeMode="contain"
+                  />
+                  <View>
+                    <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>{item.modelo}</Text>
+                    <Text style={{ color: COLORS.gray4 }}>{item.marca}</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={{ textAlign: 'center', color: COLORS.gray4 }}>No hay productos compartidos</Text>}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal Calculadora Beta */}
       <Modal visible={showCalcModal} animationType="slide" transparent onRequestClose={() => setShowCalcModal(false)}>

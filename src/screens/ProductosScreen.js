@@ -283,7 +283,7 @@ export default function ProductosScreen({ navigation, route }) {
       if (!imagen || !/^https?:\/\//i.test(imagen)) return null;
       const marca = (row['Brand'] || row['Marca'] || '').toString().trim().toUpperCase();
       if (!marca) return null;
-      const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim();
+      const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim().toUpperCase();
       const specs = [];
       for (const [col, val] of Object.entries(row)) {
         if (esColumnaPermitida(col) && esValorValido(val)) specs.push([col, String(val).trim()]);
@@ -603,7 +603,11 @@ export default function ProductosScreen({ navigation, route }) {
             if (isSelected) {
               setCompareItems(prev => prev.filter(c => c.modelo !== item.modelo));
             } else if (compareItems.length < 4) {
-              setCompareItems(prev => [...prev, item]);
+              if (compareItems.length === 0 || item.subcategoria === compareItems[0].subcategoria) {
+                setCompareItems(prev => [...prev, item]);
+              } else {
+                Alert.alert('No se puede comparar', 'Solo podés comparar productos de la misma categoría.');
+              }
             } else {
               Alert.alert('Límite', 'Podés comparar hasta 4 productos a la vez.');
             }
@@ -730,6 +734,11 @@ export default function ProductosScreen({ navigation, route }) {
           <TouchableOpacity style={styles.retryBtn} onPress={() => cargarDatos(true)}>
             <Text style={styles.retryText}>Reintentar</Text>
           </TouchableOpacity>
+        </View>
+      ) : isInitializingDirect ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={COLORS.navy} />
+          <Text style={styles.centerText}>Abriendo producto…</Text>
         </View>
       ) : !mostrarLista ? (
         // Vista: selector de marcas (con pull-to-refresh)
