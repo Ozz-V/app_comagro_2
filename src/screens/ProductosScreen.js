@@ -178,7 +178,7 @@ export default function ProductosScreen({ navigation, route }) {
         }
       }
       if (isInitializingDirect) {
-        setIsInitializingDirect(false);
+        setTimeout(() => setIsInitializingDirect(false), 100);
       }
     }
   }, [allProducts, route?.params?.openProductSku]);
@@ -542,7 +542,7 @@ export default function ProductosScreen({ navigation, route }) {
       );
     }
     return lista;
-  }, [allProducts, filtroMarca, busqueda]);
+  }, [allProducts, filtroMarca, filtroSubcategoria, busqueda]);
 
   const activeSliderList = useMemo(() => {
     if (openedDirectlyRef.current && route?.params?.contextSkus) {
@@ -725,6 +725,8 @@ export default function ProductosScreen({ navigation, route }) {
             <Text style={styles.retryText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
+      ) : openedDirectlyRef.current ? (
+        <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />
       ) : !mostrarLista ? (
         // Vista: selector de marcas (con pull-to-refresh)
         <FlatList

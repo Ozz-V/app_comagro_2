@@ -1,10 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, StatusBar, ScrollView, Platform, Alert, ActivityIndicator
+  SafeAreaView, StatusBar, ScrollView, Platform, Alert, ActivityIndicator,
+  TextInput, Image
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import Constants from 'expo-constants';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
@@ -15,59 +17,121 @@ export default function ConfigScreen({ navigation }) {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [topVistos, setTopVistos] = useState([]);
   const [topBuscados, setTopBuscados] = useState([]);
-  const [topCompartidos, setTopCompartidos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Perfil del usuario
+  const [perfil, setPerfil] = useState({ nombre: '', avatar: null, email: '' });
+  const [editandoPerfil, setEditandoPerfil] = useState(false);
+  const [subiendoAvatar, setSubiendoAvatar] = useState(false);
+  const [notificaciones, setNotificaciones] = useState(true);
 
   useEffect(() => {
-    cargarAnalytics();
+    cargarDatos();
   }, []);
 
-  async function cargarAnalytics() {
+  async function cargarDatos() {
     setLoading(true);
+    await cargarPerfil();
+    setLoading(false);
+  }
+
+  async function cargarPerfil() {
     try {
-      // Top vistos
-      const { data: vistos } = await supabase
-        .from('producto_analytics')
-        .select('modelo, marca, sku')
-        .eq('action', 'view')
-        .order('created_at', { ascending: false })
-        .limit(200);
-      
-      // Top buscados
-      const { data: buscados } = await supabase
-        .from('producto_analytics')
-        .select('modelo, marca, sku')
-        .eq('action', 'search')
-        .order('created_at', { ascending: false })
-        .limit(200);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      // Top compartidos
-      const { data: compartidos } = await supabase
-        .from('producto_analytics')
-        .select('modelo, marca, sku')
-        .in('action', ['share_pdf', 'share_image'])
-        .order('created_at', { ascending: false })
-        .limit(200);
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, notifications_enabled')
+        .eq('id', user.id)
+        .single();
 
-      // Contar frecuencias
-      setTopVistos(contarTop(vistos || [], 5));
-      setTopBuscados(contarTop(buscados || [], 5));
-      setTopCompartidos(contarTop(compartidos || [], 5));
+      if (data) {
+        setPerfil({
+          nombre: data.full_name || '',
+          avatar: data.avatar_url || null,
+          email: user.email
+        });
+        setNotificaciones(data.notifications_enabled !== false);
+      } else {
+        setPerfil(prev => ({ ...prev, email: user.email }));
+      }
     } catch (e) {
-      console.log('Error cargando analytics:', e);
-    } finally {
-      setLoading(false);
+      console.log('Error perfil:', e);
     }
   }
 
-  function contarTop(items, limit) {
-    const counts = {};
-    items.forEach(i => {
-      const key = i.sku || i.modelo;
-      if (!counts[key]) counts[key] = { modelo: i.modelo, marca: i.marca, count: 0 };
-      counts[key].count++;
-    });
-    return Object.values(counts).sort((a, b) => b.count - a.count).slice(0, limit);
+  async function toggleNotificaciones() {
+    const nuevoEstado = !notificaciones;
+    setNotificaciones(nuevoEstado);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('profiles').upsert({ id: user.id, notifications_enabled: nuevoEstado });
+    } catch (e) {}
+  }
+
+  async function guardarNombre() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, full_name: perfil.nombre, updated_at: new Date() });
+      
+      if (error) throw error;
+      setEditandoPerfil(false);
+      Alert.alert('Éxito', 'Nombre actualizado correctamente.');
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo guardar el nombre.');
+    }
+  }
+
+  async function cambiarFoto() {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets[0].uri) {
+        uploadAvatar(result.assets[0].uri);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo abrir la galería.');
+    }
+  }
+
+  async function uploadAvatar(uri) {
+    setSubiendoAvatar(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const fileName = `${user.id}-${Date.now()}.jpg`;
+      
+      const formData = new FormData();
+      formData.append('file', {
+        uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+        name: fileName,
+        type: 'image/jpeg',
+      });
+
+      const { data, error } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, formData);
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      await supabase.from('profiles').upsert({ id: user.id, avatar_url: publicUrl });
+      setPerfil(prev => ({ ...prev, avatar: publicUrl }));
+      Alert.alert('Éxito', 'Foto de perfil actualizada.');
+    } catch (e) {
+      console.log('Error upload:', e);
+      Alert.alert('Error', 'No se pudo subir la foto.');
+    } finally {
+      setSubiendoAvatar(false);
+    }
   }
 
   async function buscarActualizacion() {
@@ -103,39 +167,6 @@ export default function ConfigScreen({ navigation }) {
     ]);
   }
 
-  function renderTopList(title, iconName, data) {
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <SvgIcon name={iconName} size={20} color={COLORS.navy} />
-          <Text style={styles.sectionTitle}>{title}</Text>
-        </View>
-        {data.length === 0 ? (
-          <Text style={styles.emptyText}>Sin datos aún</Text>
-        ) : (
-          data.map((item, idx) => (
-            <TouchableOpacity 
-              key={idx} 
-              style={styles.rankRow}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('Productos', { 
-                openProductSku: item.sku || item.modelo,
-                contextSkus: data.map(d => d.sku || d.modelo)
-              })}
-            >
-              <Text style={styles.rankNum}>{idx + 1}</Text>
-              <View style={styles.rankInfo}>
-                <Text style={styles.rankModelo} numberOfLines={1}>{item.modelo}</Text>
-                <Text style={styles.rankMarca}>{item.marca}</Text>
-              </View>
-              <Text style={styles.rankCount}>{item.count}</Text>
-            </TouchableOpacity>
-          ))
-        )}
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
@@ -151,13 +182,97 @@ export default function ConfigScreen({ navigation }) {
       <View style={styles.topBorder} />
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Mi Perfil */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <SvgIcon name="usuario" size={20} color={COLORS.navy} />
+            <Text style={styles.sectionTitle}>Mi Perfil</Text>
+          </View>
+          <View style={styles.profileCard}>
+            <TouchableOpacity onPress={cambiarFoto} style={styles.avatarWrap} disabled={subiendoAvatar}>
+              {perfil.avatar ? (
+                <Image source={{ uri: perfil.avatar }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, { backgroundColor: '#E0E0E0', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Text style={{ fontSize: 30 }}>👤</Text>
+                </View>
+              )}
+              {subiendoAvatar && <ActivityIndicator style={styles.avatarLoader} color={COLORS.green} />}
+              <View style={styles.editBadge}><Text style={{ color: 'white', fontSize: 10 }}>✎</Text></View>
+            </TouchableOpacity>
+
+            <View style={styles.profileInfo}>
+              {editandoPerfil ? (
+                <View style={styles.editRow}>
+                  <TextInput
+                    style={styles.nameInput}
+                    value={perfil.nombre}
+                    onChangeText={t => setPerfil(p => ({ ...p, nombre: t }))}
+                    placeholder="Tu nombre completo"
+                    autoFocus
+                  />
+                  <TouchableOpacity onPress={guardarNombre} style={styles.saveBtn}>
+                    <Text style={styles.saveBtnText}>OK</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={() => setEditandoPerfil(true)} style={styles.nameRow}>
+                  <Text style={styles.profileName}>{perfil.nombre || 'Sin nombre (click para editar)'}</Text>
+                  <Text style={{ fontSize: 14, color: COLORS.green, marginLeft: 8 }}>✎</Text>
+                </TouchableOpacity>
+              )}
+              <Text style={styles.profileEmail}>{perfil.email}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Notificaciones */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <SvgIcon name="share" size={20} color={COLORS.navy} />
+            <Text style={styles.sectionTitle}>Alertas y Notificaciones</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.configRow} 
+            activeOpacity={0.7}
+            onPress={toggleNotificaciones}
+          >
+            <View style={styles.configInfo}>
+              <Text style={styles.configLabel}>Notificar nuevos productos</Text>
+              <Text style={styles.configDesc}>Recibir aviso cuando hay lanzamientos de Plitix</Text>
+            </View>
+            <View style={[styles.switch, notificaciones && styles.switchOn]}>
+              <View style={[styles.switchDot, notificaciones && styles.switchDotOn]} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Actualización */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <SvgIcon name="actualizar" size={20} color={COLORS.navy} />
+            <Text style={styles.sectionTitle}>Sistema</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.updateBtn} 
+            onPress={buscarActualizacion}
+            disabled={checkingUpdate}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.updateBtnText}>
+              {checkingUpdate ? 'Verificando...' : 'Buscar actualización'}
+            </Text>
+            {checkingUpdate && <ActivityIndicator color="#fff" size="small" />}
+          </TouchableOpacity>
+        </View>
+
         {/* Versión */}
         <View style={styles.versionCard}>
           <LottieView
             source={require('../../assets/iso.json')}
             autoPlay
             loop={true}
-            style={{ width: 60, height: 60 }}
+            style={{ width: 50, height: 50 }}
             resizeMode="contain"
           />
           <View style={styles.versionInfo}>
@@ -165,31 +280,6 @@ export default function ConfigScreen({ navigation }) {
             <Text style={styles.versionNumber}>v{appVersion} (build {versionCode})</Text>
           </View>
         </View>
-
-        {/* Buscar actualización */}
-        <TouchableOpacity 
-          style={styles.updateBtn} 
-          onPress={buscarActualizacion}
-          disabled={checkingUpdate}
-          activeOpacity={0.7}
-        >
-          <SvgIcon name="actualizar" size={22} color="#fff" />
-          <Text style={styles.updateBtnText}>
-            {checkingUpdate ? 'Verificando...' : 'Buscar actualización'}
-          </Text>
-          {checkingUpdate && <ActivityIndicator color="#fff" size="small" />}
-        </TouchableOpacity>
-
-        {/* Analytics */}
-        {loading ? (
-          <ActivityIndicator size="large" color={COLORS.green} style={{ marginTop: 30 }} />
-        ) : (
-          <>
-            {renderTopList('Más vistos', 'buscar', topVistos)}
-            {renderTopList('Más buscados', 'buscar', topBuscados)}
-            {renderTopList('Más compartidos', 'share', topCompartidos)}
-          </>
-        )}
 
         {/* Cerrar sesión */}
         <TouchableOpacity style={styles.logoutBtn} onPress={cerrarSesion} activeOpacity={0.7}>
@@ -342,5 +432,117 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.body,
     fontSize: 14,
     color: COLORS.gray4,
+  },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7F8FA',
+    padding: 16,
+    borderRadius: 14,
+    gap: 16,
+  },
+  avatarWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarLoader: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 0, right: 0,
+    backgroundColor: COLORS.green,
+    width: 18, height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1, borderColor: '#fff',
+  },
+  profileInfo: { flex: 1 },
+  profileName: {
+    fontFamily: FONTS.heading,
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.navy,
+  },
+  profileEmail: {
+    fontFamily: FONTS.body,
+    fontSize: 12,
+    color: COLORS.gray4,
+    marginTop: 2,
+  },
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
+  editRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  nameInput: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontFamily: FONTS.body,
+    fontSize: 14,
+  },
+  saveBtn: {
+    backgroundColor: COLORS.navy,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  saveBtnText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  configRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7F8FA',
+    padding: 16,
+    borderRadius: 14,
+    justifyContent: 'space-between',
+  },
+  configInfo: { flex: 1, marginRight: 10 },
+  configLabel: {
+    fontFamily: FONTS.heading,
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.navy,
+  },
+  configDesc: {
+    fontFamily: FONTS.body,
+    fontSize: 12,
+    color: COLORS.gray4,
+    marginTop: 2,
+  },
+  switch: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#DDD',
+    padding: 2,
+  },
+  switchOn: {
+    backgroundColor: COLORS.green,
+  },
+  switchDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFF',
+  },
+  switchDotOn: {
+    alignSelf: 'flex-end',
   },
 });

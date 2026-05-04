@@ -1,65 +1,72 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet,
-  Image, SafeAreaView, StatusBar, ScrollView, Platform, Modal, TextInput
-} from 'react-native';
-import LottieView from 'lottie-react-native';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 
 const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
 
+// Configurar comportamiento de notificaciones
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 const OPCIONES = [
-  {
-    id: 'catalogos',
-    screen: 'Catalogos',
-    icon: 'doc',
-    titulo: 'Catálogos Generales',
-    desc: 'PDFs de catálogos por marca',
-  },
-  {
-    id: 'fichas',
-    screen: 'Fichas',
-    icon: 'doc4',
-    titulo: 'Fichas Técnicas',
-    desc: 'Fichas técnicas por categoría',
-  },
-  {
-    id: 'productos',
-    screen: 'Productos',
-    icon: 'buscar',
-    titulo: 'Todos los Productos',
-    desc: 'Catálogo completo con specs',
-  },
-  {
-    id: 'config',
-    screen: 'Config',
-    icon: 'config',
-    titulo: 'Configuración',
-    desc: 'Versión, datos y sesión',
-  },
+  { id: 'catalogos', screen: 'Catalogos', icon: 'doc', titulo: 'Catálogos Generales', desc: 'PDFs de catálogos por marca' },
+  { id: 'fichas', screen: 'Fichas', icon: 'doc4', titulo: 'Fichas Técnicas', desc: 'Fichas técnicas por categoría' },
+  { id: 'productos', screen: 'Productos', icon: 'buscar', titulo: 'Todos los Productos', desc: 'Catálogo completo con specs' },
+  { id: 'config', screen: 'Config', icon: 'config', titulo: 'Configuración', desc: 'Perfil, Versión y Sistema' },
 ];
 
 export default function PortalScreen({ navigation }) {
   const [recientes, setRecientes] = useState([]);
+  const [analytics, setAnalytics] = useState({ vistos: [], buscados: [], compartidos: [] });
+  const [tabAnalytics, setTabAnalytics] = useState('vistos'); // 'vistos' | 'buscados' | 'compartidos'
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   
   // Calculadora Beta
   const [showCalcModal, setShowCalcModal] = useState(false);
-  const [calcMode, setCalcMode] = useState(''); // 'gen', 'motor', 'bomba'
+  const [calcMode, setCalcMode] = useState('');
   const [calcInput, setCalcInput] = useState('');
 
   useEffect(() => {
-    cargarRecientes();
+    cargarTodo();
+    registrarParaNotificaciones();
   }, []);
 
   // Recargar al volver a esta pantalla
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      cargarRecientes();
+      cargarTodo();
     });
     return unsubscribe;
   }, [navigation]);
+
+  async function cargarTodo() {
+    cargarRecientes();
+    cargarAnalytics();
+  }
+
+  async function registrarParaNotificaciones() {
+    if (!Device.isDevice) return;
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') return;
+
+    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('profiles').upsert({ id: user.id, push_token: token });
+    }
+  }
 
   async function cargarRecientes() {
     try {
@@ -75,7 +82,6 @@ export default function PortalScreen({ navigation }) {
         .limit(20);
 
       if (data) {
-        // Eliminar duplicados (quedarse con el más reciente de cada SKU)
         const seen = new Set();
         const unique = [];
         for (const item of data) {
@@ -88,8 +94,39 @@ export default function PortalScreen({ navigation }) {
         setRecientes(unique);
       }
     } catch (e) {
-      console.log('Error cargando recientes:', e);
+      console.log('Error recientes:', e);
     }
+  }
+
+  async function cargarAnalytics() {
+    setLoadingAnalytics(true);
+    try {
+      const [{ data: v }, { data: b }, { data: c }] = await Promise.all([
+        supabase.from('producto_analytics').select('modelo, marca, sku').eq('action', 'view').limit(200),
+        supabase.from('producto_analytics').select('modelo, marca, sku').eq('action', 'search').limit(200),
+        supabase.from('producto_analytics').select('modelo, marca, sku').in('action', ['share_pdf', 'share_image']).limit(200)
+      ]);
+
+      setAnalytics({
+        vistos: procesarTop(v || [], 4),
+        buscados: procesarTop(b || [], 4),
+        compartidos: procesarTop(c || [], 4)
+      });
+    } catch (e) {
+      console.log('Error analytics:', e);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  }
+
+  function procesarTop(items, limit) {
+    const counts = {};
+    items.forEach(i => {
+      const key = i.sku || i.modelo;
+      if (!counts[key]) counts[key] = { modelo: i.modelo, marca: i.marca, sku: i.sku, count: 0 };
+      counts[key].count++;
+    });
+    return Object.values(counts).sort((a, b) => b.count - a.count).slice(0, limit);
   }
 
   return (
@@ -144,10 +181,54 @@ export default function PortalScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
+        {/* Tendencias de la empresa */}
+        <View style={styles.analyticsSection}>
+          <Text style={styles.analyticsTitulo}>Tendencias de la empresa</Text>
+          <View style={styles.tabButtons}>
+            <TouchableOpacity onPress={() => setTabAnalytics('vistos')} style={[styles.tabBtn, tabAnalytics === 'vistos' && styles.tabBtnActive]}>
+              <Text style={[styles.tabBtnText, tabAnalytics === 'vistos' && styles.tabBtnTextActive]}>Más vistos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setTabAnalytics('buscados')} style={[styles.tabBtn, tabAnalytics === 'buscados' && styles.tabBtnActive]}>
+              <Text style={[styles.tabBtnText, tabAnalytics === 'buscados' && styles.tabBtnTextActive]}>Más buscados</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setTabAnalytics('compartidos')} style={[styles.tabBtn, tabAnalytics === 'compartidos' && styles.tabBtnActive]}>
+              <Text style={[styles.tabBtnText, tabAnalytics === 'compartidos' && styles.tabBtnTextActive]}>Más compartidos</Text>
+            </TouchableOpacity>
+          </View>
+
+          {loadingAnalytics ? (
+            <ActivityIndicator size="small" color={COLORS.navy} style={{ marginVertical: 20 }} />
+          ) : (
+            <View style={styles.analyticsList}>
+              {analytics[tabAnalytics].map((item, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.rankRow}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('Productos', { 
+                    openProductSku: item.sku || item.modelo,
+                    contextSkus: analytics[tabAnalytics].map(a => a.sku || a.modelo)
+                  })}
+                >
+                  <Text style={styles.rankNum}>{idx + 1}</Text>
+                  <View style={styles.rankInfo}>
+                    <Text style={styles.rankModelo} numberOfLines={1}>{item.modelo}</Text>
+                    <Text style={styles.rankMarca}>{item.marca}</Text>
+                  </View>
+                  <Text style={styles.rankCount}>{item.count}</Text>
+                </TouchableOpacity>
+              ))}
+              {analytics[tabAnalytics].length === 0 && (
+                <Text style={styles.emptyText}>Sin datos suficientes aún</Text>
+              )}
+            </View>
+          )}
+        </View>
+
         {/* Productos recientes */}
         {recientes.length > 0 && (
           <View style={styles.recientesSection}>
-            <Text style={styles.recientesTitulo}>Vistos recientemente</Text>
+            <Text style={styles.recientesTitulo}>Tus últimos vistos</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recientesScroll}>
               {recientes.map((item, idx) => (
                 <TouchableOpacity
@@ -392,5 +473,90 @@ const styles = StyleSheet.create({
     color: COLORS.gray4,
     textAlign: 'center',
     marginTop: 2,
+  },
+  analyticsSection: {
+    marginTop: 28,
+  },
+  analyticsTitulo: {
+    fontFamily: FONTS.heading,
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.navy,
+    marginBottom: 12,
+  },
+  tabButtons: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F4F8',
+    borderRadius: 10,
+    padding: 4,
+    marginBottom: 14,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabBtnActive: {
+    backgroundColor: COLORS.white,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  tabBtnText: {
+    fontFamily: FONTS.body,
+    fontSize: 11,
+    color: COLORS.gray4,
+    fontWeight: '600',
+  },
+  tabBtnTextActive: {
+    color: COLORS.navy,
+  },
+  analyticsList: {
+    backgroundColor: '#F7F8FA',
+    borderRadius: 12,
+    padding: 10,
+  },
+  rankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
+  rankNum: {
+    fontFamily: FONTS.heading,
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.green,
+    width: 24,
+  },
+  rankInfo: { flex: 1 },
+  rankModelo: {
+    fontFamily: FONTS.heading,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.navy,
+  },
+  rankMarca: {
+    fontFamily: FONTS.body,
+    fontSize: 11,
+    color: COLORS.gray4,
+  },
+  rankCount: {
+    fontFamily: FONTS.heading,
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.navy,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: COLORS.gray4,
+    fontStyle: 'italic',
+    padding: 20,
+    fontSize: 12,
   },
 });
