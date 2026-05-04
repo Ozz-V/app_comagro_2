@@ -163,6 +163,9 @@ export default function ProductosScreen({ navigation, route }) {
 
   useEffect(() => { cargarDatos(false); }, []);
 
+  // Abrir producto directamente si viene con openProductSku (desde recientes/config)
+  useEffect(() => {
+    if (allProducts.length > 0) {
       if (route?.params?.openProductSku) {
         const sku = route.params.openProductSku;
         const prod = allProducts.find(p => p.modelo === sku);
