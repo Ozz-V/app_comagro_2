@@ -29,6 +29,11 @@ function extractNum(val) {
   return parseFloat(m[1].replace(',', '.'));
 }
 
+function isAccessorySubcat(subcat) {
+  if (!subcat) return false;
+  return subcat.toLowerCase().includes('accesorios') || subcat.toLowerCase().includes('repuestos');
+}
+
 // Subcarpetas del bucket Fichas donde buscar PDFs
 const CATS_FICHAS = [
   'BOMBAS DE AGUA', 'SOLDADORES', 'GENERADORES',
