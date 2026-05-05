@@ -31,7 +31,8 @@ function extractNum(val) {
 
 function isAccessorySubcat(subcat) {
   if (!subcat) return false;
-  return subcat.toLowerCase().includes('accesorios') || subcat.toLowerCase().includes('repuestos');
+  const s = subcat.toLowerCase();
+  return s.includes('accesorios') || s.includes('repuestos') || s.includes('pieza') || s.includes('kit') || s.includes('tornillo') || s.includes('accesorio');
 }
 
 // Subcarpetas del bucket Fichas donde buscar PDFs
@@ -552,7 +553,11 @@ export default function ProductosScreen({ navigation, route }) {
     let lista = filtroMarca ? allProducts.filter(p => p.marca === filtroMarca) : allProducts;
     
     if (filtroSubcategoria) {
-      lista = lista.filter(p => p.subcategoria === filtroSubcategoria);
+      lista = lista.filter(p => {
+        if (filtroSubcategoria === '__productos__') return !isAccessorySubcat(p.subcategoria);
+        if (filtroSubcategoria === '__acc__') return isAccessorySubcat(p.subcategoria);
+        return p.subcategoria === filtroSubcategoria;
+      });
     }
     
     const q = busqueda.toLowerCase().trim();
@@ -696,48 +701,31 @@ export default function ProductosScreen({ navigation, route }) {
               </TouchableOpacity>
             ) : null}
           </View>
-          {filtroSubcategoria && !isAccessorySubcat(filtroSubcategoria) ? (
-            <TouchableOpacity 
-              onPress={() => { setIsComparing(!isComparing); setCompareItems([]); }}
-              style={{ backgroundColor: isComparing ? COLORS.navy : COLORS.bg, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border }}
-            >
-              <Text style={{ color: isComparing ? COLORS.white : COLORS.navy, fontWeight: 'bold' }}>{isComparing ? 'Cancelar' : 'Comparar'}</Text>
-            </TouchableOpacity>
-          ) : null}
         </View>
 
-        {filtroMarca && subcategoriasDisponibles.length > 1 ? (() => {
-          const mainSubs = subcategoriasDisponibles.filter(s => !isAccessorySubcat(s));
-          const hasAccessories = subcategoriasDisponibles.some(s => isAccessorySubcat(s));
-          const allBtns = [
-            { key: '__todos__', label: 'Todos', isAll: true },
-            ...mainSubs.map(s => ({ key: s, label: s, isAll: false })),
-            ...(hasAccessories ? [{ key: '__acc__', label: 'Accesorios', isAll: false, isAcc: true }] : []),
-          ];
-          return (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, marginBottom: 4 }}>
-              {allBtns.map(btn => {
-                const isActive = btn.isAll ? !filtroSubcategoria : btn.isAcc ? isAccessorySubcat(filtroSubcategoria) : filtroSubcategoria === btn.key;
-                return (
-                  <TouchableOpacity
-                    key={btn.key}
-                    onPress={() => {
-                      setIsComparing(false); setCompareItems([]);
-                      if (btn.isAll) { setFiltroSubcategoria(''); }
-                      else if (btn.isAcc) {
-                        const firstAcc = subcategoriasDisponibles.find(s => isAccessorySubcat(s));
-                        setFiltroSubcategoria(firstAcc || '');
-                      } else { setFiltroSubcategoria(btn.key); }
-                    }}
-                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: isActive ? COLORS.navy : '#E0E0E0', minWidth: 80, maxWidth: 130, alignItems: 'center', marginRight: 6, marginBottom: 6 }}
-                  >
-                    <Text numberOfLines={1} style={{ color: isActive ? COLORS.white : COLORS.navy, fontWeight: 'bold', fontSize: 12 }}>{btn.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          );
-        })() : null}
+        {filtroMarca ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, marginBottom: 4 }}>
+            {[
+              { key: '__todos__', label: 'Todos' },
+              { key: '__productos__', label: 'Productos' },
+              { key: '__acc__', label: 'Accesorios' }
+            ].map(btn => {
+              const isActive = (btn.key === '__todos__' && !filtroSubcategoria) || filtroSubcategoria === btn.key;
+              return (
+                <TouchableOpacity
+                  key={btn.key}
+                  onPress={() => {
+                    setIsComparing(false); setCompareItems([]);
+                    setFiltroSubcategoria(btn.key === '__todos__' ? '' : btn.key);
+                  }}
+                  style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: isActive ? COLORS.navy : '#E0E0E0', flex: 1, alignItems: 'center', marginHorizontal: 3, marginBottom: 6 }}
+                >
+                  <Text numberOfLines={1} style={{ color: isActive ? COLORS.white : COLORS.navy, fontWeight: 'bold', fontSize: 12 }}>{btn.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
       </View>
       <View style={styles.topBorder} />
 
@@ -926,6 +914,26 @@ export default function ProductosScreen({ navigation, route }) {
                           </View>
                         </View>
                       </View>
+
+                      {/* Botón Comparar */}
+                      {(() => {
+                        const similares = allProducts.filter(p => p.subcategoria === modalProd?.subcategoria && p.modelo !== modalProd?.modelo).slice(0, 3);
+                        if (similares.length > 0) {
+                          return (
+                            <TouchableOpacity
+                              style={{ backgroundColor: COLORS.navy, padding: 12, borderRadius: 8, marginBottom: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                              onPress={() => {
+                                setCompareItems([modalProd, ...similares]);
+                                setShowCompareGrid(true);
+                              }}
+                            >
+                              <SvgIcon name="actualizar" size={16} color={COLORS.white} />
+                              <Text style={{ color: COLORS.white, fontWeight: 'bold' }}>Comparar con similares</Text>
+                            </TouchableOpacity>
+                          );
+                        }
+                        return null;
+                      })()}
 
                       {modalProd?.specs?.length > 0 && (
                         <View style={styles.specsWrap}>

@@ -178,27 +178,38 @@ export default function App() {
   }
 
   async function downloadUpdate(url) {
-    // Usar el navegador/gestor de descarga nativo de Android
-    // Es 100% confiable con redirects de GitHub a diferencia de expo-file-system
-    setUpdateState('none');
     Alert.alert(
       '🆕 Actualización disponible',
       `${updateNotes || 'Nueva versión disponible'}\n\n¿Descargar e instalar ahora?`,
       [
-        { text: 'Más tarde', style: 'cancel' },
+        { text: 'Más tarde', style: 'cancel', onPress: () => setUpdateState('none') },
         {
           text: '⬇️ Descargar',
           onPress: async () => {
+            setUpdateState('downloading');
             try {
-              const supported = await Linking.canOpenURL(url);
-              if (supported) {
-                await Linking.openURL(url);
-              } else {
-                Alert.alert('Error', 'No se puede abrir la URL de descarga.');
-              }
+              // Resolve github release redirect
+              const res = await fetch(url, { redirect: 'follow' });
+              const finalUrl = res.url || url;
+
+              const fileUri = `${FileSystem.documentDirectory}comagro_update.apk`;
+              const downloadResumable = FileSystem.createDownloadResumable(
+                finalUrl,
+                fileUri,
+                {},
+                (downloadProgress) => {
+                  const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+                  setDownloadProgress(progress);
+                }
+              );
+
+              const { uri } = await downloadResumable.downloadAsync();
+              setApkLocalUri(uri);
+              setUpdateState('ready');
             } catch (err) {
-              console.log('Error abriendo URL de descarga:', err);
-              Alert.alert('Error', 'No se pudo abrir la descarga.');
+              console.log('Error de descarga:', err);
+              Alert.alert('Error', 'Fallo al descargar la actualización.');
+              setUpdateState('none');
             }
           }
         }
