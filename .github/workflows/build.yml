@@ -69,17 +69,15 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add app.json
           git diff --staged --quiet || git commit -m "ci: bump versionCode [skip ci]"
-          git fetch origin main
-          git rebase origin/main || git rebase --skip
-          git push origin HEAD:main
+          git push origin HEAD:main || git push origin HEAD:main --force-with-lease
       - name: Notify Supabase (Auto-Update)
         run: |
           VERSION=$(node -p "require('/tmp/app.json').expo.version")
           VERSION_CODE=$(node -p "require('/tmp/app.json').expo.android.versionCode")
           APK_URL="https://github.com/Ozz-V/app_comagro_2/releases/latest/download/app-release.apk"
           curl --fail-with-body -X POST 'https://itylpvuzflqlmmqvdhbz.supabase.co/rest/v1/version_apk' \
-          -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-Isxd04ySP_ZgDLit1fQDsxoeb25GmU_C_5I" \
-          -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-Isxd04ySP_ZgDLit1fQDsxoeb25GmU_C_5I" \
+          -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-I[...]
+          -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMi[...]
           -H "Content-Type: application/json" \
           -H "Prefer: return=minimal" \
           -d "{ \"version_code\": $VERSION_CODE, \"version_name\": \"$VERSION\", \"release_notes\": \"Actualizacion automatica v$VERSION (Build $VERSION_CODE)\", \"download_url\": \"$APK_URL\" }"
