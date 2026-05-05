@@ -548,7 +548,7 @@ export default function ProductosScreen({ navigation, route }) {
       );
     }
     return lista;
-  }, [allProducts, filtroMarca, busqueda]);
+  }, [allProducts, filtroMarca, filtroSubcategoria, busqueda]);
 
   const activeSliderList = useMemo(() => {
     if (openedDirectlyRef.current && route?.params?.contextSkus) {
@@ -603,11 +603,7 @@ export default function ProductosScreen({ navigation, route }) {
             if (isSelected) {
               setCompareItems(prev => prev.filter(c => c.modelo !== item.modelo));
             } else if (compareItems.length < 4) {
-              if (compareItems.length === 0 || item.subcategoria === compareItems[0].subcategoria) {
-                setCompareItems(prev => [...prev, item]);
-              } else {
-                Alert.alert('No se puede comparar', 'Solo podés comparar productos de la misma categoría.');
-              }
+              setCompareItems(prev => [...prev, item]);
             } else {
               Alert.alert('Límite', 'Podés comparar hasta 4 productos a la vez.');
             }
@@ -823,10 +819,13 @@ export default function ProductosScreen({ navigation, route }) {
         animationType="slide"
         transparent
         onRequestClose={() => {
-          setModalProd(null);
           if (openedDirectlyRef.current) {
+            setIsInitializingDirect(true);
+            setModalProd(null);
             openedDirectlyRef.current = false;
             navigation.goBack();
+          } else {
+            setModalProd(null);
           }
         }}
       >
@@ -851,10 +850,13 @@ export default function ProductosScreen({ navigation, route }) {
               </View>
 
               <TouchableOpacity onPress={() => {
-                setModalProd(null);
                 if (openedDirectlyRef.current) {
+                  setIsInitializingDirect(true);
+                  setModalProd(null);
                   openedDirectlyRef.current = false;
                   navigation.goBack();
+                } else {
+                  setModalProd(null);
                 }
               }} style={{ marginLeft: 15, padding: 5 }}>
                 <Text style={styles.modalClose}>✕ Cerrar</Text>

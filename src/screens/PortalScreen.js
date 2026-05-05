@@ -217,33 +217,24 @@ export default function PortalScreen({ navigation }) {
           </View>
         )}
 
-        {/* Botones para más recientes y más compartidos */}
-        <View style={{ flexDirection: 'row', gap: 15, marginTop: 20, marginBottom: 20 }}>
+        {/* Enlaces sutiles para más recientes y más compartidos */}
+        <View style={styles.subtleLinksRow}>
           <TouchableOpacity
-            style={[styles.card, { flex: 1, backgroundColor: COLORS.navy, borderColor: COLORS.navy }]}
-            activeOpacity={0.8}
+            activeOpacity={0.6}
             onPress={() => setShowRecientesModal(true)}
+            style={styles.subtleLink}
           >
-            <View style={[styles.iconWrap, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <SvgIcon name="clock" size={20} color={COLORS.white} />
-            </View>
-            <View style={styles.cardTexts}>
-              <Text style={[styles.cardTitulo, { color: COLORS.white }]}>Más recientes</Text>
-              <Text style={[styles.cardDesc, { color: 'rgba(255,255,255,0.7)' }]}>Tus vistas recientes</Text>
-            </View>
+            <SvgIcon name="buscar" size={14} color={COLORS.navy} />
+            <Text style={styles.subtleLinkText}>Más recientes</Text>
           </TouchableOpacity>
+          <View style={styles.subtleDivider} />
           <TouchableOpacity
-            style={[styles.card, { flex: 1, backgroundColor: COLORS.navy, borderColor: COLORS.navy }]}
-            activeOpacity={0.8}
+            activeOpacity={0.6}
             onPress={() => setShowCompartidosModal(true)}
+            style={styles.subtleLink}
           >
-            <View style={[styles.iconWrap, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <SvgIcon name="share" size={20} color={COLORS.white} />
-            </View>
-            <View style={styles.cardTexts}>
-              <Text style={[styles.cardTitulo, { color: COLORS.white }]}>Más compartidos</Text>
-              <Text style={[styles.cardDesc, { color: 'rgba(255,255,255,0.7)' }]}>Compartidos en la empresa</Text>
-            </View>
+            <SvgIcon name="share" size={14} color={COLORS.navy} />
+            <Text style={styles.subtleLinkText}>Más compartidos</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -571,19 +562,51 @@ const styles = StyleSheet.create({
   },
   badgeTrend: {
     position: 'absolute',
-    top: -5,
-    right: -5,
+    top: -4,
+    right: -4,
     backgroundColor: COLORS.green,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
   },
   badgeTrendText: {
     color: COLORS.white,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 'bold',
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+
+  // Subtle links row
+  subtleLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    marginBottom: 20,
+    gap: 8,
+  },
+  subtleLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  subtleLinkText: {
+    fontFamily: FONTS.bodySemi,
+    fontSize: 13,
+    color: COLORS.navy,
+    textDecorationLine: 'underline',
+  },
+  subtleDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: COLORS.gray5,
+    marginHorizontal: 4,
   },
 });

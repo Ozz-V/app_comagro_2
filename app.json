@@ -41,6 +41,12 @@
       [
         "expo-web-browser",
         {}
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La app necesita acceso a tus fotos para tu foto de perfil."
+        }
       ]
     ],
     "extra": {
