@@ -1,6 +1,6 @@
 // Build Trigger: Restauración versión estable 30-Abril
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, Animated, Easing, Linking } from 'react-native';
+import { View, Text, StyleSheet, Alert, Animated, Easing } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
