@@ -693,7 +693,6 @@ export default function ProductosScreen({ navigation, route }) {
         </View>
 
         {filtroMarca && subcategoriasDisponibles.length > 1 ? (() => {
-          // Separar productos reales de accesorios/repuestos
           const mainSubs = subcategoriasDisponibles.filter(s => !isAccessorySubcat(s));
           const hasAccessories = subcategoriasDisponibles.some(s => isAccessorySubcat(s));
           const allBtns = [
@@ -702,7 +701,7 @@ export default function ProductosScreen({ navigation, route }) {
             ...(hasAccessories ? [{ key: '__acc__', label: 'Accesorios', isAll: false, isAcc: true }] : []),
           ];
           return (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10, marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, marginBottom: 4 }}>
               {allBtns.map(btn => {
                 const isActive = btn.isAll ? !filtroSubcategoria : btn.isAcc ? isAccessorySubcat(filtroSubcategoria) : filtroSubcategoria === btn.key;
                 return (
@@ -712,12 +711,11 @@ export default function ProductosScreen({ navigation, route }) {
                       setIsComparing(false); setCompareItems([]);
                       if (btn.isAll) { setFiltroSubcategoria(''); }
                       else if (btn.isAcc) {
-                        // Seleccionar primera subcategoría de accesorios
                         const firstAcc = subcategoriasDisponibles.find(s => isAccessorySubcat(s));
                         setFiltroSubcategoria(firstAcc || '');
                       } else { setFiltroSubcategoria(btn.key); }
                     }}
-                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: isActive ? COLORS.navy : '#E0E0E0', minWidth: 80, maxWidth: 130, alignItems: 'center' }}
+                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: isActive ? COLORS.navy : '#E0E0E0', minWidth: 80, maxWidth: 130, alignItems: 'center', marginRight: 6, marginBottom: 6 }}
                   >
                     <Text numberOfLines={1} style={{ color: isActive ? COLORS.white : COLORS.navy, fontWeight: 'bold', fontSize: 12 }}>{btn.label}</Text>
                   </TouchableOpacity>

@@ -1,6 +1,6 @@
 // Build Trigger: Restauración versión estable 30-Abril
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Alert, Animated, Easing, Linking } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
@@ -178,56 +178,32 @@ export default function App() {
   }
 
   async function downloadUpdate(url) {
-    setUpdateState('downloading');
-    setDownloadProgress(0);
-    try {
-      // Normalizar URL de GitHub: blob → raw para descarga directa
-      let directUrl = url;
-      if (directUrl.includes('github.com') && directUrl.includes('/blob/')) {
-        directUrl = directUrl.replace('/blob/', '/raw/');
-      }
-      
-      const fileUri = FileSystem.cacheDirectory + 'comagro-update.apk';
-      
-      // Eliminar descarga anterior si existe
-      const fileInfo = await FileSystem.getInfoAsync(fileUri);
-      if (fileInfo.exists) {
-        await FileSystem.deleteAsync(fileUri, { idempotent: true });
-      }
-      
-      const downloadResumable = FileSystem.createDownloadResumable(
-        directUrl,
-        fileUri,
-        { headers: { 'Accept': 'application/octet-stream' } },
-        (downloadProgress) => {
-          if (downloadProgress.totalBytesExpectedToWrite > 0) {
-            const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-            setDownloadProgress(progress);
-            Animated.timing(progressAnim, {
-              toValue: progress,
-              duration: 200,
-              useNativeDriver: false,
-            }).start();
+    // Usar el navegador/gestor de descarga nativo de Android
+    // Es 100% confiable con redirects de GitHub a diferencia de expo-file-system
+    setUpdateState('none');
+    Alert.alert(
+      '🆕 Actualización disponible',
+      `${updateNotes || 'Nueva versión disponible'}\n\n¿Descargar e instalar ahora?`,
+      [
+        { text: 'Más tarde', style: 'cancel' },
+        {
+          text: '⬇️ Descargar',
+          onPress: async () => {
+            try {
+              const supported = await Linking.canOpenURL(url);
+              if (supported) {
+                await Linking.openURL(url);
+              } else {
+                Alert.alert('Error', 'No se puede abrir la URL de descarga.');
+              }
+            } catch (err) {
+              console.log('Error abriendo URL de descarga:', err);
+              Alert.alert('Error', 'No se pudo abrir la descarga.');
+            }
           }
         }
-      );
-
-      const result = await downloadResumable.downloadAsync();
-      if (result && result.uri) {
-        setApkLocalUri(result.uri);
-        setUpdateState('ready');
-      } else {
-        setUpdateState('none');
-      }
-    } catch (err) {
-      console.log('Error descargando APK:', err);
-      Alert.alert(
-        'Error de descarga',
-        'No se pudo descargar la actualización. Intentá más tarde.',
-        [{ text: 'OK' }]
-      );
-      setUpdateState('none');
-    }
+      ]
+    );
   }
 
   async function installUpdate() {
