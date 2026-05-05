@@ -201,9 +201,6 @@ export default function PortalScreen({ navigation }) {
                     openProductSku: item.sku || item.modelo
                   })}
                 >
-                  <View style={styles.badgeTrend}>
-                    <Text style={styles.badgeTrendText}>{idx + 1}</Text>
-                  </View>
                   <Image
                     source={{ uri: `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}
                     style={styles.recienteLogo}
