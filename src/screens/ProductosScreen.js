@@ -20,6 +20,15 @@ import SvgIcon from '../components/SvgIcon';
 const LOGO      = { uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png' };
 const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
 
+// Extrae el primer número de un string para comparación de specs
+// Ej: "150 L/min" → 150, "3.5 HP" → 3.5, "N/A" → null
+function extractNum(val) {
+  if (!val || typeof val !== 'string') return null;
+  const m = val.match(/([\d]+[\.,]?[\d]*)/);
+  if (!m) return null;
+  return parseFloat(m[1].replace(',', '.'));
+}
+
 // Subcarpetas del bucket Fichas donde buscar PDFs
 const CATS_FICHAS = [
   'BOMBAS DE AGUA', 'SOLDADORES', 'GENERADORES',
