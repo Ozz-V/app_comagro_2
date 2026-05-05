@@ -170,15 +170,14 @@ export default function ProductosScreen({ navigation, route }) {
         const sku = route.params.openProductSku;
         const prod = allProducts.find(p => p.modelo === sku);
         if (prod) {
-          // Pequeño delay para asegurar que el render del modal sea fluido
+          // No reseteamos isInitializingDirect aquí: se mantiene true
+          // mientras el modal está abierto, así el fondo es blanco limpio
           setTimeout(() => {
             setModalProd(prod);
             setActiveTab('FICHA');
             trackAnalytics(prod, 'view');
             openedDirectlyRef.current = true;
             navigation.setParams({ openProductSku: undefined });
-            // Solo quitamos el estado de inicialización después de abrir el modal
-            setIsInitializingDirect(false);
           }, 100);
         } else {
           setIsInitializingDirect(false);
@@ -297,6 +296,10 @@ export default function ProductosScreen({ navigation, route }) {
 
   // ─── GENERAR HTML CORPORATIVO (siempre vertical, imagen arriba, specs abajo) ──
   function generarHtmlFicha(specs, base64Img, logoUrl) {
+    // Calcular altura de imagen según cantidad de specs para que todo entre en 1 página
+    const numSpecs = specs.length;
+    // Con 0-8 specs: imagen grande (280px), con 9-15: mediana (200px), con 16+: pequeña (140px)
+    const imgHeight = numSpecs <= 8 ? 280 : numSpecs <= 15 ? 200 : 140;
     const specsHtml = specs.length > 0 ? `
       <table class="specs">
         <thead><tr><td colspan="2" class="specs-head">ESPECIFICACIONES TÉCNICAS</td></tr></thead>
@@ -336,7 +339,7 @@ export default function ProductosScreen({ navigation, route }) {
           .middle-box { display: flex; align-items: stretch; border: 2px solid #a0a0a0; border-radius: 15px; padding: 20px; margin-bottom: 30px; }
           
           /* IMAGEN - a la izquierda */
-          .img-wrap { flex: 1.5; height: 350px; display: flex; align-items: center; justify-content: center; padding-right: 20px; }
+          .img-wrap { flex: 1.5; height: ${imgHeight}px; display: flex; align-items: center; justify-content: center; padding-right: 20px; }
           .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
           
           /* TÍTULO PRODUCTO - a la derecha */
@@ -344,7 +347,7 @@ export default function ProductosScreen({ navigation, route }) {
           .green-accent { width: 4px; height: 120px; background-color: #0d8a39; margin-right: 15px; }
           .title-sec { display: flex; flex-direction: column; justify-content: center; }
           .prod-marca { font-size: 16pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; margin: 0 0 4px 0; }
-          .prod-modelo { font-size: 30pt; font-weight: bold; color: #0a2566; line-height: 1.1; margin: 0 0 6px 0; word-wrap: break-word; }
+          .prod-modelo { font-size: clamp(14pt, 4vw, 30pt); font-weight: bold; color: #0a2566; line-height: 1.1; margin: 0 0 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
           .prod-subcat { font-size: 14pt; font-weight: bold; color: #8a939c; margin: 0 0 4px 0; text-transform: uppercase; }
           .prod-name { font-size: 12pt; font-weight: bold; color: #0d8a39; margin: 0; }
           
@@ -633,14 +636,6 @@ export default function ProductosScreen({ navigation, route }) {
   const mostrarLista = filtroMarca || busqueda.trim();
 
   // ─── RENDER PRINCIPAL ─────────────────────────────────────────────
-  if (isInitializingDirect) {
-    return (
-      <View style={[styles.safe, { backgroundColor: COLORS.white, justifyContent: 'center', alignItems: 'center' }]}>
-        <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
-        <ActivityIndicator size="large" color={COLORS.navy} />
-      </View>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -687,7 +682,7 @@ export default function ProductosScreen({ navigation, route }) {
               </TouchableOpacity>
             ) : null}
           </View>
-          {filtroSubcategoria ? (
+          {filtroSubcategoria && !isAccessorySubcat(filtroSubcategoria) ? (
             <TouchableOpacity 
               onPress={() => { setIsComparing(!isComparing); setCompareItems([]); }}
               style={{ backgroundColor: isComparing ? COLORS.navy : COLORS.bg, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border }}
@@ -697,25 +692,40 @@ export default function ProductosScreen({ navigation, route }) {
           ) : null}
         </View>
 
-        {filtroMarca && subcategoriasDisponibles.length > 1 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10, marginBottom: 5 }}>
-            <TouchableOpacity
-              onPress={() => { setFiltroSubcategoria(''); setIsComparing(false); setCompareItems([]); }}
-              style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: !filtroSubcategoria ? COLORS.navy : '#E0E0E0', marginRight: 10 }}
-            >
-              <Text style={{ color: !filtroSubcategoria ? COLORS.white : COLORS.navy, fontWeight: 'bold' }}>Todos</Text>
-            </TouchableOpacity>
-            {subcategoriasDisponibles.map(sub => (
-              <TouchableOpacity
-                key={sub}
-                onPress={() => { setFiltroSubcategoria(sub); setIsComparing(false); setCompareItems([]); }}
-                style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: filtroSubcategoria === sub ? COLORS.navy : '#E0E0E0', marginRight: 10 }}
-              >
-                <Text style={{ color: filtroSubcategoria === sub ? COLORS.white : COLORS.navy, fontWeight: 'bold' }}>{sub}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        ) : null}
+        {filtroMarca && subcategoriasDisponibles.length > 1 ? (() => {
+          // Separar productos reales de accesorios/repuestos
+          const mainSubs = subcategoriasDisponibles.filter(s => !isAccessorySubcat(s));
+          const hasAccessories = subcategoriasDisponibles.some(s => isAccessorySubcat(s));
+          const allBtns = [
+            { key: '__todos__', label: 'Todos', isAll: true },
+            ...mainSubs.map(s => ({ key: s, label: s, isAll: false })),
+            ...(hasAccessories ? [{ key: '__acc__', label: 'Accesorios', isAll: false, isAcc: true }] : []),
+          ];
+          return (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10, marginBottom: 4 }}>
+              {allBtns.map(btn => {
+                const isActive = btn.isAll ? !filtroSubcategoria : btn.isAcc ? isAccessorySubcat(filtroSubcategoria) : filtroSubcategoria === btn.key;
+                return (
+                  <TouchableOpacity
+                    key={btn.key}
+                    onPress={() => {
+                      setIsComparing(false); setCompareItems([]);
+                      if (btn.isAll) { setFiltroSubcategoria(''); }
+                      else if (btn.isAcc) {
+                        // Seleccionar primera subcategoría de accesorios
+                        const firstAcc = subcategoriasDisponibles.find(s => isAccessorySubcat(s));
+                        setFiltroSubcategoria(firstAcc || '');
+                      } else { setFiltroSubcategoria(btn.key); }
+                    }}
+                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: isActive ? COLORS.navy : '#E0E0E0', minWidth: 80, maxWidth: 130, alignItems: 'center' }}
+                  >
+                    <Text numberOfLines={1} style={{ color: isActive ? COLORS.white : COLORS.navy, fontWeight: 'bold', fontSize: 12 }}>{btn.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          );
+        })() : null}
       </View>
       <View style={styles.topBorder} />
 
@@ -820,9 +830,8 @@ export default function ProductosScreen({ navigation, route }) {
         transparent
         onRequestClose={() => {
           if (openedDirectlyRef.current) {
-            setIsInitializingDirect(true);
-            setModalProd(null);
             openedDirectlyRef.current = false;
+            setModalProd(null);
             navigation.goBack();
           } else {
             setModalProd(null);
@@ -851,9 +860,8 @@ export default function ProductosScreen({ navigation, route }) {
 
               <TouchableOpacity onPress={() => {
                 if (openedDirectlyRef.current) {
-                  setIsInitializingDirect(true);
-                  setModalProd(null);
                   openedDirectlyRef.current = false;
+                  setModalProd(null);
                   navigation.goBack();
                 } else {
                   setModalProd(null);
@@ -1090,33 +1098,72 @@ export default function ProductosScreen({ navigation, route }) {
               <Text style={{ fontSize: 24, color: COLORS.gray4 }}>✕</Text>
             </TouchableOpacity>
           </View>
-          
-          <ScrollView contentContainerStyle={{ padding: 15 }}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+
+          <ScrollView contentContainerStyle={{ padding: 12 }}>
+            {/* Cabecera con imágenes y nombres */}
+            <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+              <View style={{ width: 110 }} />
               {compareItems.map((prod, idx) => (
-                <View key={prod.modelo} style={{ width: '48%', backgroundColor: COLORS.white, borderRadius: 12, padding: 10, marginBottom: 15, borderWidth: 1, borderColor: COLORS.border }}>
-                  <Image source={{ uri: prod.imagen }} style={{ width: '100%', height: 100 }} resizeMode="contain" />
-                  <Text style={{ fontSize: 12, color: COLORS.green, fontWeight: 'bold', marginTop: 10 }}>{prod.marca}</Text>
-                  <Text style={{ fontSize: 14, color: COLORS.navy, fontWeight: 'bold' }} numberOfLines={2}>{prod.modelo}</Text>
-                  
-                  <View style={{ marginTop: 10, borderTopWidth: 1, borderColor: COLORS.border, paddingTop: 10 }}>
-                    {prod.specs?.slice(0, 6).map(([n, v], i) => (
-                      <View key={i} style={{ marginBottom: 5 }}>
-                        <Text style={{ fontSize: 10, color: COLORS.gray4, textTransform: 'uppercase' }}>{n}</Text>
-                        <Text style={{ fontSize: 11, color: COLORS.black, fontWeight: '500' }}>{v}</Text>
-                      </View>
-                    ))}
-                  </View>
-                  
-                  <TouchableOpacity 
+                <View key={prod.modelo} style={{ flex: 1, alignItems: 'center', marginHorizontal: 3 }}>
+                  <Image source={{ uri: prod.imagen }} style={{ width: '100%', height: 80 }} resizeMode="contain" />
+                  <Text style={{ fontSize: 10, color: COLORS.green, fontWeight: 'bold', textAlign: 'center' }}>{prod.marca}</Text>
+                  <Text style={{ fontSize: 11, color: COLORS.navy, fontWeight: 'bold', textAlign: 'center' }} numberOfLines={2}>{prod.modelo}</Text>
+                  <TouchableOpacity
                     onPress={() => { setItemToReplaceIndex(idx); setShowReplaceSelector(true); }}
-                    style={{ marginTop: 10, padding: 8, backgroundColor: COLORS.bg, borderRadius: 6, alignItems: 'center' }}
+                    style={{ marginTop: 4, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: COLORS.bg, borderRadius: 6, borderWidth: 1, borderColor: COLORS.border }}
                   >
-                    <Text style={{ fontSize: 12, color: COLORS.navy, fontWeight: 'bold' }}>🔄 Cambiar</Text>
+                    <Text style={{ fontSize: 10, color: COLORS.navy, fontWeight: 'bold' }}>🔄 Cambiar</Text>
                   </TouchableOpacity>
                 </View>
               ))}
             </View>
+
+            {/* Tabla de specs con indicadores ↑↓ */}
+            {(() => {
+              // Reunir todos los nombres de specs únicos en orden
+              const allSpecNames = [];
+              compareItems.forEach(prod => {
+                (prod.specs || []).forEach(([n]) => {
+                  if (!allSpecNames.includes(n)) allSpecNames.push(n);
+                });
+              });
+              return allSpecNames.map((specName, si) => {
+                // Obtener valores de cada producto para este spec
+                const vals = compareItems.map(prod => {
+                  const found = (prod.specs || []).find(([n]) => n === specName);
+                  return found ? found[1] : null;
+                });
+                // Extraer números para comparación
+                const nums = vals.map(v => extractNum(v));
+                const validNums = nums.filter(n => n !== null);
+                const maxNum = validNums.length > 1 ? Math.max(...validNums) : null;
+                const minNum = validNums.length > 1 ? Math.min(...validNums) : null;
+                const hasDiff = maxNum !== null && maxNum !== minNum;
+                return (
+                  <View key={specName} style={{ flexDirection: 'row', backgroundColor: si % 2 === 0 ? '#F7F8FA' : COLORS.white, borderRadius: 6, marginBottom: 2, paddingVertical: 6, alignItems: 'center' }}>
+                    <View style={{ width: 110, paddingHorizontal: 8 }}>
+                      <Text style={{ fontSize: 10, color: COLORS.gray4, fontWeight: 'bold', textTransform: 'uppercase' }} numberOfLines={2}>{specName}</Text>
+                    </View>
+                    {compareItems.map((prod, pi) => {
+                      const val = vals[pi];
+                      const num = nums[pi];
+                      let indicator = null;
+                      if (hasDiff && num !== null) {
+                        if (num === maxNum) indicator = <Text style={{ color: '#16a34a', fontWeight: 'bold', fontSize: 12 }}> ↑</Text>;
+                        else if (num === minNum) indicator = <Text style={{ color: '#dc2626', fontWeight: 'bold', fontSize: 12 }}> ↓</Text>;
+                      }
+                      return (
+                        <View key={prod.modelo} style={{ flex: 1, marginHorizontal: 3, backgroundColor: hasDiff && num === maxNum ? '#f0fdf4' : hasDiff && num === minNum ? '#fef2f2' : 'transparent', borderRadius: 4, padding: 4 }}>
+                          <Text style={{ fontSize: 11, color: COLORS.navy, fontWeight: '500', textAlign: 'center' }} numberOfLines={2}>
+                            {val !== null ? val : '—'}{indicator}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              });
+            })()}
           </ScrollView>
         </SafeAreaView>
       </Modal>

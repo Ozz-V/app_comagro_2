@@ -31,12 +31,25 @@ jobs:
           java-version: '17'
       - name: Install dependencies
         run: npm ci
+      - name: Auto-increment versionCode
+        run: |
+          node -e "
+            const fs = require('fs');
+            const cfg = JSON.parse(fs.readFileSync('app.json','utf8'));
+            cfg.expo.android.versionCode = (cfg.expo.android.versionCode || 1) + 1;
+            fs.writeFileSync('app.json', JSON.stringify(cfg, null, 2));
+            console.log('versionCode =>', cfg.expo.android.versionCode);
+          "
       - name: Prebuild Android Project
         run: npx expo prebuild --platform android --clean
       - name: Build APK
         run: |
           cd android
           ./gradlew assembleRelease
+      - name: Save APK and app.json to /tmp
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk /tmp/comagro.apk
+          cp app.json /tmp/app.json
       - name: Upload APK artifact (GitHub)
         uses: actions/upload-artifact@v4
         continue-on-error: true
@@ -44,27 +57,29 @@ jobs:
           name: comagro-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 7
-      - name: Upload APK to Repository Branch (Bypass Quota)
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: v${{ github.run_number }}
+          files: android/app/build/outputs/apk/release/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit updated versionCode back to main
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          cp android/app/build/outputs/apk/release/app-release.apk /tmp/comagro.apk
-          cp app.json /tmp/app.json
+          git add app.json
+          git diff --staged --quiet || git commit -m "ci: bump versionCode [skip ci]"
+          git push origin HEAD:main
+      - name: Upload APK to Repository Branch (Bypass Quota)
+        run: |
           git checkout --orphan apk-builds
           git rm -rf .
           mv /tmp/comagro.apk ./comagro-app.apk
           git add comagro-app.apk
           git commit -m "Deploy APK"
           git push origin apk-builds --force
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ github.run_number }}
-          name: v${{ github.run_number }}
-          files: comagro-app.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
       - name: Notify Supabase (Auto-Update)
         run: |
           VERSION=$(node -p "require('/tmp/app.json').expo.version")
@@ -73,4 +88,4 @@ jobs:
           -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-Isxd04ySP_ZgDLit1fQDsxoeb25GmU_C_5I" \
           -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0eWxwdnV6ZmxxbG1tcXZkaGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjYzMTgsImV4cCI6MjA5MTg0MjMxOH0.yuZ5sWX-Isxd04ySP_ZgDLit1fQDsxoeb25GmU_C_5I" \
           -H "Content-Type: application/json" \
-          -d "{ \"version_code\": $VERSION_CODE, \"version_name\": \"$VERSION\", \"release_notes\": \"Actualización automática v$VERSION (Build $VERSION_CODE)\", \"download_url\": \"https://github.com/Ozz-V/app_comagro_2/releases/download/v${{ github.run_number }}/comagro-app.apk\" }"
+          -d "{ \"version_code\": $VERSION_CODE, \"version_name\": \"$VERSION\", \"release_notes\": \"Actualizacion automatica v$VERSION (Build $VERSION_CODE)\", \"download_url\": \"https://github.com/Ozz-V/app_comagro_2/releases/download/v${{ github.run_number }}/app-release.apk\" }"
