@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, Image, SafeAreaView, StatusBar,
@@ -462,11 +462,11 @@ export default function ProductosScreen({ navigation, route }) {
 
           <div class="hdr">
             <div class="hdr-logo">
-              <img src="${logoUrl}" onerror="this.outerHTML='<span class=fbrand>${modalProd?.marca || ''}</span>'" />
+              <img src="${logoUrl}" onerror="this.style.display='none'" />
             </div>
             <div class="hdr-sep"></div>
             <div class="hdr-text">
-              <div class="hdr-title">FICHA TÉCNICA</div>
+              <div class="hdr-title">FICHA T&#201;CNICA</div>
               <div class="hdr-sub">Especificaciones del producto</div>
             </div>
           </div>
@@ -479,9 +479,9 @@ export default function ProductosScreen({ navigation, route }) {
             <div class="info-box">
               <div class="green-bar"></div>
               <div class="prod-data">
-                <div class="p-marca">${modalProd?.marca || ''}</div>
-                <div class="p-modelo">${modalProd?.modelo || ''}</div>
-                <div class="p-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
+                <div class="p-marca">${modalProd?.marca ?? ''}</div>
+                <div class="p-modelo">${modalProd?.modelo ?? ''}</div>
+                <div class="p-subcat">${(modalProd?.subcategoria ?? 'GENERAL').toUpperCase()}</div>
               </div>
             </div>
           </div>
@@ -491,11 +491,11 @@ export default function ProductosScreen({ navigation, route }) {
           </div>
 
           <div class="footer">
-            <span class="ft">${modalProd?.marca || ''}</span>
-            <span class="fd">·</span>
-            <span class="ft">${modalProd?.modelo || ''}</span>
-            <span class="fd">·</span>
-            <span class="ft">${(modalProd?.subcategoria || '').toUpperCase()}</span>
+            <span class="ft">${modalProd?.marca ?? ''}</span>
+            <span class="fd">&#xB7;</span>
+            <span class="ft">${modalProd?.modelo ?? ''}</span>
+            <span class="fd">&#xB7;</span>
+            <span class="ft">${(modalProd?.subcategoria ?? '').toUpperCase()}</span>
           </div>
 
         </div>
