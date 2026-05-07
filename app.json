@@ -20,7 +20,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.comagro.catalogo",
-      "versionCode": 25,
+      "versionCode": 26,
       "permissions": [],
       "intentFilters": [
         {
