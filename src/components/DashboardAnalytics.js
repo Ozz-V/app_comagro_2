@@ -328,11 +328,21 @@ export default function DashboardAnalytics({ navigation }) {
                     source={selectedUser.avatar_url ? { uri: selectedUser.avatar_url } : { uri: 'https://ui-avatars.com/api/?name=' + selectedUser.email + '&background=0D8A39&color=fff' }} 
                     style={{ width: 80, height: 80, borderRadius: 40, marginBottom: 12 }} 
                   />
-                  <Text style={{ fontFamily: FONTS.heading, fontSize: 20, fontWeight: '700', color: COLORS.navy }}>{selectedUser.full_name || 'Sin nombre'}</Text>
-                  <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, marginTop: 4 }}>{selectedUser.email}</Text>
-                  {selectedUser.telefono ? (
-                    <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 14, color: COLORS.green, marginTop: 4 }}>📞 {selectedUser.telefono}</Text>
-                  ) : null}
+                  
+                  <View style={{ width: '100%', backgroundColor: '#F7F8FA', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.border }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                      <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Nombre:</Text>
+                      <Text style={{ fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, flex: 1 }}>{selectedUser.full_name || 'Sin nombre'}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                      <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Correo:</Text>
+                      <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy, flex: 1 }}>{selectedUser.email}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Teléfono:</Text>
+                      <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy, flex: 1 }}>{selectedUser.telefono || '-'}</Text>
+                    </View>
+                  </View>
                 </View>
 
                 <Text style={{ fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.navy, marginBottom: 12 }}>Actividad</Text>

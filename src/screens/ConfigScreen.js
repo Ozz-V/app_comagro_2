@@ -21,6 +21,7 @@ export default function ConfigScreen({ navigation }) {
   const [profileSaving, setProfileSaving] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [fullName, setFullName] = useState('');
+  const [phoneCode, setPhoneCode] = useState('+595');
   const [phone, setPhone] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState(null);
@@ -38,7 +39,15 @@ export default function ConfigScreen({ navigation }) {
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       if (data) {
         setFullName(data.full_name || '');
-        setPhone(data.telefono || '');
+        if (data.telefono) {
+          if (data.telefono.includes(' ')) {
+            const parts = data.telefono.split(' ');
+            setPhoneCode(parts[0]);
+            setPhone(parts.slice(1).join(' '));
+          } else {
+            setPhone(data.telefono);
+          }
+        }
         setAvatarUrl(data.avatar_url || null);
       }
     } catch (e) {
@@ -80,8 +89,9 @@ export default function ConfigScreen({ navigation }) {
     try {
       setProfileSaving(true);
       if (!userId) return;
+      const combinedPhone = `${phoneCode.trim()} ${phone.trim()}`;
       const { error } = await supabase.from('profiles').upsert({
-        id: userId, full_name: fullName, telefono: phone, email: userEmail,
+        id: userId, full_name: fullName, telefono: combinedPhone, email: userEmail,
         avatar_url: newAvatarUrl !== undefined ? newAvatarUrl : avatarUrl,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
@@ -130,7 +140,25 @@ export default function ConfigScreen({ navigation }) {
           {profileLoading ? <ActivityIndicator size="small" color={COLORS.navy} /> : isEditing ? (
             <View style={{ width: '100%', gap: 10, marginTop: 8 }}>
               <TextInput style={st.input} placeholder="Nombre completo" placeholderTextColor={COLORS.gray4} value={fullName} onChangeText={setFullName} />
-              <TextInput style={st.input} placeholder="Teléfono (+595...)" placeholderTextColor={COLORS.gray4} keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: 10, paddingHorizontal: 10, backgroundColor: '#F7F8FA' }}>
+                  <Text style={{ fontSize: 14, marginRight: 4 }}>{phoneCode === '+595' ? '🇵🇾' : '🌍'}</Text>
+                  <TextInput
+                    style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy, paddingVertical: 10, minWidth: 40 }}
+                    value={phoneCode}
+                    onChangeText={setPhoneCode}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+                <TextInput 
+                  style={[st.input, { flex: 1 }]} 
+                  placeholder="Número (ej. 981 123 456)" 
+                  placeholderTextColor={COLORS.gray4} 
+                  keyboardType="phone-pad" 
+                  value={phone} 
+                  onChangeText={setPhone} 
+                />
+              </View>
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
                 <TouchableOpacity style={st.saveBtn} onPress={() => saveProfile()} disabled={profileSaving}>
                   <Text style={st.saveBtnText}>{profileSaving ? 'Guardando...' : 'Guardar'}</Text>
@@ -141,10 +169,21 @@ export default function ConfigScreen({ navigation }) {
               </View>
             </View>
           ) : (
-            <View style={{ alignItems: 'center' }}>
-              <Text style={st.profileName}>{fullName || 'Sin nombre'}</Text>
-              <Text style={st.profileEmail}>{userEmail}</Text>
-              {phone ? <Text style={{ fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, marginTop: 4 }}>{phone}</Text> : null}
+            <View style={{ width: '100%', alignItems: 'center' }}>
+              <View style={{ width: '100%', backgroundColor: '#F7F8FA', borderRadius: 12, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: COLORS.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Nombre:</Text>
+                  <Text style={{ fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, flex: 1 }}>{fullName || 'Sin nombre'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Correo:</Text>
+                  <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy, flex: 1 }}>{userEmail}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Teléfono:</Text>
+                  <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy, flex: 1 }}>{phoneCode ? `${phoneCode} ` : ''}{phone || '-'}</Text>
+                </View>
+              </View>
               <TouchableOpacity style={st.editBtn} onPress={() => setIsEditing(true)}>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy }}>Editar perfil</Text>
               </TouchableOpacity>

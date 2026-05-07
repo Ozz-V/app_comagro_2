@@ -58,6 +58,7 @@ export default function PortalScreen({ navigation }) {
   // Perfil obligatorio
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profName, setProfName] = useState('');
+  const [profPhoneCode, setProfPhoneCode] = useState('+595');
   const [profPhone, setProfPhone] = useState('');
   const [profSaving, setProfSaving] = useState(false);
 
@@ -84,7 +85,15 @@ export default function PortalScreen({ navigation }) {
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       if (!data || !data.full_name || !data.telefono) {
         setProfName(data?.full_name || '');
-        setProfPhone(data?.telefono || '');
+        if (data?.telefono) {
+          if (data.telefono.includes(' ')) {
+            const parts = data.telefono.split(' ');
+            setProfPhoneCode(parts[0]);
+            setProfPhone(parts.slice(1).join(' '));
+          } else {
+            setProfPhone(data.telefono);
+          }
+        }
         setShowProfileModal(true);
       }
     } catch (e) {
@@ -100,10 +109,11 @@ export default function PortalScreen({ navigation }) {
     setProfSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const combinedPhone = `${profPhoneCode.trim()} ${profPhone.trim()}`;
       const { error } = await supabase.from('profiles').upsert({
         id: user.id,
         full_name: profName,
-        telefono: profPhone,
+        telefono: combinedPhone,
         email: user.email,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
@@ -476,14 +486,25 @@ export default function PortalScreen({ navigation }) {
               onChangeText={setProfName}
             />
 
-            <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray1, marginBottom: 4 }}>Teléfono (con código de área)</Text>
-            <TextInput
-              style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 12, marginBottom: 24, fontFamily: FONTS.body, color: COLORS.navy }}
-              placeholder="Ej. +595 9XX XXX XXX"
-              keyboardType="phone-pad"
-              value={profPhone}
-              onChangeText={setProfPhone}
-            />
+            <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray1, marginBottom: 4 }}>Teléfono</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12, backgroundColor: '#F7F8FA' }}>
+                <Text style={{ fontSize: 16, marginRight: 6 }}>{profPhoneCode === '+595' ? '🇵🇾' : '🌍'}</Text>
+                <TextInput
+                  style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy, paddingVertical: 12, minWidth: 40 }}
+                  value={profPhoneCode}
+                  onChangeText={setProfPhoneCode}
+                  keyboardType="phone-pad"
+                />
+              </View>
+              <TextInput
+                style={{ flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 12, fontFamily: FONTS.body, color: COLORS.navy }}
+                placeholder="Ej. 981 123 456"
+                keyboardType="phone-pad"
+                value={profPhone}
+                onChangeText={setProfPhone}
+              />
+            </View>
 
             <TouchableOpacity
               style={{ backgroundColor: COLORS.navy, paddingVertical: 14, borderRadius: 10, alignItems: 'center' }}
