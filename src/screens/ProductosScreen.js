@@ -324,8 +324,8 @@ export default function ProductosScreen({ navigation, route }) {
     const PX_SPEC_HDR = 34;   // cabecera azul "ESPECIFICACIONES TÉCNICAS"
     const PX_FOOT     = 34;   // footer
     const PX_SAFETY   = 14;   // margen de seguridad
-    const PX_TPAD     = 20;   // padding interno del img-box (top+bottom)
     const MIN_IMG_H   = 80;   // altura mínima aceptable de la imagen
+    const TEXT_H      = 77;   // altura aproximada del bloque de texto debajo de imagen
 
     // ── Intentar 1 columna ────────────────────────────────────────────────────
     // Font y padding según densidad (1 col)
@@ -335,16 +335,15 @@ export default function ProductosScreen({ navigation, route }) {
 
     const specsH1  = numSpecs > 0 ? PX_SPEC_HDR + numSpecs * row1 : 0;
     const topH1    = PX_PAGE - PX_HDR - PX_TMARG - PX_GAP - specsH1 - PX_FOOT - PX_SAFETY;
-    const imgH1    = topH1 - PX_TPAD;
+    const imgH1    = topH1 - TEXT_H;
 
     // ── Decidir si usar 1 o 2 columnas ───────────────────────────────────────
-    let doubleCols, topBlockH, imgH, specFs, specPad;
+    let doubleCols, topBlockH, specFs, specPad;
 
     if (imgH1 >= MIN_IMG_H) {
       // ✅ 1 columna: la imagen entra bien
       doubleCols = false;
-      topBlockH  = Math.max(MIN_IMG_H + PX_TPAD, topH1);
-      imgH       = topBlockH - PX_TPAD;
+      topBlockH  = Math.max(MIN_IMG_H + TEXT_H, topH1);
       specFs     = fs1;
       specPad    = pad1;
     } else {
@@ -356,8 +355,7 @@ export default function ProductosScreen({ navigation, route }) {
       const row2  = numRows2 > 18 ? 24     : numRows2 > 12 ? 25      : 27;
       const specsH2 = numSpecs > 0 ? PX_SPEC_HDR + numRows2 * row2 : 0;
       const topH2   = PX_PAGE - PX_HDR - PX_TMARG - PX_GAP - specsH2 - PX_FOOT - PX_SAFETY;
-      topBlockH  = Math.max(MIN_IMG_H + PX_TPAD, topH2);
-      imgH       = topBlockH - PX_TPAD;
+      topBlockH  = Math.max(MIN_IMG_H + TEXT_H, topH2);
       specFs     = fs2;
       specPad    = pad2;
     }
@@ -409,8 +407,8 @@ export default function ProductosScreen({ navigation, route }) {
 
           /* ── HEADER ── */
           .hdr { display: flex; align-items: center; padding: 14px 26px 0 26px; flex-shrink: 0; }
-          .hdr-logo { height: 54px; display: flex; align-items: center; flex-shrink: 0; }
-          .hdr-logo img { max-height: 54px; max-width: 180px; object-fit: contain; }
+          .hdr-logo { height: 70px; display: flex; align-items: center; flex-shrink: 0; }
+          .hdr-logo img { max-height: 70px; max-width: 234px; object-fit: contain; }
           .fbrand { font-size: 18pt; font-weight: bold; color: #0a2566; }
           .hdr-sep { width: 2px; height: 46px; background: #c4ccd8; margin: 0 16px; flex-shrink: 0; }
           .hdr-text { flex: 1; }
@@ -420,27 +418,22 @@ export default function ProductosScreen({ navigation, route }) {
 
           /* ── BLOQUE SUPERIOR ── */
           .top-block {
-            display: flex; align-items: stretch;
+            display: flex; flex-direction: column;
             margin: ${PX_TMARG}px 26px 0 26px;
             height: ${topBlockH}px;
-            gap: 16px; flex-shrink: 0;
+            gap: 12px; flex-shrink: 0;
           }
           .img-box {
-            width: 38%; flex-shrink: 0;
-            background: #f5f8fc; border: 1.5px solid #dce4f0; border-radius: 10px;
-            display: flex; align-items: center; justify-content: center; padding: 10px;
+            flex: 1; min-height: 0;
+            display: flex; align-items: center; justify-content: center;
           }
-          .prod-img { max-width: 100%; max-height: ${imgH}px; object-fit: contain; display: block; }
+          .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
           .info-box {
-            flex: 1; display: flex; align-items: center;
-            border: 1.5px solid #dce4f0; border-radius: 10px;
-            padding: 14px 16px; gap: 12px; background: #fff;
+            flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
           }
-          .green-bar { width: 5px; border-radius: 3px; align-self: stretch; background: #0d8a39; flex-shrink: 0; }
-          .prod-data { flex: 1; min-width: 0; }
           .p-marca  { font-size: 11pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; letter-spacing: 0.5px; }
-          .p-modelo { font-size: 20pt; font-weight: bold; color: #0a2566; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-          .p-subcat { font-size: 8.5pt; color: #8492a6; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+          .p-modelo { font-size: 20pt; font-weight: bold; color: #0a2566; line-height: 1.1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .p-subcat { font-size: 8.5pt; color: #8492a6; text-transform: uppercase; letter-spacing: 1px; }
 
           /* ── SPECS ── */
           .specs-block { margin: ${PX_GAP}px 26px 0 26px; flex-shrink: 0; }
@@ -477,12 +470,9 @@ export default function ProductosScreen({ navigation, route }) {
               <img id="prodImg" class="prod-img" src="${base64Img}" />
             </div>
             <div class="info-box">
-              <div class="green-bar"></div>
-              <div class="prod-data">
-                <div class="p-marca">${modalProd?.marca ?? ''}</div>
-                <div class="p-modelo">${modalProd?.modelo ?? ''}</div>
-                <div class="p-subcat">${(modalProd?.subcategoria ?? 'GENERAL').toUpperCase()}</div>
-              </div>
+              <div class="p-marca">${modalProd?.sku ? 'SKU: ' + modalProd.sku + ' | ' : ''}${modalProd?.marca ?? ''}</div>
+              <div class="p-modelo">${modalProd?.modelo ?? ''}</div>
+              <div class="p-subcat">${(modalProd?.subcategoria ?? 'GENERAL').toUpperCase()}</div>
             </div>
           </div>
 
