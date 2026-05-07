@@ -188,9 +188,13 @@ export default function App() {
           onPress: async () => {
             setUpdateState('downloading');
             try {
+              // Resolver la redirección de GitHub sin descargar el archivo a la memoria (OOM)
+              const res = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+              const finalUrl = res.url || url;
+
               const fileUri = `${FileSystem.documentDirectory}comagro_update.apk`;
               const downloadResumable = FileSystem.createDownloadResumable(
-                url,
+                finalUrl,
                 fileUri,
                 {},
                 (downloadProgress) => {
