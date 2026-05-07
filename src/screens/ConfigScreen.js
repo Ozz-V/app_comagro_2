@@ -21,6 +21,7 @@ export default function ConfigScreen({ navigation }) {
   const [profileSaving, setProfileSaving] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -37,6 +38,7 @@ export default function ConfigScreen({ navigation }) {
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       if (data) {
         setFullName(data.full_name || '');
+        setPhone(data.telefono || '');
         setAvatarUrl(data.avatar_url || null);
       }
     } catch (e) {
@@ -79,7 +81,7 @@ export default function ConfigScreen({ navigation }) {
       setProfileSaving(true);
       if (!userId) return;
       const { error } = await supabase.from('profiles').upsert({
-        id: userId, full_name: fullName,
+        id: userId, full_name: fullName, telefono: phone, email: userEmail,
         avatar_url: newAvatarUrl !== undefined ? newAvatarUrl : avatarUrl,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
@@ -128,6 +130,7 @@ export default function ConfigScreen({ navigation }) {
           {profileLoading ? <ActivityIndicator size="small" color={COLORS.navy} /> : isEditing ? (
             <View style={{ width: '100%', gap: 10, marginTop: 8 }}>
               <TextInput style={st.input} placeholder="Nombre completo" placeholderTextColor={COLORS.gray4} value={fullName} onChangeText={setFullName} />
+              <TextInput style={st.input} placeholder="Teléfono (+595...)" placeholderTextColor={COLORS.gray4} keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
                 <TouchableOpacity style={st.saveBtn} onPress={() => saveProfile()} disabled={profileSaving}>
                   <Text style={st.saveBtnText}>{profileSaving ? 'Guardando...' : 'Guardar'}</Text>
@@ -141,6 +144,7 @@ export default function ConfigScreen({ navigation }) {
             <View style={{ alignItems: 'center' }}>
               <Text style={st.profileName}>{fullName || 'Sin nombre'}</Text>
               <Text style={st.profileEmail}>{userEmail}</Text>
+              {phone ? <Text style={{ fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, marginTop: 4 }}>{phone}</Text> : null}
               <TouchableOpacity style={st.editBtn} onPress={() => setIsEditing(true)}>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy }}>Editar perfil</Text>
               </TouchableOpacity>

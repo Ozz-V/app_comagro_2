@@ -55,9 +55,16 @@ export default function PortalScreen({ navigation }) {
   const [showRecientesModal, setShowRecientesModal] = useState(false);
   const [showCompartidosModal, setShowCompartidosModal] = useState(false);
 
+  // Perfil obligatorio
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profName, setProfName] = useState('');
+  const [profPhone, setProfPhone] = useState('');
+  const [profSaving, setProfSaving] = useState(false);
+
   useEffect(() => {
     cargarRecientes();
     cargarTendencias();
+    checkProfile();
   }, []);
 
   // Recargar al volver a esta pantalla
@@ -65,9 +72,49 @@ export default function PortalScreen({ navigation }) {
     const unsubscribe = navigation.addListener('focus', () => {
       cargarRecientes();
       cargarTendencias();
+      checkProfile();
     });
     return unsubscribe;
   }, [navigation]);
+
+  async function checkProfile() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      if (!data || !data.full_name || !data.telefono) {
+        setProfName(data?.full_name || '');
+        setProfPhone(data?.telefono || '');
+        setShowProfileModal(true);
+      }
+    } catch (e) {
+      console.log('Error check profile:', e);
+    }
+  }
+
+  async function saveRequiredProfile() {
+    if (!profName.trim() || !profPhone.trim()) {
+      alert('Por favor completa tu nombre y teléfono.');
+      return;
+    }
+    setProfSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('profiles').upsert({
+        id: user.id,
+        full_name: profName,
+        telefono: profPhone,
+        email: user.email,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+      if (!error) setShowProfileModal(false);
+      else alert('Hubo un error al guardar. Asegúrate de tener conexión.');
+    } catch (e) {
+      alert('Error guardando perfil.');
+    } finally {
+      setProfSaving(false);
+    }
+  }
 
   async function cargarRecientes() {
     try {
@@ -408,6 +455,51 @@ export default function PortalScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Modal Perfil Obligatorio */}
+      <Modal visible={showProfileModal} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: COLORS.white, borderRadius: 15, padding: 24, elevation: 5 }}>
+            <View style={{ alignItems: 'center', marginBottom: 20 }}>
+              <SvgIcon name="agenteIA" size={48} color={COLORS.navy} />
+              <Text style={{ fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, marginTop: 12 }}>Completa tu perfil</Text>
+              <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, textAlign: 'center', marginTop: 8 }}>
+                Para ofrecerte una mejor experiencia, necesitamos que nos indiques tu nombre y número de teléfono.
+              </Text>
+            </View>
+
+            <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray1, marginBottom: 4 }}>Nombre completo</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 12, marginBottom: 16, fontFamily: FONTS.body, color: COLORS.navy }}
+              placeholder="Ej. Juan Pérez"
+              value={profName}
+              onChangeText={setProfName}
+            />
+
+            <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray1, marginBottom: 4 }}>Teléfono (con código de área)</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 12, marginBottom: 24, fontFamily: FONTS.body, color: COLORS.navy }}
+              placeholder="Ej. +595 9XX XXX XXX"
+              keyboardType="phone-pad"
+              value={profPhone}
+              onChangeText={setProfPhone}
+            />
+
+            <TouchableOpacity
+              style={{ backgroundColor: COLORS.navy, paddingVertical: 14, borderRadius: 10, alignItems: 'center' }}
+              onPress={saveRequiredProfile}
+              disabled={profSaving}
+            >
+              {profSaving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 15, color: COLORS.white, fontWeight: '700' }}>Continuar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }

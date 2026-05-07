@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { supabase } from '../supabase';
@@ -100,17 +100,17 @@ function BrandBar({ marca, count, maxCount }) {
   );
 }
 
-function UserBar({ email, count, maxCount }) {
+function UserBar({ email, count, maxCount, onUserClick }) {
   const w = maxCount > 0 ? Math.max(8, (count / maxCount) * 100) : 0;
   const short = email.split('@')[0];
   return (
-    <View style={s.brandRow}>
+    <TouchableOpacity style={s.brandRow} activeOpacity={0.7} onPress={() => onUserClick && onUserClick(email)}>
       <Text style={s.brandName} numberOfLines={1}>{short}</Text>
       <View style={{ flex: 1, height: 8, backgroundColor: '#E8ECF0', borderRadius: 4, marginHorizontal: 8 }}>
         <View style={{ width: `${w}%`, height: 8, backgroundColor: COLORS.celeste, borderRadius: 4 }} />
       </View>
       <Text style={s.brandCount}>{count}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -132,8 +132,44 @@ export default function DashboardAnalytics({ navigation }) {
   const [myData, setMyData] = useState({ views: 0, shares: 0, searches: 0, tV: '', tS: '', tSe: '', topV: [], topSh: [], topSe: [] });
   const [globalData, setGlobalData] = useState({ views: 0, shares: 0, searches: 0, tV: '', tS: '', tSe: '', topV: [], topSh: [], topSe: [], brands: [], users: [] });
 
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(false);
+
   useEffect(() => { loadImages(); }, []);
   useEffect(() => { loadData(); }, [period]);
+
+  async function handleUserClick(email) {
+    setShowUserModal(true);
+    setLoadingUser(true);
+    setSelectedUser({ email, full_name: '', telefono: '', avatar_url: null, stats: { views: 0, shares: 0, searches: 0 } });
+    
+    try {
+      const { data: profile } = await supabase.from('profiles').select('*').eq('email', email).single();
+      const { data: analyticsData } = await supabase.from('producto_analytics').select('action').eq('user_email', email);
+      
+      let v = 0, sh = 0, se = 0;
+      if (analyticsData) {
+        analyticsData.forEach(r => {
+          if (r.action === 'view') v++;
+          if (r.action === 'search') se++;
+          if (r.action === 'share_pdf' || r.action === 'share_image') sh++;
+        });
+      }
+
+      setSelectedUser({
+        email,
+        full_name: profile?.full_name || '',
+        telefono: profile?.telefono || '',
+        avatar_url: profile?.avatar_url || null,
+        stats: { views: v, shares: sh, searches: se }
+      });
+    } catch(e) {
+      console.log('Error cargando usuario', e);
+    } finally {
+      setLoadingUser(false);
+    }
+  }
 
   async function loadImages() {
     try {
@@ -266,11 +302,50 @@ export default function DashboardAnalytics({ navigation }) {
           {tab === 'general' && globalData.users.length > 0 && (
             <View style={s.section}>
               <Text style={s.sectionTitle}>👥 Usuarios más activos</Text>
-              {globalData.users.map((u, i) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={globalData.users[0]?.count || 1} />)}
+              {globalData.users.map((u, i) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={globalData.users[0]?.count || 1} onUserClick={handleUserClick} />)}
             </View>
           )}
         </>
       )}
+
+      {/* Modal de Perfil de Usuario */}
+      <Modal visible={showUserModal} animationType="fade" transparent onRequestClose={() => setShowUserModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: COLORS.white, borderRadius: 15, padding: 20, elevation: 5 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+              <Text style={{ fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: COLORS.navy }}>Perfil de Usuario</Text>
+              <TouchableOpacity onPress={() => setShowUserModal(false)}>
+                <Text style={{ fontSize: 24, color: COLORS.gray4 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {loadingUser ? (
+              <ActivityIndicator size="large" color={COLORS.navy} style={{ marginVertical: 30 }} />
+            ) : selectedUser ? (
+              <View>
+                <View style={{ alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingBottom: 20 }}>
+                  <Image 
+                    source={selectedUser.avatar_url ? { uri: selectedUser.avatar_url } : { uri: 'https://ui-avatars.com/api/?name=' + selectedUser.email + '&background=0D8A39&color=fff' }} 
+                    style={{ width: 80, height: 80, borderRadius: 40, marginBottom: 12 }} 
+                  />
+                  <Text style={{ fontFamily: FONTS.heading, fontSize: 20, fontWeight: '700', color: COLORS.navy }}>{selectedUser.full_name || 'Sin nombre'}</Text>
+                  <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, marginTop: 4 }}>{selectedUser.email}</Text>
+                  {selectedUser.telefono ? (
+                    <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 14, color: COLORS.green, marginTop: 4 }}>📞 {selectedUser.telefono}</Text>
+                  ) : null}
+                </View>
+
+                <Text style={{ fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.navy, marginBottom: 12 }}>Actividad</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <StatCard number={selectedUser.stats.views} label="Vistas" color={COLORS.navy} />
+                  <StatCard number={selectedUser.stats.shares} label="Compartidos" color={COLORS.green} />
+                  <StatCard number={selectedUser.stats.searches} label="Búsquedas" color={COLORS.celeste} />
+                </View>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
