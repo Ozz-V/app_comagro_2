@@ -1127,28 +1127,29 @@ export default function ProductosScreen({ navigation, route }) {
               <View ref={fichaRef} collapsable={false} style={{ width: 800, backgroundColor: '#fff', paddingBottom: 40, paddingTop: 30 }}>
                 {/* HEADER */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 45, marginBottom: 15 }}>
-                  <View style={{ width: 250, alignItems: 'center', justifyContent: 'center', marginRight: 20 }}>
-                    <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={{ width: 250, height: 180 }} resizeMode="contain" />
+                  <View style={{ width: 325, alignItems: 'center', justifyContent: 'center', marginRight: 20 }}>
+                    <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={{ width: 325, height: 180 }} resizeMode="contain" />
                   </View>
                   <View style={{ width: 2, height: 90, backgroundColor: '#a0a0a0', marginHorizontal: 30 }} />
-                  <Text style={{ fontFamily: FONTS.heading, fontSize: 32, fontWeight: 'bold', color: '#0a2566', letterSpacing: 1 }}>FICHA TÉCNICA</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: FONTS.heading, fontSize: 32, fontWeight: 'bold', color: '#0a2566', letterSpacing: 1 }}>FICHA TÉCNICA</Text>
+                    <Text style={{ fontSize: 14, color: '#8492a6', letterSpacing: 2, textTransform: 'uppercase', marginTop: 4 }}>Especificaciones del producto</Text>
+                  </View>
                 </View>
                 
                 <View style={{ height: 4, backgroundColor: '#0d8a39', width: '100%', marginBottom: 20 }} />
 
                 <View style={{ paddingHorizontal: 45 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'stretch', borderWidth: 2, borderColor: '#a0a0a0', borderRadius: 15, padding: 20, marginBottom: 30 }}>
-                    <View style={{ flex: 1.5, height: 350, paddingRight: 20, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ flexDirection: 'column', alignItems: 'center', marginBottom: 30, gap: 20 }}>
+                    <View style={{ width: '100%', height: 400, alignItems: 'center', justifyContent: 'center' }}>
                       <Image source={{ uri: modalProd?.imagen }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
                     </View>
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ width: 4, height: 120, backgroundColor: '#0d8a39', marginRight: 15 }} />
-                      <View style={{ flex: 1, justifyContent: 'center' }}>
-                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0d8a39', textTransform: 'uppercase', marginBottom: 4 }}>{modalProd?.marca}</Text>
-                        <Text style={{ fontSize: 38, fontWeight: 'bold', color: '#0a2566', lineHeight: 40, marginBottom: 6 }}>{modalProd?.modelo}</Text>
-                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#8a939c', textTransform: 'uppercase', marginBottom: 4 }}>{modalProd?.subcategoria}</Text>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0d8a39' }}>{modalProd?.nombre_producto}</Text>
-                      </View>
+                    <View style={{ width: '100%', alignItems: 'flex-start' }}>
+                      <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0d8a39', textTransform: 'uppercase', marginBottom: 4 }}>
+                        {modalProd?.sku ? `SKU: ${modalProd.sku} | ` : ''}{modalProd?.marca}
+                      </Text>
+                      <Text style={{ fontSize: 38, fontWeight: 'bold', color: '#0a2566', lineHeight: 40, marginBottom: 6 }}>{modalProd?.modelo}</Text>
+                      <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#8a939c', textTransform: 'uppercase', marginBottom: 4 }}>{modalProd?.subcategoria}</Text>
                     </View>
                   </View>
 
