@@ -196,27 +196,34 @@ export default function App() {
           onPress: async () => {
             setUpdateState('downloading');
             try {
-              // Resolver la redirección de GitHub sin descargar el archivo a la memoria (OOM)
-              const res = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-              const finalUrl = res.url || url;
-
+              // Eliminar archivo residual si existe para evitar conflictos o errores de escritura
               const fileUri = `${FileSystem.documentDirectory}comagro_update.apk`;
+              const fileInfo = await FileSystem.getInfoAsync(fileUri);
+              if (fileInfo.exists) {
+                await FileSystem.deleteAsync(fileUri);
+              }
+
+              // Descargar directamente usando FileSystem, que gestiona el streaming a disco sin saturar RAM
               const downloadResumable = FileSystem.createDownloadResumable(
-                finalUrl,
+                url,
                 fileUri,
-                {},
+                { headers: { 'User-Agent': 'ComagroApp/1.0', 'Accept': '*/*' } },
                 (downloadProgress) => {
                   const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
                   setDownloadProgress(progress);
                 }
               );
 
-              const { uri } = await downloadResumable.downloadAsync();
-              setApkLocalUri(uri);
-              setUpdateState('ready');
+              const result = await downloadResumable.downloadAsync();
+              if (result && result.status === 200) {
+                setApkLocalUri(result.uri);
+                setUpdateState('ready');
+              } else {
+                throw new Error(`HTTP Error: ${result?.status}`);
+              }
             } catch (err) {
-              console.log('Error de descarga:', err);
-              Alert.alert('Error', 'Fallo al descargar la actualización.');
+              console.log('Error de descarga OTA:', err);
+              Alert.alert('Error', 'Fallo al descargar la actualización. Verificá tu conexión.');
               setUpdateState('none');
             }
           }
