@@ -188,13 +188,9 @@ export default function App() {
           onPress: async () => {
             setUpdateState('downloading');
             try {
-              // Resolve github release redirect
-              const res = await fetch(url, { redirect: 'follow' });
-              const finalUrl = res.url || url;
-
               const fileUri = `${FileSystem.documentDirectory}comagro_update.apk`;
               const downloadResumable = FileSystem.createDownloadResumable(
-                finalUrl,
+                url,
                 fileUri,
                 {},
                 (downloadProgress) => {
