@@ -47,11 +47,19 @@ function ProgressBar({ value, max, color }) {
   );
 }
 
-function RankItem({ item, maxCount, color, imageMap }) {
+function RankItem({ item, maxCount, color, imageMap, navigation }) {
   const imgUrl = imageMap[item.sku || item.modelo] || null;
   const logoUrl = `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg`;
   return (
-    <View style={s.rankItem}>
+    <TouchableOpacity 
+      style={s.rankItem} 
+      activeOpacity={0.7}
+      onPress={() => {
+        if (navigation) {
+          navigation.navigate('Productos', { openProductSku: item.sku || item.modelo });
+        }
+      }}
+    >
       <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} resizeMode="contain" />
       <View style={{ flex: 1 }}>
         <Text style={s.rankModelo} numberOfLines={1}>{item.modelo}</Text>
@@ -59,11 +67,11 @@ function RankItem({ item, maxCount, color, imageMap }) {
         <ProgressBar value={item.count} max={maxCount} color={color} />
       </View>
       <Text style={[s.rankCount, { color }]}>{item.count}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
-function RankSection({ title, items, color, imageMap, emoji }) {
+function RankSection({ title, items, color, imageMap, emoji, navigation }) {
   if (!items || items.length === 0) return (
     <View style={s.section}>
       <Text style={s.sectionTitle}>{emoji} {title}</Text>
@@ -74,7 +82,7 @@ function RankSection({ title, items, color, imageMap, emoji }) {
   return (
     <View style={s.section}>
       <Text style={s.sectionTitle}>{emoji} {title}</Text>
-      {items.map((it, i) => <RankItem key={i} item={it} maxCount={maxC} color={color} imageMap={imageMap} />)}
+      {items.map((it, i) => <RankItem key={i} item={it} maxCount={maxC} color={color} imageMap={imageMap} navigation={navigation} />)}
     </View>
   );
 }
@@ -244,9 +252,9 @@ export default function DashboardAnalytics({ navigation }) {
             <StatCard number={data.searches} label="Búsquedas" trend={data.tSe} color={COLORS.celeste} />
           </View>
 
-          <RankSection title="Productos más vistos" items={data.topV} color={COLORS.navy} imageMap={imageMap} emoji="👁" />
-          <RankSection title="Productos más compartidos" items={data.topSh} color={COLORS.green} imageMap={imageMap} emoji="📤" />
-          <RankSection title="Productos más buscados" items={data.topSe} color={COLORS.celeste} imageMap={imageMap} emoji="🔍" />
+          <RankSection title="Productos más vistos" items={data.topV} color={COLORS.navy} imageMap={imageMap} emoji="👁" navigation={navigation} />
+          <RankSection title="Productos más compartidos" items={data.topSh} color={COLORS.green} imageMap={imageMap} emoji="📤" navigation={navigation} />
+          <RankSection title="Productos más buscados" items={data.topSe} color={COLORS.celeste} imageMap={imageMap} emoji="🔍" navigation={navigation} />
 
           {tab === 'general' && globalData.brands.length > 0 && (
             <View style={s.section}>

@@ -1191,7 +1191,12 @@ export default function ProductosScreen({ navigation, route }) {
             <View style={{ flexDirection: 'row', marginBottom: 10 }}>
               <View style={{ width: 110 }} />
               {compareItems.map((prod, idx) => (
-                <View key={prod.modelo} style={{ flex: 1, alignItems: 'center', marginHorizontal: 3 }}>
+                <TouchableOpacity 
+                  key={prod.modelo} 
+                  style={{ flex: 1, alignItems: 'center', marginHorizontal: 3 }}
+                  activeOpacity={0.7}
+                  onPress={() => handleOpenModal(prod)}
+                >
                   <Image source={{ uri: prod.imagen }} style={{ width: '100%', height: 80 }} resizeMode="contain" />
                   <Text style={{ fontSize: 10, color: COLORS.green, fontWeight: 'bold', textAlign: 'center' }}>{prod.marca}</Text>
                   <Text style={{ fontSize: 11, color: COLORS.navy, fontWeight: 'bold', textAlign: 'center' }} numberOfLines={2}>{prod.modelo}</Text>
@@ -1201,7 +1206,7 @@ export default function ProductosScreen({ navigation, route }) {
                   >
                     <Text style={{ fontSize: 10, color: COLORS.navy, fontWeight: 'bold' }}>🔄 Cambiar</Text>
                   </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
 
