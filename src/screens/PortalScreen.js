@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Image, SafeAreaView, StatusBar, ScrollView, Platform, Modal, TextInput, FlatList
+  Image, SafeAreaView, StatusBar, ScrollView, Platform, Modal, TextInput, FlatList, ActivityIndicator
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
