@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+﻿import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, Image, SafeAreaView, StatusBar,
@@ -309,24 +309,90 @@ export default function ProductosScreen({ navigation, route }) {
     setMarcas([...new Set(productos.map(p => p.marca))].sort());
   }
 
-  // ─── GENERAR HTML CORPORATIVO (siempre vertical, imagen arriba, specs abajo) ──
+  // ─── GENERAR HTML FICHA — SIEMPRE 1 HOJA A4 ─────────────────────────────
+  // ESTRUCTURA: imagen+nombre SIEMPRE arriba, specs SIEMPRE abajo.
+  // COLUMNAS: siempre 1 columna. Si la imagen quedaría < 80px, fallback a 2 cols.
+  // La imagen se achica/agranda según el espacio que sobra tras los specs.
   function generarHtmlFicha(specs, base64Img, logoUrl) {
-    // Calcular altura de imagen según cantidad de specs para que todo entre en 1 página
     const numSpecs = specs.length;
-    // Con 0-8 specs: imagen grande (280px), con 9-15: mediana (200px), con 16+: pequeña (140px)
-    const imgHeight = numSpecs <= 8 ? 280 : numSpecs <= 15 ? 200 : 140;
-    const specsHtml = specs.length > 0 ? `
-      <table class="specs">
-        <thead><tr><td colspan="2" class="specs-head">ESPECIFICACIONES TÉCNICAS</td></tr></thead>
-        <tbody>
-          ${specs.map((s, i) => `
-            <tr${i % 2 === 1 ? ' class="alt"' : ''}>
-              <td class="spec-name">${s[0]}</td>
-              <td class="spec-val">${s[1]}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>` : '';
+
+    // ── Constantes de página (px a 96dpi, A4 portrait = 297mm ≈ 1122px) ─────
+    const PX_PAGE     = 1108; // alto total usable
+    const PX_HDR      = 96;   // header (logo + línea verde + padding)
+    const PX_TMARG    = 12;   // margin-top del bloque superior
+    const PX_GAP      = 12;   // espacio entre bloque superior y specs
+    const PX_SPEC_HDR = 34;   // cabecera azul "ESPECIFICACIONES TÉCNICAS"
+    const PX_FOOT     = 34;   // footer
+    const PX_SAFETY   = 14;   // margen de seguridad
+    const PX_TPAD     = 20;   // padding interno del img-box (top+bottom)
+    const MIN_IMG_H   = 80;   // altura mínima aceptable de la imagen
+
+    // ── Intentar 1 columna ────────────────────────────────────────────────────
+    // Font y padding según densidad (1 col)
+    const fs1  = numSpecs > 22 ? '8.5pt' : numSpecs > 16 ? '9pt'  : '10pt';
+    const pad1 = numSpecs > 22 ? '4px'   : numSpecs > 16 ? '5px'  : '6px';
+    const row1 = numSpecs > 22 ? 26      : numSpecs > 16 ? 27     : 29; // px por fila
+
+    const specsH1  = numSpecs > 0 ? PX_SPEC_HDR + numSpecs * row1 : 0;
+    const topH1    = PX_PAGE - PX_HDR - PX_TMARG - PX_GAP - specsH1 - PX_FOOT - PX_SAFETY;
+    const imgH1    = topH1 - PX_TPAD;
+
+    // ── Decidir si usar 1 o 2 columnas ───────────────────────────────────────
+    let doubleCols, topBlockH, imgH, specFs, specPad;
+
+    if (imgH1 >= MIN_IMG_H) {
+      // ✅ 1 columna: la imagen entra bien
+      doubleCols = false;
+      topBlockH  = Math.max(MIN_IMG_H + PX_TPAD, topH1);
+      imgH       = topBlockH - PX_TPAD;
+      specFs     = fs1;
+      specPad    = pad1;
+    } else {
+      // ⚠️ Fallback: 2 columnas (mitad de filas → más espacio para imagen)
+      doubleCols = true;
+      const numRows2 = Math.ceil(numSpecs / 2);
+      const fs2   = numRows2 > 18 ? '8pt'  : numRows2 > 12 ? '8.5pt' : '9.5pt';
+      const pad2  = numRows2 > 18 ? '4px'  : numRows2 > 12 ? '5px'   : '6px';
+      const row2  = numRows2 > 18 ? 24     : numRows2 > 12 ? 25      : 27;
+      const specsH2 = numSpecs > 0 ? PX_SPEC_HDR + numRows2 * row2 : 0;
+      const topH2   = PX_PAGE - PX_HDR - PX_TMARG - PX_GAP - specsH2 - PX_FOOT - PX_SAFETY;
+      topBlockH  = Math.max(MIN_IMG_H + PX_TPAD, topH2);
+      imgH       = topBlockH - PX_TPAD;
+      specFs     = fs2;
+      specPad    = pad2;
+    }
+
+    // ── Generar filas HTML ────────────────────────────────────────────────────
+    let rowsHtml = '';
+    if (doubleCols) {
+      for (let i = 0; i < numSpecs; i += 2) {
+        const a = specs[i], b = specs[i + 1] || null;
+        const bg = (Math.floor(i / 2)) % 2 === 0 ? '#ffffff' : '#f2f5fb';
+        rowsHtml += `<tr style="background:${bg}">
+          <td class="sn">${a[0]}</td><td class="sv">${a[1]}</td>
+          ${b
+            ? `<td class="sn sep">${b[0]}</td><td class="sv">${b[1]}</td>`
+            : `<td class="sep"></td><td></td>`
+          }
+        </tr>`;
+      }
+    } else {
+      for (let i = 0; i < numSpecs; i++) {
+        const bg = i % 2 === 0 ? '#ffffff' : '#f2f5fb';
+        rowsHtml += `<tr style="background:${bg}">
+          <td class="sn">${specs[i][0]}</td><td class="sv">${specs[i][1]}</td>
+        </tr>`;
+      }
+    }
+
+    const colgroup = doubleCols
+      ? `<colgroup><col style="width:22%"/><col style="width:28%"/><col style="width:22%"/><col style="width:28%"/></colgroup>`
+      : `<colgroup><col style="width:34%"/><col style="width:66%"/></colgroup>`;
+
+    const specsHtml = numSpecs > 0
+      ? `<div class="stitle">ESPECIFICACIONES TÉCNICAS</div>
+         <table class="stbl">${colgroup}<tbody>${rowsHtml}</tbody></table>`
+      : '';
 
     return `
       <!DOCTYPE html>
@@ -335,84 +401,105 @@ export default function ProductosScreen({ navigation, route }) {
         <meta charset="UTF-8">
         <style>
           @page { margin: 0; size: A4 portrait; }
-          * { box-sizing: border-box; }
-          body { margin: 0; padding: 0; font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1A1A1A; }
-          .page { width: 100%; min-height: 100vh; padding: 0; display: flex; flex-direction: column; position: relative; }
-          
-          /* CONTENEDOR INTERNO PARA MARGENES */
-          .inner-content { padding: 0 45px; display: flex; flex-direction: column; flex: 1; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1a1a1a; background: #fff; }
 
-          /* HEADER */
-          .header { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 15px; padding-top: 30px; padding-left: 45px; padding-right: 45px; }
-          .brand-logo-container { width: 350px; display: flex; align-items: center; justify-content: center; margin-right: 20px; }
-          .brand-logo { max-height: 180px; max-width: 100%; object-fit: contain; }
-          .header-separator { width: 2px; height: 90px; background-color: #a0a0a0; margin: 0 30px; }
-          .title-ficha { font-size: 24pt; font-weight: bold; color: #0a2566; letter-spacing: 1px; }
-          .header-line { width: 100%; height: 4px; background-color: #0d8a39; margin-bottom: 20px; }
-          
-          /* MIDDLE BOX */
-          .middle-box { display: flex; align-items: stretch; border: 2px solid #a0a0a0; border-radius: 15px; padding: 20px; margin-bottom: 30px; }
-          
-          /* IMAGEN - a la izquierda */
-          .img-wrap { flex: 1.5; height: ${imgHeight}px; display: flex; align-items: center; justify-content: center; padding-right: 20px; }
-          .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-          
-          /* TÍTULO PRODUCTO - a la derecha */
-          .title-sec-wrapper { flex: 1; display: flex; align-items: center; }
-          .green-accent { width: 4px; height: 120px; background-color: #0d8a39; margin-right: 15px; }
-          .title-sec { display: flex; flex-direction: column; justify-content: center; }
-          .prod-marca { font-size: 16pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; margin: 0 0 4px 0; }
-          .prod-modelo { font-size: clamp(14pt, 4vw, 30pt); font-weight: bold; color: #0a2566; line-height: 1.1; margin: 0 0 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-          .prod-subcat { font-size: 14pt; font-weight: bold; color: #8a939c; margin: 0 0 4px 0; text-transform: uppercase; }
-          .prod-name { font-size: 12pt; font-weight: bold; color: #0d8a39; margin: 0; }
-          
-          /* TABLA SPECS */
-          .specs { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 60px; }
-          .specs-head { background-color: #0a2566; color: white; padding: 12px 20px; font-size: 14pt; font-weight: bold; letter-spacing: 0.5px; }
-          .specs td { padding: 8px 20px; vertical-align: middle; word-wrap: break-word; overflow-wrap: break-word; }
-          .specs tr:nth-child(even) { background-color: #f2f2f2; }
-          .specs tr:nth-child(odd) { background-color: #ffffff; }
-          .spec-name { font-size: 11pt; font-weight: bold; color: #000; width: 40%; text-transform: uppercase; }
-          .spec-val { font-size: 11pt; color: #000; }
-          
-          /* FOOTER AZUL */
-          .footer-blue { position: absolute; bottom: 0; left: 0; right: 0; height: 40px; background-color: #0a2566; }
+          /* ── PÁGINA A4 ── */
+          .page { width: 210mm; height: 297mm; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+          /* ── HEADER ── */
+          .hdr { display: flex; align-items: center; padding: 14px 26px 0 26px; flex-shrink: 0; }
+          .hdr-logo { height: 54px; display: flex; align-items: center; flex-shrink: 0; }
+          .hdr-logo img { max-height: 54px; max-width: 180px; object-fit: contain; }
+          .fbrand { font-size: 18pt; font-weight: bold; color: #0a2566; }
+          .hdr-sep { width: 2px; height: 46px; background: #c4ccd8; margin: 0 16px; flex-shrink: 0; }
+          .hdr-text { flex: 1; }
+          .hdr-title { font-size: 19pt; font-weight: bold; color: #0a2566; letter-spacing: 1px; line-height: 1; }
+          .hdr-sub { font-size: 7.5pt; color: #8492a6; letter-spacing: 2px; text-transform: uppercase; margin-top: 3px; }
+          .green-line { height: 5px; background: linear-gradient(90deg, #0d8a39, #09c24f); margin-top: 10px; flex-shrink: 0; }
+
+          /* ── BLOQUE SUPERIOR ── */
+          .top-block {
+            display: flex; align-items: stretch;
+            margin: ${PX_TMARG}px 26px 0 26px;
+            height: ${topBlockH}px;
+            gap: 16px; flex-shrink: 0;
+          }
+          .img-box {
+            width: 38%; flex-shrink: 0;
+            background: #f5f8fc; border: 1.5px solid #dce4f0; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; padding: 10px;
+          }
+          .prod-img { max-width: 100%; max-height: ${imgH}px; object-fit: contain; display: block; }
+          .info-box {
+            flex: 1; display: flex; align-items: center;
+            border: 1.5px solid #dce4f0; border-radius: 10px;
+            padding: 14px 16px; gap: 12px; background: #fff;
+          }
+          .green-bar { width: 5px; border-radius: 3px; align-self: stretch; background: #0d8a39; flex-shrink: 0; }
+          .prod-data { flex: 1; min-width: 0; }
+          .p-marca  { font-size: 11pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; letter-spacing: 0.5px; }
+          .p-modelo { font-size: 20pt; font-weight: bold; color: #0a2566; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .p-subcat { font-size: 8.5pt; color: #8492a6; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+          /* ── SPECS ── */
+          .specs-block { margin: ${PX_GAP}px 26px 0 26px; flex-shrink: 0; }
+          .stitle { background: #0a2566; color: #fff; font-size: 9pt; font-weight: bold; letter-spacing: 1px; padding: 6px 14px; border-radius: 6px 6px 0 0; }
+          .stbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          td { vertical-align: middle; word-break: break-word; overflow-wrap: break-word; line-height: 1.25; }
+          .sn  { padding: ${specPad} 8px ${specPad} 12px; font-size: ${specFs}; font-weight: bold; color: #0a2566; text-transform: uppercase; border-bottom: 1px solid #e4eaf4; }
+          .sv  { padding: ${specPad} 12px ${specPad} 6px; font-size: ${specFs}; color: #2d3748; border-bottom: 1px solid #e4eaf4; }
+          .sep { border-left: 2px solid #dce4f0; }
+
+          /* ── FOOTER ── */
+          .footer { position: absolute; bottom: 0; left: 0; right: 0; height: ${PX_FOOT}px; background: #0a2566; display: flex; align-items: center; padding: 0 26px; gap: 10px; }
+          .ft { color: rgba(255,255,255,0.6); font-size: 7pt; }
+          .fd { color: rgba(255,255,255,0.22); font-size: 9pt; }
         </style>
       </head>
       <body>
-        <div class="page" style="position: relative;">
-          <div class="header">
-            <div class="brand-logo-container">
-              <img src="${logoUrl}" class="brand-logo" onerror="this.outerHTML='<span class=title-ficha style=color:#a0a0a0;>${modalProd?.marca || ''}</span>'" />
+        <div class="page">
+
+          <div class="hdr">
+            <div class="hdr-logo">
+              <img src="${logoUrl}" onerror="this.outerHTML='<span class=fbrand>${modalProd?.marca || ''}</span>'" />
             </div>
-            <div class="header-separator"></div>
-            <div class="title-ficha">FICHA TÉCNICA</div>
+            <div class="hdr-sep"></div>
+            <div class="hdr-text">
+              <div class="hdr-title">FICHA TÉCNICA</div>
+              <div class="hdr-sub">Especificaciones del producto</div>
+            </div>
           </div>
-          
-          <div class="header-line"></div>
-          
-          <div class="inner-content">
-            <div class="middle-box">
-              <div class="img-wrap">
-                <img id="prodImg" class="prod-img" src="${base64Img}" />
-              </div>
-              
-              <div class="title-sec-wrapper">
-                <div class="green-accent"></div>
-                <div class="title-sec">
-                  <p class="prod-marca">${modalProd?.marca || ''}</p>
-                  <h1 class="prod-modelo">${modalProd?.modelo || ''}</h1>
-                  <div class="prod-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
-                </div>
+          <div class="green-line"></div>
+
+          <div class="top-block">
+            <div class="img-box">
+              <img id="prodImg" class="prod-img" src="${base64Img}" />
+            </div>
+            <div class="info-box">
+              <div class="green-bar"></div>
+              <div class="prod-data">
+                <div class="p-marca">${modalProd?.marca || ''}</div>
+                <div class="p-modelo">${modalProd?.modelo || ''}</div>
+                <div class="p-subcat">${(modalProd?.subcategoria || 'GENERAL').toUpperCase()}</div>
               </div>
             </div>
-            
+          </div>
+
+          <div class="specs-block">
             ${specsHtml}
           </div>
-          
-          <div class="footer-blue"></div>
+
+          <div class="footer">
+            <span class="ft">${modalProd?.marca || ''}</span>
+            <span class="fd">·</span>
+            <span class="ft">${modalProd?.modelo || ''}</span>
+            <span class="fd">·</span>
+            <span class="ft">${(modalProd?.subcategoria || '').toUpperCase()}</span>
+          </div>
+
         </div>
-        
+
         <script>
           (function() {
             var img = new Image();
@@ -421,40 +508,29 @@ export default function ProductosScreen({ navigation, route }) {
               tmp.width = img.width; tmp.height = img.height;
               var ctx = tmp.getContext('2d');
               ctx.drawImage(img, 0, 0);
-              
               try {
                 var d = ctx.getImageData(0, 0, tmp.width, tmp.height).data;
                 var w = tmp.width, h = tmp.height;
                 var top = h, left = w, right = -1, bottom = -1;
-                
                 for (var y = 0; y < h; y++) {
                   for (var x = 0; x < w; x++) {
-                    var i = (y * w + x) * 4;
-                    if (d[i+3] > 10 && !(d[i] >= 245 && d[i+1] >= 245 && d[i+2] >= 245)) {
-                      if (x < left) left = x;
-                      if (x > right) right = x;
-                      if (y < top) top = y;
-                      if (y > bottom) bottom = y;
+                    var i4 = (y * w + x) * 4;
+                    if (d[i4+3] > 10 && !(d[i4] >= 245 && d[i4+1] >= 245 && d[i4+2] >= 245)) {
+                      if (x < left) left = x;  if (x > right) right = x;
+                      if (y < top)  top  = y;  if (y > bottom) bottom = y;
                     }
                   }
                 }
-                
-                if (right < left || bottom < top) return; // todo blanco, dejar original
-                
+                if (right < left || bottom < top) return;
                 var p = 8;
-                left = Math.max(0, left-p); top = Math.max(0, top-p);
+                left = Math.max(0, left-p);     top    = Math.max(0, top-p);
                 right = Math.min(w-1, right+p); bottom = Math.min(h-1, bottom+p);
-                
                 var cw = right-left+1, ch = bottom-top+1;
                 var out = document.createElement('canvas');
                 out.width = cw; out.height = ch;
                 out.getContext('2d').drawImage(tmp, left, top, cw, ch, 0, 0, cw, ch);
-                
-                // Reemplazar la imagen con la versión recortada
                 document.getElementById('prodImg').src = out.toDataURL('image/png');
-              } catch(e) {
-                // Si falla el canvas, la imagen original queda visible
-              }
+              } catch(e) {}
             };
             img.src = '${base64Img}';
           })();
