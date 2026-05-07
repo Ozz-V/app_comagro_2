@@ -1,7 +1,7 @@
 // Build Trigger: Restauración versión estable 30-Abril
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, Alert, Animated, Easing } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system';
@@ -32,6 +32,14 @@ import ConfigScreen   from './src/screens/ConfigScreen';
 import LottieSplashScreen from './src/screens/LottieSplashScreen';
 
 const Stack = createNativeStackNavigator();
+
+const navTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: '#FFFFFF',
+  },
+};
 
 export default function App() {
   const [session, setSession] = useState(undefined);
@@ -267,8 +275,15 @@ export default function App() {
 
   return (
     <>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: '#FFFFFF' } }}>
+      <NavigationContainer theme={navTheme}>
+        <Stack.Navigator 
+          screenOptions={{ 
+            headerShown: false, 
+            animation: 'slide_from_right', 
+            contentStyle: { backgroundColor: '#FFFFFF' } 
+          }}
+          detachInactiveScreens={false}
+        >
           {!autenticado ? (
             <Stack.Screen name="Login" component={LoginScreen} />
           ) : (
