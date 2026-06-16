@@ -1,0 +1,123 @@
+name: Build APK Comagro
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'src/**'
+      - 'App.js'
+      - 'app.json'
+      - 'package.json'
+      - 'assets/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android APK Candidate
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_TAG: rc-${{ github.run_number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Auto-increment versionCode
+        run: |
+          node -e "
+            const fs = require('fs');
+            const cfg = JSON.parse(fs.readFileSync('app.json','utf8'));
+            cfg.expo.android.versionCode = (cfg.expo.android.versionCode || 1) + 1;
+            fs.writeFileSync('app.json', JSON.stringify(cfg, null, 2));
+            console.log('versionCode =>', cfg.expo.android.versionCode);
+          "
+
+      - name: Prebuild Android Project
+        run: npx expo prebuild --platform android --clean
+
+      - name: Fix ProGuard – keep Expo Kotlin module classes
+        run: |
+          echo "" >> android/app/proguard-rules.pro
+          echo "# Keep Expo Kotlin module services (fixes NoClassDefFoundError at runtime)" >> android/app/proguard-rules.pro
+          echo "-keep class expo.modules.kotlin.** { *; }" >> android/app/proguard-rules.pro
+          echo "-keep class expo.modules.filesystem.** { *; }" >> android/app/proguard-rules.pro
+
+      - name: Configure Gradle Memory
+        run: |
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError" >> android/gradle.properties
+          echo "org.gradle.daemon=false" >> android/gradle.properties
+          echo "org.gradle.parallel=false" >> android/gradle.properties
+
+      - name: Build APK
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Save APK, app.json and metadata
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk /tmp/comagro.apk
+          cp app.json /tmp/app.json
+          node -e '
+            const fs = require("fs");
+            const cfg = JSON.parse(fs.readFileSync("/tmp/app.json", "utf8"));
+            const tag = process.env.CANDIDATE_TAG;
+            const repo = "Ozz-V/comagro_apk_descargas";
+            const versionName = cfg.expo.version;
+            const versionCode = cfg.expo.android.versionCode;
+            const downloadUrl = `https://github.com/${repo}/releases/download/${tag}/app-release.apk`;
+            const metadata = {
+              candidateTag: tag,
+              versionName,
+              versionCode,
+              downloadUrl,
+              releaseNotes: `Actualizacion aprobada v${versionName} (Build ${versionCode})`,
+              commit: process.env.GITHUB_SHA,
+              createdAt: new Date().toISOString()
+            };
+            fs.writeFileSync("/tmp/metadata.json", JSON.stringify(metadata, null, 2));
+            console.log(JSON.stringify(metadata, null, 2));
+          '
+
+      - name: Create GitHub Release Candidate (Public Repo)
+        uses: softprops/action-gh-release@v1
+        with:
+          repository: Ozz-V/comagro_apk_descargas
+          tag_name: ${{ env.CANDIDATE_TAG }}
+          name: Candidato ${{ env.CANDIDATE_TAG }}
+          prerelease: true
+          make_latest: false
+          files: |
+            android/app/build/outputs/apk/release/app-release.apk
+            /tmp/metadata.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT_RELEASES }}
+
+      - name: Commit updated versionCode back to main
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add app.json
+          git diff --staged --quiet || git commit -m "ci: bump versionCode [skip ci]"
+          git push origin HEAD:main || git push origin HEAD:main --force-with-lease
