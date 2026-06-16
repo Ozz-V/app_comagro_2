@@ -2,7 +2,7 @@
   "expo": {
     "name": "Comagro",
     "slug": "comagro-catalogo",
-    "version": "2.0.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,7 +21,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.comagro.catalogo",
-      "versionCode": 200,
+      "versionCode": 1,
       "permissions": [
         "REQUEST_INSTALL_PACKAGES"
       ],
