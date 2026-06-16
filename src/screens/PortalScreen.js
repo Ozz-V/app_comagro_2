@@ -82,15 +82,29 @@ export default function PortalScreen({ navigation }) {
 
   useEffect(() => {
     if (showCalcModal) {
-      AsyncStorage.getItem('@productos_cache').then(res => {
-        if (res) {
-          setAllProdsCache(parseRawProducts(res));
-        } else {
-          AsyncStorage.getItem('comagro_productos_v3').then(res2 => {
-            if (res2) setAllProdsCache(parseRawProducts(res2));
-          }).catch(()=>{});
+      const loadCache = async () => {
+        try {
+          let res = await AsyncStorage.getItem('@productos_cache');
+          let parsed = false;
+          if (res) {
+            try {
+              setAllProdsCache(parseRawProducts(res));
+              parsed = true;
+            } catch (e) {
+              console.log('Error parseando @productos_cache', e);
+            }
+          }
+          if (!parsed) {
+            let res2 = await AsyncStorage.getItem('comagro_productos_v3');
+            if (res2) {
+              setAllProdsCache(parseRawProducts(res2));
+            }
+          }
+        } catch (e) {
+          console.log('Error general cargando cache', e);
         }
-      }).catch(()=>{});
+      };
+      loadCache();
     } else {
       setHasCalculated(false);
       setCalcResult(null);
@@ -98,8 +112,6 @@ export default function PortalScreen({ navigation }) {
       setCalcInput2('');
     }
   }, [showCalcModal]);
-
-
 
   function extractNum(val) {
     if (!val || typeof val !== 'string') return null;

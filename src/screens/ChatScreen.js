@@ -61,9 +61,9 @@ export default function ChatScreen({ navigation }) {
       }
 
       // 3. Productos Cache
-      const fallback = await AsyncStorage.getItem('comagro_productos_v3');
+      let fallback = await AsyncStorage.getItem('@productos_cache');
+      if (!fallback) fallback = await AsyncStorage.getItem('comagro_productos_v3');
       if (fallback) setAllProdsCache(parseRawProducts(fallback));
-      // Cache de productos vacío todavía
     } catch (e) {
       // Error silente al inicializar chat
     }
