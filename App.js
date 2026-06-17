@@ -25,7 +25,7 @@ import { supabase } from './src/supabase';
 import { COLORS } from './src/theme';
 import * as Linking from 'expo-linking';
 import LottieView from 'lottie-react-native';
-import JailMonkey from 'jail-monkey';
+import * as Device from 'expo-device';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -52,9 +52,17 @@ export default function AppWrapper() {
   const [isRooted, setIsRooted] = useState(false);
 
   useEffect(() => {
-    if (JailMonkey.isJailBroken()) {
-      setIsRooted(true);
+    async function checkRoot() {
+      try {
+        const rooted = await Device.isRootedExperimentalAsync();
+        if (rooted) {
+          setIsRooted(true);
+        }
+      } catch (e) {
+        // Ignorar error si Device.isRooted falla
+      }
     }
+    checkRoot();
   }, []);
 
   if (isRooted) {
