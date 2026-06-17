@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <domain-config>
+    <!-- Amarramos la seguridad estrictamente a tu dominio de Supabase -->
+    <domain includeSubdomains="true">itylpvuzflqlmmqvdhbz.supabase.co</domain>
+    <pin-set expiration="2027-06-17">
+      <!-- Este es el PIN SHA-256 oficial del servidor -->
+      <pin digest="SHA-256">JxYBCNfhi515HdL0cvKtauDKAZvS/HXZc8eHx6C/1pI=</pin>
+    </pin-set>
+  </domain-config>
+</network-security-config>
