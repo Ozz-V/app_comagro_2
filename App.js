@@ -25,6 +25,7 @@ import { supabase } from './src/supabase';
 import { COLORS } from './src/theme';
 import * as Linking from 'expo-linking';
 import LottieView from 'lottie-react-native';
+import JailMonkey from 'jail-monkey';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -48,6 +49,27 @@ const navTheme = {
 };
 
 export default function AppWrapper() {
+  const [isRooted, setIsRooted] = useState(false);
+
+  useEffect(() => {
+    if (JailMonkey.isJailBroken()) {
+      setIsRooted(true);
+    }
+  }, []);
+
+  if (isRooted) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#D32F2F', marginBottom: 12, textAlign: 'center' }}>
+          Seguridad Comprometida
+        </Text>
+        <Text style={{ fontSize: 16, color: '#333333', textAlign: 'center' }}>
+          Esta aplicación no puede ejecutarse en dispositivos rooteados o modificados (Jailbreak). Por favor, utilice un dispositivo seguro.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <CustomAlertProvider>
       <App />
