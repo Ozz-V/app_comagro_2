@@ -87,48 +87,7 @@ serve(async (req) => {
        return new Response(JSON.stringify({ reply: "Has utilizado todos tus cupos de consulta rápida por hoy. Vuelve a consultar en 24 horas." }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // ============================================================================
-    // 🧠 BLOCKING PHASE 2: Query Expansion (Intent & Stupidity Check)
-    // ============================================================================
-    const recentHistory = messages.slice(-3).map((m: any) => `${m.role}: ${m.content}`).join('\\n');
-    const intentPrompt = `Historial reciente de conversación:\n${recentHistory}\n\nAnaliza el historial completo y el último mensaje del usuario.
-Si el usuario pregunta algo totalmente irrelevante (comida, fútbol, chistes) y no tiene absolutamente nada que ver con productos, ventas o soporte técnico, devuelve EXACTAMENTE la palabra "STUPID".
-En cualquier otro caso, devuelve SOLO 3 a 5 palabras clave que resuman la búsqueda técnica del usuario. NUNCA respondas con una pregunta, solo palabras clave de búsqueda (ej. "desmalezadora", "motor 2hp", "bomba agua"). NO des explicaciones.`;
-
-    const intentRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: intentPrompt }] }],
-        generationConfig: { maxOutputTokens: 200, temperature: 0.1 } // OPTIMIZADO: Pocos tokens
-      })
-    });
-
     let searchQuery = lastMessage;
-    if (intentRes.ok) {
-      const intentData = await intentRes.json();
-      if (intentData.candidates && intentData.candidates[0]?.content?.parts) {
-         const keywords = intentData.candidates[0].content.parts[0].text.trim();
-         
-         if (keywords === "STUPID") {
-            metrics.strike_count = (metrics.strike_count || 0) + 1;
-            let replyMsg = "";
-            if (metrics.strike_count === 1) {
-               replyMsg = "No puedo ayudarte con eso, soy un asistente técnico. Puedes usar Google u otro buscador.";
-               await supaAdmin.from('chat_user_metrics').upsert({ ...metrics, last_request_at: now.toISOString() });
-            } else {
-               metrics.banned_until = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
-               replyMsg = "Lastimosamente no podemos seguir con la conversación. Podrás intentarlo más tarde.";
-               await supaAdmin.from('chat_user_metrics').upsert({ ...metrics });
-            }
-            return new Response(JSON.stringify({ reply: replyMsg }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-         }
-
-         if (keywords !== "NONE" && keywords.length > 2) {
-            searchQuery = keywords;
-         }
-      }
-    }
 
     // ============================================================================
     // 🌪️ BLOCKING PHASE 3: Embeddings & Vector Search
