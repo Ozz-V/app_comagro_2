@@ -67,7 +67,7 @@ serve(async (req) => {
     // 🛑 BLOCKING PHASE 1: Check Bans & Quotas
     // ============================================================================
     const { data: userMetrics } = await metricsPromise;
-    let metrics = userMetrics || { user_id, strike_count: 0, banned_until: null, request_count: 0, last_request_at: null };
+    let metrics = userMetrics || { user_id, strike_count: 0, banned_until: null, request_count: 0, last_request_at: null, max_requests: 50 };
     const now = new Date();
 
     if (metrics.banned_until && new Date(metrics.banned_until) > now) {
@@ -75,15 +75,16 @@ serve(async (req) => {
     }
 
     let request_count = metrics.request_count || 0;
+    let max_limit = metrics.max_requests ?? 50;
     let last_request_at = metrics.last_request_at ? new Date(metrics.last_request_at) : null;
     
     if (last_request_at) {
        const hoursSinceLast = (now.getTime() - last_request_at.getTime()) / (1000 * 60 * 60);
        if (hoursSinceLast >= 24) request_count = 0;
-       else if (request_count < 50 && hoursSinceLast >= 6) request_count = 0;
+       else if (request_count < max_limit && hoursSinceLast >= 6) request_count = 0;
     }
     
-    if (request_count >= 50) {
+    if (request_count >= max_limit) {
        return new Response(JSON.stringify({ reply: "Has utilizado todos tus cupos de consulta rápida por hoy. Vuelve a consultar en 24 horas." }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
