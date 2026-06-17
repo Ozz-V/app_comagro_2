@@ -63,7 +63,8 @@
           "networkSecurityConfig": "./assets/configs/network_security_config.xml",
           "enable": true
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {
