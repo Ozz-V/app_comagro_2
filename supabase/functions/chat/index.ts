@@ -92,10 +92,8 @@ serve(async (req) => {
     // ============================================================================
     const recentHistory = messages.slice(-3).map((m: any) => `${m.role}: ${m.content}`).join('\\n');
     const intentPrompt = `Historial reciente de conversación:\n${recentHistory}\n\nAnaliza el historial completo y el último mensaje del usuario.
-Si el usuario te está enseñando una regla de ventas, dándote un tip de recomendación, contexto geográfico/clima, o corrigiendo un error, devuelve SOLO 3 o 4 palabras clave relacionadas a esa regla. NUNCA devuelvas STUPID en este caso.
-Si el usuario pregunta algo totalmente irrelevante (comida, fútbol, chistes), devuelve EXACTAMENTE Y ÚNICAMENTE la palabra "STUPID".
-Si el usuario pide una categoría MUY GENERAL sin detalles (ej. "quiero un motor", "bombas de agua") y no hay contexto previo, devuelve EXACTAMENTE "VAGUE: " seguido de una pregunta muy corta para pedir detalles.
-Si el mensaje sí tiene contexto o detalles (ej. "motor de 2hp", "wasko 500") o responde a tu pregunta, devuelve SOLO 3 o 4 palabras clave técnicas. NO des explicaciones.`;
+Si el usuario pregunta algo totalmente irrelevante (comida, fútbol, chistes) y no tiene absolutamente nada que ver con productos, ventas o soporte técnico, devuelve EXACTAMENTE la palabra "STUPID".
+En cualquier otro caso, devuelve SOLO 3 a 5 palabras clave que resuman la búsqueda técnica del usuario. NUNCA respondas con una pregunta, solo palabras clave de búsqueda (ej. "desmalezadora", "motor 2hp", "bomba agua"). NO des explicaciones.`;
 
     const intentRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
       method: 'POST',
@@ -124,15 +122,6 @@ Si el mensaje sí tiene contexto o detalles (ej. "motor de 2hp", "wasko 500") o 
                await supaAdmin.from('chat_user_metrics').upsert({ ...metrics });
             }
             return new Response(JSON.stringify({ reply: replyMsg }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-         }
-
-         if (keywords.startsWith("VAGUE:")) {
-            // Respuestas instántaneas a consultas vagas sin gastar tokens de búsqueda
-            metrics.request_count = request_count + 1;
-            metrics.last_request_at = now.toISOString();
-            supaAdmin.from('chat_user_metrics').upsert({ ...metrics }).then();
-            const vagueReply = keywords.replace("VAGUE:", "").trim();
-            return new Response(JSON.stringify({ reply: vagueReply }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
          }
 
          if (keywords !== "NONE" && keywords.length > 2) {
@@ -205,15 +194,15 @@ Si el mensaje sí tiene contexto o detalles (ej. "motor de 2hp", "wasko 500") o 
     }
 
     if (finalContext.length > 0) {
-      dbContextText += `\n\nATENCIÓN: Búsqueda exitosa. Basado en la base de datos, estos son los productos más relevantes (NO INVENTES OTROS):\n\n`;
+      dbContextText += `\n\nATENCIÓN: Búsqueda de productos en la base de datos:\n\n`;
       finalContext.forEach((item, index) => {
         dbContextText += `${index + 1}. SKU: ${item.sku} | Descripción: ${item.sales_pitch || 'Sin descripción'}\n`;
       });
-      dbContextText += `\nREGLA DE ORO 1: SI EL USUARIO PIDE UN PRODUCTO, SUGIERE UNO DE ESTOS Y OBLIGATORIAMENTE INCLUYE LA ETIQUETA [SKU: XXX].
-REGLA DE ORO 2: Si el usuario pide una capacidad específica (ej. 100 kVA, 500kva, 2 HP) y no tienes la exacta en esta lista, DEBES sugerir la opción más cercana (por arriba o por debajo) de la misma marca o similar. NUNCA digas simplemente "no tengo" sin ofrecer la alternativa más aproximada de la lista.`;
+      dbContextText += `\nREGLA DE SUGERENCIA: Si el usuario busca comprar o pide sugerencias de productos, y esta lista tiene productos que coinciden bien con lo que pide, sugierelos usando OBLIGATORIAMENTE la etiqueta [SKU: XXX].
+REGLA DE RECHAZO: Si lo que pide el usuario NO tiene NADA que ver con los productos de esta lista (ej. pidió una desmalezadora y en esta lista solo hay bombas de agua, o si está bromeando), ENTONCES NO SUGIERAS NADA DE ESTA LISTA y dile amablemente que no encontraste ese producto o pídele más detalles. NO fuerces una sugerencia incorrecta.`;
     }
 
-    let aiPrompt = `Eres el asesor técnico de Comagro. Responde amable, corto y profesional.
+    let aiPrompt = `Eres el asesor técnico de Comagro. Responde amable, corto y muy natural. Manten una conversación fluida.
 Regla 1: NUNCA escribas los nombres completos de los productos, ni fotos, ni descripciones.
 Regla 2: TU ÚNICO TRABAJO es escribir la etiqueta [SKU: XXX].
 Regla 3: MÁXIMO SUGIERE 3 OPCIONES, NUNCA MÁS DE 3.
