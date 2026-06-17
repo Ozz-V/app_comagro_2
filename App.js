@@ -291,13 +291,33 @@ function App() {
           throw new Error(`La descarga no parece ser una APK. Content-Type=${contentType}`);
         }
 
-        // VALIDACIÓN DE HASH (SAST-006)
-        if (expectedHash) {
-          const fileInfo = await FileSystem.getInfoAsync(result.uri, { md5: true });
-          if (fileInfo.md5 !== expectedHash && fileInfo.md5 !== expectedHash.toLowerCase()) {
+        // VALIDACIÓN DE HASH ESTRICTA CON FALLBACK TEMPORAL
+        const hasSha256 = !!updateNotes.sha256_hash;
+        const hasMd5 = !!updateNotes.md5_hash;
+
+        if (hasSha256) {
+          // 1. Verificación Fuerte SHA-256
+          const ReactNativeBlobUtil = require('react-native-blob-util').default;
+          const nativePath = result.uri.startsWith('file://') ? result.uri.replace('file://', '') : result.uri;
+          const calculatedSha256 = await ReactNativeBlobUtil.fs.hash(nativePath, 'sha256');
+          
+          if (calculatedSha256.toLowerCase() !== updateNotes.sha256_hash.toLowerCase()) {
             await FileSystem.deleteAsync(result.uri, { idempotent: true });
-            throw new Error(`La firma de seguridad del archivo no coincide. Descarga abortada por seguridad.`);
+            throw new Error('Firma de seguridad SHA-256 inválida. Descarga abortada por seguridad.');
           }
+        } else if (hasMd5) {
+          // 2. Transición Legacy MD5 (DEPRECACIÓN: 17 Julio 2026)
+          console.warn("ALERTA DE SEGURIDAD: Uso de verificación MD5 en transición. Migrar BD a SHA-256 antes del 17-Jul-2026.");
+          const fileInfo = await FileSystem.getInfoAsync(result.uri, { md5: true });
+          
+          if (fileInfo.md5.toLowerCase() !== updateNotes.md5_hash.toLowerCase()) {
+            await FileSystem.deleteAsync(result.uri, { idempotent: true });
+            throw new Error('Firma MD5 inválida. Descarga abortada.');
+          }
+        } else {
+          // 3. Bloqueo Incondicional (NO HASH)
+          await FileSystem.deleteAsync(result.uri, { idempotent: true });
+          throw new Error('ALERTA DE SEGURIDAD CRÍTICA: El servidor no proporcionó firma de integridad (Hash). Instalación bloqueada para prevenir inyección de código.');
         }
 
         setApkLocalUri(result.uri);
