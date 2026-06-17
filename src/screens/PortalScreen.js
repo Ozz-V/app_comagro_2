@@ -61,7 +61,7 @@ export default function PortalScreen({ navigation }) {
   const parseRawProducts = (rawData) => {
     const COLS_EXCLUIDAS = new Set(['SKU','imagen 1','imagen 2','imagen 3','imagen 4','imagen 5','Brand','Marca','id','ID','Tipo de Producto','Categoria Magento','url_key','visibility','status','price','Precio']);
     return JSON.parse(rawData).map(row => {
-      const marca = (row['Marca'] || row['marca'] || row['MARCA'] || '').toString().trim();
+      const marca = (row['Brand'] || row['Marca'] || row['marca'] || row['MARCA'] || '').toString().trim();
       const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim().toUpperCase();
       const imagen = row['imagen 1'] || row['imagen'] || null;
       const specs = [];

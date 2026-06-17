@@ -71,7 +71,7 @@ export default function ChatScreen({ navigation }) {
 
   const parseRawProducts = (rawData) => {
     return JSON.parse(rawData).map(row => {
-      const marca = (row['Marca'] || row['marca'] || row['MARCA'] || '').toString().trim();
+      const marca = (row['Brand'] || row['Marca'] || row['marca'] || row['MARCA'] || '').toString().trim();
       const imagen = row['imagen 1'] || row['imagen'] || null;
       return { modelo: (row['SKU'] || '').toString().trim(), marca, imagen };
     });
