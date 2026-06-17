@@ -67,7 +67,7 @@ serve(async (req) => {
     // 🛑 BLOCKING PHASE 1: Check Bans & Quotas
     // ============================================================================
     const { data: userMetrics } = await metricsPromise;
-    let metrics = userMetrics || { user_id, strike_count: 0, banned_until: null, request_count: 0, last_request_at: null, max_requests: 50 };
+    let metrics = userMetrics || { user_id, strike_count: 0, banned_until: null, request_count: 0, last_request_at: null, max_requests: 10 };
     const now = new Date();
 
     if (metrics.banned_until && new Date(metrics.banned_until) > now) {
@@ -75,7 +75,7 @@ serve(async (req) => {
     }
 
     let request_count = metrics.request_count || 0;
-    let max_limit = metrics.max_requests ?? 50;
+    let max_limit = metrics.max_requests ?? 10;
     let last_request_at = metrics.last_request_at ? new Date(metrics.last_request_at) : null;
     
     if (last_request_at) {
