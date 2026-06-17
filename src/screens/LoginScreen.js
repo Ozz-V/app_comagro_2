@@ -5,7 +5,6 @@ import {
   Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
-import * as Linking from 'expo-linking';
 import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 
@@ -63,20 +62,28 @@ export default function LoginScreen() {
     setIsSuperUser(false);
     setStatus({ msg: 'Enviando código…', color: COLORS.navy });
 
-    const redirectUrl = Linking.createURL('/');
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: correo,
-      options: { 
-        shouldCreateUser: false,
-        emailRedirectTo: redirectUrl,
-      },
-    });
+    let error = null;
+    try {
+      const response = await supabase.auth.signInWithOtp({
+        email: correo,
+        options: {
+          shouldCreateUser: false,
+          // Para el flujo por código OTP no necesitamos emailRedirectTo.
+          // Enviar un deep link aquí puede interferir con el envío en builds reales.
+        },
+      });
+      error = response.error;
+    } catch (e) {
+      console.error('signInWithOtp failed:', e);
+      error = e;
+    }
 
     setLoading(false);
 
     if (error) {
-      setStatus({ msg: 'No fue posible enviar el código. Intentá de nuevo.', color: 'red' });
+      const msg = error?.message || 'No fue posible enviar el código. Intentá de nuevo.';
+      console.error('OTP error:', msg);
+      setStatus({ msg: msg, color: 'red' });
       return;
     }
 
