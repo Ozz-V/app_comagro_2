@@ -80,10 +80,10 @@ serve(async (req) => {
     if (last_request_at) {
        const hoursSinceLast = (now.getTime() - last_request_at.getTime()) / (1000 * 60 * 60);
        if (hoursSinceLast >= 24) request_count = 0;
-       else if (request_count < 5 && hoursSinceLast >= 6) request_count = 0;
+       else if (request_count < 50 && hoursSinceLast >= 6) request_count = 0;
     }
     
-    if (request_count >= 5) {
+    if (request_count >= 50) {
        return new Response(JSON.stringify({ reply: "Has utilizado todos tus cupos de consulta rápida por hoy. Vuelve a consultar en 24 horas." }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
