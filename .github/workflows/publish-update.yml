@@ -69,19 +69,23 @@ jobs:
             -o app-release.apk
 
           export MD5_HASH=$(md5sum app-release.apk | awk '{print $1}')
+          export SHA256_HASH=$(sha256sum app-release.apk | awk '{print $1}')
           echo "MD5 Hash del APK: $MD5_HASH"
+          echo "SHA-256 Hash del APK: $SHA256_HASH"
 
           node -e '
             const fs = require("fs");
             const metadata = JSON.parse(fs.readFileSync("metadata.json", "utf8"));
             const notes = (process.env.RELEASE_NOTES_INPUT || "").trim() || metadata.releaseNotes || `Actualizacion v${metadata.versionName} (Build ${metadata.versionCode})`;
             const md5Hash = process.env.MD5_HASH;
+            const sha256Hash = process.env.SHA256_HASH;
             const payload = {
               version_code: metadata.versionCode,
               version_name: metadata.versionName,
               release_notes: notes,
               download_url: metadata.downloadUrl,
-              md5_hash: md5Hash
+              md5_hash: md5Hash,
+              sha256_hash: sha256Hash
             };
             fs.writeFileSync("supabase-payload.json", JSON.stringify(payload));
             fs.writeFileSync("summary.json", JSON.stringify(payload, null, 2));
@@ -110,5 +114,6 @@ jobs:
             console.log(`- Version: ${payload.version_name}`);
             console.log(`- Build: ${payload.version_code}`);
             console.log(`- MD5: ${payload.md5_hash}`);
+            console.log(`- SHA-256: ${payload.sha256_hash}`);
             console.log(`- APK: ${payload.download_url}`);
           ' >> "$GITHUB_STEP_SUMMARY"
