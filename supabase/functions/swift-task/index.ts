@@ -108,8 +108,9 @@ Deno.serve(async (req) => {
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    console.error("swift-task error:", message)
 
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500,
       headers: CORS_HEADERS,
     })
