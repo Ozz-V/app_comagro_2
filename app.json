@@ -57,6 +57,13 @@
           "photosPermission": "La app necesita acceso a tus fotos para tu foto de perfil."
         }
       ],
+      [
+        "expo-network-security-config",
+        {
+          "networkSecurityConfig": "./assets/configs/network_security_config.xml",
+          "enable": true
+        }
+      ],
       "expo-secure-store"
     ],
     "extra": {
