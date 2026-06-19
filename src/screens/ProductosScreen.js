@@ -91,7 +91,7 @@ export default function ProductosScreen({ navigation, route }) {
   const [modalProd, setModalProd]     = useState(null);
   const [isInitializingDirect, setIsInitializingDirect] = useState(!!route.params?.openProductSku);
   
-  const { manifest } = useOfflineSync();
+  const { manifest, isOnline } = useOfflineSync();
   const { showAlert, showToast } = useCustomAlert();
 
   const [htmlForImage, setHtmlForImage] = useState(null);
@@ -482,6 +482,10 @@ export default function ProductosScreen({ navigation, route }) {
   }
 
   function onRefresh() {
+    if (!isOnline) {
+      setRefreshing(false);
+      return;
+    }
     setRefreshing(true);
     const newKey = Date.now().toString();
     setLogoRefreshKey(newKey); // forzar limpieza de caché de imágenes

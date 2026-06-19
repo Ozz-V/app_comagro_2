@@ -35,6 +35,10 @@ export default function CatalogosScreen({ navigation }) {
   useEffect(() => { cargarCatalogos(false); }, []);
 
   function onRefresh() {
+    if (!isOnline) {
+      setRefreshing(false);
+      return;
+    }
     setRefreshing(true);
     cargarCatalogos(true);
   }
@@ -209,20 +213,7 @@ export default function CatalogosScreen({ navigation }) {
           <ActivityIndicator size="large" color={COLORS.navy} />
           <Text style={styles.centerText}>Cargando catálogos…</Text>
         </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.errorText}>
-            {!isOnline ? 'No hay conexión. Conéctate a internet para cargar los datos por primera vez.' : error}
-          </Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => cargarCatalogos(true)}>
-            <Text style={styles.retryText}>Reintentar</Text>
-          </TouchableOpacity>
-        </View>
-      ) : catalogos.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.centerText}>No hay catálogos disponibles</Text>
-        </View>
-      ) : (
+      ) : catalogos.length > 0 ? (
         <FlatList
           data={catalogos}
           renderItem={renderCard}
@@ -245,6 +236,19 @@ export default function CatalogosScreen({ navigation }) {
             />
           }
         />
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={styles.errorText}>
+            {!isOnline ? 'No hay conexión. Conéctate a internet para cargar los datos por primera vez.' : error}
+          </Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => cargarCatalogos(true)}>
+            <Text style={styles.retryText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.center}>
+          <Text style={styles.centerText}>No hay catálogos disponibles</Text>
+        </View>
       )}
       <PdfViewerModal
         visible={pdfModal.visible}

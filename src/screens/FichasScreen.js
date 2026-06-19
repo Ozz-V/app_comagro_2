@@ -30,6 +30,10 @@ export default function FichasScreen({ navigation }) {
   useEffect(() => { cargarTodo(); }, []);
 
   function onRefresh() {
+    if (!isOnline) {
+      setRefreshing(false);
+      return;
+    }
     setRefreshing(true);
     cargarTodo(true);
   }
@@ -263,20 +267,7 @@ export default function FichasScreen({ navigation }) {
           <ActivityIndicator size="large" color={COLORS.navy} />
           <Text style={styles.centerText}>Cargando fichas…</Text>
         </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.errorText}>
-            {!isOnline ? 'No hay conexión. Conéctate a internet para cargar los datos por primera vez.' : error}
-          </Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={cargarTodo}>
-            <Text style={styles.retryText}>Reintentar</Text>
-          </TouchableOpacity>
-        </View>
-      ) : listaFiltrada.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.centerText}>Sin fichas para esta búsqueda</Text>
-        </View>
-      ) : (
+      ) : listaFiltrada.length > 0 ? (
         <FlatList
           data={listaFiltrada}
           renderItem={renderItem}
@@ -292,7 +283,21 @@ export default function FichasScreen({ navigation }) {
             />
           }
         />
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={styles.errorText}>
+            {!isOnline ? 'No hay conexión. Conéctate a internet para cargar los datos por primera vez.' : error}
+          </Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={cargarTodo}>
+            <Text style={styles.retryText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.center}>
+          <Text style={styles.centerText}>Sin fichas para esta búsqueda</Text>
+        </View>
       )}
+
       <PdfViewerModal
         visible={pdfModal.visible}
         url={pdfModal.url}
