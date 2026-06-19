@@ -96,7 +96,8 @@ function App() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [updateNotes, setUpdateNotes] = useState('');
   const [updateUrl, setUpdateUrl] = useState(null);
-  const [expectedHash, setExpectedHash] = useState(null);
+  const [expectedSha256, setExpectedSha256] = useState(null);
+  const [expectedMd5, setExpectedMd5] = useState(null);
   const [apkLocalUri, setApkLocalUri] = useState(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const spinAnim = useRef(new Animated.Value(0)).current;
@@ -239,7 +240,8 @@ function App() {
         if (data.version_code > installedCode) {
           setUpdateNotes(data.release_notes || 'Nueva versión disponible');
           setUpdateUrl(data.download_url);
-          setExpectedHash(data.md5_hash || data.sha256_hash || null);
+          setExpectedSha256(data.sha256_hash || null);
+          setExpectedMd5(data.md5_hash || null);
           setUpdateState('prompt');
         } else {
           setUpdateState('none');
@@ -300,8 +302,8 @@ function App() {
         }
 
         // VALIDACIÓN DE HASH ESTRICTA CON FALLBACK TEMPORAL
-        const hasSha256 = !!updateNotes.sha256_hash;
-        const hasMd5 = !!updateNotes.md5_hash;
+        const hasSha256 = !!expectedSha256;
+        const hasMd5 = !!expectedMd5;
 
         if (hasSha256) {
           // 1. Verificación Fuerte SHA-256
@@ -309,7 +311,7 @@ function App() {
           const nativePath = result.uri.startsWith('file://') ? result.uri.replace('file://', '') : result.uri;
           const calculatedSha256 = await ReactNativeBlobUtil.fs.hash(nativePath, 'sha256');
           
-          if (calculatedSha256.toLowerCase() !== updateNotes.sha256_hash.toLowerCase()) {
+          if (calculatedSha256.toLowerCase() !== expectedSha256.toLowerCase()) {
             await FileSystem.deleteAsync(result.uri, { idempotent: true });
             throw new Error('Firma de seguridad SHA-256 inválida. Descarga abortada por seguridad.');
           }
@@ -318,12 +320,12 @@ function App() {
           console.warn("ALERTA DE SEGURIDAD: Uso de verificación MD5 en transición. Migrar BD a SHA-256 antes del 17-Jul-2026.");
           const fileInfo = await FileSystem.getInfoAsync(result.uri, { md5: true });
           
-          if (fileInfo.md5.toLowerCase() !== updateNotes.md5_hash.toLowerCase()) {
+          if (fileInfo.md5.toLowerCase() !== expectedMd5.toLowerCase()) {
             await FileSystem.deleteAsync(result.uri, { idempotent: true });
             throw new Error('Firma MD5 inválida. Descarga abortada.');
           }
         } else {
-          // 3. Bloqueo Incondicional (NO HASH)
+          // 3. Bloqueo Incondicional (NO HASH) - EVITA DOWNGRADE ATTACK
           await FileSystem.deleteAsync(result.uri, { idempotent: true });
           throw new Error('ALERTA DE SEGURIDAD CRÍTICA: El servidor no proporcionó firma de integridad (Hash). Instalación bloqueada para prevenir inyección de código.');
         }
