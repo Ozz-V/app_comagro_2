@@ -15,8 +15,3 @@ web-build/
 *.html
 
 *.sql
-
-# Keystore & temp files (never commit)
-*.keystore
-*.b64
-set_secrets.js
