@@ -39,9 +39,9 @@ jobs:
             const fs = require("fs");
             const release = JSON.parse(fs.readFileSync("release.json", "utf8"));
             const metadata = release.assets.find((asset) => asset.name === "metadata.json");
-            const apk = release.assets.find((asset) => asset.name === "app-release.apk");
+            const apk = release.assets.find((asset) => asset.name === "comagroapp.apk");
             if (!metadata) throw new Error("El candidato no tiene metadata.json");
-            if (!apk) throw new Error("El candidato no tiene app-release.apk");
+            if (!apk) throw new Error("El candidato no tiene comagroapp.apk");
             fs.writeFileSync("metadata_asset_url.txt", metadata.url);
           '
 
@@ -65,11 +65,11 @@ jobs:
           curl -fsSL \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Accept: application/octet-stream" \
-            "$(node -e 'console.log(JSON.parse(require("fs").readFileSync("release.json", "utf8")).assets.find(a => a.name === "app-release.apk").url)')" \
-            -o app-release.apk
+            "$(node -e 'console.log(JSON.parse(require("fs").readFileSync("release.json", "utf8")).assets.find(a => a.name === "comagroapp.apk").url)')" \
+            -o comagroapp.apk
 
-          export MD5_HASH=$(md5sum app-release.apk | awk '{print $1}')
-          export SHA256_HASH=$(sha256sum app-release.apk | awk '{print $1}')
+          export MD5_HASH=$(md5sum comagroapp.apk | awk '{print $1}')
+          export SHA256_HASH=$(sha256sum comagroapp.apk | awk '{print $1}')
           echo "MD5 Hash del APK: $MD5_HASH"
           echo "SHA-256 Hash del APK: $SHA256_HASH"
 
