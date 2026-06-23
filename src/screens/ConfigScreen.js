@@ -164,7 +164,10 @@ export default function ConfigScreen({ navigation }) {
             setPhone(data.telefono);
           }
         }
-        setAvatarUrl(data.avatar_local || data.avatar_url || null);
+        const hasPendingAvatar = await AsyncStorage.getItem('@pending_avatar');
+        if (!hasPendingAvatar) {
+          setAvatarUrl(data.avatar_local || data.avatar_url || null);
+        }
       }
     } catch (e) {
       // Error silente al cargar perfil desde red
