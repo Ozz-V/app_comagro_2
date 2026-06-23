@@ -1456,10 +1456,13 @@ export default function ProductosScreen({ navigation, route }) {
                   return found ? found[1] : null;
                 });
                 // Extraer números para comparación
+                const COMPARABLE_SPECS = ['caudal', 'tensión', 'potencia', 'kva', 'presión', 'capacidad', 'cilindrada', 'peso', 'velocidad', 'rpm', 'amper', 'voltaje', 'altura', 'fuerza', 'torque', 'fases'];
+                const isComparable = COMPARABLE_SPECS.some(k => specName.toLowerCase().includes(k)) || /hp|kw|w|v|hz|l\/min|m3\/h|bar|psi|kg|mm|cm|m|rpm|cc|litros/i.test(specName);
+                
                 const nums = vals.map(v => extractNum(v));
                 const validNums = nums.filter(n => n !== null);
-                const maxNum = validNums.length > 1 ? Math.max(...validNums) : null;
-                const minNum = validNums.length > 1 ? Math.min(...validNums) : null;
+                const maxNum = (validNums.length > 1 && isComparable) ? Math.max(...validNums) : null;
+                const minNum = (validNums.length > 1 && isComparable) ? Math.min(...validNums) : null;
                 const hasDiff = maxNum !== null && maxNum !== minNum;
                 return (
                   <View key={specName} style={{ flexDirection: 'row', backgroundColor: si % 2 === 0 ? '#F7F8FA' : COLORS.white, borderRadius: 6, marginBottom: 2, paddingVertical: 6, alignItems: 'center' }}>
