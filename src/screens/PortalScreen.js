@@ -196,12 +196,25 @@ export default function PortalScreen({ navigation }) {
            p.specs.forEach(s => {
              const key = s[0].toUpperCase();
              const valStr = s[1].toUpperCase();
-             if (key.includes('ALTURA') || key.includes('PRESION') || key.includes('PRESIÓN') || key.includes('M.C.A') || key.includes('M.C.A.')) {
-               maxH = normalizeMca(s[1]);
+             
+             // Omni-Filter for Altura / Presion (maxH)
+             if (
+               key.includes('ALTURA') || key.includes('PRESION') || key.includes('PRESIÓN') || key.includes('M.C.A') || key.includes('ELEVACION') || key.includes('ELEVACIÓN') ||
+               valStr.includes('M.C.A') || valStr.includes(' MCA') || valStr.includes('METROS') || valStr.includes('BAR ') || valStr.includes('PSI')
+             ) {
+               const parsedH = normalizeMca(s[1]);
+               if (parsedH > maxH) maxH = parsedH;
              }
-             if (key.includes('CAUDAL')) {
-               maxQ = normalizeCaudal(s[1]);
+             
+             // Omni-Filter for Caudal (maxQ)
+             if (
+               key.includes('CAUDAL') || key.includes('FLUJO') || key.includes('CAPACIDAD') || key.includes('LITROS') ||
+               valStr.includes('L/MIN') || valStr.includes('L/S') || valStr.includes('L/H') || valStr.includes('M3/H') || valStr.includes('GPM')
+             ) {
+               const parsedQ = normalizeCaudal(s[1]);
+               if (parsedQ > maxQ) maxQ = parsedQ;
              }
+             
              if (key.includes('SÓLIDOS') || key.includes('SOLIDOS') || valStr.includes('SUCIA') || valStr.includes('CLOACAL')) {
                isDirty = true;
              }
@@ -220,8 +233,14 @@ export default function PortalScreen({ navigation }) {
          if (isDrenaje && !p.isSubmersible) return false;
          if (pumpWizard.type === 'hogar' && p.isSubmersible && !p.modelo.toUpperCase().includes('PRESURIZA')) return false;
 
-         return p.maxH >= targetH * 1.05 && p.maxQ >= targetQ * 1.1;
-       }).sort((a,b) => (a.maxH + a.maxQ) - (targetH + targetQ)).slice(0, 5);
+         const matchH = targetH <= 0 || p.maxH >= targetH * 0.8;
+         const matchQ = targetQ <= 0 || p.maxQ >= targetQ * 0.8;
+         return matchH && matchQ;
+       }).sort((a,b) => {
+         const diffA = Math.abs(a.maxH - targetH) + Math.abs(a.maxQ - targetQ);
+         const diffB = Math.abs(b.maxH - targetH) + Math.abs(b.maxQ - targetQ);
+         return diffA - diffB;
+       }).slice(0, 5);
        
        setCalcInput(String(targetH.toFixed(1)));
        setCalcInput2(String(targetQ.toFixed(1)));
@@ -438,71 +457,88 @@ export default function PortalScreen({ navigation }) {
                     {pumpWizard.step === 1 && (
                       <View>
                         <Text style={{ fontSize: 16, color: COLORS.navy, marginBottom: 15 }}>¿Qué tipo de bomba estás buscando?</Text>
-                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 2, type: 'hogar' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border }}>
-                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>🏠 Hogar / Superficie</Text>
-                          <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Tanques elevados, presurización, riego superficial</Text>
+                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 2, type: 'hogar' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Hogar / Superficie</Text>
+                            <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Tanques elevados, presurización, riego superficial</Text>
+                          </View>
+                          <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 2, type: 'pozo' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border }}>
-                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>🕳️ Sumergible de Pozo</Text>
-                          <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Pozos profundos artesianos</Text>
+                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 2, type: 'pozo' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Sumergible de Pozo</Text>
+                            <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Pozos profundos artesianos</Text>
+                          </View>
+                          <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 2, type: 'drenaje' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border }}>
-                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>🌊 Drenaje / Achique</Text>
-                          <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Vaciar piscinas, desagotes, aguas cloacales</Text>
+                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 2, type: 'drenaje' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Drenaje / Achique</Text>
+                            <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Vaciar piscinas, desagotes, aguas cloacales</Text>
+                          </View>
+                          <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                         </TouchableOpacity>
                       </View>
                     )}
                     {pumpWizard.step === 2 && pumpWizard.type === 'hogar' && (
                       <View>
                         <Text style={{ fontSize: 16, color: COLORS.navy, marginBottom: 15 }}>¿Para qué se va a usar?</Text>
-                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 3, appType: 'tanque' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border }}>
-                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>⬆️ Subir agua a un Tanque</Text>
+                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 3, appType: 'tanque' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Subir agua a un Tanque</Text>
+                          <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 3, appType: 'presurizacion' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border }}>
-                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>🚿 Darle fuerza a las Duchas</Text>
+                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 3, appType: 'presurizacion' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Darle fuerza a las Duchas</Text>
+                          <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                         </TouchableOpacity>
                       </View>
                     )}
                     {pumpWizard.step === 3 && pumpWizard.type === 'hogar' && pumpWizard.appType === 'tanque' && (
                       <View>
                         <Text style={{ color: COLORS.navy, marginBottom: 5 }}>Altura del tanque (metros):</Text>
-                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8' }} keyboardType="numeric" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, tankHeight: t}}))} />
-                        <Text style={{ color: COLORS.navy, marginBottom: 5 }}>Capacidad del tanque (Litros):</Text>
-                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8' }} keyboardType="numeric" placeholder="Ej: 1000" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, tankVolume: t}}))} />
-                        <Text style={{ color: COLORS.navy, marginBottom: 5 }}>¿En cuántos minutos querés que se llene?:</Text>
-                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8' }} keyboardType="numeric" placeholder="Ej: 30" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, fillTimeMin: t}}))} />
+                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8', color: COLORS.navy }} keyboardType="numeric" placeholderTextColor={COLORS.gray4} placeholder="Ej: 15" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, tankHeight: t}}))} />
+                        <Text style={{ color: COLORS.navy, marginBottom: 5 }}>Capacidad del tanque (Litros, opcional):</Text>
+                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8', color: COLORS.navy }} keyboardType="numeric" placeholderTextColor={COLORS.gray4} placeholder="Ej: 1000" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, tankVolume: t}}))} />
+                        <Text style={{ color: COLORS.navy, marginBottom: 5 }}>¿En cuántos minutos querés que se llene? (Opcional):</Text>
+                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8', color: COLORS.navy }} keyboardType="numeric" placeholderTextColor={COLORS.gray4} placeholder="Ej: 30" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, fillTimeMin: t}}))} />
                       </View>
                     )}
                     {pumpWizard.step === 3 && pumpWizard.type === 'hogar' && pumpWizard.appType === 'presurizacion' && (
                       <View>
                         <Text style={{ color: COLORS.navy, marginBottom: 5 }}>¿Cuántas duchas se usarían al mismo tiempo?:</Text>
-                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8' }} keyboardType="numeric" placeholder="Ej: 2" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, showers: t}}))} />
-                        <Text style={{ color: COLORS.navy, marginBottom: 5 }}>¿Cuántos pisos tiene la casa?:</Text>
-                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8' }} keyboardType="numeric" placeholder="Ej: 1" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, floors: t}}))} />
+                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8', color: COLORS.navy }} keyboardType="numeric" placeholderTextColor={COLORS.gray4} placeholder="Ej: 2" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, showers: t}}))} />
+                        <Text style={{ color: COLORS.navy, marginBottom: 5 }}>¿Cuántos pisos tiene la casa? (Opcional):</Text>
+                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8', color: COLORS.navy }} keyboardType="numeric" placeholderTextColor={COLORS.gray4} placeholder="Ej: 1" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, floors: t}}))} />
                       </View>
                     )}
 
                     {pumpWizard.step === 2 && pumpWizard.type === 'pozo' && (
                       <View>
                         <Text style={{ color: COLORS.navy, marginBottom: 5 }}>¿A cuántos metros de profundidad está el agua?:</Text>
-                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8' }} keyboardType="numeric" placeholder="Ej: 30" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, depth: t}}))} />
+                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8', color: COLORS.navy }} keyboardType="numeric" placeholderTextColor={COLORS.gray4} placeholder="Ej: 30" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, depth: t}}))} />
                         <Text style={{ color: COLORS.navy, marginBottom: 5 }}>Diámetro del pozo (Pulgadas, opcional):</Text>
-                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8' }} keyboardType="numeric" placeholder="Ej: 4" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, diameter: t}}))} />
+                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8', color: COLORS.navy }} keyboardType="numeric" placeholderTextColor={COLORS.gray4} placeholder="Ej: 4" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, diameter: t}}))} />
                         <Text style={{ color: COLORS.navy, marginBottom: 5 }}>¿Cuántos litros por hora necesita sacar? (Aprox):</Text>
-                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8' }} keyboardType="numeric" placeholder="Ej: 2000" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, flowHour: t}}))} />
+                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8', color: COLORS.navy }} keyboardType="numeric" placeholderTextColor={COLORS.gray4} placeholder="Ej: 2000" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, flowHour: t}}))} />
                       </View>
                     )}
 
                     {pumpWizard.step === 2 && pumpWizard.type === 'drenaje' && (
                       <View>
                         <Text style={{ fontSize: 16, color: COLORS.navy, marginBottom: 15 }}>¿Qué tipo de agua vas a desagotar?</Text>
-                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 3, waterType: 'limpia' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border }}>
-                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>💧 Agua Limpia</Text>
-                          <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Lluvia, piscinas, sótanos inundados</Text>
+                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 3, waterType: 'limpia' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Agua Limpia</Text>
+                            <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Lluvia, piscinas, sótanos inundados</Text>
+                          </View>
+                          <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 3, waterType: 'sucia' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border }}>
-                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>💩 Agua Sucia / Cloacal</Text>
-                          <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Barro, hojas, cámaras sépticas</Text>
+                        <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 3, waterType: 'sucia' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Agua Sucia / Cloacal</Text>
+                            <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Barro, hojas, cámaras sépticas</Text>
+                          </View>
+                          <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                         </TouchableOpacity>
                       </View>
                     )}
@@ -510,9 +546,9 @@ export default function PortalScreen({ navigation }) {
                     {pumpWizard.step === 3 && pumpWizard.type === 'drenaje' && (
                       <View>
                         <Text style={{ color: COLORS.navy, marginBottom: 5 }}>¿A cuántos metros de ALTURA hay que subir el agua?:</Text>
-                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8' }} keyboardType="numeric" placeholder="Ej: 5" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, distVert: t}}))} />
+                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8', color: COLORS.navy }} keyboardType="numeric" placeholderTextColor={COLORS.gray4} placeholder="Ej: 5" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, distVert: t}}))} />
                         <Text style={{ color: COLORS.navy, marginBottom: 5 }}>¿A cuántos metros de DISTANCIA HORIZONTAL hay que llevarla?:</Text>
-                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8' }} keyboardType="numeric" placeholder="Ej: 15" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, distHoriz: t}}))} />
+                        <TextInput style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginBottom: 15, backgroundColor: '#F0F4F8', color: COLORS.navy }} keyboardType="numeric" placeholderTextColor={COLORS.gray4} placeholder="Ej: 15" onChangeText={t => setPumpWizard(w => ({...w, params: {...w.params, distHoriz: t}}))} />
                       </View>
                     )}
 

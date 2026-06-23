@@ -36,18 +36,20 @@ export function calcSuperficie(params) {
   
   if (params.appType === 'tanque') {
     // 20% fricción tuberías + altura
-    targetMca = (parseFloat(params.tankHeight) || 0) * 1.2;
+    targetMca = params.tankHeight ? (parseFloat(params.tankHeight) || 0) * 1.2 : 0;
     // Caudal = Litros / Minutos
     const vol = parseFloat(params.tankVolume) || 0;
-    const time = parseFloat(params.fillTimeMin) || 30; // 30 min por defecto
-    targetFlow = vol / time;
+    const time = parseFloat(params.fillTimeMin) || 0;
+    if (vol > 0 && time > 0) targetFlow = vol / time;
+    else if (vol > 0) targetFlow = vol / 30; // 30 min por defecto si solo pone volumen
   } else if (params.appType === 'presurizacion') {
     // 1 ducha = 12 l/min aprox
-    const showers = parseInt(params.showers) || 1;
-    targetFlow = showers * 12;
+    const showers = parseFloat(params.showers) || 0;
+    if (showers > 0) targetFlow = showers * 12;
+    
     // 1 piso = 3m aprox. Queremos presurizar al menos 15 mca arriba de la ducha más alta.
-    const floors = parseInt(params.floors) || 1;
-    targetMca = (floors * 3) + 15; 
+    const floors = parseFloat(params.floors) || 0;
+    if (floors > 0) targetMca = (floors * 3) + 15; 
   }
 
   return { targetMca, targetFlow, typeDesc: 'Bombas Periféricas o Centrífugas' };
@@ -59,8 +61,10 @@ export function calcSuperficie(params) {
 export function calcPozo(params) {
   // Nivel dinámico del agua + margen de bombeo
   const depth = parseFloat(params.depth) || 0;
-  const targetMca = depth + 20; // Queremos que tire con buena presión arriba
-  const targetFlow = parseFloat(params.flowHour) / 60 || 30; // Si no sabe, 30 L/min
+  const targetMca = depth > 0 ? depth + 20 : 0; // Queremos que tire con buena presión arriba
+  
+  const flowH = parseFloat(params.flowHour) || 0;
+  const targetFlow = flowH > 0 ? flowH / 60 : 0; 
 
   return { targetMca, targetFlow, diameterLimit: params.diameter, typeDesc: 'Bombas Sumergibles (Bala/Inyector)' };
 }
@@ -72,10 +76,11 @@ export function calcDrenaje(params) {
   // Distancia vertical/horizontal. Horizontal cuenta como 1/10 de la vertical.
   const distVert = parseFloat(params.distVert) || 0;
   const distHoriz = parseFloat(params.distHoriz) || 0;
-  const targetMca = distVert + (distHoriz * 0.1) + 5; // 5 de margen
+  const targetMca = (distVert > 0 || distHoriz > 0) ? (distVert + (distHoriz * 0.1) + 5) : 0;
   
-  // Drenaje suele necesitar mucho caudal, mínimo 100 L/min
-  const targetFlow = 100;
+  // Drenaje suele necesitar mucho caudal, pero si no especifican, dejamos a que filter por maxH
+  const targetFlow = 0;
 
   return { targetMca, targetFlow, waterType: params.waterType, typeDesc: 'Bombas de Achique / Drenaje' };
 }
+

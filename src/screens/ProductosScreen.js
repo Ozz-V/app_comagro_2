@@ -1444,9 +1444,13 @@ export default function ProductosScreen({ navigation, route }) {
             {(() => {
               // Reunir todos los nombres de specs únicos en orden
               const allSpecNames = [];
+              const BLACKLIST_SPECS = ['nombre del producto', 'denominador estándar', 'denominador estandar', 'sku', 'accesorios', 'aplicación', 'aplicacion', 'descripción', 'descripcion', 'marca', 'modelo', 'imagen', 'video', 'id'];
+
               compareItems.forEach(prod => {
                 (prod.specs || []).forEach(([n]) => {
-                  if (!allSpecNames.includes(n)) allSpecNames.push(n);
+                  if (!BLACKLIST_SPECS.includes(n.toLowerCase().trim()) && !allSpecNames.includes(n)) {
+                    allSpecNames.push(n);
+                  }
                 });
               });
               return allSpecNames.map((specName, si) => {
