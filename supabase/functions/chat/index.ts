@@ -91,6 +91,33 @@ serve(async (req) => {
     let searchQuery = lastMessage;
 
     // ============================================================================
+    // 🔍 QUERY EXPANSION: Generar sinónimos rápidos antes de buscar
+    // ============================================================================
+    try {
+      const expandRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: "Extrae el nombre del producto de la consulta del usuario y genera 3 a 5 sinónimos o nombres alternativos que se usarían en ferreterías, mecánica o agricultura. Responde SOLO con las palabras separadas por espacios, sin comas ni explicaciones. Si el mensaje es un saludo o no busca un producto, responde VACIO." }] },
+          contents: [{ role: 'user', parts: [{ text: lastMessage }] }],
+          generationConfig: { maxOutputTokens: 30, temperature: 0.2 }
+        })
+      });
+      if (expandRes.ok) {
+        const expandData = await expandRes.json();
+        if (expandData.candidates && expandData.candidates[0]?.content?.parts) {
+          const synonyms = expandData.candidates[0].content.parts[0].text.trim();
+          if (synonyms && synonyms !== 'VACIO' && synonyms !== 'VACÍO') {
+             // Agregamos los sinónimos a la búsqueda para que el vector sea más rico
+             searchQuery = `${lastMessage} ${synonyms}`;
+          }
+        }
+      }
+    } catch (e) {
+      // Si falla la expansión, ignoramos y seguimos con el texto original
+    }
+
+    // ============================================================================
     // 🌪️ BLOCKING PHASE 3: Embeddings & Vector Search
     // ============================================================================
     const embedRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${geminiKey}`, {
