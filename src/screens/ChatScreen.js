@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
-import { supabase } from '../supabase';
+import { supabase, EDGE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 
 export default function ChatScreen({ navigation }) {
@@ -63,6 +63,22 @@ export default function ChatScreen({ navigation }) {
       // 3. Productos Cache
       let fallback = await AsyncStorage.getItem('@productos_cache');
       if (!fallback) fallback = await AsyncStorage.getItem('comagro_productos_v3');
+      
+      if (!fallback) {
+        // Si no hay caché (primera vez que abre), descargar silenciosamente
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const headers = { Authorization: `Bearer ${session.access_token}` };
+          const res = await fetch(EDGE_URL, { headers });
+          if (res.ok) {
+            const nuevosRows = await res.json();
+            fallback = JSON.stringify(nuevosRows);
+            await AsyncStorage.setItem('comagro_productos_v3', fallback);
+            await AsyncStorage.setItem('comagro_productos_fecha_v3', Date.now().toString());
+          }
+        }
+      }
+
       if (fallback) setAllProdsCache(parseRawProducts(fallback));
     } catch (e) {
       // Error silente al inicializar chat

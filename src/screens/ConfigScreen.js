@@ -147,7 +147,7 @@ export default function ConfigScreen({ navigation }) {
         // Cachear foto para offline
         if (data.avatar_url && data.avatar_url.startsWith('http')) {
            try {
-             const localUri = FileSystem.documentDirectory + 'avatar_cache.jpg';
+             const localUri = FileSystem.documentDirectory + `avatar_cache_${Date.now()}.jpg`;
              await FileSystem.downloadAsync(data.avatar_url, localUri);
              data.avatar_local = localUri;
            } catch(e) {}
@@ -220,8 +220,9 @@ export default function ConfigScreen({ navigation }) {
       }
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
       if (publicUrl) {
+         const timestampedUrl = publicUrl + '?t=' + Date.now();
          await AsyncStorage.removeItem('@pending_avatar');
-         saveProfile(publicUrl, localUri);
+         saveProfile(timestampedUrl, localUri);
       } else {
          saveProfile(undefined, localUri);
       }
