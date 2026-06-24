@@ -98,9 +98,14 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
          const generateData = await generateRes.json();
          let salesPitch = generateData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Producto técnico de alta calidad.';
 
-         // b) Generar los Embeddings (Vectores) para la búsqueda semántica
+         // b) Generar los Embeddings (Vectores) para la búsqueda semántica usando las especificaciones reales
          const nombreProd = p['Nombre del Producto'] || p['Brand'] || sku;
-         const embedText = `${nombreProd}. ${salesPitch}`;
+         const specsText = Object.entries(p)
+            .filter(([k,v]) => v && String(v).trim() !== '' && !k.toLowerCase().includes('imagen') && !k.toLowerCase().includes('manual'))
+            .map(([k,v]) => `${k}: ${v}`)
+            .join(', ');
+            
+         const embedText = `Producto: ${nombreProd}. Especificaciones: ${specsText}. Descripción general: ${salesPitch}`;
 
          const embedRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${geminiKey}`, {
             method: 'POST',
