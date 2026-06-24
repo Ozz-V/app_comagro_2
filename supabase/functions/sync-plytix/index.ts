@@ -125,7 +125,7 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
          // c) Guardar en la base de datos Supabase
          const { error: insertError } = await supaAdmin.from('productos_ai_data').insert({
             sku: sku,
-            sales_pitch: salesPitch,
+            sales_pitch: `${salesPitch}\n\nEspecificaciones Técnicas: ${specsText}`,
             embedding: embeddingVector,
             created_at: new Date().toISOString()
          });
