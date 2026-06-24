@@ -15,3 +15,5 @@ web-build/
 *.html
 
 *.sql
+
+_dev_scripts_and_docs/
