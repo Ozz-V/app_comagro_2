@@ -122,10 +122,21 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
          const embedData = await embedRes.json();
          const embeddingVector = embedData.embedding.values;
 
-         // c) Guardar en la base de datos Supabase
+         // c) Formatear especificaciones de manera limpia para el bot
+         const ignoreKeys = ['imagen', 'manual', 'marcación pim', 'material antiguo', 'despiece', 'denominador estandar', 'volumen', 'peso neto', 'thumbnail', 'ficha tecnica', 'ficha', 'video', 'gama', 'brand logo'];
+         let specsList = [];
+         for (const [key, val] of Object.entries(p)) {
+             const kLower = key.toLowerCase();
+             if (ignoreKeys.some(ik => kLower.includes(ik))) continue;
+             if (!val || val === '' || val === '0' || val === '0.0' || val === '0.00' || val === '0.000' || val === 0 || val === 'N/A' || val === 'null' || val === '-') continue;
+             specsList.push(`• **${key}:** ${val}`);
+         }
+         const cleanSpecsText = specsList.length > 0 ? `\n\n**Especificaciones Técnicas:**\n${specsList.join('\n')}` : '';
+
+         // d) Guardar en la base de datos Supabase
          const { error: insertError } = await supaAdmin.from('productos_ai_data').insert({
             sku: sku,
-            sales_pitch: `${salesPitch}\n\nEspecificaciones Técnicas: ${specsText}`,
+            sales_pitch: `${salesPitch}${cleanSpecsText}`,
             embedding: embeddingVector,
             created_at: new Date().toISOString()
          });
