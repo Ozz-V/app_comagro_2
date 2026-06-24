@@ -183,7 +183,7 @@ export async function fetchImageBase64(url) {
   try {
     if (url.startsWith('file://') || url.startsWith('/')) {
       const base64 = await FileSystem.readAsStringAsync(url, { encoding: FileSystem.EncodingType.Base64 });
-      return \`data:image/jpeg;base64,\${base64}\`;
+      return `data:image/jpeg;base64,${base64}`;
     }
     const res = await fetch(url);
     const blob = await res.blob();
@@ -205,7 +205,7 @@ export async function generateAndSharePdf(modalProd, pdfCache, logoRefreshKey) {
   
   if (!finalProdB64) {
     const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\\s+/g, '_') || '';
-    const logoUrl = \`https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/\${marcaSlug}.jpg?v=\${logoRefreshKey}\`;
+    const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg?v=${logoRefreshKey}`;
     
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
     finalProdB64 = await Promise.race([fetchImageBase64(modalProd?.imagen), timeoutPromise]).catch(() => '');
@@ -216,7 +216,7 @@ export async function generateAndSharePdf(modalProd, pdfCache, logoRefreshKey) {
   const { uri } = await Print.printToFileAsync({ html: htmlContent });
   
   await Sharing.shareAsync(uri, {
-    dialogTitle: \`Ficha \${modalProd?.modelo}\`,
+    dialogTitle: `Ficha ${modalProd?.modelo}`,
     mimeType: 'application/pdf',
     UTI: 'com.adobe.pdf'
   });

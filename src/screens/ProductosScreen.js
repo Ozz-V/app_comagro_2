@@ -142,7 +142,7 @@ export default function ProductosScreen({ navigation, route }) {
 
   // Renders de listas
   const renderMarcaBtn = useCallback(({ item: marca }) => {
-    const logoUri = \`\${LOGO_BASE}\${marca.replace(/\\s+/g, '_')}.jpg?v=\${logoRefreshKey}\`;
+    const logoUri = `${LOGO_BASE}${marca.replace(/\s+/g, '_')}.jpg?v=${logoRefreshKey}`;
     const activo = filtroMarca === marca;
     return (
       <TouchableOpacity
