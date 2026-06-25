@@ -145,13 +145,7 @@ export default function ProductDetailModal({
 
   const parseBoldText = (text) => {
     if (!text) return null;
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <Text key={i} style={{ fontWeight: 'bold', color: COLORS.navy }}>{part.slice(2, -2)}</Text>;
-      }
-      return part;
-    });
+    return text.replace(/\*\*/g, '').replace(/\*/g, '');
   };
 
   if (!modalProd) return null;

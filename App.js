@@ -419,7 +419,7 @@ function App() {
                 <Stack.Screen 
                   name="ProductViewer" 
                   component={ProductViewerScreen} 
-                  options={{ presentation: 'transparentModal' }} 
+                  options={{ presentation: 'transparentModal', animation: 'none' }} 
                 />
               </>
             )}

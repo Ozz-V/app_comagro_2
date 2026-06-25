@@ -79,17 +79,13 @@ export default function ProductViewerScreen({ route, navigation }) {
     return [];
   }, [contextSkus, allProducts]);
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={COLORS.green} />
-      </View>
-    );
-  }
+  useEffect(() => {
+    if (!loading && !modalProd) {
+      navigation.goBack();
+    }
+  }, [loading, modalProd, navigation]);
 
-  // Si no se encontró el producto y ya terminó de cargar, cerramos la pantalla
-  if (!modalProd) {
-    navigation.goBack();
+  if (loading || !modalProd) {
     return null;
   }
 
