@@ -151,6 +151,20 @@ export default function ProductosScreen({ navigation, route }) {
     }
   }, [allProducts, route?.params?.openProductSku]);
 
+  // Recibir lista de comparación desde modal transparente (ProductViewerScreen)
+  useEffect(() => {
+    if (allProducts.length > 0 && route?.params?.compareSkus) {
+      const skus = route.params.compareSkus;
+      const itemsToCompare = skus.map(s => allProducts.find(p => p.modelo === s || p.sku === s)).filter(Boolean);
+      if (itemsToCompare.length > 0) {
+        setCompareItems(itemsToCompare);
+        setIsComparing(true);
+        setShowCompareGrid(true);
+        navigation.setParams({ compareSkus: undefined });
+      }
+    }
+  }, [allProducts, route?.params?.compareSkus]);
+
   // Renders de listas
   const renderMarcaBtn = useCallback(({ item: marca }) => {
     const logoUri = `${LOGO_BASE}${marca.replace(/\s+/g, '_')}.jpg?v=${logoRefreshKey}`;
