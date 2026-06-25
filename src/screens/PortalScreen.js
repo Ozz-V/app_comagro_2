@@ -198,6 +198,7 @@ export default function PortalScreen({ navigation }) {
           const diffB = Math.abs(b.calcVal - target);
           return diffA - diffB;
        }).slice(0, 5);
+    }
     setCalcResult(filtered);
   }
 
