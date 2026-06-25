@@ -98,6 +98,7 @@ export default function ProductViewerScreen({ route, navigation }) {
         allProducts={allProducts}
         activeSliderList={activeSliderList.length > 0 ? activeSliderList : [modalProd]}
         onOpenProduct={(prod) => setModalProd(prod)}
+        aiData={modalProd?.sales_pitch}
       />
     </View>
   );

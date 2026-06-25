@@ -163,7 +163,7 @@ export default function ChatScreen({ navigation }) {
     return { cleanText: cleanText.trim(), skus };
   };
 
-  const renderProductCard = (sku) => {
+  const renderProductCard = (sku, skusContext) => {
     const product = allProdsCache.find(p => p.modelo.toUpperCase() === sku.toUpperCase());
     if (!product) return null;
 
@@ -171,7 +171,7 @@ export default function ChatScreen({ navigation }) {
       <TouchableOpacity
         key={sku}
         style={styles.productCard}
-        onPress={() => navigation.navigate('ProductViewer', { sku: product.modelo, contextSkus: skus })}
+        onPress={() => navigation.navigate('ProductViewer', { sku: product.modelo, contextSkus: skusContext })}
       >
         <View style={styles.cardContent}>
           {product.imagen ? (
@@ -242,7 +242,7 @@ export default function ChatScreen({ navigation }) {
                 {/* RENDERIZADO DE TARJETAS DE PRODUCTO */}
                 {skus.length > 0 && (
                   <View style={styles.cardsContainer}>
-                    {skus.map(sku => renderProductCard(sku))}
+                    {skus.map(sku => renderProductCard(sku, skus))}
                   </View>
                 )}
               </View>
