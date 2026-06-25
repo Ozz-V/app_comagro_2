@@ -4,7 +4,7 @@ export async function generateResponse(
   geminiKey: string
 ): Promise<string> {
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -40,11 +40,11 @@ export function parseLearnTag(reply: string): { cleanReply: string; learnedRule:
 
 export function saveLearnedRule(learnedRule: string, geminiKey: string, supaAdmin: any): void {
   // Fire and forget (zero latency for user)
-  fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${geminiKey}`, {
+  fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${geminiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'models/text-embedding-004',
+      model: 'models/gemini-embedding-2',
       content: { parts: [{ text: learnedRule }] },
       outputDimensionality: 768,
       taskType: "RETRIEVAL_DOCUMENT"

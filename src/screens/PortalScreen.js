@@ -655,7 +655,7 @@ export default function PortalScreen({ navigation }) {
                         renderItem={({ item }) => (
                           <TouchableOpacity 
                             style={{ width: 140, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginRight: 10 }}
-                            onPress={() => { setShowCalcModal(false); navigation.navigate('Productos', { openProductSku: item.modelo }); }}
+                            onPress={() => navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: calcResult.map(r => r.modelo) })}
                           >
                             {item.imagen ? (
                               <Image source={{ uri: item.imagen }} style={{ width: '100%', height: 80, resizeMode: 'contain', marginBottom: 10 }} />

@@ -62,7 +62,7 @@ function RankItem({ item, maxCount, color, imageMap, navigation }) {
       activeOpacity={0.7}
       onPress={() => {
         if (navigation) {
-          navigation.navigate('Productos', { openProductSku: item.sku || item.modelo });
+          navigation.navigate('ProductViewer', { sku: item.sku || item.modelo });
         }
       }}
     >

@@ -171,7 +171,7 @@ export default function ChatScreen({ navigation }) {
       <TouchableOpacity
         key={sku}
         style={styles.productCard}
-        onPress={() => navigation.navigate('Productos', { openProductSku: product.modelo })}
+        onPress={() => navigation.navigate('ProductViewer', { sku: product.modelo, contextSkus: skus })}
       >
         <View style={styles.cardContent}>
           {product.imagen ? (

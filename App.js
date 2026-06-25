@@ -36,6 +36,7 @@ import FichasScreen   from './src/screens/FichasScreen';
 import ProductosScreen from './src/screens/ProductosScreen';
 import ConfigScreen   from './src/screens/ConfigScreen';
 import ChatScreen from './src/screens/ChatScreen';
+import ProductViewerScreen from './src/screens/ProductViewerScreen';
 import LottieSplashScreen from './src/screens/LottieSplashScreen';
 
 const Stack = createNativeStackNavigator();
@@ -415,6 +416,11 @@ function App() {
                 <Stack.Screen name="Productos" component={ProductosScreen} />
                 <Stack.Screen name="Config"    component={ConfigScreen} />
                 <Stack.Screen name="ChatScreen" component={ChatScreen} />
+                <Stack.Screen 
+                  name="ProductViewer" 
+                  component={ProductViewerScreen} 
+                  options={{ presentation: 'transparentModal' }} 
+                />
               </>
             )}
           </Stack.Navigator>
