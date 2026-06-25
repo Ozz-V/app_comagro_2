@@ -112,10 +112,13 @@ export default function ChatScreen({ navigation }) {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      
+      // Filtrar el saludo inicial porque a Gemini le da error 400 si el historial no empieza con 'user'
+      const historyForApi = newHistory.filter(msg => !(msg.role === 'assistant' && msg.content.includes('Soy el Asistente IA de Comagro')));
 
       const { data, error } = await supabase.functions.invoke('chat', {
         body: {
-          messages: newHistory,
+          messages: historyForApi,
           user_id: session?.user?.id || 'anon',
           // Pasamos el prompt personalizado si existe, para que la Edge Function lo use
           custom_prompt: remoteConfig?.ai_prompt || null,

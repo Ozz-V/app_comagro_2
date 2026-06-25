@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, SafeAreaView, ScrollView, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, Modal, SafeAreaView, ScrollView, TouchableOpacity, Image, StyleSheet, useWindowDimensions } from 'react-native';
 import { COLORS } from '../theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Extrae el primer número de un string para comparación de specs
 function extractNum(val) {
@@ -18,6 +19,8 @@ export default function CompareModal({
   allProducts,
   setCompareItems
 }) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [itemToReplaceIndex, setItemToReplaceIndex] = useState(null);
   const [showReplaceSelector, setShowReplaceSelector] = useState(false);
 
@@ -117,7 +120,7 @@ export default function CompareModal({
       {/* Modal Selector de Reemplazo (Similares) */}
       <Modal visible={showReplaceSelector} animationType="fade" transparent onRequestClose={() => setShowReplaceSelector(false)}>
         <View style={styles.replaceOverlay}>
-          <View style={styles.replaceDialog}>
+          <View style={[styles.replaceDialog, { paddingBottom: insets.bottom || 15 }]}>
             <View style={styles.replaceHeader}>
               <Text style={styles.replaceTitle}>Elegir reemplazo</Text>
               <TouchableOpacity onPress={() => setShowReplaceSelector(false)}>

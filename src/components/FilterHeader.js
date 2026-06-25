@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-nativ
 import LottieView from 'lottie-react-native';
 import SvgIcon from './SvgIcon';
 import { COLORS, FONTS } from '../theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function FilterHeader({
   filtroMarca,
@@ -14,10 +15,11 @@ export default function FilterHeader({
   onClearFilters,
   onGoBack
 }) {
+  const insets = useSafeAreaInsets();
   const isFiltered = filtroMarca || busqueda;
 
   return (
-    <View style={styles.topbar}>
+    <View style={[styles.topbar, { paddingTop: insets.top || 14 }]}>
       <View style={styles.topbarHeader}>
         <LottieView
           source={require('../../assets/iso.json')}

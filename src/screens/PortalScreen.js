@@ -123,6 +123,17 @@ export default function PortalScreen({ navigation }) {
   }
 
   function handleCalculate() {
+    if (calcMode === 'bomba' && pumpWizard.type === 'hogar' && pumpWizard.step === 3) {
+      if (pumpWizard.appType === 'tanque' && !pumpWizard.params.tankHeight && !pumpWizard.params.tankVolume) {
+        alert("Por favor ingresá la altura o capacidad del tanque.");
+        return;
+      }
+      if (pumpWizard.appType === 'presurizacion' && !pumpWizard.params.showers && !pumpWizard.params.floors) {
+        alert("Por favor ingresá la cantidad de duchas.");
+        return;
+      }
+    }
+    
     setHasCalculated(true);
     let filtered = [];
     if (calcMode === 'gen') {
@@ -488,7 +499,7 @@ export default function PortalScreen({ navigation }) {
                           <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => setPumpWizard({ ...pumpWizard, step: 3, appType: 'presurizacion' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Darle fuerza a las Duchas</Text>
+                          <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Presión de agua (Presurización)</Text>
                           <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                         </TouchableOpacity>
                       </View>

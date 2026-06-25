@@ -10,6 +10,7 @@ import { captureRef } from 'react-native-view-shot';
 import SvgIcon from './SvgIcon';
 import { COLORS, FONTS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generarHtmlFicha, fetchImageBase64, generateAndSharePdf } from '../utils/pdfService';
 
 const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
@@ -28,6 +29,7 @@ export default function ProductDetailModal({
   activeSliderList,
   onOpenProduct
 }) {
+  const insets = useSafeAreaInsets();
   const { showAlert, showToast } = useCustomAlert();
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [generandoPdf, setGenerandoPdf] = useState(false);
@@ -170,7 +172,7 @@ export default function ProductDetailModal({
           </TouchableOpacity>
         )}
 
-        <View style={styles.modalDialog} {...panResponder.panHandlers}>
+        <View style={[styles.modalDialog, { paddingBottom: insets.bottom || 15 }]} {...panResponder.panHandlers}>
           <View style={styles.modalHead}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <Text style={[styles.modalTitle, { flex: 1, textAlign: 'center' }]} numberOfLines={1}>{modalProd?.modelo}</Text>

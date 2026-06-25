@@ -139,6 +139,18 @@ export default function ProductosScreen({ navigation, route }) {
     }
   }
 
+  // Restaurar lógica para abrir productos desde otras pantallas (miniatura)
+  useEffect(() => {
+    if (allProducts.length > 0 && route?.params?.openProductSku) {
+      const sku = route.params.openProductSku;
+      const prod = allProducts.find(p => p.modelo === sku || p.sku === sku);
+      if (prod) {
+        handleOpenModal(prod);
+        navigation.setParams({ openProductSku: undefined });
+      }
+    }
+  }, [allProducts, route?.params?.openProductSku]);
+
   // Renders de listas
   const renderMarcaBtn = useCallback(({ item: marca }) => {
     const logoUri = `${LOGO_BASE}${marca.replace(/\s+/g, '_')}.jpg?v=${logoRefreshKey}`;
