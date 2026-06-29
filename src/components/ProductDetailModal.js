@@ -22,7 +22,6 @@ export default function ProductDetailModal({
   modalProd,
   onClose,
   onCompare,
-  allProducts,
   logoRefreshKey,
   pdfCache,
   trackAnalytics,
