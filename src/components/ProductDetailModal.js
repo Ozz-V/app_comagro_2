@@ -64,11 +64,25 @@ export default function ProductDetailModal({
   const extractPower = (specs) => {
     if (!specs) return null;
     for (const [k, v] of specs) {
+      const kl = String(k).toLowerCase();
       const vl = String(v).toLowerCase();
-      const match = vl.match(/([\d.,]+)\s*(hp|kva|kw|w)\b/i);
-      if (match) {
-        let val = parseFloat(match[1].replace(',', '.'));
-        let unit = match[2].toLowerCase();
+      
+      let match = vl.match(/([\d.,]+)\s*(hp|kva|kw|w)\b/i);
+      let unit = match ? match[2].toLowerCase() : null;
+      let numStr = match ? match[1] : null;
+
+      if (!match) {
+        const numMatch = vl.match(/^([\d.,]+)$/);
+        if (numMatch) {
+          if (kl.includes('hp')) { unit = 'hp'; numStr = numMatch[1]; }
+          else if (kl.includes('kva')) { unit = 'kva'; numStr = numMatch[1]; }
+          else if (kl.includes('kw')) { unit = 'kw'; numStr = numMatch[1]; }
+          else if (kl.includes('potencia')) { unit = 'hp'; numStr = numMatch[1]; }
+        }
+      }
+
+      if (unit && numStr) {
+        let val = parseFloat(numStr.replace(',', '.'));
         if (unit === 'kw') val = val * 1.34102;
         else if (unit === 'w') val = (val / 1000) * 1.34102;
         return val;

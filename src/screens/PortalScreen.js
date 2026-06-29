@@ -188,7 +188,7 @@ export default function PortalScreen({ navigation }) {
           if (pumpWizard.type === 'piscina' && !sub.includes('PISCINA')) return false;
           if (pumpWizard.type === 'combustion') {
             if (sub.includes('ELÉCTRIC') || sub.includes('ELEC') || sub.includes('ELECT')) return false;
-            if (!sub.includes('COMBUSTIÓN') && !sub.includes('NAFTERA') && !sub.includes('DIESEL') && !sub.includes('DIÉSEL') && !sub.includes('AUTOCEBANTE')) return false;
+            if (!sub.includes('COMBUSTIÓN') && !sub.includes('NAFTERA') && !sub.includes('DIESEL') && !sub.includes('DIÉSEL') && !sub.includes('MOTOBOMBA')) return false;
           }
           
           return true;
