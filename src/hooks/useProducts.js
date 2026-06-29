@@ -50,7 +50,12 @@ export function useProducts(filtroMarca = '', filtroSubcategoria = '', busqueda 
   async function inicializarYBuscar() {
     setCargando(true);
     try {
-      await initDB();
+      try {
+        await initDB();
+      } catch (e) {
+        console.log('initDB falló (posiblemente ya inicializado o ocupado)', e);
+      }
+      
       // Verificar si hay caché vigente
       const fechaCache = await AsyncStorage.getItem(CACHE_TIME_KEY);
       const cacheVigente = fechaCache && (Date.now() - parseInt(fechaCache)) < HORAS_VIGENCIA * 3600000;

@@ -393,7 +393,7 @@ export default function ProductDetailModal({
                           onPress={() => onOpenProduct(sim)}
                           activeOpacity={0.8}
                         >
-                          <Image source={{ uri: sim.imagen }} style={styles.similarImg} contentFit="contain" />
+                          <Image source={{ uri: sim.imagen }} style={styles.simSlideImg} contentFit="contain" />
                           <Text style={styles.simSlideMarca}>{sim.subcategoria}</Text>
                           <Text style={styles.simSlideModelo} numberOfLines={2}>{sim.modelo}</Text>
                         </TouchableOpacity>
@@ -407,7 +407,7 @@ export default function ProductDetailModal({
                     <Text style={styles.simSectionTitle}>Misma categoría</Text>
                     {productosSimilares.map((sim) => (
                       <TouchableOpacity key={sim.modelo} style={styles.simCard} onPress={() => onOpenProduct(sim)}>
-                        <Image source={{ uri: sim.imagen }} style={styles.image} contentFit="contain" transition={200} />
+                        <Image source={{ uri: sim.imagen }} style={styles.simImg} contentFit="contain" transition={200} />
                         <View style={styles.simInfo}>
                           <Text style={styles.simMarca}>{sim.marca}</Text>
                           <Text style={styles.simModelo} numberOfLines={2}>{sim.modelo}</Text>

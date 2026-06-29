@@ -15,7 +15,6 @@ export default function ChatScreen({ navigation }) {
   const [chatLoading, setChatLoading] = useState(false);
   const [remoteConfig, setRemoteConfig] = useState(null);
   const [profName, setProfName] = useState('');
-  const [allProdsCache, setAllProdsCache] = useState([]);
 
   const flatListRef = useRef(null);
 
@@ -59,39 +58,10 @@ export default function ChatScreen({ navigation }) {
           }]);
         }
       }
-
-      // 3. Productos Cache
-      let fallback = await AsyncStorage.getItem('@productos_cache');
-      if (!fallback) fallback = await AsyncStorage.getItem('comagro_productos_v3');
-      
-      if (!fallback) {
-        // Si no hay caché (primera vez que abre), descargar silenciosamente
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          const headers = { Authorization: `Bearer ${session.access_token}` };
-          const res = await fetch(EDGE_URL, { headers });
-          if (res.ok) {
-            const nuevosRows = await res.json();
-            fallback = JSON.stringify(nuevosRows);
-            await AsyncStorage.setItem('comagro_productos_v3', fallback);
-            await AsyncStorage.setItem('comagro_productos_fecha_v3', Date.now().toString());
-          }
-        }
-      }
-
-      if (fallback) setAllProdsCache(parseRawProducts(fallback));
     } catch (e) {
       // Error silente al inicializar chat
     }
   }
-
-  const parseRawProducts = (rawData) => {
-    return JSON.parse(rawData).map(row => {
-      const marca = (row['Brand'] || row['Marca'] || row['marca'] || row['MARCA'] || '').toString().trim();
-      const imagen = row['imagen 1'] || row['imagen'] || null;
-      return { modelo: (row['SKU'] || '').toString().trim(), marca, imagen };
-    });
-  };
 
   async function askChatbot() {
     if (!chatInput.trim()) return;
@@ -166,29 +136,7 @@ export default function ChatScreen({ navigation }) {
   };
 
   const renderProductCard = (sku, skusContext) => {
-    const product = allProdsCache.find(p => p.modelo.toUpperCase() === sku.toUpperCase());
-    if (!product) return null;
-
-    return (
-      <TouchableOpacity
-        key={sku}
-        style={styles.productCard}
-        onPress={() => navigation.navigate('ProductViewer', { sku: product.modelo, contextSkus: skusContext })}
-      >
-        <View style={styles.cardContent}>
-          {product.imagen ? (
-            <Image source={{ uri: product.imagen }} style={styles.cardImage} />
-          ) : (
-            <View style={styles.cardImagePlaceholder} />
-          )}
-          <View style={styles.cardTextContainer}>
-            <Text style={styles.cardBrand} numberOfLines={1}>{product.marca}</Text>
-            <Text style={styles.cardModel} numberOfLines={2}>{product.modelo}</Text>
-            <Text style={styles.cardAction}>Ver Ficha Técnica ›</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
+    return <AiProductCard key={sku} sku={sku} skusContext={skusContext} navigation={navigation} />;
   };
 
   return (
@@ -274,6 +222,40 @@ export default function ChatScreen({ navigation }) {
     </SafeAreaView>
   );
 }
+
+const AiProductCard = ({ sku, skusContext, navigation }) => {
+  const [product, setProduct] = useState(null);
+
+  useEffect(() => {
+    import('../utils/database').then(({ getProductBySku }) => {
+      getProductBySku(sku).then(p => {
+        if (p) setProduct(p);
+      });
+    });
+  }, [sku]);
+
+  if (!product) return null;
+
+  return (
+    <TouchableOpacity
+      style={styles.productCard}
+      onPress={() => navigation.navigate('ProductViewer', { sku: product.modelo, contextSkus: skusContext })}
+    >
+      <View style={styles.cardContent}>
+        {product.imagen ? (
+          <Image source={{ uri: product.imagen }} style={styles.cardImage} />
+        ) : (
+          <View style={styles.cardImagePlaceholder} />
+        )}
+        <View style={styles.cardTextContainer}>
+          <Text style={styles.cardBrand} numberOfLines={1}>{product.marca}</Text>
+          <Text style={styles.cardModel} numberOfLines={2}>{product.modelo}</Text>
+          <Text style={styles.cardAction}>Ver Ficha Técnica ›</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#E5DDD5' },

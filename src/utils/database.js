@@ -80,8 +80,14 @@ export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
   }
   
   if (subcatFiltro && subcatFiltro !== 'Todas') {
-    query += ' AND subcategoria = ?';
-    params.push(subcatFiltro);
+    if (subcatFiltro === '__acc__') {
+      query += " AND (subcategoria LIKE '%ACCESORIO%' OR subcategoria LIKE '%REPUESTO%' OR subcategoria LIKE '%PIEZA%' OR subcategoria LIKE '%KIT%')";
+    } else if (subcatFiltro === '__productos__') {
+      query += " AND NOT (subcategoria LIKE '%ACCESORIO%' OR subcategoria LIKE '%REPUESTO%' OR subcategoria LIKE '%PIEZA%' OR subcategoria LIKE '%KIT%')";
+    } else {
+      query += ' AND subcategoria LIKE ?';
+      params.push(`%${subcatFiltro}%`);
+    }
   }
   
   if (textoBusqueda && textoBusqueda.trim().length > 0) {
