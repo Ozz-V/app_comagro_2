@@ -222,17 +222,18 @@ export default function DashboardAnalytics({ navigation }) {
 
   async function loadImages() {
     try {
-      const raw = await AsyncStorage.getItem(CACHE_KEY);
-      if (!raw) return;
-      const rows = JSON.parse(raw);
+      const { getAllProducts } = require('../utils/database');
+      const rows = await getAllProducts();
       const m = {};
       rows.forEach(r => {
-        const sku = (r['SKU'] || '').toString().trim();
-        const img = (r['imagen 1'] || '').toString().trim();
-        if (sku && img && /^https?:\/\//i.test(img)) m[sku] = img;
+        const sku = r.modelo;
+        const img = r.imagenOriginal || r.imagen;
+        if (sku && img) m[sku] = img;
       });
       setImageMap(m);
-    } catch (e) {}
+    } catch (e) {
+      console.log('Error loadImages DB:', e);
+    }
   }
 
   async function loadData() {
