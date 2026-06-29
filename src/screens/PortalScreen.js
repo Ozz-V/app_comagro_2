@@ -436,13 +436,6 @@ export default function PortalScreen({ navigation }) {
                       </View>
                       <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setPumpWizard({ step: 2, type: 'combustion' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Motobomba Naftera/Diésel</Text>
-                        <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Autocebantes, riego a combustión</Text>
-                      </View>
-                      <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
-                    </TouchableOpacity>
                   </View>
                 ) : (calcMode === 'bomba' && pumpWizard.step === 2) || calcMode !== 'bomba' ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
