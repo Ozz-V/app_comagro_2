@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, Image } from 'react-native';
 import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
+import { getProductsBySubcategory } from '../utils/database';
 
-export default function CalculadoraModal({ visible, onClose, allProdsCache, navigation }) {
+export default function CalculadoraModal({ visible, onClose, navigation }) {
   const [calcMode, setCalcMode] = useState('');
   const [calcInput, setCalcInput] = useState('');
   const [calcInput2, setCalcInput2] = useState('');
@@ -29,7 +30,7 @@ export default function CalculadoraModal({ visible, onClose, allProdsCache, navi
     return parseFloat(m[1].replace(',', '.'));
   }
 
-  function handleCalculate() {
+  async function handleCalculate() {
     if (calcMode === 'bomba' && !pumpWizard.type) {
       alert("Por favor seleccioná el tipo de bomba.");
       return;
@@ -39,7 +40,8 @@ export default function CalculadoraModal({ visible, onClose, allProdsCache, navi
     let filtered = [];
     if (calcMode === 'gen') {
       const target = parseFloat(calcInput) || 0;
-      filtered = allProdsCache.filter(p => p.subcategoria && p.subcategoria.includes('GENERADOR')).map(p => {
+      const dbProducts = await getProductsBySubcategory('GENERADOR');
+      filtered = dbProducts.map(p => {
         let val = 0;
         if (p.specs) {
           p.specs.forEach(s => {
@@ -54,7 +56,8 @@ export default function CalculadoraModal({ visible, onClose, allProdsCache, navi
       }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
     } else if (calcMode === 'motor') {
       const target = parseFloat(calcInput) || 0;
-      filtered = allProdsCache.filter(p => p.subcategoria && p.subcategoria.includes('MOTOR') && (p.subcategoria.includes('ELEC') || p.subcategoria.includes('ELÉC'))).map(p => {
+      const dbProducts = await getProductsBySubcategory('MOTOR');
+      filtered = dbProducts.filter(p => (p.subcategoria.includes('ELEC') || p.subcategoria.includes('ELÉC'))).map(p => {
         let val = 0;
         if (p.specs) {
           p.specs.forEach(s => {
@@ -69,7 +72,8 @@ export default function CalculadoraModal({ visible, onClose, allProdsCache, navi
       }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
     } else if (calcMode === 'bomba') {
       const target = parseFloat(calcInput) || 0;
-      filtered = allProdsCache.filter(p => p.subcategoria && p.subcategoria.includes('BOMBA')).map(p => {
+      const dbProducts = await getProductsBySubcategory('BOMBA');
+      filtered = dbProducts.map(p => {
          let hpVal = 0;
          if (p.specs) {
            p.specs.forEach(s => {

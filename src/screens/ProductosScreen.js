@@ -28,24 +28,23 @@ export default function ProductosScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { showAlert } = useCustomAlert();
   
-  // Custom Hook: The Brain
+  const [filtroMarca, setFiltroMarca] = useState('');
+  const [filtroSubcategoria, setFiltroSubcategoria] = useState('');
+  const [busqueda, setBusqueda] = useState('');
+
+  // Custom Hook: The Brain (Ahora con SQLite)
   const {
-    allProducts,
+    productosFiltrados,
     marcas,
     cargando,
     refreshing,
     bgActualiz,
     error,
     logoRefreshKey,
-    cargarDatos,
-    onRefresh
-  } = useProducts();
+    onRefresh,
+    getProductBySkuSafe
+  } = useProducts(filtroMarca, filtroSubcategoria, busqueda);
 
-  // Local UI State
-  const [filtroMarca, setFiltroMarca] = useState('');
-  const [filtroSubcategoria, setFiltroSubcategoria] = useState('');
-  const [busqueda, setBusqueda] = useState('');
-  
   const [modalProd, setModalProd] = useState(null);
   const [aiData, setAiData] = useState(null);
   const [loadingAi, setLoadingAi] = useState(false);
@@ -63,28 +62,7 @@ export default function ProductosScreen({ navigation, route }) {
   const numCols = width >= 600 ? 3 : 2;
   const cardW = (width - 32 - (numCols - 1) * 12) / numCols;
 
-  // Filtrado
-  const productosFiltrados = useMemo(() => {
-    let lista = filtroMarca ? allProducts.filter(p => p.marca === filtroMarca) : allProducts;
-    if (filtroSubcategoria) {
-      lista = lista.filter(p => {
-        if (filtroSubcategoria === '__productos__') return !isAccessorySubcat(p.subcategoria);
-        if (filtroSubcategoria === '__acc__') return isAccessorySubcat(p.subcategoria);
-        return p.subcategoria === filtroSubcategoria;
-      });
-    }
-    const q = busqueda.toLowerCase().trim();
-    if (q) {
-      lista = lista.filter(p =>
-        p.modelo.toLowerCase().includes(q) ||
-        p.marca.toLowerCase().includes(q) ||
-        p.subcategoria.toLowerCase().includes(q) ||
-        p.specs.some(([n, v]) => n.toLowerCase().includes(q) || v.toLowerCase().includes(q))
-      );
-    }
-    return lista;
-  }, [allProducts, filtroMarca, filtroSubcategoria, busqueda]);
-
+  // El filtrado ahora ocurre en SQLite a través de useProducts
   const activeSliderList = productosFiltrados;
 
   // Funciones de Modal
@@ -142,30 +120,33 @@ export default function ProductosScreen({ navigation, route }) {
 
   // Restaurar lógica para abrir productos desde otras pantallas (miniatura)
   useEffect(() => {
-    if (allProducts.length > 0 && route?.params?.openProductSku) {
+    if (route?.params?.openProductSku) {
       const sku = route.params.openProductSku;
-      const prod = allProducts.find(p => p.modelo === sku || p.sku === sku);
-      if (prod) {
-        handleOpenModal(prod);
-        navigation.setParams({ openProductSku: undefined });
-      }
+      getProductBySkuSafe(sku).then(prod => {
+        if (prod) {
+          handleOpenModal(prod);
+          navigation.setParams({ openProductSku: undefined });
+        }
+      });
     }
-  }, [allProducts, route?.params?.openProductSku]);
+  }, [route?.params?.openProductSku]);
 
   // Recibir lista de comparación desde modal transparente (ProductViewerScreen)
   useEffect(() => {
-    if (allProducts.length > 0 && route?.params?.compareSkus) {
+    if (route?.params?.compareSkus) {
       const skus = route.params.compareSkus;
-      const itemsToCompare = skus.map(s => allProducts.find(p => p.modelo === s || p.sku === s)).filter(Boolean);
-      if (itemsToCompare.length > 0) {
-        setCompareItems(itemsToCompare);
-        setIsComparing(true);
-        setShowCompareGrid(true);
-        if (route.params.fromProductViewer) setFromProductViewer(true);
-        navigation.setParams({ compareSkus: undefined, fromProductViewer: undefined });
-      }
+      Promise.all(skus.map(s => getProductBySkuSafe(s))).then(items => {
+        const itemsToCompare = items.filter(Boolean);
+        if (itemsToCompare.length > 0) {
+          setCompareItems(itemsToCompare);
+          setIsComparing(true);
+          setShowCompareGrid(true);
+          if (route.params.fromProductViewer) setFromProductViewer(true);
+          navigation.setParams({ compareSkus: undefined, fromProductViewer: undefined });
+        }
+      });
     }
-  }, [allProducts, route?.params?.compareSkus]);
+  }, [route?.params?.compareSkus]);
 
   // Renders de listas
   const renderMarcaBtn = useCallback(({ item: marca }) => {
@@ -278,7 +259,6 @@ export default function ProductosScreen({ navigation, route }) {
         visible={!!modalProd}
         modalProd={modalProd}
         onClose={cerrarModal}
-        allProducts={allProducts}
         logoRefreshKey={logoRefreshKey}
         pdfCache={pdfCache}
         aiData={aiData}

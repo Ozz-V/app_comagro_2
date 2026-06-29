@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -68,7 +69,7 @@ function RankItem({ item, maxCount, color, imageMap, navigation }) {
         }
       }}
     >
-      <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} resizeMode="contain" />
+      <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" transition={200} />
       <View style={{ flex: 1 }}>
         <Text style={s.rankModelo} numberOfLines={1}>{item.modelo}</Text>
         <Text style={s.rankMarca}>{item.marca}</Text>
