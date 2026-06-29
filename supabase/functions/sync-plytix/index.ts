@@ -150,6 +150,34 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
        }
     }
 
+    // 6. Enviar notificaciones push si hubo productos procesados exitosamente
+    if (processedSkus.length > 0) {
+      try {
+        const { data: profiles } = await supaAdmin.from('profiles').select('expo_push_token').not('expo_push_token', 'is', null);
+        if (profiles && profiles.length > 0) {
+          const pushMessages = profiles.map(prof => ({
+            to: prof.expo_push_token,
+            sound: 'default',
+            title: '¡Nuevo Producto Disponible!',
+            body: `Se ha añadido ${processedSkus.length} nuevo(s) producto(s) al catálogo, incluyendo SKU: ${processedSkus[0]}. ¡Revisalo!`,
+            data: { skus: processedSkus },
+          }));
+          
+          await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Accept-encoding': 'gzip, deflate',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(pushMessages),
+          });
+        }
+      } catch (err) {
+        console.error('Error enviando push notifications:', err);
+      }
+    }
+
     return new Response(JSON.stringify({ 
         message: 'Lote procesado exitosamente', 
         processed_count: processedSkus.length, 

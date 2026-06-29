@@ -19,6 +19,8 @@ serve(async (req) => {
 
   try {
     await connection.queryObject(`
+      ALTER TABLE profiles ADD COLUMN IF NOT EXISTS expo_push_token text;
+
       CREATE TABLE IF NOT EXISTS ai_company_knowledge (
          id uuid primary key default gen_random_uuid(),
          rule text not null,

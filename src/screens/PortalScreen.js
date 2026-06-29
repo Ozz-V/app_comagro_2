@@ -144,8 +144,7 @@ export default function PortalScreen({ navigation }) {
           });
         }
         return { ...p, calcVal: val };
-      }).filter(p => p.calcVal >= target * 0.95)
-        .sort((a,b) => a.calcVal - b.calcVal).slice(0, 5);
+      }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
     } else if (calcMode === 'motor') {
       const target = parseFloat(calcInput) || 0;
       filtered = allProdsCache.filter(p => p.subcategoria && p.subcategoria.includes('MOTOR') && (p.subcategoria.includes('ELEC') || p.subcategoria.includes('ELÉC'))).map(p => {
@@ -160,8 +159,7 @@ export default function PortalScreen({ navigation }) {
           });
         }
         return { ...p, calcVal: val };
-      }).filter(p => p.calcVal >= target * 0.95)
-        .sort((a,b) => a.calcVal - b.calcVal).slice(0, 5);
+      }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
     } else if (calcMode === 'bomba') {
       const target = parseFloat(calcInput) || 0;
       
@@ -183,14 +181,15 @@ export default function PortalScreen({ navigation }) {
          }
          return { ...p, calcVal: hpVal };
        }).filter(p => {
-          if (target > 0 && p.calcVal < target * 0.8) return false;
-          
           const sub = p.subcategoria.toUpperCase();
           if (pumpWizard.type === 'hogar' && !sub.includes('AGUA') && !sub.includes('CENTRÍFUGA') && !sub.includes('PRESURIZA')) return false;
           if (pumpWizard.type === 'pozo' && !sub.includes('SUMERGIBLE')) return false;
           if (pumpWizard.type === 'drenaje' && !sub.includes('ACHIQUE') && !sub.includes('DRENAJE')) return false;
           if (pumpWizard.type === 'piscina' && !sub.includes('PISCINA')) return false;
-          if (pumpWizard.type === 'combustion' && !sub.includes('COMBUSTIÓN') && !sub.includes('NAFTERA') && !sub.includes('AUTOCEBANTE')) return false;
+          if (pumpWizard.type === 'combustion') {
+            if (sub.includes('ELÉCTRIC') || sub.includes('ELEC') || sub.includes('ELECT')) return false;
+            if (!sub.includes('COMBUSTIÓN') && !sub.includes('NAFTERA') && !sub.includes('DIESEL') && !sub.includes('DIÉSEL') && !sub.includes('AUTOCEBANTE')) return false;
+          }
           
           return true;
        }).sort((a,b) => {

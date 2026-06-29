@@ -61,12 +61,36 @@ export default function ProductDetailModal({
     }
   }), [prevProd, nextProd, onOpenProduct]);
 
+  const extractPower = (specs) => {
+    if (!specs) return null;
+    for (const [k, v] of specs) {
+      const vl = String(v).toLowerCase();
+      const match = vl.match(/([\d.,]+)\s*(hp|kva|kw|w)\b/i);
+      if (match) {
+        let val = parseFloat(match[1].replace(',', '.'));
+        let unit = match[2].toLowerCase();
+        if (unit === 'kw') val = val * 1.34102;
+        else if (unit === 'w') val = (val / 1000) * 1.34102;
+        return val;
+      }
+    }
+    return null;
+  };
+
   // Similares logic
   const productosSimilares = useMemo(() => {
     if (!modalProd || !allProducts) return [];
-    return allProducts
-      .filter(p => p.subcategoria === modalProd.subcategoria && p.modelo !== modalProd.modelo)
-      .slice(0, 8);
+    const baseList = allProducts.filter(p => p.subcategoria === modalProd.subcategoria && p.modelo !== modalProd.modelo);
+    
+    const targetPower = extractPower(modalProd.specs);
+    if (targetPower !== null) {
+      return baseList.map(p => {
+        const pPower = extractPower(p.specs);
+        const diff = pPower !== null ? Math.abs(pPower - targetPower) : 999999;
+        return { ...p, diff };
+      }).sort((a, b) => a.diff - b.diff).slice(0, 8);
+    }
+    return baseList.slice(0, 8);
   }, [modalProd, allProducts]);
 
   const productosMismaMarca = useMemo(() => {

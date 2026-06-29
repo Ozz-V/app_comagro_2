@@ -38,6 +38,7 @@ import ConfigScreen   from './src/screens/ConfigScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import ProductViewerScreen from './src/screens/ProductViewerScreen';
 import LottieSplashScreen from './src/screens/LottieSplashScreen';
+import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
 
 const Stack = createNativeStackNavigator();
 
@@ -137,6 +138,17 @@ function App() {
       });
     });
 
+    async function registerAndSaveToken(userId) {
+      try {
+        const token = await registerForPushNotificationsAsync();
+        if (token) {
+          await supabase.from('profiles').upsert({ id: userId, expo_push_token: token }, { onConflict: 'id' });
+        }
+      } catch(e) {
+        console.log('Error registerAndSaveToken', e);
+      }
+    }
+
     // Carga sesión inicial
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session ?? null);
@@ -144,6 +156,7 @@ function App() {
         import('@react-native-async-storage/async-storage').then(({ default: AsyncStorage }) => {
           AsyncStorage.setItem('@is_logged_in', 'true');
         });
+        registerAndSaveToken(data.session.user.id);
       }
     });
 
@@ -155,6 +168,7 @@ function App() {
           AsyncStorage.setItem('@is_logged_in', 'true');
           setIsOfflineLoggedIn(true);
         });
+        registerAndSaveToken(sess.user.id);
       }
     });
 
