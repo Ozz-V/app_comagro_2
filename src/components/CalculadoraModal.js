@@ -113,7 +113,18 @@ export default function CalculadoraModal({ visible, onClose, allProdsCache, navi
         <View style={{ backgroundColor: COLORS.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, height: '90%' }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.navy }}>Calculadora Beta</Text>
-            <TouchableOpacity onPress={onClose}><Text style={{ fontSize: 24, color: COLORS.gray4 }}>✕</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => {
+              if (calcMode) {
+                setCalcMode('');
+                setHasCalculated(false);
+                setCalcResult(null);
+                setPumpWizard({ step: 0, type: '', appType: '', waterType: '', params: {} });
+              } else {
+                onClose();
+              }
+            }}>
+              <Text style={{ fontSize: 24, color: COLORS.gray4 }}>✕</Text>
+            </TouchableOpacity>
           </View>
           
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -157,10 +168,6 @@ export default function CalculadoraModal({ visible, onClose, allProdsCache, navi
             </View>
           ) : (
             <View>
-              <TouchableOpacity onPress={() => { setCalcMode(''); setHasCalculated(false); setCalcResult(null); setPumpWizard({ step: 0, type: '', appType: '', waterType: '', params: {} }); }} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15, backgroundColor: COLORS.navy, paddingVertical: 10, paddingHorizontal: 15, borderRadius: 8, alignSelf: 'flex-start' }}>
-                <Text style={{ fontSize: 16, color: COLORS.white, fontWeight: 'bold', marginRight: 8 }}>←</Text>
-                <Text style={{ fontSize: 14, color: COLORS.white, fontWeight: 'bold' }}>Volver a Selección</Text>
-              </TouchableOpacity>
 
               <Text style={{ fontWeight: 'bold', color: COLORS.navy, marginBottom: 10 }}>
                 {calcMode === 'gen' ? 'Ingresá el valor (1 a 3000 KVA)' : calcMode === 'motor' ? 'Ingresá el valor (1 a 500 HP)' : 'Ingresá la potencia en HP'}
@@ -290,7 +297,6 @@ export default function CalculadoraModal({ visible, onClose, allProdsCache, navi
                         <TouchableOpacity 
                           style={{ width: 140, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, marginRight: 10 }}
                           onPress={() => {
-                              onClose(); // Cerrar modal antes de navegar
                               navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: calcResult.map(r => r.modelo) });
                           }}
                         >

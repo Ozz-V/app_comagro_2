@@ -151,7 +151,7 @@ export default function ProductViewerScreen({ route, navigation }) {
         pdfCache={{}}
         logoRefreshKey={logoRefreshKey}
         onCompare={(items) => {
-          navigation.navigate('Productos', { compareSkus: items.map(i => i.modelo) });
+          navigation.navigate('Productos', { compareSkus: items.map(i => i.modelo), fromProductViewer: true });
         }}
       />
     </View>

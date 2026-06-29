@@ -54,6 +54,7 @@ export default function ProductosScreen({ navigation, route }) {
   const [isComparing, setIsComparing] = useState(false);
   const [compareItems, setCompareItems] = useState([]);
   const [showCompareGrid, setShowCompareGrid] = useState(false);
+  const [fromProductViewer, setFromProductViewer] = useState(false);
 
   // PDF Cache State
   const [pdfCache, setPdfCache] = useState({ prodBase64: '', logoBase64: '' });
@@ -160,7 +161,8 @@ export default function ProductosScreen({ navigation, route }) {
         setCompareItems(itemsToCompare);
         setIsComparing(true);
         setShowCompareGrid(true);
-        navigation.setParams({ compareSkus: undefined });
+        if (route.params.fromProductViewer) setFromProductViewer(true);
+        navigation.setParams({ compareSkus: undefined, fromProductViewer: undefined });
       }
     }
   }, [allProducts, route?.params?.compareSkus]);
@@ -295,7 +297,15 @@ export default function ProductosScreen({ navigation, route }) {
       <CompareModal
         visible={showCompareGrid}
         compareItems={compareItems}
-        onClose={() => setShowCompareGrid(false)}
+        onClose={() => {
+          setShowCompareGrid(false);
+          if (fromProductViewer) {
+            setFromProductViewer(false);
+            setIsComparing(false);
+            setCompareItems([]);
+            navigation.goBack();
+          }
+        }}
         onOpenProduct={(prod) => {
           setShowCompareGrid(false);
           handleOpenModal(prod);
