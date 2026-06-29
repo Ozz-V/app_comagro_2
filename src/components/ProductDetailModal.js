@@ -100,7 +100,13 @@ export default function ProductDetailModal({
     if (targetPower !== null) {
       return baseList.map(p => {
         const pPower = extractPower(p.specs);
-        const diff = pPower !== null ? Math.abs(pPower - targetPower) : 999999;
+        return { ...p, pPower };
+      }).filter(p => {
+        if (p.pPower === null) return false; // Excluir si no se puede determinar la potencia
+        // Rango estricto: entre el 50% y el 150% de la potencia original
+        return p.pPower >= targetPower * 0.5 && p.pPower <= targetPower * 1.5;
+      }).map(p => {
+        const diff = Math.abs(p.pPower - targetPower);
         return { ...p, diff };
       }).sort((a, b) => a.diff - b.diff).slice(0, 8);
     }
@@ -269,7 +275,7 @@ export default function ProductDetailModal({
 
                   {/* Botón Comparar */}
                   {(() => {
-                    const similares = (allProducts || []).filter(p => p.subcategoria === modalProd?.subcategoria && p.modelo !== modalProd?.modelo).slice(0, 3);
+                    const similares = productosSimilares.slice(0, 3);
                     if (similares.length > 0) {
                       return (
                         <TouchableOpacity
