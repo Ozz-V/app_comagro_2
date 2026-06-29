@@ -1,9 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet,
-  SafeAreaView, StatusBar, ScrollView, Platform, Alert, ActivityIndicator,
-  Image, TextInput, Modal
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, ActivityIndicator, Image, TextInput, Modal } from 'react-native';
 import LottieView from 'lottie-react-native';
 import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
@@ -15,6 +11,8 @@ import SvgIcon from '../components/SvgIcon';
 import DashboardAnalytics from '../components/DashboardAnalytics';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
+import UpdateModal from '../components/UpdateModal';
+import OfflineSyncModal from '../components/OfflineSyncModal';
 
 export default function ConfigScreen({ navigation }) {
   const appVersion = Constants.expoConfig?.version || '1.0.0';
@@ -29,22 +27,19 @@ export default function ConfigScreen({ navigation }) {
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [loadingPic, setLoadingPic] = useState(false);
 
   const { showAlert, showToast } = useCustomAlert();
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateModalType, setUpdateModalType] = useState('current');
   const [updateModalData, setUpdateModalData] = useState(null);
 
-  // Offline Sync
-  const { isSyncing, isPaused, progress, startSync, pauseSync, syncAlert, setSyncAlert } = useOfflineSync();
+  const { isSyncing, isPaused, progress, startSync, syncAlert, setSyncAlert } = useOfflineSync();
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [offlineGroups, setOfflineGroups] = useState({ catalogos: true, fichas: true, productos: true });
   const [showNoInternetModal, setShowNoInternetModal] = useState(false);
   const [lastDownloadText, setLastDownloadText] = useState('Descargar datos para usar sin internet');
 
   useEffect(() => {
-    // Si acaba de terminar una sincronización, o al cargar la pantalla
     AsyncStorage.getItem('@productos_cache_time').then(t => {
       if (t) {
         const d = new Date(parseInt(t));
@@ -54,8 +49,6 @@ export default function ConfigScreen({ navigation }) {
       }
     }).catch(()=>{});
   }, [progress.current, progress.total]);
-
-  const isAnySelected = offlineGroups.catalogos || offlineGroups.fichas || offlineGroups.productos;
 
   async function handleOpenOfflineModal() {
     if (isSyncing || isPaused || (progress.total > 0 && progress.current === progress.total)) {
@@ -90,7 +83,6 @@ export default function ConfigScreen({ navigation }) {
 
   async function loadProfile() {
     setProfileLoading(true);
-    // 1. Cargar caché primero
     try {
       const cached = await AsyncStorage.getItem('@user_profile_cache');
       if (cached) {
@@ -111,16 +103,14 @@ export default function ConfigScreen({ navigation }) {
       }
     } catch (_) {}
 
-    setProfileLoading(false); // Liberar UI rápido
+    setProfileLoading(false);
 
-    // 2. Intentar actualizar desde red silenciosamente
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserEmail(user.email || '');
       setUserId(user.id);
       
-      // Sincronizar pendientes primero (perfil y avatar)
       let pendingProfileObj = null;
       const pendingProfile = await AsyncStorage.getItem('@pending_profile');
       if (pendingProfile) {
@@ -129,7 +119,7 @@ export default function ConfigScreen({ navigation }) {
            const { error } = await supabase.from('profiles').upsert(pendingProfileObj, { onConflict: 'id' });
            if (!error) {
              await AsyncStorage.removeItem('@pending_profile');
-             pendingProfileObj = null; // ya se subió con éxito
+             pendingProfileObj = null; 
            }
          } catch(e) {}
       }
@@ -139,12 +129,10 @@ export default function ConfigScreen({ navigation }) {
          uploadPhoto(pendingAvatar);
       }
 
-      // Solo actualizar estado local desde red si NO hay cambios pendientes por subir
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       if (data && !pendingProfileObj) {
-        data.email = user.email; // guardar el email en cache también
+        data.email = user.email; 
         
-        // Cachear foto para offline
         if (data.avatar_url && data.avatar_url.startsWith('http')) {
            try {
              const localUri = FileSystem.documentDirectory + `avatar_cache_${Date.now()}.jpg`;
@@ -169,9 +157,7 @@ export default function ConfigScreen({ navigation }) {
           setAvatarUrl(data.avatar_local || data.avatar_url || null);
         }
       }
-    } catch (e) {
-      // Error silente al cargar perfil desde red
-    }
+    } catch (e) {}
   }
 
   async function pickPhoto() {
@@ -260,7 +246,6 @@ export default function ConfigScreen({ navigation }) {
          if (error) throw error;
          await AsyncStorage.removeItem('@pending_profile');
       } catch (err) {
-         // Falla de red, guardamos en pending para sincronizar luego
          await AsyncStorage.setItem('@pending_profile', JSON.stringify(updatedData));
       }
       
@@ -272,7 +257,6 @@ export default function ConfigScreen({ navigation }) {
   async function buscarActualizacion() {
     setCheckingUpdate(true);
     
-    // 1. Validar conexión real con timeout
     try {
       await Promise.race([
         fetch(SUPABASE_URL, { method: 'HEAD', cache: 'no-store' }),
@@ -284,7 +268,6 @@ export default function ConfigScreen({ navigation }) {
       return;
     }
 
-    // 2. Buscar actualización en Supabase
     try {
       const { data } = await supabase.from('version_apk').select('*').order('created_at', { ascending: false }).limit(1).single();
       if (data && data.version_code > versionCode) {
@@ -300,10 +283,6 @@ export default function ConfigScreen({ navigation }) {
     finally { setCheckingUpdate(false); }
   }
 
-  const updateAvailable = updateModalType === 'available';
-  const updateVersionLabel = updateModalData?.version_name || (updateModalData?.version_code ? `build ${updateModalData.version_code}` : 'nueva');
-  const updateNotesText = updateModalData?.release_notes || 'Nuevas mejoras y correcciones generales.';
-
   return (
     <SafeAreaView style={st.safe}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
@@ -317,7 +296,6 @@ export default function ConfigScreen({ navigation }) {
       <View style={{ height: 1, backgroundColor: COLORS.border }} />
 
       <ScrollView contentContainerStyle={st.content}>
-        {/* Profile */}
         <View style={st.profileSection}>
           <TouchableOpacity onPress={pickPhoto} style={{ position: 'relative', marginBottom: 16 }} activeOpacity={0.7}>
             {avatarUrl ? (
@@ -383,10 +361,8 @@ export default function ConfigScreen({ navigation }) {
           )}
         </View>
 
-        {/* Dashboard */}
         <DashboardAnalytics navigation={navigation} />
 
-        {/* Version */}
         <View style={st.versionCard}>
           <LottieView source={require('../../assets/iso.json')} autoPlay loop style={{ width: 60, height: 60 }} resizeMode="contain" />
           <View style={{ flex: 1 }}>
@@ -395,7 +371,6 @@ export default function ConfigScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Acceso sin conexión */}
         <TouchableOpacity style={st.offlineCard} onPress={handleOpenOfflineModal} activeOpacity={0.7}>
           <View style={st.offlineIconBg}>
             <SvgIcon name="cloud" size={24} color={COLORS.navy} />
@@ -423,7 +398,6 @@ export default function ConfigScreen({ navigation }) {
           {isSyncing ? (
             <ActivityIndicator size="small" color={COLORS.navy} />
           ) : (
-            // Si ya hay una descarga anterior (lastDownloadText cambió), mostramos un check verde chiquito como "inteligencia"
             lastDownloadText !== 'Descargar datos para usar sin internet' ? (
               <View style={{width: 22, height: 22, borderRadius: 11, backgroundColor: '#E8F5E9', alignItems: 'center', justifyContent: 'center'}}>
                 <Text style={{color: COLORS.green, fontSize: 12, fontWeight: 'bold'}}>✓</Text>
@@ -449,106 +423,21 @@ export default function ConfigScreen({ navigation }) {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Modal: estado de actualizacion */}
-      <Modal visible={showUpdateModal} animationType="fade" transparent onRequestClose={() => setShowUpdateModal(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
-          <View style={{ backgroundColor: COLORS.white, borderRadius: 20, padding: 28, elevation: 5, alignItems: 'center' }}>
-            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: updateAvailable ? '#E9F1FF' : '#E8F5E9', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-              <SvgIcon name="actualizar" size={32} color={updateAvailable ? COLORS.navy : COLORS.green} />
-            </View>
-            <Text style={{ fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, marginBottom: 12, textAlign: 'center' }}>
-              {updateAvailable ? 'Nueva actualización disponible' : '¡Todo al día!'}
-            </Text>
-            <Text style={{ fontFamily: FONTS.body, fontSize: 15, color: COLORS.gray4, textAlign: 'center', marginBottom: 30, lineHeight: 22 }}>
-              {updateAvailable
-                ? `Versión ${updateVersionLabel} disponible.\n${updateNotesText}\n\nCerrá la app y volvé a abrirla para iniciar la actualización.`
-                : 'Tenés instalada la versión más reciente de la aplicación.'}
-            </Text>
-            <TouchableOpacity style={{ backgroundColor: COLORS.navy, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, width: '100%', alignItems: 'center' }} onPress={() => setShowUpdateModal(false)}>
-              <Text style={{ fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.white }}>Entendido</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <UpdateModal
+        visible={showUpdateModal}
+        onClose={() => setShowUpdateModal(false)}
+        updateData={updateModalData}
+        isAvailable={updateModalType === 'available'}
+      />
 
-      {/* Modal Offline */}
-      <Modal visible={showOfflineModal} animationType="slide" transparent onRequestClose={() => setShowOfflineModal(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={st.offlineModalContent}>
-            <View style={st.modalHeader}>
-              <View style={st.offlineIconBgLarge}>
-                <SvgIcon name="cloud" size={32} color={COLORS.navy} />
-              </View>
-              <Text style={st.modalTitle}>Acceso sin conexión</Text>
-              <Text style={st.modalSubtitle}>Seleccioná los datos que querés descargar para usar la app sin internet.</Text>
-            </View>
+      <OfflineSyncModal
+        visible={showOfflineModal}
+        onClose={() => setShowOfflineModal(false)}
+        offlineGroups={offlineGroups}
+        setOfflineGroups={setOfflineGroups}
+        onDownload={handleDownload}
+      />
 
-            {isSyncing || isPaused ? (
-              <View style={st.syncingContainer}>
-                <Text style={{ fontFamily: FONTS.heading, fontSize: 16, color: COLORS.navy, marginBottom: 8, textAlign: 'center' }}>
-                  Progreso: {Math.floor((progress.current / Math.max(progress.total, 1)) * 100)}%
-                </Text>
-                <View style={st.progressBarBg}>
-                  <View style={[st.progressBarFill, { width: `${(progress.current / Math.max(progress.total, 1)) * 100}%` }]} />
-                </View>
-                <Text style={{ fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, textAlign: 'center', marginTop: 8 }} numberOfLines={1}>
-                  {progress.currentItem || 'Preparando...'} ({progress.current}/{progress.total})
-                </Text>
-                
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
-                  <TouchableOpacity style={[st.dlBtn, { flex: 1, backgroundColor: isSyncing ? COLORS.border : COLORS.navy }]} onPress={isSyncing ? pauseSync : () => startSync(offlineGroups)}>
-                    <Text style={[st.dlBtnText, { color: isSyncing ? COLORS.navy : COLORS.white }]}>{isSyncing ? 'Pausar' : 'Reanudar'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[st.dlBtn, { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border }]} onPress={() => setShowOfflineModal(false)}>
-                    <Text style={[st.dlBtnText, { color: COLORS.navy }]}>Ocultar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <View style={st.optionsContainer}>
-                <TouchableOpacity style={st.checkRow} onPress={() => setOfflineGroups(p => ({ ...p, catalogos: !p.catalogos }))} activeOpacity={0.7}>
-                  <View style={[st.checkbox, offlineGroups.catalogos && st.checkboxActive]}>
-                    {offlineGroups.catalogos && <Text style={{color: '#fff', fontSize: 12}}>✓</Text>}
-                  </View>
-                  <Text style={st.checkText}>Catálogos Generales</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={st.checkRow} onPress={() => setOfflineGroups(p => ({ ...p, fichas: !p.fichas }))} activeOpacity={0.7}>
-                  <View style={[st.checkbox, offlineGroups.fichas && st.checkboxActive]}>
-                    {offlineGroups.fichas && <Text style={{color: '#fff', fontSize: 12}}>✓</Text>}
-                  </View>
-                  <Text style={st.checkText}>Fichas Técnicas</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={st.checkRow} onPress={() => setOfflineGroups(p => ({ ...p, productos: !p.productos }))} activeOpacity={0.7}>
-                  <View style={[st.checkbox, offlineGroups.productos && st.checkboxActive]}>
-                    {offlineGroups.productos && <Text style={{color: '#fff', fontSize: 12}}>✓</Text>}
-                  </View>
-                  <View>
-                    <Text style={st.checkText}>Todos los Productos</Text>
-                    <Text style={{fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4}}>Descarga imágenes optimizadas para offline</Text>
-                  </View>
-                </TouchableOpacity>
-
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-                  <TouchableOpacity style={[st.dlBtn, { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border }]} onPress={() => setShowOfflineModal(false)}>
-                    <Text style={[st.dlBtnText, { color: COLORS.navy }]}>Cancelar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[st.dlBtn, { flex: 1, opacity: isAnySelected ? 1 : 0.5 }]} 
-                    onPress={handleDownload}
-                    disabled={!isAnySelected}
-                  >
-                    <Text style={st.dlBtnText}>Descargar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal No Internet */}
       <Modal visible={showNoInternetModal} animationType="fade" transparent onRequestClose={() => setShowNoInternetModal(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
           <View style={{ backgroundColor: COLORS.white, borderRadius: 20, padding: 28, elevation: 5, alignItems: 'center' }}>
@@ -568,7 +457,6 @@ export default function ConfigScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* Modal Sync Alert (Alertas Offline Custom UI) */}
       <Modal visible={!!syncAlert} animationType="fade" transparent onRequestClose={() => setSyncAlert && setSyncAlert(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
           <View style={{ backgroundColor: COLORS.white, borderRadius: 20, padding: 28, elevation: 5, alignItems: 'center' }}>
@@ -602,9 +490,6 @@ const st = StyleSheet.create({
   avatarEmpty: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#F0F4F8', borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   cameraBadge: { position: 'absolute', bottom: 0, right: -2, backgroundColor: COLORS.white, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, elevation: 2 },
   avatarOverlay: { ...StyleSheet.absoluteFillObject, borderRadius: 45, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
-  profileName: { fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, marginBottom: 4 },
-  profileEmail: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, marginBottom: 12 },
-  editBtn: { paddingVertical: 6, paddingHorizontal: 20, borderWidth: 1, borderColor: COLORS.navy, borderRadius: 20 },
   input: { borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy, backgroundColor: '#F7F8FA' },
   saveBtn: { flex: 1, backgroundColor: COLORS.navy, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   saveBtnText: { fontFamily: FONTS.bodySemi, fontSize: 14, fontWeight: '700', color: COLORS.white },
@@ -613,23 +498,7 @@ const st = StyleSheet.create({
   updateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.green, paddingVertical: 14, borderRadius: 12, marginBottom: 28, gap: 10 },
   updateText: { fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: '#fff', letterSpacing: 0.3 },
   logoutBtn: { borderWidth: 1, borderColor: '#E0E0E0', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  
-  // Offline UI
   offlineCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F4F8', padding: 18, borderRadius: 14, marginBottom: 20, gap: 14 },
   offlineIconBg: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  offlineModalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
-  modalHeader: { alignItems: 'center', marginBottom: 24 },
-  offlineIconBgLarge: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#F0F4F8', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  modalTitle: { fontFamily: FONTS.heading, fontSize: 20, fontWeight: '700', color: COLORS.navy, marginBottom: 8 },
-  modalSubtitle: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, textAlign: 'center', paddingHorizontal: 20 },
-  optionsContainer: { width: '100%', gap: 16 },
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  checkboxActive: { backgroundColor: COLORS.navy, borderColor: COLORS.navy },
-  checkText: { fontFamily: FONTS.bodySemi, fontSize: 15, color: COLORS.navy },
-  dlBtn: { backgroundColor: COLORS.navy, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  dlBtnText: { fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.white },
-  syncingContainer: { width: '100%', paddingVertical: 10 },
-  progressBarBg: { width: '100%', height: 12, backgroundColor: '#F0F4F8', borderRadius: 6, overflow: 'hidden' },
-  progressBarFill: { height: '100%', backgroundColor: COLORS.green, borderRadius: 6 },
+  editBtn: { paddingVertical: 6, paddingHorizontal: 20, borderWidth: 1, borderColor: COLORS.navy, borderRadius: 20 },
 });
