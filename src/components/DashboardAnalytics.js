@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, ScrollView, Modal, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -8,6 +8,9 @@ import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
+import StatCard from './StatCard';
+import DirectoryModal from './DirectoryModal';
+import UserProfileModal from './UserProfileModal';
 
 const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
 const CACHE_KEY = 'comagro_productos_v3';
@@ -53,9 +56,8 @@ function ProgressBar({ value, max, color }) {
 
 function RankItem({ item, maxCount, color, imageMap, navigation }) {
   const imgUrl = imageMap[item.sku || item.modelo] || null;
-  // Usamos Date.now() estático al montar para evitar parpadeos, pero asegurar que bypass-ea el caché si cambia.
   const [sessionKey] = useState(() => Date.now().toString());
-  const logoUrl = `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg?v=${sessionKey}`;
+  const logoUrl = `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\\s+/g, '_')}.jpg?v=${sessionKey}`;
   return (
     <TouchableOpacity 
       style={s.rankItem} 
@@ -134,16 +136,6 @@ function UserBar({ email, count, maxCount, onUserClick }) {
   );
 }
 
-function StatCard({ number, label, trend, color }) {
-  return (
-    <View style={s.statCard}>
-      <Text style={[s.statNum, { color: color || COLORS.navy }]}>{number}</Text>
-      <Text style={s.statLabel}>{label}</Text>
-      {trend ? <Text style={{ fontSize: 10, color: trend.startsWith('↑') ? COLORS.green : trend.startsWith('↓') ? '#e74c3c' : COLORS.gray4, marginTop: 2 }}>{trend}</Text> : null}
-    </View>
-  );
-}
-
 export default function DashboardAnalytics({ navigation }) {
   const [tab, setTab] = useState('mine');
   const [period, setPeriod] = useState('all');
@@ -155,7 +147,6 @@ export default function DashboardAnalytics({ navigation }) {
   const [globalData, setGlobalData] = useState({ views: 0, shares: 0, searches: 0, tV: '', tS: '', tSe: '', topV: [], topSh: [], topSe: [], brands: [], users: [] });
 
   const [showUserModal, setShowUserModal] = useState(false);
-  const [showFullAvatar, setShowFullAvatar] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [loadingUser, setLoadingUser] = useState(false);
 
@@ -226,10 +217,6 @@ export default function DashboardAnalytics({ navigation }) {
     } finally {
       setLoadingUser(false);
     }
-  }
-
-  async function loadDirectory() {
-    setShowDirectoryModal(true);
   }
 
   async function loadImages() {
@@ -466,7 +453,6 @@ export default function DashboardAnalytics({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Period */}
       <View style={s.periodRow}>
         {['7d', '30d', 'all'].map(p => (
           <TouchableOpacity key={p} style={[s.periodBtn, period === p && s.periodActive]} onPress={() => setPeriod(p)}>
@@ -487,7 +473,6 @@ export default function DashboardAnalytics({ navigation }) {
         <ActivityIndicator size="large" color={COLORS.navy} style={{ marginTop: 30, marginBottom: 30 }} />
       ) : (
         <>
-          {/* Stats */}
           <View style={s.statsRow}>
             <StatCard number={data.views} label="Vistas" trend={data.tV} color={COLORS.navy} />
             <StatCard number={data.shares} label="Compartidos" trend={data.tS} color={COLORS.green} />
@@ -508,7 +493,7 @@ export default function DashboardAnalytics({ navigation }) {
             <CollapsibleSection title="Usuarios más activos" color={COLORS.navy} iconName="usuarios" defaultExpanded={false}>
               {globalData.users.map((u, i) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={globalData.users[0]?.count || 1} onUserClick={handleUserClick} />)}
               
-              <TouchableOpacity style={{ marginTop: 15, padding: 12, backgroundColor: '#F0F4F8', borderRadius: 8, alignItems: 'center' }} onPress={loadDirectory}>
+              <TouchableOpacity style={{ marginTop: 15, padding: 12, backgroundColor: '#F0F4F8', borderRadius: 8, alignItems: 'center' }} onPress={() => setShowDirectoryModal(true)}>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy }}>Ver directorio completo de usuarios</Text>
               </TouchableOpacity>
             </CollapsibleSection>
@@ -516,108 +501,20 @@ export default function DashboardAnalytics({ navigation }) {
         </>
       )}
 
-      {/* Modal Directorio */}
-      <Modal visible={showDirectoryModal} animationType="slide" transparent onRequestClose={() => setShowDirectoryModal(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: COLORS.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, height: '80%' }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-              <Text style={{ fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: COLORS.navy }}>Directorio de Contactos</Text>
-              <TouchableOpacity onPress={() => setShowDirectoryModal(false)}>
-                <Text style={{ fontSize: 24, color: COLORS.gray4 }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            {loadingDirectory ? (
-              <ActivityIndicator size="large" color={COLORS.navy} style={{ marginTop: 40 }} />
-            ) : (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {directoryUsers.map((u, i) => (
-                  <TouchableOpacity 
-                    key={i} 
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border }}
-                    onPress={() => { setShowDirectoryModal(false); handleUserClick(u.email); }}
-                  >
-                    <Image source={u.avatar_url ? { uri: u.avatar_url } : { uri: 'https://ui-avatars.com/api/?name=' + u.email + '&background=0D8A39&color=fff' }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontFamily: FONTS.heading, fontSize: 14, color: COLORS.navy }}>{u.full_name}</Text>
-                      <Text style={{ fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4 }}>{u.telefono || u.email}</Text>
-                    </View>
-                    <Text style={{ color: COLORS.gray4 }}>›</Text>
-                  </TouchableOpacity>
-                ))}
-                <View style={{ height: 40 }} />
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
+      <DirectoryModal
+        visible={showDirectoryModal}
+        onClose={() => setShowDirectoryModal(false)}
+        loadingDirectory={loadingDirectory}
+        directoryUsers={directoryUsers}
+        onUserClick={handleUserClick}
+      />
 
-      {/* Modal de Perfil de Usuario */}
-      <Modal visible={showUserModal} animationType="fade" transparent onRequestClose={() => setShowUserModal(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: COLORS.white, borderRadius: 15, padding: 20, elevation: 5 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-              <Text style={{ fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: COLORS.navy }}>Perfil de Usuario</Text>
-              <TouchableOpacity onPress={() => setShowUserModal(false)}>
-                <Text style={{ fontSize: 24, color: COLORS.gray4 }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {loadingUser ? (
-              <ActivityIndicator size="large" color={COLORS.navy} style={{ marginVertical: 30 }} />
-            ) : selectedUser ? (
-              <View>
-                <View style={{ alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingBottom: 20 }}>
-                  <TouchableOpacity onPress={() => setShowFullAvatar(selectedUser.avatar_url || 'https://ui-avatars.com/api/?name=' + selectedUser.email + '&background=0D8A39&color=fff')}>
-                    <Image 
-                      source={selectedUser.avatar_url ? { uri: selectedUser.avatar_url } : { uri: 'https://ui-avatars.com/api/?name=' + selectedUser.email + '&background=0D8A39&color=fff' }} 
-                      style={{ width: 80, height: 80, borderRadius: 40, marginBottom: 12 }} 
-                    />
-                  </TouchableOpacity>
-                  
-                  <View style={{ width: '100%', backgroundColor: '#F7F8FA', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.border }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Nombre:</Text>
-                      <Text style={{ fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, flex: 1 }}>{selectedUser.full_name || 'Sin nombre'}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Correo:</Text>
-                      <TouchableOpacity onPress={() => Linking.openURL(`mailto:${selectedUser.email}`)} style={{ flex: 1 }}>
-                        <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy, textDecorationLine: 'underline' }}>{selectedUser.email}</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Teléfono:</Text>
-                      <TouchableOpacity onPress={() => {
-                        const num = (selectedUser.telefono || '').replace(/\D/g, '');
-                        if(num) Linking.openURL(`whatsapp://send?phone=${num}`).catch(()=>Linking.openURL(`tel:${num}`));
-                      }} style={{ flex: 1 }}>
-                        <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy, textDecorationLine: 'underline' }}>{selectedUser.telefono || '-'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-
-                <Text style={{ fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.navy, marginBottom: 12 }}>Actividad</Text>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <StatCard number={selectedUser.stats.views} label="Vistas" color={COLORS.navy} />
-                  <StatCard number={selectedUser.stats.shares} label="Compartidos" color={COLORS.green} />
-                  <StatCard number={selectedUser.stats.searches} label="Búsquedas" color={COLORS.celeste} />
-                </View>
-              </View>
-            ) : null}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Visor de Avatar Pantalla Completa */}
-      <Modal visible={!!showFullAvatar} transparent animationType="fade" onRequestClose={() => setShowFullAvatar(null)}>
-        <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center'}}>
-          <TouchableOpacity style={{position: 'absolute', top: 40, right: 20, zIndex: 10, padding: 10}} onPress={() => setShowFullAvatar(null)}>
-            <Text style={{color: '#fff', fontSize: 30}}>✕</Text>
-          </TouchableOpacity>
-          <Image source={{uri: showFullAvatar}} style={{width: '90%', height: '70%'}} resizeMode="contain" />
-        </View>
-      </Modal>
+      <UserProfileModal
+        visible={showUserModal}
+        onClose={() => setShowUserModal(false)}
+        loadingUser={loadingUser}
+        selectedUser={selectedUser}
+      />
     </View>
   );
 }
@@ -635,9 +532,6 @@ const s = StyleSheet.create({
   periodTextActive: { color: COLORS.white, fontWeight: '700' },
   shareBtn: { marginLeft: 'auto', padding: 6 },
   statsRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  statCard: { flex: 1, backgroundColor: '#F0F4F8', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  statNum: { fontFamily: FONTS.heading, fontSize: 26, fontWeight: '700' },
-  statLabel: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4, marginTop: 2 },
   section: { marginBottom: 20 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   sectionTitle: { fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy },
