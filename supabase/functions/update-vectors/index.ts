@@ -9,6 +9,11 @@ serve(async (req) => {
 
     const supaAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+    const authHeader = req.headers.get('Authorization') ?? '';
+    if (authHeader !== `Bearer ${supabaseServiceKey}`) {
+      return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+
     const body = await req.json();
     const page = body.page || 0;
     const limit = body.limit || 50;

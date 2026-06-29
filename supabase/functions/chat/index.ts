@@ -5,7 +5,7 @@ import { extractIntent, getEmbedding, vectorSearch } from "./search.ts";
 import { generateResponse, parseLearnTag, saveLearnedRule } from "./ai.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://www.comagro.com.py',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
