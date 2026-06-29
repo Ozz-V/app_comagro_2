@@ -128,6 +128,8 @@ export default function ProductViewerScreen({ route, navigation }) {
     }
   }, [loading, modalProd, navigation]);
 
+  const [logoRefreshKey] = useState(Date.now().toString());
+
   if (loading || !modalProd) {
     return null;
   }
@@ -146,6 +148,8 @@ export default function ProductViewerScreen({ route, navigation }) {
         }}
         aiData={aiData}
         loadingAi={loadingAi}
+        pdfCache={{}}
+        logoRefreshKey={logoRefreshKey}
         onCompare={(items) => {
           navigation.navigate('Productos', { compareSkus: items.map(i => i.modelo) });
         }}

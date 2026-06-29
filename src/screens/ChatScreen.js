@@ -111,7 +111,9 @@ export default function ChatScreen({ navigation }) {
     let lastError = '';
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      // 1. Forzar refresco de token para evitar el "error temporal" por inactividad
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      const session = refreshData?.session || (await supabase.auth.getSession()).data?.session;
       
       // Filtrar el saludo inicial porque a Gemini le da error 400 si el historial no empieza con 'user'
       const historyForApi = newHistory.filter(msg => !(msg.role === 'assistant' && msg.content.includes('Soy el Asistente IA de Comagro')));

@@ -491,5 +491,5 @@ const styles = StyleSheet.create({
   simModelo: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray1, marginTop: 2 },
   
   // Hidden WebView
-  hiddenWebviewWrap: { position: 'absolute', top: 0, left: 0, width: 794, height: 1123, zIndex: -10, opacity: 0.01 }
+  hiddenWebviewWrap: { position: 'absolute', top: -10000, left: -10000, width: 794, height: 1123, zIndex: -10, opacity: 0 }
 });

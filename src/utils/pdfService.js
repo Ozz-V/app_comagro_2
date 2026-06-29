@@ -198,10 +198,10 @@ export async function fetchImageBase64(url) {
   }
 }
 
-export async function generateAndSharePdf(modalProd, pdfCache, logoRefreshKey) {
+export async function generateAndSharePdf(modalProd, pdfCache = {}, logoRefreshKey = Date.now()) {
   const specs = modalProd?.specs || [];
-  let finalProdB64 = pdfCache.prodBase64;
-  let finalLogoB64 = pdfCache.logoBase64;
+  let finalProdB64 = pdfCache?.prodBase64;
+  let finalLogoB64 = pdfCache?.logoBase64;
   
   if (!finalProdB64) {
     const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\\s+/g, '_') || '';
