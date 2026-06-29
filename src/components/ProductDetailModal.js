@@ -68,7 +68,7 @@ export default function ProductDetailModal({
 
   const extractPower = (specs) => {
     if (!specs) return null;
-    const specArray = typeof specs === 'string' ? JSON.parse(specs) : specs;
+    const specArray = specs;
     for (const [k, v] of specArray) {
       const kl = String(k).toLowerCase();
       const vl = String(v).toLowerCase();
@@ -301,12 +301,12 @@ export default function ProductDetailModal({
                     return null;
                   })()}
 
-                  {modalProd?.specs && JSON.parse(modalProd.specs)?.length > 0 && (
+                  {modalProd?.specs?.length > 0 && (
                     <View style={styles.specsWrap}>
                       <View style={styles.specsHead}>
                         <Text style={styles.specsHeadText}>Especificaciones técnicas</Text>
                       </View>
-                      {JSON.parse(modalProd.specs).map(([n, v], i) => (
+                      {modalProd.specs.map(([n, v], i) => (
                         <View key={i} style={[styles.specRow, i % 2 === 1 && styles.specRowAlt]}>
                           <Text style={styles.specName}>{n}</Text>
                           <Text style={styles.specVal}>{v}</Text>
