@@ -60,27 +60,33 @@ export function useProducts(filtroMarca = '', filtroSubcategoria = '', busqueda 
       const fechaCache = await AsyncStorage.getItem(CACHE_TIME_KEY);
       const cacheVigente = fechaCache && (Date.now() - parseInt(fechaCache)) < HORAS_VIGENCIA * 3600000;
       
+      // Lanzar actualización en segundo plano de forma verdaderamente asíncrona (sin await bloqueante)
       if (!cacheVigente && isOnline) {
-        // Ejecutar actualización en segundo plano
-        setBgActualiz(true);
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          const headers = { Authorization: `Bearer ${session?.access_token || ''}` };
-          if (fechaCache) headers['X-Since'] = fechaCache;
-          
-          const res = await fetch(EDGE_URL, { headers });
-          if (res.ok) {
-            const nuevosRows = await res.json();
-            if (nuevosRows && nuevosRows.length > 0) {
-              await insertProductsBatch(nuevosRows, manifest);
-              await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+        (async () => {
+          setBgActualiz(true);
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const headers = { Authorization: `Bearer ${session?.access_token || ''}` };
+            if (fechaCache) headers['X-Since'] = fechaCache;
+            
+            const res = await fetch(EDGE_URL, { headers });
+            if (res.ok) {
+              const nuevosRows = await res.json();
+              if (nuevosRows && nuevosRows.length > 0) {
+                const isDelta = !!fechaCache; // Si enviamos X-Since, recibimos Delta (no borrar DB)
+                await insertProductsBatch(nuevosRows, manifest, isDelta);
+                await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+                
+                // Actualizar la vista automáticamente si llegaron cosas nuevas
+                realizarBusquedaDB();
+              }
             }
+          } catch (e) {
+            console.log('Fallo bgActualiz', e);
+          } finally {
+            setBgActualiz(false);
           }
-        } catch (e) {
-          console.log('Fallo bgActualiz', e);
-        } finally {
-          setBgActualiz(false);
-        }
+        })();
       }
       
       await realizarBusquedaDB();

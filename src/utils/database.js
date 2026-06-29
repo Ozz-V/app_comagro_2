@@ -23,17 +23,20 @@ export async function clearProducts() {
   await db.execAsync(`DELETE FROM productos;`);
 }
 
-export async function insertProductsBatch(productosArray, manifest) {
+export async function insertProductsBatch(productosArray, manifest, isDelta = false) {
   const db = await SQLite.openDatabaseAsync(DB_NAME);
   
   await db.withTransactionAsync(async () => {
-    await db.execAsync(`DELETE FROM productos;`);
+    if (!isDelta) {
+      await db.execAsync(`DELETE FROM productos;`);
+    }
     
     for (const p of productosArray) {
-      if (!p.SKU) continue;
+      const pSku = p.SKU || p.sku;
+      if (!pSku) continue;
       
-      const sku = String(p.SKU).trim();
-      const marca = (p.Brand || p.Marca || '').toString().trim().toUpperCase();
+      const sku = String(pSku).trim();
+      const marca = (p.Brand || p.Marca || p.marca || '').toString().trim().toUpperCase();
       const subcategoria = (p['Tipo de Producto'] || p['Categoria Magento'] || 'General').toString().trim().toUpperCase();
       const imagenOriginal = (p['imagen 1'] || p.imagen || '').toString().trim();
       const imagen = (manifest && manifest[sku + '.jpg']) || imagenOriginal;
