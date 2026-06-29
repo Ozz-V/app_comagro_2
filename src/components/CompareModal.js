@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, Modal, SafeAreaView, ScrollView, TouchableOpacity, Image, StyleSheet, useWindowDimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Modal, SafeAreaView, ScrollView, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { searchProducts } from '../utils/database';
 
 // Extrae el primer número de un string para comparación de specs
 function extractNum(val) {
@@ -16,13 +18,21 @@ export default function CompareModal({
   compareItems,
   onClose,
   onOpenProduct,
-  allProducts,
   setCompareItems
 }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [itemToReplaceIndex, setItemToReplaceIndex] = useState(null);
   const [showReplaceSelector, setShowReplaceSelector] = useState(false);
+  const [similares, setSimilares] = useState([]);
+
+  useEffect(() => {
+    if (showReplaceSelector && compareItems?.length > 0) {
+      searchProducts('Todas', compareItems[0].subcategoria, '').then(res => {
+        setSimilares(res.slice(0, 30));
+      }).catch(() => {});
+    }
+  }, [showReplaceSelector, compareItems]);
 
   return (
     <>
@@ -46,7 +56,7 @@ export default function CompareModal({
                   activeOpacity={0.7}
                   onPress={() => onOpenProduct(prod)}
                 >
-                  <Image source={{ uri: prod.imagen }} style={{ width: '100%', height: 80 }} resizeMode="contain" />
+                  <Image source={{ uri: prod.imagen }} style={styles.prodImg} contentFit="contain" />
                   <Text style={{ fontSize: 10, color: COLORS.green, fontWeight: 'bold', textAlign: 'center' }}>{prod.marca}</Text>
                   <Text style={{ fontSize: 11, color: COLORS.navy, fontWeight: 'bold', textAlign: 'center' }} numberOfLines={2}>{prod.modelo}</Text>
                   <TouchableOpacity
@@ -128,7 +138,7 @@ export default function CompareModal({
               </TouchableOpacity>
             </View>
             <ScrollView style={{ padding: 10 }}>
-              {allProducts.filter(p => p.subcategoria === (compareItems?.[0]?.subcategoria)).slice(0, 30).map(sim => {
+              {similares.map(sim => {
                 const isAlreadyInGrid = compareItems?.some(c => c.modelo === sim.modelo);
                 return (
                   <TouchableOpacity 
@@ -146,7 +156,7 @@ export default function CompareModal({
                       setShowReplaceSelector(false);
                     }}
                   >
-                    <Image source={{ uri: sim.imagen }} style={{ width: 50, height: 50, marginRight: 10 }} resizeMode="contain" />
+                    <Image source={{ uri: sim.imagen }} style={{ width: 50, height: 50, marginRight: 10 }} contentFit="contain" />
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.navy }}>{sim.modelo}</Text>
                       <Text style={{ fontSize: 12, color: COLORS.green }}>{sim.marca}</Text>

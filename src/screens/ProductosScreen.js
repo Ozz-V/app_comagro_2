@@ -290,7 +290,6 @@ export default function ProductosScreen({ navigation, route }) {
           setShowCompareGrid(false);
           handleOpenModal(prod);
         }}
-        allProducts={allProducts}
         setCompareItems={setCompareItems}
       />
     </SafeAreaView>
