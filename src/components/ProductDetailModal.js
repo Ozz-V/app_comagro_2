@@ -292,8 +292,8 @@ export default function ProductDetailModal({
               <View>
                 <View style={styles.fichaCard}>
                   <View style={styles.fichaHeaderMobile}>
-                    <View style={styles.logoContainer}>
-                      <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg?v=${logoRefreshKey}` }} style={{ width: 120, height: 40 }} contentFit="contain" />
+                    <View style={[styles.logoContainer, { overflow: 'hidden' }]}>
+                      <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg?v=${logoRefreshKey}` }} style={{ width: 120, height: 40, transform: [{ scale: 1.5 }] }} contentFit="contain" />
                     </View>
                     <View style={styles.headerSeparator} />
                     <Text style={styles.headerTitleText}>FICHA TÉCNICA</Text>
