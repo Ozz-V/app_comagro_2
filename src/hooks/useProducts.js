@@ -43,7 +43,7 @@ export function useProducts(filtroMarca = '', filtroSubcategoria = '', busqueda 
       const m = await getUniqueBrands();
       setMarcas(m);
     } catch (e) {
-      console.log('Error buscando en DB', e);
+      console.log('Error buscando en DB', String(e));
     }
   }
 

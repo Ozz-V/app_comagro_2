@@ -64,7 +64,7 @@ export async function insertProductsBatch(productosArray, manifest, isDelta = fa
       const searchText = `${sku} ${marca} ${subcategoria} ${specs.map(s => s[1]).join(' ')}`.toLowerCase();
       
       await db.runAsync(
-        'INSERT INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, specs_json, search_text) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, specs_json, search_text) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [sku, marca, subcategoria, imagen, imagenOriginal, specsJson, searchText]
       );
     }
