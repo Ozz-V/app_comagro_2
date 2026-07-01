@@ -210,15 +210,24 @@ export default function ProductDetailModal({
         result: 'tmpfile'
       });
       
-      const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-      const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-      const newFileName = `${safeMarca}_${safeModelo}.png`;
-      const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
+      let finalUriToShare = imgUri;
+      try {
+        const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+        const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+        const newFileName = `${safeMarca}_${safeModelo}.png`;
+        const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
+        
+        const fileInfo = await FileSystem.getInfoAsync(newUri);
+        if (fileInfo.exists) {
+          await FileSystem.deleteAsync(newUri);
+        }
+        await FileSystem.copyAsync({ from: imgUri, to: newUri });
+        finalUriToShare = newUri;
+      } catch (renameError) {
+        console.log('No se pudo renombrar, usando original:', renameError);
+      }
       
-      await FileSystem.deleteAsync(newUri, { idempotent: true });
-      await FileSystem.moveAsync({ from: imgUri, to: newUri });
-      
-      await Sharing.shareAsync(newUri, {
+      await Sharing.shareAsync(finalUriToShare, {
         dialogTitle: `Ficha ${modalProd?.modelo}`,
         mimeType: 'image/png',
       });
