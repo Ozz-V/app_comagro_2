@@ -5,7 +5,7 @@ import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { initDB, searchProducts, getUniqueBrands, getProductBySku, insertProductsBatch } from '../utils/database';
 
 const CACHE_TIME_KEY = 'comagro_productos_fecha_v3';
-const HORAS_VIGENCIA = 4;
+const HORAS_VIGENCIA = 24;
 
 export function useProducts() {
   const { manifest, isOnline } = useOfflineSync();
