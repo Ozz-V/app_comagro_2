@@ -47,7 +47,7 @@ export default function CompareModal({
 
           <ScrollView contentContainerStyle={{ padding: 12 }}>
             {/* Cabecera con imágenes y nombres */}
-            <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', marginBottom: 15, marginTop: 10 }}>
               <View style={{ width: 110 }} />
               {compareItems?.map((prod, idx) => (
                 <TouchableOpacity 
@@ -185,6 +185,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.navy },
   closeBtn: { fontSize: 24, color: COLORS.gray4 },
+  prodImg: { width: 60, height: 60, marginBottom: 5 },
   changeBtn: {
     marginTop: 4,
     paddingVertical: 4,
