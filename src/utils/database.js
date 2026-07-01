@@ -148,9 +148,13 @@ export async function getUniqueBrands() {
   return results.map(r => r.marca).filter(Boolean);
 }
 
-export async function getProductsBySubcategory(substring) {
+export async function getProductsBySubcategory(substring, excludeAccessories = false) {
   const db = await getDB();
-  const results = await db.getAllAsync('SELECT * FROM productos WHERE subcategoria LIKE ?', [`%${substring}%`]);
+  let query = 'SELECT * FROM productos WHERE subcategoria LIKE ?';
+  if (excludeAccessories) {
+    query += " AND NOT (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
+  }
+  const results = await db.getAllAsync(query, [`%${substring}%`]);
   return results.map(r => ({
     modelo: r.sku,
     marca: r.marca,

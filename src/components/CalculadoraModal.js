@@ -41,7 +41,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
     try {
       if (calcMode === 'gen') {
         const target = parseFloat(calcInput) || 0;
-        const dbProducts = await getProductsBySubcategory('GENERADOR');
+        const dbProducts = await getProductsBySubcategory('GENERADOR', true);
         filtered = dbProducts.map(p => {
           let val = 0;
           if (p.specs) {
@@ -57,7 +57,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
         }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
       } else if (calcMode === 'motor') {
         const target = parseFloat(calcInput) || 0;
-        const dbProducts = await getProductsBySubcategory('MOTOR');
+        const dbProducts = await getProductsBySubcategory('MOTOR', true);
         filtered = dbProducts.filter(p => {
           const sub = String(p.subcategoria).toUpperCase();
           return sub.includes('ELEC') || sub.includes('ELÉC');
@@ -76,7 +76,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
         }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
       } else if (calcMode === 'bomba') {
         const target = parseFloat(calcInput) || 0;
-        const dbProducts = await getProductsBySubcategory('BOMBA');
+        const dbProducts = await getProductsBySubcategory('BOMBA', true);
         filtered = dbProducts.map(p => {
            let hpVal = 0;
            if (p.specs) {
