@@ -194,7 +194,7 @@ export default function ProductosScreen({ navigation, route }) {
       {cargando ? (
         <View style={styles.center}><ActivityIndicator size="large" color={COLORS.navy} /><Text style={styles.centerText}>Cargando catálogo…</Text></View>
       ) : error ? (
-        <View style={styles.center}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryBtn} onPress={() => cargarDatos(true)}><Text style={styles.retryText}>Reintentar</Text></TouchableOpacity></View>
+        <View style={styles.center}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryBtn} onPress={onRefresh}><Text style={styles.retryText}>Reintentar</Text></TouchableOpacity></View>
       ) : !mostrarLista ? (
         <FlatList
           data={marcas}
