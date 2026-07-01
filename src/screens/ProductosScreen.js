@@ -32,7 +32,6 @@ export default function ProductosScreen({ navigation, route }) {
   const [filtroSubcategoria, setFiltroSubcategoria] = useState('');
   const [busqueda, setBusqueda] = useState('');
 
-  // Custom Hook: The Brain (Ahora con SQLite)
   const {
     productosFiltrados,
     marcas,
@@ -42,8 +41,13 @@ export default function ProductosScreen({ navigation, route }) {
     error,
     logoRefreshKey,
     onRefresh,
-    getProductBySkuSafe
-  } = useProducts(filtroMarca, filtroSubcategoria, busqueda);
+    getProductBySkuSafe,
+    fetchCatalog
+  } = useProducts();
+
+  useEffect(() => {
+    fetchCatalog(filtroMarca, filtroSubcategoria, busqueda);
+  }, [filtroMarca, filtroSubcategoria, busqueda, fetchCatalog]);
 
   const [modalProd, setModalProd] = useState(null);
   const [aiData, setAiData] = useState(null);

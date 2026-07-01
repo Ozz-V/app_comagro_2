@@ -92,16 +92,16 @@ export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
   let query = 'SELECT * FROM productos WHERE 1=1';
   const params = [];
   
-  if (marcaFiltro && marcaFiltro !== 'Todas') {
+  if (marcaFiltro && marcaFiltro !== 'Todas' && marcaFiltro !== '') {
     query += ' AND UPPER(marca) = UPPER(?)';
     params.push(marcaFiltro);
   }
   
   if (subcatFiltro && subcatFiltro !== 'Todas') {
     if (subcatFiltro === '__acc__') {
-      query += " AND (subcategoria LIKE '%ACCESORIO%' OR subcategoria LIKE '%REPUESTO%' OR subcategoria LIKE '%PIEZA%' OR subcategoria LIKE '%KIT%')";
+      query += " AND (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
     } else if (subcatFiltro === '__productos__') {
-      query += " AND NOT (subcategoria LIKE '%ACCESORIO%' OR subcategoria LIKE '%REPUESTO%' OR subcategoria LIKE '%PIEZA%' OR subcategoria LIKE '%KIT%')";
+      query += " AND NOT (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
     } else {
       query += ' AND subcategoria LIKE ?';
       params.push(`%${subcatFiltro}%`);
@@ -116,7 +116,8 @@ export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
     });
   }
   
-  query += ' LIMIT 500';
+  // ORDEN ESTRICTO: Primero por subcategoría y luego por modelo, para que no salgan al azar
+  query += ' ORDER BY subcategoria ASC, sku ASC LIMIT 500';
   
   const results = await db.getAllAsync(query, params);
   
@@ -126,7 +127,7 @@ export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
     subcategoria: r.subcategoria,
     imagen: r.imagen,
     imagenOriginal: r.imagenOriginal,
-    specs: JSON.parse(r.specs_json)
+    specs: r.specs_json ? JSON.parse(r.specs_json) : []
   }));
 }
 
