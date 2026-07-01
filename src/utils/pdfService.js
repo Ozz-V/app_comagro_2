@@ -220,6 +220,7 @@ export async function generateAndSharePdf(modalProd, pdfCache = {}, logoRefreshK
   const newFileName = `${safeMarca}_${safeModelo}.pdf`;
   const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
   
+  await FileSystem.deleteAsync(newUri, { idempotent: true });
   await FileSystem.moveAsync({ from: uri, to: newUri });
   
   await Sharing.shareAsync(newUri, {

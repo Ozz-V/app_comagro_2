@@ -215,6 +215,7 @@ export default function ProductDetailModal({
       const newFileName = `${safeMarca}_${safeModelo}.png`;
       const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
       
+      await FileSystem.deleteAsync(newUri, { idempotent: true });
       await FileSystem.moveAsync({ from: imgUri, to: newUri });
       
       await Sharing.shareAsync(newUri, {
