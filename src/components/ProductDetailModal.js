@@ -14,6 +14,8 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generarHtmlFicha, fetchImageBase64, generateAndSharePdf } from '../utils/pdfService';
 import { searchProducts } from '../utils/database';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../supabase';
 
 const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
 
@@ -41,10 +43,28 @@ export default function ProductDetailModal({
   const [htmlForImage, setHtmlForImage] = useState(null);
   const hiddenWebViewRef = useRef(null);
 
+  async function logProductAction(action) {
+    if (!modalProd) return;
+    try {
+      const email = (await supabase.auth.getUser()).data?.user?.email || 'anon@comagro.com.py';
+      const q = await AsyncStorage.getItem('@analytics_queue');
+      const queue = q ? JSON.parse(q) : [];
+      queue.push({
+        modelo: modalProd.modelo,
+        marca: modalProd.marca,
+        sku: modalProd.modelo,
+        action,
+        user_email: email
+      });
+      await AsyncStorage.setItem('@analytics_queue', JSON.stringify(queue));
+    } catch(e) {}
+  }
+
   // Reset tab when modalProd changes
   useEffect(() => {
     if (visible && modalProd) {
       setActiveTab('FICHA');
+      logProductAction('view');
     }
   }, [modalProd?.modelo, visible]);
 
@@ -139,7 +159,7 @@ export default function ProductDetailModal({
     try {
       setGenerandoPdf(true);
       await generateAndSharePdf(modalProd, pdfCache, logoRefreshKey);
-      if (trackAnalytics) trackAnalytics(modalProd, 'share_pdf');
+      logProductAction('share_pdf');
     } catch (e) {
       console.log('Error generando PDF:', e);
       showAlert('Error', 'No se pudo generar el PDF corporativo.');
@@ -192,7 +212,7 @@ export default function ProductDetailModal({
         dialogTitle: `Ficha ${modalProd?.modelo}`,
         mimeType: 'image/png',
       });
-      if (trackAnalytics) trackAnalytics(modalProd, 'share_image');
+      logProductAction('share_image');
     } catch (e) {
       console.log('Error capturando WebView:', e);
       showAlert('Error', 'Fallo al capturar la imagen en alta calidad.');

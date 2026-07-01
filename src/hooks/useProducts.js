@@ -14,6 +14,7 @@ export function useProducts(filtroMarca = '', filtroSubcategoria = '', busqueda 
   const [cargando, setCargando]       = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
   const [bgActualiz, setBgActualiz]   = useState(false);
+  const [triggerRefetch, setTriggerRefetch] = useState(0);
   const [error, setError]             = useState(null);
   const [logoRefreshKey, setLogoRefreshKey] = useState('');
 
@@ -22,12 +23,12 @@ export function useProducts(filtroMarca = '', filtroSubcategoria = '', busqueda 
     inicializarYBuscar();
   }, []);
 
-  // Efecto para buscar en SQLite cuando cambian los filtros
+  // Efecto para buscar en SQLite cuando cambian los filtros o se fuerza un refetch
   useEffect(() => {
     if (!cargando) {
       realizarBusquedaDB();
     }
-  }, [filtroMarca, filtroSubcategoria, busqueda]);
+  }, [filtroMarca, filtroSubcategoria, busqueda, triggerRefetch]);
 
   async function cargarLogoRefreshKey() {
     try {
@@ -85,8 +86,8 @@ export function useProducts(filtroMarca = '', filtroSubcategoria = '', busqueda 
                 const isDelta = !!fechaCache; // Si enviamos X-Since, recibimos Delta (no borrar DB)
                 await insertProductsBatch(nuevosRows, manifest, isDelta);
                 
-                // Actualizar la vista automáticamente si llegaron cosas nuevas
-                realizarBusquedaDB();
+                // Actualizar la vista automáticamente usando el estado actual
+                setTriggerRefetch(prev => prev + 1);
               }
               // Siempre actualizamos el reloj si el servidor respondió bien, aunque no haya cambios
               await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());

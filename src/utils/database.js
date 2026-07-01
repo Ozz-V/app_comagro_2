@@ -145,7 +145,7 @@ export async function getProductsBySubcategory(substring) {
     subcategoria: r.subcategoria,
     imagen: r.imagen,
     imagenOriginal: r.imagenOriginal,
-    specs: JSON.parse(r.specs_json)
+    specs: r.specs_json ? JSON.parse(r.specs_json) : []
   }));
 }
 
@@ -172,6 +172,6 @@ export async function getAllProducts() {
     subcategoria: r.subcategoria,
     imagen: r.imagen,
     imagenOriginal: r.imagenOriginal,
-    specs: JSON.parse(r.specs_json)
+    specs: r.specs_json ? JSON.parse(r.specs_json) : []
   }));
 }
