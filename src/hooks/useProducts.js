@@ -1,47 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, EDGE_URL } from '../supabase';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
+import { initDB, searchProducts, getUniqueBrands, getProductBySku, insertProductsBatch } from '../utils/database';
 
-const CACHE_KEY      = 'comagro_productos_v3';
 const CACHE_TIME_KEY = 'comagro_productos_fecha_v3';
-const HORAS_VIGENCIA = 4;
-
-const COLS_EXCLUIDAS = new Set([
-  'SKU','imagen 1','imagen 2','imagen 3','imagen 4','imagen 5',
-  'Brand','Marca','id','ID','Tipo de Producto','Categoria Magento',
-  'url_key','visibility','status','price','Precio',
-]);
-
-function esColumnaPermitida(col) {
-  return !COLS_EXCLUIDAS.has(col) && !col.startsWith('_');
-}
-
-function esValorValido(val) {
-  if (val === null || val === undefined || val === '') return false;
-  const s = String(val).trim().toLowerCase();
-  if (s.length === 0) return false;
-  if (/^0([.,]0+)?$/.test(s)) return false;
-  const basura = ['n/a','na','n.a','n.a.','no aplica','sin dato','sin datos',
-    'no','no tiene','no disponible','pim','-','--','---','st','sin información',
-    'no corresponde','sin especificar','sin info'];
-  if (basura.includes(s)) return false;
-  return true;
-}
+const HORAS_VIGENCIA = 24;
 
 export function useProducts() {
   const { manifest, isOnline } = useOfflineSync();
-  const [allProducts, setAllProducts] = useState([]);
-  const [marcas, setMarcas]           = useState([]);
-  const [cargando, setCargando]       = useState(true);
-  const [refreshing, setRefreshing]   = useState(false);
-  const [bgActualiz, setBgActualiz]   = useState(false);
-  const [error, setError]             = useState(null);
+  const [productosFiltrados, setProductosFiltrados] = useState([]);
+  const [marcas, setMarcas] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [bgActualiz, setBgActualiz] = useState(false);
+  const [error, setError] = useState(null);
   const [logoRefreshKey, setLogoRefreshKey] = useState('');
+  const [dbVersion, setDbVersion] = useState(0);
 
   useEffect(() => {
     cargarLogoRefreshKey();
-    cargarDatos(false);
+    inicializar();
   }, []);
 
   async function cargarLogoRefreshKey() {
@@ -51,97 +30,89 @@ export function useProducts() {
     } catch(e) {}
   }
 
-  function procesarDatos(rows) {
-    const productos = rows.map(row => {
-      const imagen = (row['imagen 1'] || '').toString().trim();
-      if (!imagen || !/^https?:\/\//i.test(imagen)) return null;
-      const marca = (row['Brand'] || row['Marca'] || '').toString().trim().toUpperCase();
-      if (!marca) return null;
-      const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim().toUpperCase();
-      const specs = [];
-      for (const [col, val] of Object.entries(row)) {
-        if (esColumnaPermitida(col) && esValorValido(val)) specs.push([col, String(val).trim()]);
-      }
-      return { modelo: (row['SKU'] || '').toString().trim(), marca, subcategoria, imagen, specs };
-    }).filter(p => p && p.modelo);
-
-    setAllProducts(productos);
-    setMarcas([...new Set(productos.map(p => p.marca))].sort());
-    return productos;
-  }
-
-  async function cargarDatos(forzar = false) {
-    setError(null);
-    let rawCacheado = null;
-    let fechaCache = null;
-
+  // Nueva función limpia para realizar búsquedas sin cierres de estado (stale closures)
+  const fetchCatalog = useCallback(async (marcaFiltro, subcatFiltro, busqueda) => {
     try {
-      rawCacheado = await AsyncStorage.getItem(CACHE_KEY);
-      if (rawCacheado) {
-        try { 
-          const parsed = JSON.parse(rawCacheado).map(p => ({
-            ...p,
-            imagenOriginal: p.imagenOriginal || p.imagen,
-            imagen: (manifest && p.SKU && manifest[p.SKU + '.jpg']) || p.imagenOriginal || p.imagen
-          }));
-          procesarDatos(parsed); 
-        } catch (_) {}
-      }
-      fechaCache  = await AsyncStorage.getItem(CACHE_TIME_KEY);
-    } catch (_) {}
-
-    if (rawCacheado) {
-      setCargando(false);
-      const cacheVigente = fechaCache && (Date.now() - parseInt(fechaCache)) < HORAS_VIGENCIA * 3600000;
-      if (cacheVigente && !forzar) {
-        setRefreshing(false);
-        return;
-      }
-      setBgActualiz(true);
-    } else {
-      setCargando(true);
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers = { Authorization: `Bearer ${session?.access_token || ''}` };
-
-      if (fechaCache && !forzar) {
-        headers['X-Since'] = fechaCache;
-      }
-
-      const res = await fetch(EDGE_URL, { headers });
-      if (!res.ok) throw new Error(await res.text() || 'Error en conexión');
-      const nuevosRows = await res.json();
-
-      let rowsBase = [];
-      if (rawCacheado) {
-        try { rowsBase = JSON.parse(rawCacheado); } catch (_) {}
-      }
-
-      const mapa = {};
-      rowsBase.forEach(r => { if (r.SKU) mapa[r.SKU] = r; });
-      nuevosRows.forEach(r => { if (r.SKU) mapa[r.SKU] = r; });
-
-      const merged = Object.values(mapa).map(p => ({
-        ...p,
-        imagenOriginal: p.imagenOriginal || p.imagen,
-        imagen: (manifest && p.SKU && manifest[p.SKU + '.jpg']) || p.imagenOriginal || p.imagen
-      }));
-
-      try {
-        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(merged));
-        await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
-      } catch (_) {}
-
-      const procesadosFinal = procesarDatos(merged);
-      return procesadosFinal;
+      const resultados = await searchProducts(marcaFiltro, subcatFiltro, busqueda);
+      setProductosFiltrados(resultados);
+      const m = await getUniqueBrands();
+      setMarcas(m);
     } catch (e) {
-      if (!rawCacheado) setError(e.message || 'Error desconocido');
+      console.log('Error buscando en DB', String(e));
+    }
+  }, []);
+
+  async function inicializar() {
+    setCargando(true);
+    try {
+      try {
+        await initDB();
+      } catch (e) {
+        console.log('initDB falló (posiblemente ya inicializado o ocupado)', e);
+      }
+      
+      const m = await getUniqueBrands();
+      setMarcas(m);
+      setProductosFiltrados([]); // Inicia vacío hasta que se pida catálogo
+
+      // Verificar si hay caché vigente
+      const fechaCache = await AsyncStorage.getItem(CACHE_TIME_KEY);
+      const cacheVigente = fechaCache && (Date.now() - parseInt(fechaCache)) < HORAS_VIGENCIA * 3600000;
+      
+      // Lanzar actualización en segundo plano
+      if (!cacheVigente && isOnline) {
+        setBgActualiz(true);
+        sincronizarFondo(fechaCache);
+      }
+    } catch (err) {
+      setError('Error iniciando base de datos');
     } finally {
       setCargando(false);
       setRefreshing(false);
+    }
+  }
+
+  async function sincronizarFondo(fechaCache) {
+    try {
+      let { data: { session } } = await supabase.auth.getSession();
+      let accessToken = session?.access_token;
+      if (!accessToken) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        accessToken = refreshed?.session?.access_token;
+      }
+      
+      const headers = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken || ''}` 
+      };
+      if (fechaCache) headers['X-Since'] = fechaCache;
+      
+      const res = await fetch(EDGE_URL, { headers });
+      if (res.ok) {
+        const nuevosRows = await res.json();
+        if (nuevosRows && nuevosRows.length > 0) {
+          const isDelta = !!fechaCache;
+          await insertProductsBatch(nuevosRows, manifest, isDelta);
+        }
+        await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+      }
+    } catch (e) {
+      console.log('Fallo bgActualiz', e);
+    } finally {
       setBgActualiz(false);
+      // Tras terminar la actualización en segundo plano, recargamos las marcas
+      // y subimos dbVersion para que la pantalla vuelva a pedir el catálogo
+      const m = await getUniqueBrands();
+      setMarcas(m);
+      setDbVersion(v => v + 1);
+    }
+  }
+
+  async function getProductBySkuSafe(sku) {
+    try {
+      return await getProductBySku(sku);
+    } catch (e) {
+      return null;
     }
   }
 
@@ -154,18 +125,23 @@ export function useProducts() {
     const newKey = Date.now().toString();
     setLogoRefreshKey(newKey);
     AsyncStorage.setItem('@logo_refresh_key', newKey).catch(()=>{});
-    cargarDatos(true);
+    
+    AsyncStorage.removeItem(CACHE_TIME_KEY).then(() => {
+      inicializar();
+    });
   }
 
   return {
-    allProducts,
+    productosFiltrados,
     marcas,
     cargando,
     refreshing,
     bgActualiz,
     error,
     logoRefreshKey,
-    cargarDatos,
-    onRefresh
+    onRefresh,
+    getProductBySkuSafe,
+    fetchCatalog,
+    dbVersion
   };
 }

@@ -1,5 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, View, Image, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 
 export default function ProductCard({ item, cardW, isSelected, onPress }) {
@@ -10,7 +11,7 @@ export default function ProductCard({ item, cardW, isSelected, onPress }) {
       onPress={onPress}
     >
       <View style={[styles.cardImg, { height: cardW * 0.85 }]}>
-        <Image source={{ uri: item.imagen }} style={styles.cardImgI} resizeMode="contain" />
+        <Image source={{ uri: item.imagen }} style={styles.cardImgI} contentFit="contain" transition={200} />
         {isSelected && (
           <View style={styles.selectedBadge}>
             <Text style={styles.selectedText}>✓</Text>

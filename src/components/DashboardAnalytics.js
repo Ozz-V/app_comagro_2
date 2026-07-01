@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -68,7 +69,7 @@ function RankItem({ item, maxCount, color, imageMap, navigation }) {
         }
       }}
     >
-      <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} resizeMode="contain" />
+      <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" transition={200} />
       <View style={{ flex: 1 }}>
         <Text style={s.rankModelo} numberOfLines={1}>{item.modelo}</Text>
         <Text style={s.rankMarca}>{item.marca}</Text>
@@ -221,17 +222,19 @@ export default function DashboardAnalytics({ navigation }) {
 
   async function loadImages() {
     try {
-      const raw = await AsyncStorage.getItem(CACHE_KEY);
-      if (!raw) return;
-      const rows = JSON.parse(raw);
+      const { getAllProducts } = require('../utils/database');
+      const rows = await getAllProducts();
       const m = {};
       rows.forEach(r => {
-        const sku = (r['SKU'] || '').toString().trim();
-        const img = (r['imagen 1'] || '').toString().trim();
-        if (sku && img && /^https?:\/\//i.test(img)) m[sku] = img;
+        const sku = r.modelo;
+        // imagenOriginal tiene la URL directa del servidor (sin manifest local)
+        const img = r.imagen || r.imagenOriginal;
+        if (sku && img) m[sku] = img;
       });
       setImageMap(m);
-    } catch (e) {}
+    } catch (e) {
+      console.log('Error loadImages DB:', e);
+    }
   }
 
   async function loadData() {

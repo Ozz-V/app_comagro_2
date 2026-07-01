@@ -1,0 +1,193 @@
+import * as SQLite from 'expo-sqlite';
+
+const DB_NAME = 'comagro.db';
+
+// Singleton: una sola conexión compartida por todas las funciones.
+// Esto evita errores "database is locked" cuando hay transacciones concurrentes.
+let _db = null;
+
+async function getDB() {
+  if (!_db) {
+    _db = await SQLite.openDatabaseAsync(DB_NAME);
+  }
+  return _db;
+}
+
+export async function initDB() {
+  const db = await getDB();
+
+  // Verificar si existe un esquema viejo (sin columna 'sku' o 'search_text')
+  const tableInfo = await db.getAllAsync('PRAGMA table_info(productos)');
+  const hasSkuColumn = tableInfo.some(col => col.name === 'sku');
+  const hasSearchTextColumn = tableInfo.some(col => col.name === 'search_text');
+
+  if (tableInfo.length > 0 && (!hasSkuColumn || !hasSearchTextColumn)) {
+    console.log('Esquema antiguo detectado. Migrando...');
+    await db.execAsync('DROP TABLE IF EXISTS productos;');
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.removeItem('comagro_productos_fecha_v3');
+    } catch (e) {}
+  }
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS productos (
+      sku TEXT PRIMARY KEY,
+      marca TEXT,
+      subcategoria TEXT,
+      imagen TEXT,
+      imagenOriginal TEXT,
+      specs_json TEXT,
+      search_text TEXT
+    );
+  `);
+
+  return db;
+}
+
+export async function clearProducts() {
+  const db = await getDB();
+  await db.execAsync('DELETE FROM productos;');
+}
+
+export async function insertProductsBatch(productosArray, manifest, isDelta = false) {
+  const db = await getDB();
+
+  await db.withTransactionAsync(async () => {
+    if (!isDelta) {
+      await db.execAsync('DELETE FROM productos;');
+    }
+
+    for (const p of productosArray) {
+      const pSku = p.SKU || p.sku;
+      if (!pSku) continue;
+
+      const sku = String(pSku).trim();
+      const marca = (p.Brand || p.Marca || p.marca || '').toString().trim().toUpperCase();
+      const subcategoria = (p['Tipo de Producto'] || p['Categoria Magento'] || 'General').toString().trim().toUpperCase();
+      const imagenOriginal = (p['imagen 1'] || p.imagen || '').toString().trim();
+      const imagen = (manifest && manifest[sku + '.jpg']) || imagenOriginal;
+
+      const specs = [];
+      const colsExcluidas = new Set([
+        'SKU', 'imagen 1', 'imagen 2', 'imagen 3', 'imagen 4', 'imagen 5',
+        'Brand', 'Marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
+        'url_key', 'visibility', 'status', 'price', 'Precio'
+      ]);
+      const basura = ['n/a', 'na', 'n.a', 'n.a.', 'no aplica', 'sin dato', 'sin datos',
+        'no', 'no tiene', 'no disponible', 'pim', '-', '--', '---', 'st', 'sin información',
+        'no corresponde', 'sin especificar', 'sin info'];
+
+      for (const [col, val] of Object.entries(p)) {
+        if (!colsExcluidas.has(col) && !col.startsWith('_')) {
+          const s = String(val).trim().toLowerCase();
+          if (s.length > 0 && !/^0([.,]0+)?$/.test(s) && !basura.includes(s)) {
+            specs.push([col, String(val).trim()]);
+          }
+        }
+      }
+
+      const specsJson = JSON.stringify(specs);
+      const searchText = `${sku} ${marca} ${subcategoria} ${specs.map(s => s[1]).join(' ')}`.toLowerCase();
+
+      await db.runAsync(
+        'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, specs_json, search_text) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [sku, marca, subcategoria, imagen, imagenOriginal, specsJson, searchText]
+      );
+    }
+  });
+}
+
+export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
+  const db = await getDB();
+
+  let query = 'SELECT * FROM productos WHERE 1=1';
+  const params = [];
+
+  if (marcaFiltro && marcaFiltro !== 'Todas' && marcaFiltro !== '') {
+    query += ' AND UPPER(marca) = UPPER(?)';
+    params.push(marcaFiltro);
+  }
+
+  if (subcatFiltro && subcatFiltro !== 'Todas') {
+    if (subcatFiltro === '__acc__') {
+      query += " AND (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
+    } else if (subcatFiltro === '__productos__') {
+      query += " AND NOT (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
+    } else {
+      query += ' AND subcategoria LIKE ?';
+      params.push(`%${subcatFiltro}%`);
+    }
+  }
+
+  if (textoBusqueda && textoBusqueda.trim().length > 0) {
+    const terminos = textoBusqueda.trim().toLowerCase().split(' ').filter(t => t.length > 0);
+    terminos.forEach(term => {
+      query += ' AND search_text LIKE ?';
+      params.push(`%${term}%`);
+    });
+  }
+
+  query += ' ORDER BY subcategoria ASC, sku ASC LIMIT 500';
+
+  const results = await db.getAllAsync(query, params);
+
+  return results.map(r => ({
+    modelo: r.sku,
+    marca: r.marca,
+    subcategoria: r.subcategoria,
+    imagen: r.imagen,
+    imagenOriginal: r.imagenOriginal,
+    specs: r.specs_json ? JSON.parse(r.specs_json) : []
+  }));
+}
+
+export async function getUniqueBrands() {
+  const db = await getDB();
+  const results = await db.getAllAsync('SELECT DISTINCT marca FROM productos ORDER BY marca ASC');
+  return results.map(r => r.marca).filter(Boolean);
+}
+
+export async function getProductsBySubcategory(substring, excludeAccessories = false) {
+  const db = await getDB();
+  let query = 'SELECT * FROM productos WHERE subcategoria LIKE ?';
+  if (excludeAccessories) {
+    query += " AND NOT (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
+  }
+  const results = await db.getAllAsync(query, [`%${substring}%`]);
+  return results.map(r => ({
+    modelo: r.sku,
+    marca: r.marca,
+    subcategoria: r.subcategoria,
+    imagen: r.imagen,
+    imagenOriginal: r.imagenOriginal,
+    specs: r.specs_json ? JSON.parse(r.specs_json) : []
+  }));
+}
+
+export async function getProductBySku(sku) {
+  const db = await getDB();
+  const result = await db.getFirstAsync('SELECT * FROM productos WHERE sku = ?', [sku]);
+  if (!result) return null;
+  return {
+    modelo: result.sku,
+    marca: result.marca,
+    subcategoria: result.subcategoria,
+    imagen: result.imagen,
+    imagenOriginal: result.imagenOriginal,
+    specs: result.specs_json ? JSON.parse(result.specs_json) : []
+  };
+}
+
+export async function getAllProducts() {
+  const db = await getDB();
+  const results = await db.getAllAsync('SELECT * FROM productos ORDER BY marca ASC, sku ASC');
+  return results.map(r => ({
+    modelo: r.sku,
+    marca: r.marca,
+    subcategoria: r.subcategoria,
+    imagen: r.imagen,
+    imagenOriginal: r.imagenOriginal,
+    specs: r.specs_json ? JSON.parse(r.specs_json) : []
+  }));
+}

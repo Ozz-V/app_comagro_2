@@ -1,17 +1,22 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
-  View, Text, Modal, ScrollView, TouchableOpacity, Image,
+  View, Text, Modal, ScrollView, TouchableOpacity,
   ActivityIndicator, StyleSheet, PanResponder, useWindowDimensions
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { captureRef } from 'react-native-view-shot';
+import { Image } from 'expo-image';
+import * as FileSystem from 'expo-file-system';
 import SvgIcon from './SvgIcon';
 import { COLORS, FONTS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generarHtmlFicha, fetchImageBase64, generateAndSharePdf } from '../utils/pdfService';
+import { searchProducts } from '../utils/database';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../supabase';
 
 const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
 
@@ -20,7 +25,6 @@ export default function ProductDetailModal({
   modalProd,
   onClose,
   onCompare,
-  allProducts,
   logoRefreshKey,
   pdfCache,
   trackAnalytics,
@@ -33,14 +37,35 @@ export default function ProductDetailModal({
   const { showAlert, showToast } = useCustomAlert();
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [generandoPdf, setGenerandoPdf] = useState(false);
+  
+  const [productosSimilares, setProductosSimilares] = useState([]);
+  const [productosMismaMarca, setProductosMismaMarca] = useState([]);
   const [compartiendo, setCompartiendo] = useState(false);
   const [htmlForImage, setHtmlForImage] = useState(null);
   const hiddenWebViewRef = useRef(null);
+
+  async function logProductAction(action) {
+    if (!modalProd) return;
+    try {
+      const email = (await supabase.auth.getUser()).data?.user?.email || 'anon@comagro.com.py';
+      const q = await AsyncStorage.getItem('@analytics_queue');
+      const queue = q ? JSON.parse(q) : [];
+      queue.push({
+        modelo: modalProd.modelo,
+        marca: modalProd.marca,
+        sku: modalProd.modelo,
+        action,
+        user_email: email
+      });
+      await AsyncStorage.setItem('@analytics_queue', JSON.stringify(queue));
+    } catch(e) {}
+  }
 
   // Reset tab when modalProd changes
   useEffect(() => {
     if (visible && modalProd) {
       setActiveTab('FICHA');
+      logProductAction('view');
     }
   }, [modalProd?.modelo, visible]);
 
@@ -63,7 +88,8 @@ export default function ProductDetailModal({
 
   const extractPower = (specs) => {
     if (!specs) return null;
-    for (const [k, v] of specs) {
+    const specArray = specs;
+    for (const [k, v] of specArray) {
       const kl = String(k).toLowerCase();
       const vl = String(v).toLowerCase();
       
@@ -91,40 +117,50 @@ export default function ProductDetailModal({
     return null;
   };
 
-  // Similares logic
-  const productosSimilares = useMemo(() => {
-    if (!modalProd || !allProducts) return [];
-    const baseList = allProducts.filter(p => p.subcategoria === modalProd.subcategoria && p.modelo !== modalProd.modelo);
-    
-    const targetPower = extractPower(modalProd.specs);
-    if (targetPower !== null) {
-      return baseList.map(p => {
-        const pPower = extractPower(p.specs);
-        return { ...p, pPower };
-      }).filter(p => {
-        if (p.pPower === null) return false; // Excluir si no se puede determinar la potencia
-        // Rango estricto: entre el 50% y el 150% de la potencia original
-        return p.pPower >= targetPower * 0.5 && p.pPower <= targetPower * 1.5;
-      }).map(p => {
-        const diff = Math.abs(p.pPower - targetPower);
-        return { ...p, diff };
-      }).sort((a, b) => a.diff - b.diff).slice(0, 8);
-    }
-    return baseList.slice(0, 8);
-  }, [modalProd, allProducts]);
+  useEffect(() => {
+    async function fetchRelated() {
+      if (!modalProd) {
+        setProductosSimilares([]);
+        setProductosMismaMarca([]);
+        return;
+      }
+      
+      try {
+        const baseList = await searchProducts('Todas', modalProd.subcategoria, '');
+        const targetPower = extractPower(modalProd.specs);
+        let similars = [];
+        
+        if (targetPower !== null) {
+          similars = baseList.filter(p => p.modelo !== modalProd.modelo).map(p => {
+            const pPower = extractPower(p.specs);
+            return { ...p, pPower };
+          }).filter(p => {
+            if (p.pPower === null) return false;
+            return p.pPower >= targetPower * 0.5 && p.pPower <= targetPower * 1.5;
+          }).map(p => {
+            const diff = Math.abs(p.pPower - targetPower);
+            return { ...p, diff };
+          }).sort((a, b) => a.diff - b.diff).slice(0, 8);
+        } else {
+          similars = baseList.filter(p => p.modelo !== modalProd.modelo).slice(0, 8);
+        }
+        setProductosSimilares(similars);
+      } catch (e) {}
 
-  const productosMismaMarca = useMemo(() => {
-    if (!modalProd || !allProducts) return [];
-    return allProducts
-      .filter(p => p.marca === modalProd.marca && p.modelo !== modalProd.modelo)
-      .slice(0, 20);
-  }, [modalProd, allProducts]);
+      try {
+        const brandList = await searchProducts(modalProd.marca, 'Todas', '');
+        setProductosMismaMarca(brandList.filter(p => p.modelo !== modalProd.modelo).slice(0, 20));
+      } catch (e) {}
+    }
+    
+    fetchRelated();
+  }, [modalProd]);
 
   const compartirPdf = async () => {
     try {
       setGenerandoPdf(true);
       await generateAndSharePdf(modalProd, pdfCache, logoRefreshKey);
-      if (trackAnalytics) trackAnalytics(modalProd, 'share_pdf');
+      logProductAction('share_pdf');
     } catch (e) {
       console.log('Error generando PDF:', e);
       showAlert('Error', 'No se pudo generar el PDF corporativo.');
@@ -157,7 +193,7 @@ export default function ProductDetailModal({
       }
       
       const htmlContent = generarHtmlFicha(specs, finalProdB64, finalLogoB64, modalProd);
-      setHtmlForImage(htmlContent); // Esto desencadena el renderizado del WebView
+      setHtmlForImage(htmlContent);
     } catch (e) {
       console.log('Error preparando HTML para imagen:', e);
       showAlert('Error', 'No se pudo preparar la ficha. Intentá de nuevo.');
@@ -167,17 +203,35 @@ export default function ProductDetailModal({
 
   const capturarHtmlOculto = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 800)); // tiempo para renderizar WebView
+      await new Promise(resolve => setTimeout(resolve, 800));
       const imgUri = await captureRef(hiddenWebViewRef, {
         format: 'png',
         quality: 1.0,
         result: 'tmpfile'
       });
-      await Sharing.shareAsync(imgUri, {
+      
+      let finalUriToShare = imgUri;
+      try {
+        const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+        const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+        const newFileName = `${safeMarca}_${safeModelo}.png`;
+        const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
+        
+        const fileInfo = await FileSystem.getInfoAsync(newUri);
+        if (fileInfo.exists) {
+          await FileSystem.deleteAsync(newUri);
+        }
+        await FileSystem.copyAsync({ from: imgUri, to: newUri });
+        finalUriToShare = newUri;
+      } catch (renameError) {
+        console.log('No se pudo renombrar, usando original:', renameError);
+      }
+      
+      await Sharing.shareAsync(finalUriToShare, {
         dialogTitle: `Ficha ${modalProd?.modelo}`,
         mimeType: 'image/png',
       });
-      if (trackAnalytics) trackAnalytics(modalProd, 'share_image');
+      logProductAction('share_image');
     } catch (e) {
       console.log('Error capturando WebView:', e);
       showAlert('Error', 'Fallo al capturar la imagen en alta calidad.');
@@ -220,7 +274,6 @@ export default function ProductDetailModal({
             </TouchableOpacity>
           </View>
 
-          {/* TABS */}
           <View style={styles.tabsWrap}>
             <TouchableOpacity onPress={() => setActiveTab('FICHA')} style={[styles.tabBtn, activeTab === 'FICHA' && styles.tabBtnActive]}>
               <View style={styles.tabContentRow}>
@@ -244,24 +297,21 @@ export default function ProductDetailModal({
 
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
             
-            {/* TAB: FICHA */}
             {activeTab === 'FICHA' && (
               <View>
                 <View style={styles.fichaCard}>
-                  {/* HEADER MÓVIL */}
                   <View style={styles.fichaHeaderMobile}>
                     <View style={styles.logoContainer}>
-                      <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg?v=${logoRefreshKey}` }} style={{ width: 120, height: 40 }} resizeMode="contain" />
+                      <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg?v=${logoRefreshKey}` }} style={{ width: 130, height: 60 }} contentFit="contain" />
                     </View>
                     <View style={styles.headerSeparator} />
                     <Text style={styles.headerTitleText}>FICHA TÉCNICA</Text>
                   </View>
                   <View style={styles.greenLineFull} />
 
-                  {/* MIDDLE ROW MÓVIL */}
                   <View style={styles.productBox}>
                     <View style={styles.productImgContainer}>
-                      <Image source={{ uri: modalProd?.imagen }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                      <Image source={{ uri: modalProd?.imagen }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
                     </View>
                     <View style={styles.productInfoContainer}>
                       <View style={styles.productInfoGreenBar} />
@@ -273,7 +323,6 @@ export default function ProductDetailModal({
                     </View>
                   </View>
 
-                  {/* Botón Comparar */}
                   {(() => {
                     const similares = productosSimilares.slice(0, 3);
                     if (similares.length > 0) {
@@ -290,7 +339,6 @@ export default function ProductDetailModal({
                     return null;
                   })()}
 
-                  {/* Specs Table */}
                   {modalProd?.specs?.length > 0 && (
                     <View style={styles.specsWrap}>
                       <View style={styles.specsHead}>
@@ -306,7 +354,6 @@ export default function ProductDetailModal({
                   )}
                 </View>
 
-                {/* Botones de acción */}
                 <View style={styles.modalActionsWrap}>
                   <TouchableOpacity
                     style={[styles.actionBtn, generandoPdf && styles.actionBtnDisabled]}
@@ -343,7 +390,6 @@ export default function ProductDetailModal({
               </View>
             )}
 
-            {/* TAB: ASISTENTE IA */}
             {activeTab === 'ASISTENTE' && (
               <View style={styles.tabContent}>
                 <View style={styles.aiHeader}>
@@ -373,7 +419,6 @@ export default function ProductDetailModal({
               </View>
             )}
 
-            {/* TAB: SIMILARES */}
             {activeTab === 'SIMILARES' && (
               <View style={styles.tabContent}>
                 {productosMismaMarca.length > 0 && (
@@ -387,7 +432,7 @@ export default function ProductDetailModal({
                           onPress={() => onOpenProduct(sim)}
                           activeOpacity={0.8}
                         >
-                          <Image source={{ uri: sim.imagen }} style={styles.simSlideImg} resizeMode="contain" />
+                          <Image source={{ uri: sim.imagen }} style={styles.simSlideImg} contentFit="contain" />
                           <Text style={styles.simSlideMarca}>{sim.subcategoria}</Text>
                           <Text style={styles.simSlideModelo} numberOfLines={2}>{sim.modelo}</Text>
                         </TouchableOpacity>
@@ -401,7 +446,7 @@ export default function ProductDetailModal({
                     <Text style={styles.simSectionTitle}>Misma categoría</Text>
                     {productosSimilares.map((sim) => (
                       <TouchableOpacity key={sim.modelo} style={styles.simCard} onPress={() => onOpenProduct(sim)}>
-                        <Image source={{ uri: sim.imagen }} style={styles.simImg} resizeMode="contain" />
+                        <Image source={{ uri: sim.imagen }} style={styles.simImg} contentFit="contain" transition={200} />
                         <View style={styles.simInfo}>
                           <Text style={styles.simMarca}>{sim.marca}</Text>
                           <Text style={styles.simModelo} numberOfLines={2}>{sim.modelo}</Text>

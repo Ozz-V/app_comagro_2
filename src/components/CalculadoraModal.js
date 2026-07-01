@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, Image } from 'react-native';
 import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
+import { getProductsBySubcategory } from '../utils/database';
 
-export default function CalculadoraModal({ visible, onClose, allProdsCache, navigation }) {
+export default function CalculadoraModal({ visible, onClose, navigation }) {
   const [calcMode, setCalcMode] = useState('');
   const [calcInput, setCalcInput] = useState('');
   const [calcInput2, setCalcInput2] = useState('');
@@ -29,7 +30,7 @@ export default function CalculadoraModal({ visible, onClose, allProdsCache, navi
     return parseFloat(m[1].replace(',', '.'));
   }
 
-  function handleCalculate() {
+  async function handleCalculate() {
     if (calcMode === 'bomba' && !pumpWizard.type) {
       alert("Por favor seleccioná el tipo de bomba.");
       return;
@@ -37,69 +38,79 @@ export default function CalculadoraModal({ visible, onClose, allProdsCache, navi
     
     setHasCalculated(true);
     let filtered = [];
-    if (calcMode === 'gen') {
-      const target = parseFloat(calcInput) || 0;
-      filtered = allProdsCache.filter(p => p.subcategoria && p.subcategoria.includes('GENERADOR')).map(p => {
-        let val = 0;
-        if (p.specs) {
-          p.specs.forEach(s => {
-            const k = s[0].toUpperCase();
-            if (k.includes('POTENCIA') || k.includes('KVA')) {
-              const n = extractNum(s[1]);
-              if (n) val = n;
-            }
-          });
-        }
-        return { ...p, calcVal: val };
-      }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
-    } else if (calcMode === 'motor') {
-      const target = parseFloat(calcInput) || 0;
-      filtered = allProdsCache.filter(p => p.subcategoria && p.subcategoria.includes('MOTOR') && (p.subcategoria.includes('ELEC') || p.subcategoria.includes('ELÉC'))).map(p => {
-        let val = 0;
-        if (p.specs) {
-          p.specs.forEach(s => {
-            const k = s[0].toUpperCase();
-            if (k.includes('HP') || k.includes('POTENCIA')) {
-              const n = extractNum(s[1]);
-              if (n) val = n;
-            }
-          });
-        }
-        return { ...p, calcVal: val };
-      }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
-    } else if (calcMode === 'bomba') {
-      const target = parseFloat(calcInput) || 0;
-      filtered = allProdsCache.filter(p => p.subcategoria && p.subcategoria.includes('BOMBA')).map(p => {
-         let hpVal = 0;
-         if (p.specs) {
-           p.specs.forEach(s => {
-             const key = s[0].toUpperCase();
-             const val = s[1].toUpperCase();
-             if (key.includes('HP') || key.includes('POTENCIA')) {
-                let n = extractNum(s[1]);
-                if (n) {
-                   if (val.includes('KW')) n = n * 1.34;
-                   if (val.includes(' W') || val.match(/\d+W/)) n = n * 0.00134;
-                   if (n > hpVal) hpVal = n;
-                }
-             }
-           });
-         }
-         return { ...p, calcVal: hpVal };
-       }).filter(p => {
-          const sub = p.subcategoria.toUpperCase();
-          if (pumpWizard.type === 'hogar' && !sub.includes('AGUA') && !sub.includes('CENTRÍFUGA') && !sub.includes('PRESURIZA')) return false;
-          if (pumpWizard.type === 'pozo' && !sub.includes('SUMERGIBLE')) return false;
-          if (pumpWizard.type === 'drenaje' && !sub.includes('ACHIQUE') && !sub.includes('DRENAJE')) return false;
-          if (pumpWizard.type === 'piscina' && !sub.includes('PISCINA')) return false;
-          if (pumpWizard.type === 'combustion') {
-            if (sub.includes('ELÉCTRIC') || sub.includes('ELEC') || sub.includes('ELECT')) return false;
-            if (!sub.includes('COMBUSTIÓN') && !sub.includes('NAFTERA') && !sub.includes('DIESEL') && !sub.includes('DIÉSEL') && !sub.includes('MOTOBOMBA')) return false;
+    try {
+      if (calcMode === 'gen') {
+        const target = parseFloat(calcInput) || 0;
+        const dbProducts = await getProductsBySubcategory('GENERADOR', true);
+        filtered = dbProducts.map(p => {
+          let val = 0;
+          if (p.specs) {
+            p.specs.forEach(s => {
+              const k = String(s[0]).toUpperCase();
+              if (k.includes('POTENCIA') || k.includes('KVA')) {
+                const n = extractNum(s[1]);
+                if (n) val = n;
+              }
+            });
           }
-          return true;
-       }).sort((a,b) => {
-          return Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target);
-       }).slice(0, 5);
+          return { ...p, calcVal: val };
+        }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
+      } else if (calcMode === 'motor') {
+        const target = parseFloat(calcInput) || 0;
+        const dbProducts = await getProductsBySubcategory('MOTOR', true);
+        filtered = dbProducts.filter(p => {
+          const sub = String(p.subcategoria).toUpperCase();
+          return sub.includes('ELEC') || sub.includes('ELÉC');
+        }).map(p => {
+          let val = 0;
+          if (p.specs) {
+            p.specs.forEach(s => {
+              const k = String(s[0]).toUpperCase();
+              if (k.includes('HP') || k.includes('POTENCIA')) {
+                const n = extractNum(s[1]);
+                if (n) val = n;
+              }
+            });
+          }
+          return { ...p, calcVal: val };
+        }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
+      } else if (calcMode === 'bomba') {
+        const target = parseFloat(calcInput) || 0;
+        const dbProducts = await getProductsBySubcategory('BOMBA', true);
+        filtered = dbProducts.map(p => {
+           let hpVal = 0;
+           if (p.specs) {
+             p.specs.forEach(s => {
+               const key = String(s[0]).toUpperCase();
+               const val = String(s[1]).toUpperCase();
+               if (key.includes('HP') || key.includes('POTENCIA')) {
+                  let n = extractNum(s[1]);
+                  if (n) {
+                     if (val.includes('KW')) n = n * 1.34;
+                     if (val.includes(' W') || val.match(/\d+W/)) n = n * 0.00134;
+                     if (n > hpVal) hpVal = n;
+                  }
+               }
+             });
+           }
+           return { ...p, calcVal: hpVal };
+         }).filter(p => {
+            const sub = String(p.subcategoria).toUpperCase();
+            if (pumpWizard.type === 'hogar' && !sub.includes('AGUA') && !sub.includes('CENTRÍFUGA') && !sub.includes('PRESURIZA') && !sub.includes('PERIFÉRICA')) return false;
+            if (pumpWizard.type === 'pozo' && !sub.includes('SUMERGIBLE') && !sub.includes('PROFUNDO')) return false;
+            if (pumpWizard.type === 'drenaje' && !sub.includes('ACHIQUE') && !sub.includes('DRENAJE') && !sub.includes('SUCIA')) return false;
+            if (pumpWizard.type === 'piscina' && !sub.includes('PISCINA') && !sub.includes('PILETA')) return false;
+            if (pumpWizard.type === 'combustion') {
+              if (sub.includes('ELÉCTRIC') || sub.includes('ELEC') || sub.includes('ELECT')) return false;
+              if (!sub.includes('COMBUSTIÓN') && !sub.includes('NAFTERA') && !sub.includes('DIESEL') && !sub.includes('DIÉSEL') && !sub.includes('MOTOBOMBA')) return false;
+            }
+            return true;
+         }).sort((a,b) => {
+            return Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target);
+         }).slice(0, 5);
+      }
+    } catch (e) {
+      console.log('Error calculando productos', e);
     }
     setCalcResult(filtered);
   }

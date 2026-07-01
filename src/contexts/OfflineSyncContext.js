@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase, EDGE_URL } from '../supabase';
+import { initDB, insertProductsBatch } from '../utils/database';
 
 const OfflineSyncContext = createContext({});
 
@@ -80,6 +81,7 @@ export function OfflineSyncProvider({ children }) {
     setSelectedGroups(groups);
     
     let totalItems = [];
+    let fetchedProducts = null;
 
     try {
       await ensureDirExists();
@@ -143,8 +145,7 @@ export function OfflineSyncProvider({ children }) {
         }
         
         const nuevosRows = await res.json();
-        await AsyncStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(nuevosRows));
-        await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+        fetchedProducts = nuevosRows;
 
         nuevosRows.forEach(prod => {
           const imgUrl = prod['imagen 1'] || prod.imagen;
@@ -244,6 +245,13 @@ export function OfflineSyncProvider({ children }) {
       }
 
       await saveManifest(currentManifest);
+
+      if (fetchedProducts) {
+        setProgress(prev => ({ ...prev, currentItem: 'Optimizando base de datos...' }));
+        await initDB();
+        await insertProductsBatch(fetchedProducts, currentManifest);
+        await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+      }
 
     } catch (e) {
       console.log('Error general sync', e);
