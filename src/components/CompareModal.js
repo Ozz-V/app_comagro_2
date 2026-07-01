@@ -90,8 +90,8 @@ export default function CompareModal({
                   return found ? found[1] : null;
                 });
                 // Extraer números para comparación
-                const COMPARABLE_SPECS = ['caudal', 'tensión', 'potencia', 'kva', 'presión', 'capacidad', 'cilindrada', 'peso', 'velocidad', 'rpm', 'amper', 'voltaje', 'altura', 'fuerza', 'torque', 'fases'];
-                const isComparable = COMPARABLE_SPECS.some(k => specName.toLowerCase().includes(k)) || /hp|kw|w|v|hz|l\/min|m3\/h|bar|psi|kg|mm|cm|m|rpm|cc|litros/i.test(specName);
+                const COMPARABLE_SPECS = ['caudal', 'tensión', 'tension', 'potencia', 'kva', 'presión', 'presion', 'capacidad', 'cilindrada', 'peso', 'velocidad', 'rpm', 'amper', 'voltaje', 'altura', 'fuerza', 'torque', 'fases', 'diámetro', 'diametro', 'largo', 'ancho', 'profundidad', 'consumo', 'cc', 'hp', 'kw', 'litros'];
+                const isComparable = COMPARABLE_SPECS.some(k => specName.toLowerCase().includes(k));
                 
                 const nums = vals.map(v => extractNum(v));
                 const validNums = nums.filter(n => n !== null);
