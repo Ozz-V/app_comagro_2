@@ -65,8 +65,17 @@ export function useProducts(filtroMarca = '', filtroSubcategoria = '', busqueda 
         (async () => {
           setBgActualiz(true);
           try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const headers = { Authorization: `Bearer ${session?.access_token || ''}` };
+            let { data: { session } } = await supabase.auth.getSession();
+            let accessToken = session?.access_token;
+            if (!accessToken) {
+              const { data: refreshed } = await supabase.auth.refreshSession();
+              accessToken = refreshed?.session?.access_token;
+            }
+            
+            const headers = { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken || ''}` 
+            };
             if (fechaCache) headers['X-Since'] = fechaCache;
             
             const res = await fetch(EDGE_URL, { headers });
@@ -75,11 +84,12 @@ export function useProducts(filtroMarca = '', filtroSubcategoria = '', busqueda 
               if (nuevosRows && nuevosRows.length > 0) {
                 const isDelta = !!fechaCache; // Si enviamos X-Since, recibimos Delta (no borrar DB)
                 await insertProductsBatch(nuevosRows, manifest, isDelta);
-                await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
                 
                 // Actualizar la vista automáticamente si llegaron cosas nuevas
                 realizarBusquedaDB();
               }
+              // Siempre actualizamos el reloj si el servidor respondió bien, aunque no haya cambios
+              await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
             }
           } catch (e) {
             console.log('Fallo bgActualiz', e);
