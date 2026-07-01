@@ -227,7 +227,8 @@ export default function DashboardAnalytics({ navigation }) {
       const m = {};
       rows.forEach(r => {
         const sku = r.modelo;
-        const img = r.imagenOriginal || r.imagen;
+        // imagenOriginal tiene la URL directa del servidor (sin manifest local)
+        const img = r.imagen || r.imagenOriginal;
         if (sku && img) m[sku] = img;
       });
       setImageMap(m);

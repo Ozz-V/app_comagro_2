@@ -93,7 +93,7 @@ export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
   const params = [];
   
   if (marcaFiltro && marcaFiltro !== 'Todas') {
-    query += ' AND marca = ?';
+    query += ' AND UPPER(marca) = UPPER(?)';
     params.push(marcaFiltro);
   }
   
@@ -116,7 +116,7 @@ export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
     });
   }
   
-  query += ' LIMIT 100'; 
+  query += ' LIMIT 500';
   
   const results = await db.getAllAsync(query, params);
   

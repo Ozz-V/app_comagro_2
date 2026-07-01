@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ProductDetailModal from '../components/ProductDetailModal';
+import CompareModal from '../components/CompareModal';
 import { supabase } from '../supabase';
 import { getProductBySku } from '../utils/database';
 
@@ -13,13 +14,18 @@ export default function ProductViewerScreen({ route, navigation }) {
   const [aiData, setAiData] = useState(null);
   const [loadingAi, setLoadingAi] = useState(false);
 
+  // Compare state (self-contained: no need to navigate away to ProductosScreen)
+  const [compareItems, setCompareItems] = useState([]);
+  const [showCompare, setShowCompare] = useState(false);
+
+  const [logoRefreshKey] = useState(Date.now().toString());
+
   async function fetchAiData(skuToFetch) {
     if (!skuToFetch) {
       setAiData('Texto inteligente en preparación.');
       return;
     }
     setLoadingAi(true);
-
     try {
       const rawCache = await AsyncStorage.getItem('@ai_cache_all');
       if (rawCache) {
@@ -52,6 +58,12 @@ export default function ProductViewerScreen({ route, navigation }) {
     }
   }
 
+  function handleOpenProduct(prod) {
+    setAiData(null);
+    setModalProd(prod);
+    fetchAiData(prod.modelo);
+  }
+
   useEffect(() => {
     const loadProduct = async () => {
       try {
@@ -62,7 +74,6 @@ export default function ProductViewerScreen({ route, navigation }) {
             fetchAiData(prod.modelo);
           }
         }
-
         if (contextSkus && contextSkus.length > 0) {
           const items = await Promise.all(contextSkus.map(s => getProductBySku(s)));
           setActiveSliderList(items.filter(Boolean));
@@ -84,8 +95,6 @@ export default function ProductViewerScreen({ route, navigation }) {
     }
   }, [loading, modalProd, navigation]);
 
-  const [logoRefreshKey] = useState(Date.now().toString());
-
   if (loading || !modalProd) {
     return null;
   }
@@ -97,16 +106,25 @@ export default function ProductViewerScreen({ route, navigation }) {
         modalProd={modalProd}
         onClose={() => navigation.goBack()}
         activeSliderList={activeSliderList.length > 0 ? activeSliderList : [modalProd]}
-        onOpenProduct={(prod) => {
-          setModalProd(prod);
-          fetchAiData(prod.modelo);
-        }}
+        onOpenProduct={handleOpenProduct}
         aiData={aiData}
         loadingAi={loadingAi}
         pdfCache={{}}
         logoRefreshKey={logoRefreshKey}
         onCompare={(items) => {
-          navigation.navigate('Productos', { compareSkus: items.map(i => i.modelo), fromProductViewer: true });
+          setCompareItems(items);
+          setShowCompare(true);
+        }}
+      />
+
+      <CompareModal
+        visible={showCompare}
+        compareItems={compareItems}
+        setCompareItems={setCompareItems}
+        onClose={() => setShowCompare(false)}
+        onOpenProduct={(prod) => {
+          setShowCompare(false);
+          handleOpenProduct(prod);
         }}
       />
     </View>
