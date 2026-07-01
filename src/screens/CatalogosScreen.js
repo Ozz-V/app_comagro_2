@@ -77,13 +77,29 @@ export default function CatalogosScreen({ navigation }) {
     // 2. Actualizar desde red en silencio (si hay caché, no mostramos spinner)
     if (!tieneCache) setCargando(true);
     try {
-      const { data, error: sbError } = await supabase
+      const { data: files, error: sbError } = await supabase
+        .storage
         .from('catalogos')
-        .select('archivo, logo, label, orden')
-        .order('orden', { ascending: true });
+        .list('', { limit: 1000, sortBy: { column: 'name', order: 'asc' } });
 
       if (sbError) throw new Error(sbError.message);
-      const lista = data || [];
+
+      const lista = (files || [])
+        .filter(f => f.name && f.name.toLowerCase().endsWith('.pdf'))
+        .map(f => {
+          // Extrae el nombre sin la extensión (ej. "jasic.pdf" -> "jasic")
+          const baseName = f.name.substring(0, f.name.lastIndexOf('.'));
+          // Convierte a mayúsculas para coincidir con el estándar de los logos (ej. "JASIC")
+          const brandName = baseName.toUpperCase();
+          
+          return {
+            archivo: f.name,
+            logo: brandName,
+            label: brandName,
+            orden: brandName
+          };
+        })
+        .sort((a, b) => a.label.localeCompare(b.label));
 
       try {
         await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(lista));
