@@ -16,6 +16,7 @@ export function useProducts() {
   const [bgActualiz, setBgActualiz] = useState(false);
   const [error, setError] = useState(null);
   const [logoRefreshKey, setLogoRefreshKey] = useState('');
+  const [dbVersion, setDbVersion] = useState(0);
 
   useEffect(() => {
     cargarLogoRefreshKey();
@@ -100,8 +101,10 @@ export function useProducts() {
     } finally {
       setBgActualiz(false);
       // Tras terminar la actualización en segundo plano, recargamos las marcas
+      // y subimos dbVersion para que la pantalla vuelva a pedir el catálogo
       const m = await getUniqueBrands();
       setMarcas(m);
+      setDbVersion(v => v + 1);
     }
   }
 
@@ -138,6 +141,7 @@ export function useProducts() {
     logoRefreshKey,
     onRefresh,
     getProductBySkuSafe,
-    fetchCatalog
+    fetchCatalog,
+    dbVersion
   };
 }

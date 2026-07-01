@@ -42,12 +42,15 @@ export default function ProductosScreen({ navigation, route }) {
     logoRefreshKey,
     onRefresh,
     getProductBySkuSafe,
-    fetchCatalog
+    fetchCatalog,
+    dbVersion
   } = useProducts();
 
   useEffect(() => {
-    fetchCatalog(filtroMarca, filtroSubcategoria, busqueda);
-  }, [filtroMarca, filtroSubcategoria, busqueda, fetchCatalog]);
+    if (!cargando) {
+      fetchCatalog(filtroMarca, filtroSubcategoria, busqueda);
+    }
+  }, [filtroMarca, filtroSubcategoria, busqueda, cargando, dbVersion, fetchCatalog]);
 
   const [modalProd, setModalProd] = useState(null);
   const [aiData, setAiData] = useState(null);
