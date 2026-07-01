@@ -215,7 +215,14 @@ export async function generateAndSharePdf(modalProd, pdfCache = {}, logoRefreshK
   const htmlContent = generarHtmlFicha(specs, finalProdB64, finalLogoB64, modalProd);
   const { uri } = await Print.printToFileAsync({ html: htmlContent });
   
-  await Sharing.shareAsync(uri, {
+  const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+  const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+  const newFileName = `${safeMarca}_${safeModelo}.pdf`;
+  const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
+  
+  await FileSystem.moveAsync({ from: uri, to: newUri });
+  
+  await Sharing.shareAsync(newUri, {
     dialogTitle: `Ficha ${modalProd?.modelo}`,
     mimeType: 'application/pdf',
     UTI: 'com.adobe.pdf'

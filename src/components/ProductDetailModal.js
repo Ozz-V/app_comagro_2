@@ -8,6 +8,7 @@ import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { captureRef } from 'react-native-view-shot';
 import { Image } from 'expo-image';
+import * as FileSystem from 'expo-file-system';
 import SvgIcon from './SvgIcon';
 import { COLORS, FONTS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
@@ -208,7 +209,15 @@ export default function ProductDetailModal({
         quality: 1.0,
         result: 'tmpfile'
       });
-      await Sharing.shareAsync(imgUri, {
+      
+      const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+      const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+      const newFileName = `${safeMarca}_${safeModelo}.png`;
+      const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
+      
+      await FileSystem.moveAsync({ from: imgUri, to: newUri });
+      
+      await Sharing.shareAsync(newUri, {
         dialogTitle: `Ficha ${modalProd?.modelo}`,
         mimeType: 'image/png',
       });
