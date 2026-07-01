@@ -4,6 +4,21 @@ const DB_NAME = 'comagro.db';
 
 export async function initDB() {
   const db = await SQLite.openDatabaseAsync(DB_NAME);
+  
+  // Check if old schema exists (using 'modelo' instead of 'sku')
+  const tableInfo = await db.getAllAsync("PRAGMA table_info(productos)");
+  const hasSkuColumn = tableInfo.some(col => col.name === 'sku');
+  const hasSearchTextColumn = tableInfo.some(col => col.name === 'search_text');
+  
+  if (tableInfo.length > 0 && (!hasSkuColumn || !hasSearchTextColumn)) {
+    console.log('Detectado esquema antiguo de SQLite. Borrando tabla para migración...');
+    await db.execAsync(`DROP TABLE IF EXISTS productos;`);
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.removeItem('comagro_productos_fecha_v3');
+    } catch(e) {}
+  }
+
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS productos (
       sku TEXT PRIMARY KEY,
