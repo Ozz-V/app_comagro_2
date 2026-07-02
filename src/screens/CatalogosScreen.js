@@ -93,15 +93,16 @@ export default function CatalogosScreen({ navigation }) {
           let brandName = '';
           let displayName = '';
 
-          // Si el nombre tiene un guión (ej: "jasic-Equipos de Soldadura.pdf")
+          // Si el nombre tiene un guión (ej: "jasic-Equipos_de_Soldadura.pdf")
           if (baseName.includes('-')) {
             const parts = baseName.split('-');
             brandName = parts[0].trim().toUpperCase();
-            displayName = parts.slice(1).join('-').trim();
+            // Reemplaza guiones bajos por espacios para mostrarlo bonito en la app
+            displayName = parts.slice(1).join('-').replace(/_/g, ' ').trim();
           } else {
             // Comportamiento por defecto (ej: "jasic.pdf")
             brandName = baseName.toUpperCase();
-            displayName = brandName;
+            displayName = brandName.replace(/_/g, ' ');
           }
           
           return {
