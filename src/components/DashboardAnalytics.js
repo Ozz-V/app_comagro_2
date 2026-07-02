@@ -339,8 +339,8 @@ export default function DashboardAnalytics({ navigation }) {
             shares: rpcData.total_shares || 0,
             topV: rpcData.top_viewed || [],
             topSh: rpcData.top_shared || [],
-            brands: (rpcData.top_brands || []).map(b => ({ modelo: b.marca, count: b.count })),
-            users: rpcData.top_users || []
+            brands: (rpcData.top_brands || []).map(b => ({ marca: b.marca, count: b.count })),
+            users: (rpcData.top_users || []).map(u => ({ user_email: u.modelo, count: u.count, modelo: u.modelo }))
           };
           setGlobalData(gdRpc);
           AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gdRpc));
