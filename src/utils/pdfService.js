@@ -206,9 +206,10 @@ export async function generateAndSharePdf(modalProd, pdfCache = {}, logoRefreshK
   if (!finalProdB64) {
     const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\\s+/g, '_') || '';
     const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg?v=${logoRefreshKey}`;
+    const imgUrl = modalProd?.imagen_local || modalProd?.imagen;
     
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
-    finalProdB64 = await Promise.race([fetchImageBase64(modalProd?.imagen), timeoutPromise]).catch(() => '');
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000));
+    finalProdB64 = await Promise.race([fetchImageBase64(imgUrl), timeoutPromise]).catch(() => '');
     finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => '');
   }
   

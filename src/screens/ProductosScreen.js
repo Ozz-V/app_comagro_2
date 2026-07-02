@@ -76,18 +76,24 @@ export default function ProductosScreen({ navigation, route }) {
   function handleOpenModal(prod) {
     setAiData(null);
     setModalProd(prod);
-    fetchAiData(prod.modelo);
+    fetchAiData(prod.modelo, prod.sales_pitch);
   }
 
   function cerrarModal() {
     setModalProd(null);
   }
 
-  async function fetchAiData(sku) {
+  async function fetchAiData(sku, offlinePitch) {
     if (!sku) {
       setAiData('Texto inteligente en preparación.');
       return;
     }
+    
+    if (offlinePitch && offlinePitch.trim().length > 0) {
+      setAiData(offlinePitch);
+      return;
+    }
+
     setLoadingAi(true);
 
     // 1. Check cache first
@@ -105,7 +111,10 @@ export default function ProductosScreen({ navigation, route }) {
 
     // 2. Fetch from Supabase
     try {
-      const { data } = await supabase.from('productos_ai_data').select('sales_pitch').eq('sku', sku).single();
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+      const fetchPromise = supabase.from('productos_ai_data').select('sales_pitch').eq('sku', sku).single();
+      const { data } = await Promise.race([fetchPromise, timeoutPromise]);
+      
       if (data?.sales_pitch) {
         setAiData(data.sales_pitch);
         // Save to cache
@@ -116,10 +125,10 @@ export default function ProductosScreen({ navigation, route }) {
           await AsyncStorage.setItem('@ai_cache_all', JSON.stringify(aiDict));
         } catch (_) {}
       } else {
-        setAiData('Texto inteligente en preparación.');
+        setAiData('ℹ️ El Asistente IA requiere conexión a internet para descargar este texto por primera vez. Cuando tengas red, se guardará aquí.');
       }
     } catch (e) {
-      setAiData('Texto inteligente en preparación.');
+      setAiData('ℹ️ Sin conexión o red lenta. El Asistente IA requiere internet para descargar este texto por primera vez. Cuando vuelva la conexión, se mostrará aquí.');
     } finally {
       setLoadingAi(false);
     }

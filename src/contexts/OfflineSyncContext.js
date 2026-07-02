@@ -145,6 +145,18 @@ export function OfflineSyncProvider({ children }) {
         }
         
         const nuevosRows = await res.json();
+
+        // 3.5. Obtener los "sales_pitch" para uso offline
+        const { data: aiData } = await supabase.from('productos_ai_data').select('sku, sales_pitch');
+        if (aiData) {
+          const aiMap = {};
+          aiData.forEach(r => aiMap[r.sku] = r.sales_pitch);
+          nuevosRows.forEach(prod => {
+            const sku = String(prod.SKU || prod.sku).trim();
+            prod.sales_pitch = aiMap[sku] || '';
+          });
+        }
+
         fetchedProducts = nuevosRows;
 
         nuevosRows.forEach(prod => {

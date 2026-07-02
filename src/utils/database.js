@@ -16,12 +16,13 @@ async function getDB() {
 export async function initDB() {
   const db = await getDB();
 
-  // Verificar si existe un esquema viejo (sin columna 'sku' o 'search_text')
+  // Verificar si existe un esquema viejo (sin columna 'sku', 'search_text' o 'sales_pitch')
   const tableInfo = await db.getAllAsync('PRAGMA table_info(productos)');
   const hasSkuColumn = tableInfo.some(col => col.name === 'sku');
   const hasSearchTextColumn = tableInfo.some(col => col.name === 'search_text');
+  const hasSalesPitchColumn = tableInfo.some(col => col.name === 'sales_pitch');
 
-  if (tableInfo.length > 0 && (!hasSkuColumn || !hasSearchTextColumn)) {
+  if (tableInfo.length > 0 && (!hasSkuColumn || !hasSearchTextColumn || !hasSalesPitchColumn)) {
     console.log('Esquema antiguo detectado. Migrando...');
     await db.execAsync('DROP TABLE IF EXISTS productos;');
     try {
@@ -38,7 +39,8 @@ export async function initDB() {
       imagen TEXT,
       imagenOriginal TEXT,
       specs_json TEXT,
-      search_text TEXT
+      search_text TEXT,
+      sales_pitch TEXT
     );
   `);
 
@@ -89,10 +91,11 @@ export async function insertProductsBatch(productosArray, manifest, isDelta = fa
 
       const specsJson = JSON.stringify(specs);
       const searchText = `${sku} ${marca} ${subcategoria} ${specs.map(s => s[1]).join(' ')}`.toLowerCase();
+      const salesPitch = p.sales_pitch || '';
 
       await db.runAsync(
-        'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, specs_json, search_text) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [sku, marca, subcategoria, imagen, imagenOriginal, specsJson, searchText]
+        'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, specs_json, search_text, sales_pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [sku, marca, subcategoria, imagen, imagenOriginal, specsJson, searchText, salesPitch]
       );
     }
   });
@@ -138,7 +141,8 @@ export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
     subcategoria: r.subcategoria,
     imagen: r.imagen,
     imagenOriginal: r.imagenOriginal,
-    specs: r.specs_json ? JSON.parse(r.specs_json) : []
+    specs: r.specs_json ? JSON.parse(r.specs_json) : [],
+    sales_pitch: r.sales_pitch || ''
   }));
 }
 
@@ -161,7 +165,8 @@ export async function getProductsBySubcategory(substring, excludeAccessories = f
     subcategoria: r.subcategoria,
     imagen: r.imagen,
     imagenOriginal: r.imagenOriginal,
-    specs: r.specs_json ? JSON.parse(r.specs_json) : []
+    specs: r.specs_json ? JSON.parse(r.specs_json) : [],
+    sales_pitch: r.sales_pitch || ''
   }));
 }
 
@@ -175,7 +180,8 @@ export async function getProductBySku(sku) {
     subcategoria: result.subcategoria,
     imagen: result.imagen,
     imagenOriginal: result.imagenOriginal,
-    specs: result.specs_json ? JSON.parse(result.specs_json) : []
+    specs: result.specs_json ? JSON.parse(result.specs_json) : [],
+    sales_pitch: result.sales_pitch || ''
   };
 }
 
@@ -188,6 +194,7 @@ export async function getAllProducts() {
     subcategoria: r.subcategoria,
     imagen: r.imagen,
     imagenOriginal: r.imagenOriginal,
-    specs: r.specs_json ? JSON.parse(r.specs_json) : []
+    specs: r.specs_json ? JSON.parse(r.specs_json) : [],
+    sales_pitch: r.sales_pitch || ''
   }));
 }

@@ -20,11 +20,17 @@ export default function ProductViewerScreen({ route, navigation }) {
 
   const [logoRefreshKey] = useState(Date.now().toString());
 
-  async function fetchAiData(skuToFetch) {
+  async function fetchAiData(skuToFetch, offlinePitch) {
     if (!skuToFetch) {
       setAiData('Texto inteligente en preparación.');
       return;
     }
+    
+    if (offlinePitch && offlinePitch.trim().length > 0) {
+      setAiData(offlinePitch);
+      return;
+    }
+
     setLoadingAi(true);
     try {
       const rawCache = await AsyncStorage.getItem('@ai_cache_all');
@@ -39,7 +45,10 @@ export default function ProductViewerScreen({ route, navigation }) {
     } catch (_) {}
 
     try {
-      const { data } = await supabase.from('productos_ai_data').select('sales_pitch').eq('sku', skuToFetch).single();
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+      const fetchPromise = supabase.from('productos_ai_data').select('sales_pitch').eq('sku', skuToFetch).single();
+      const { data } = await Promise.race([fetchPromise, timeoutPromise]);
+      
       if (data?.sales_pitch) {
         setAiData(data.sales_pitch);
         try {
@@ -49,10 +58,10 @@ export default function ProductViewerScreen({ route, navigation }) {
           await AsyncStorage.setItem('@ai_cache_all', JSON.stringify(aiDict));
         } catch (_) {}
       } else {
-        setAiData('Texto inteligente en preparación.');
+        setAiData('ℹ️ El Asistente IA requiere conexión a internet para descargar este texto por primera vez. Cuando tengas red, se guardará aquí.');
       }
     } catch (e) {
-      setAiData('Texto inteligente en preparación.');
+      setAiData('ℹ️ Sin conexión o red lenta. El Asistente IA requiere internet para descargar este texto por primera vez. Cuando vuelva la conexión, se mostrará aquí.');
     } finally {
       setLoadingAi(false);
     }
@@ -61,7 +70,7 @@ export default function ProductViewerScreen({ route, navigation }) {
   function handleOpenProduct(prod) {
     setAiData(null);
     setModalProd(prod);
-    fetchAiData(prod.modelo);
+    fetchAiData(prod.modelo, prod.sales_pitch);
   }
 
   useEffect(() => {
@@ -71,7 +80,7 @@ export default function ProductViewerScreen({ route, navigation }) {
           const prod = await getProductBySku(sku);
           if (prod) {
             setModalProd(prod);
-            fetchAiData(prod.modelo);
+            fetchAiData(prod.modelo, prod.sales_pitch);
           }
         }
         if (contextSkus && contextSkus.length > 0) {

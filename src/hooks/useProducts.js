@@ -95,6 +95,11 @@ export function useProducts() {
           await insertProductsBatch(nuevosRows, manifest, isDelta);
         }
         await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+        
+        // Solo actualizamos la llave del logo si la red fue exitosa
+        const newKey = Date.now().toString();
+        setLogoRefreshKey(newKey);
+        AsyncStorage.setItem('@logo_refresh_key', newKey).catch(()=>{});
       }
     } catch (e) {
       console.log('Fallo bgActualiz', e);
@@ -122,9 +127,6 @@ export function useProducts() {
       return;
     }
     setRefreshing(true);
-    const newKey = Date.now().toString();
-    setLogoRefreshKey(newKey);
-    AsyncStorage.setItem('@logo_refresh_key', newKey).catch(()=>{});
     
     AsyncStorage.removeItem(CACHE_TIME_KEY).then(() => {
       inicializar();
