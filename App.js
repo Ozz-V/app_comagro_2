@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Constants from 'expo-constants';
 import * as Application from 'expo-application';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as SecureStore from 'expo-secure-store';
 import * as Sharing from 'expo-sharing';
 import { OfflineSyncProvider } from './src/contexts/OfflineSyncContext';
 import { CustomAlertProvider } from './src/contexts/CustomAlertContext';
@@ -133,11 +134,9 @@ function App() {
 
   useEffect(() => {
     // Verificar login local (para modo offline) — esto es rápido (ms)
-    import('@react-native-async-storage/async-storage').then(({ default: AsyncStorage }) => {
-      AsyncStorage.getItem('@is_logged_in').then(val => {
-        if (val === 'true') setIsOfflineLoggedIn(true);
-        setOfflineAuthChecked(true); // ya sabemos el estado local, no esperamos más a Supabase
-      });
+    SecureStore.getItemAsync('@is_logged_in').then(val => {
+      if (val === 'true') setIsOfflineLoggedIn(true);
+      setOfflineAuthChecked(true); // ya sabemos el estado local, no esperamos más a Supabase
     });
 
     async function registerAndSaveToken(userId) {
@@ -177,9 +176,7 @@ function App() {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session ?? null);
       if (data.session) {
-        import('@react-native-async-storage/async-storage').then(({ default: AsyncStorage }) => {
-          AsyncStorage.setItem('@is_logged_in', 'true');
-        });
+        SecureStore.setItemAsync('@is_logged_in', 'true');
         registerAndSaveToken(data.session.user.id);
         checkProfile(data.session.user.id);
       } else {
@@ -191,10 +188,8 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess ?? null);
       if (sess) {
-        import('@react-native-async-storage/async-storage').then(({ default: AsyncStorage }) => {
-          AsyncStorage.setItem('@is_logged_in', 'true');
-          setIsOfflineLoggedIn(true);
-        });
+        SecureStore.setItemAsync('@is_logged_in', 'true');
+        setIsOfflineLoggedIn(true);
         registerAndSaveToken(sess.user.id);
         checkProfile(sess.user.id);
       } else {

@@ -25,7 +25,7 @@ export default function PortalScreen({ navigation }) {
 
   async function fetchRemoteConfig() {
     try {
-      const { data } = await supabase.from('app_config').select('*').eq('id', 'global').single();
+      const { data } = await supabase.from('app_config').select('status, message').eq('id', 'global').single();
       if (data) {
         setRemoteConfig(data);
       }
@@ -91,7 +91,7 @@ export default function PortalScreen({ navigation }) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const { data } = await supabase.from('profiles').select('id, full_name, telefono').eq('id', user.id).single();
       if (!data || !data.full_name || data.full_name === 'EMPTY' || !data.telefono || data.telefono === '+595') {
         setProfName(data?.full_name && data.full_name !== 'EMPTY' ? data.full_name : '');
         setProfPhoneInit(data?.telefono && data.telefono !== '+595' ? data.telefono : '');

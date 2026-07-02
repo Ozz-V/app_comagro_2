@@ -163,7 +163,7 @@ export default function DashboardAnalytics({ navigation }) {
       const cachedDir = await AsyncStorage.getItem('@directory_cache');
       if (cachedDir) setDirectoryUsers(JSON.parse(cachedDir));
       if (!isOnline) return;
-      const { data, error } = await supabase.from('profiles').select('*').order('full_name');
+      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url, email, telefono').order('full_name');
       if (data && !error) {
         const valid = data.filter(u => u.full_name && u.full_name !== 'EMPTY');
         setDirectoryUsers(valid);
@@ -192,7 +192,7 @@ export default function DashboardAnalytics({ navigation }) {
     }
     
     try {
-      const { data: profile, error: errProfile } = await supabase.from('profiles').select('*').eq('email', email).single();
+      const { data: profile, error: errProfile } = await supabase.from('profiles').select('id, full_name, avatar_url, telefono, email').eq('email', email).single();
       const { data: analyticsData, error: errAnalytics } = await supabase.from('producto_analytics').select('action').eq('user_email', email);
       
       if (errProfile || errAnalytics) throw new Error('Network fail');

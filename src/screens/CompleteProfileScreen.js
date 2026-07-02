@@ -31,7 +31,7 @@ export default function CompleteProfileScreen() {
       setUserEmail(user.email || '');
       setUserId(user.id);
       
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const { data } = await supabase.from('profiles').select('id, full_name, telefono, avatar_url').eq('id', user.id).single();
       if (data) {
         if (data.full_name && data.full_name !== 'EMPTY') setFullName(data.full_name);
         if (data.telefono && data.telefono !== '+595') {

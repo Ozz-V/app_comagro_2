@@ -130,7 +130,7 @@ export default function ConfigScreen({ navigation }) {
          uploadPhoto(pendingAvatar);
       }
 
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const { data } = await supabase.from('profiles').select('id, full_name, telefono, avatar_url, email').eq('id', user.id).single();
       if (data && !pendingProfileObj) {
         data.email = user.email; 
         
@@ -278,7 +278,7 @@ export default function ConfigScreen({ navigation }) {
     }
 
     try {
-      const { data } = await supabase.from('version_apk').select('*').order('created_at', { ascending: false }).limit(1).single();
+      const { data } = await supabase.from('version_apk').select('version_code, url, release_notes, sha256').order('created_at', { ascending: false }).limit(1).single();
       if (data && data.version_code > versionCode) {
         setUpdateModalType('available');
         setUpdateModalData(data);
@@ -290,6 +290,22 @@ export default function ConfigScreen({ navigation }) {
       }
     } catch (e) { showAlert('Error', 'No se pudo verificar.'); }
     finally { setCheckingUpdate(false); }
+  }
+
+  async function clearCache() {
+    showAlert('Limpiar Caché', '¿Eliminar las imágenes guardadas en memoria para liberar espacio?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Limpiar', onPress: async () => {
+        try {
+          const { Image } = require('expo-image');
+          await Image.clearDiskCache();
+          await Image.clearMemoryCache();
+          showToast('Caché liberada correctamente.');
+        } catch (e) {
+          showToast('Error al limpiar caché.');
+        }
+      }}
+    ]);
   }
 
   return (
@@ -421,6 +437,11 @@ export default function ConfigScreen({ navigation }) {
           <SvgIcon name="actualizar" size={22} color="#fff" />
           <Text style={st.updateText}>{checkingUpdate ? 'Verificando...' : 'Buscar actualización'}</Text>
           {checkingUpdate && <ActivityIndicator color="#fff" size="small" />}
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[st.updateBtn, { backgroundColor: '#F0F4F8', marginTop: 12 }]} onPress={clearCache} activeOpacity={0.7}>
+          <Text style={{ fontSize: 18, marginRight: 8 }}>🧹</Text>
+          <Text style={[st.updateText, { color: COLORS.navy }]}>Limpiar Caché de Imágenes</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
