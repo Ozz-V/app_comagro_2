@@ -30,6 +30,7 @@ const SVGS = {  doc5: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 144.
   usuarios: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 160'><path fill="FILLCOLOR" d="M72,80c18.8,0,34-15.2,34-34S90.8,12,72,12S38,27.2,38,46S53.2,80,72,80z M72,24c12.1,0,22,9.9,22,22s-9.9,22-22,22s-22-9.9-22-22S59.9,24,72,24z M72,90c-30,0-60,15-60,30v20h120v-20C132,105,102,90,72,90z M24,132v-12c0-8.4,22.4-18,48-18s48,9.6,48,18v12H24z M148,76c14.9,0,27-12.1,27-27s-12.1-27-27-27s-27,12.1-27,27S133.1,76,148,76z M148,34c8.3,0,15,6.7,15,15s-6.7,15-15,15s-15-6.7-15-15S139.7,34,148,34z M148,84c-8,0-15.6,1.6-22,4.2c10.6,5.6,18,13.2,18,21.8v30h36v-20C180,99,166,84,148,84z"/></svg>`,
   // Portapapeles (botón copiar resumen en dashboard)
   portapapeles: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 200'><path fill="FILLCOLOR" d="M110,20H100V10c0-5.5-4.5-10-10-10H70c-5.5,0-10,4.5-10,10v10H50C38.9,20,30,28.9,30,40v140c0,11.1,8.9,20,20,20h100c11.1,0,20-8.9,20-20V40C170,28.9,161.1,20,150,20H110z M72,10h16v20H72V10z M158,180c0,4.4-3.6,8-8,8H50c-4.4,0-8-3.6-8-8V40c0-4.4,3.6-8,8-8h20v10h40V32h20c4.4,0,8,3.6,8,8V180z M60,90h80V78H60V90z M60,120h80v-12H60V120z M60,150h80v-12H60V150z"/></svg>`,
+  trash: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='FILLCOLOR' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'/></svg>`,
 };
 
 

@@ -225,31 +225,47 @@ export default function ChatScreen({ navigation }) {
 
 const AiProductCard = ({ sku, skusContext, navigation }) => {
   const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    import('../utils/database').then(({ getProductBySku }) => {
-      getProductBySku(sku).then(p => {
-        if (p) setProduct(p);
-      });
+    import('../utils/database').then(async ({ getProductBySku, fetchMissingProductFromCloud }) => {
+      let p = await getProductBySku(sku);
+      if (!p) {
+        // No está en local, lo buscamos en la nube "on-the-fly"
+        p = await fetchMissingProductFromCloud(sku);
+      }
+      if (p) setProduct(p);
+      setLoading(false);
     });
   }, [sku]);
 
-  if (!product) return null;
+  if (loading) {
+    return (
+      <View style={[styles.productCard, { justifyContent: 'center', alignItems: 'center', minHeight: 80 }]}>
+        <ActivityIndicator color={COLORS.navy} />
+      </View>
+    );
+  }
+
+  // Si a pesar de todo no existe, mostramos una tarjeta básica
+  const displayBrand = product ? product.marca : 'Buscando catálogo...';
+  const displayModel = product ? product.modelo : sku;
+  const displayImage = product ? product.imagen : null;
 
   return (
     <TouchableOpacity
       style={styles.productCard}
-      onPress={() => navigation.navigate('ProductViewer', { sku: product.modelo, contextSkus: skusContext })}
+      onPress={() => navigation.navigate('ProductViewer', { sku: displayModel, contextSkus: skusContext })}
     >
       <View style={styles.cardContent}>
-        {product.imagen ? (
-          <Image source={{ uri: product.imagen }} style={styles.cardImage} />
+        {displayImage ? (
+          <Image source={{ uri: displayImage }} style={styles.cardImage} />
         ) : (
           <View style={styles.cardImagePlaceholder} />
         )}
         <View style={styles.cardTextContainer}>
-          <Text style={styles.cardBrand} numberOfLines={1}>{product.marca}</Text>
-          <Text style={styles.cardModel} numberOfLines={2}>{product.modelo}</Text>
+          <Text style={styles.cardBrand} numberOfLines={1}>{displayBrand}</Text>
+          <Text style={styles.cardModel} numberOfLines={2}>{displayModel}</Text>
           <Text style={styles.cardAction}>Ver Ficha Técnica ›</Text>
         </View>
       </View>

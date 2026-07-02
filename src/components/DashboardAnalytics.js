@@ -58,16 +58,16 @@ function ProgressBar({ value, max, color }) {
 function RankItem({ item, maxCount, color, imageMap, navigation }) {
   const imgUrl = imageMap[item.sku || item.modelo] || null;
   const [sessionKey] = useState(() => Date.now().toString());
-  const logoUrl = `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\\s+/g, '_')}.jpg?v=${sessionKey}`;
+  const logoUrl = `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg?v=${sessionKey}`;
+  const handleProductPress = (item) => {
+    // Si no está en el mapa, ProductViewer lo cargará en la nube on-the-fly
+    navigation.navigate('ProductViewer', { sku: item.sku || item.modelo });
+  };
   return (
     <TouchableOpacity 
       style={s.rankItem} 
       activeOpacity={0.7}
-      onPress={() => {
-        if (navigation) {
-          navigation.navigate('ProductViewer', { sku: item.sku || item.modelo });
-        }
-      }}
+      onPress={() => handleProductPress(item)}
     >
       <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" transition={200} />
       <View style={{ flex: 1 }}>

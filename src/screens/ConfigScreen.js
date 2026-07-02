@@ -441,7 +441,9 @@ export default function ConfigScreen({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity style={[st.updateBtn, { backgroundColor: '#F0F4F8', marginTop: 12 }]} onPress={clearCache} activeOpacity={0.7}>
-          <Text style={{ fontSize: 18, marginRight: 8 }}>🧹</Text>
+          <View style={{ marginRight: 8 }}>
+            <SvgIcon name="trash" size={20} color={COLORS.navy} />
+          </View>
           <Text style={[st.updateText, { color: COLORS.navy }]}>Limpiar Caché de Imágenes</Text>
         </TouchableOpacity>
 

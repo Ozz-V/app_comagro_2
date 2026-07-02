@@ -77,7 +77,11 @@ export default function ProductViewerScreen({ route, navigation }) {
     const loadProduct = async () => {
       try {
         if (sku) {
-          const prod = await getProductBySku(sku);
+          const { getProductBySku, fetchMissingProductFromCloud } = require('../utils/database');
+          let prod = await getProductBySku(sku);
+          if (!prod) {
+            prod = await fetchMissingProductFromCloud(sku);
+          }
           if (prod) {
             setModalProd(prod);
             fetchAiData(prod.modelo, prod.sales_pitch);
@@ -105,7 +109,11 @@ export default function ProductViewerScreen({ route, navigation }) {
   }, [loading, modalProd, navigation]);
 
   if (loading || !modalProd) {
-    return null;
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#FFF" />
+      </SafeAreaView>
+    );
   }
 
   return (

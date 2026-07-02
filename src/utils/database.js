@@ -185,6 +185,32 @@ export async function getProductBySku(sku) {
   };
 }
 
+export async function fetchMissingProductFromCloud(sku) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(EDGE_URL, { headers });
+    if (!res.ok) return null;
+    const all = await res.json();
+    
+    const p = all.find(x => String(x.SKU || x.sku).trim().toLowerCase() === String(sku).trim().toLowerCase());
+    if (!p) return null;
+    
+    const { data: ai } = await supabase.from('productos_ai_data').select('sales_pitch').eq('sku', sku).single();
+    if (ai) p.sales_pitch = ai.sales_pitch;
+
+    await insertProductsBatch([p], null, true);
+    return await getProductBySku(sku);
+  } catch (e) {
+    console.log('Error fetchMissingProductFromCloud:', e);
+    return null;
+  }
+}
+
 export async function getAllProducts() {
   const db = await getDB();
   const results = await db.getAllAsync('SELECT * FROM productos ORDER BY marca ASC, sku ASC');

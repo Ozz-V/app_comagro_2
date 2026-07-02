@@ -205,16 +205,24 @@ export default function ProductosScreen({ navigation, route }) {
       ) : error ? (
         <View style={styles.center}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryBtn} onPress={onRefresh}><Text style={styles.retryText}>Reintentar</Text></TouchableOpacity></View>
       ) : !mostrarLista ? (
-        <FlatList
-          data={marcas}
-          renderItem={renderMarcaBtn}
-          keyExtractor={m => m}
-          numColumns={3}
-          contentContainerStyle={styles.marcasGrid}
-          columnWrapperStyle={styles.marcasRow}
-          ListHeaderComponent={<Text style={styles.welcomeText}>Seleccioná una marca para ver los productos disponibles.</Text>}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.navy]} />}
-        />
+        <View style={{ flex: 1 }}>
+          {bgActualiz && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando catálogo…</Text></View>}
+          <FlatList
+            data={marcas}
+            renderItem={renderMarcaBtn}
+            keyExtractor={m => m}
+            numColumns={3}
+            contentContainerStyle={styles.marcasGrid}
+            columnWrapperStyle={styles.marcasRow}
+            ListHeaderComponent={
+              <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginVertical: 10, paddingHorizontal: 20}}>
+                <SvgIcon name="actualizar" size={16} color={COLORS.gray4} />
+                <Text style={{fontSize: 13, color: COLORS.gray4, marginLeft: 8, textAlign: 'center'}}>Deslice hacia abajo para actualizar la lista de productos</Text>
+              </View>
+            }
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.navy]} />}
+          />
+        </View>
       ) : (
         <View style={{ flex: 1 }}>
           {bgActualiz && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando catálogo…</Text></View>}
