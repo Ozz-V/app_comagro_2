@@ -38,6 +38,7 @@ import ConfigScreen   from './src/screens/ConfigScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import ProductViewerScreen from './src/screens/ProductViewerScreen';
 import LottieSplashScreen from './src/screens/LottieSplashScreen';
+import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
 import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
 
 const Stack = createNativeStackNavigator();
@@ -92,6 +93,7 @@ function App() {
   const [isOfflineLoggedIn, setIsOfflineLoggedIn] = useState(false);
   const [offlineAuthChecked, setOfflineAuthChecked] = useState(false);
   const [showLottie, setShowLottie] = useState(true);
+  const [profileComplete, setProfileComplete] = useState(null);
 
   // --- SISTEMA DE ACTUALIZACIÓN ---
   const [updateState, setUpdateState] = useState('idle'); // idle | checking | prompt | downloading | ready | none
@@ -149,6 +151,28 @@ function App() {
       }
     }
 
+    async function checkProfile(userId) {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const cached = await AsyncStorage.getItem('@user_profile_cache');
+        if (cached) {
+          const data = JSON.parse(cached);
+          if (data.full_name && data.full_name !== 'EMPTY' && data.telefono && data.telefono !== '+595' && data.telefono.length > 5) {
+            setProfileComplete(true);
+            return;
+          }
+        }
+        const { data } = await supabase.from('profiles').select('full_name, telefono').eq('id', userId).single();
+        if (data && data.full_name && data.full_name !== 'EMPTY' && data.telefono && data.telefono !== '+595' && data.telefono.length > 5) {
+          setProfileComplete(true);
+        } else {
+          setProfileComplete(false);
+        }
+      } catch(e) {
+        setProfileComplete(false);
+      }
+    }
+
     // Carga sesión inicial
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session ?? null);
@@ -157,6 +181,9 @@ function App() {
           AsyncStorage.setItem('@is_logged_in', 'true');
         });
         registerAndSaveToken(data.session.user.id);
+        checkProfile(data.session.user.id);
+      } else {
+        setProfileComplete(true);
       }
     });
 
@@ -169,6 +196,9 @@ function App() {
           setIsOfflineLoggedIn(true);
         });
         registerAndSaveToken(sess.user.id);
+        checkProfile(sess.user.id);
+      } else {
+        setProfileComplete(true);
       }
     });
 
@@ -226,6 +256,17 @@ function App() {
     return () => {
       subscription.unsubscribe();
       sub.remove();
+      subProfile.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const { DeviceEventEmitter } = require('react-native');
+    const subProfile = DeviceEventEmitter.addListener('PROFILE_COMPLETED', () => {
+      setProfileComplete(true);
+    });
+    return () => {
+      subProfile.remove();
     };
   }, []);
 
@@ -392,7 +433,7 @@ function App() {
     }
   }
 
-  if (!fontsLoaded || (!offlineAuthChecked && session === undefined)) {
+  if (!fontsLoaded || (!offlineAuthChecked && session === undefined) || profileComplete === null) {
     return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
   }
 
@@ -422,6 +463,8 @@ function App() {
           >
             {!autenticado ? (
               <Stack.Screen name="Login" component={LoginScreen} />
+            ) : !profileComplete ? (
+              <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
             ) : (
               <>
                 <Stack.Screen name="Portal"    component={PortalScreen} />

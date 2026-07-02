@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase, SUPABASE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
@@ -167,12 +168,20 @@ export default function ConfigScreen({ navigation }) {
           showAlert('Permiso requerido', 'Necesitamos acceso a tu galería.');
           return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7 });
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 1 });
       if (!result.canceled && result.assets?.[0]) {
         const pickerUri = result.assets[0].uri;
         const oldAvatar = avatarUrl;
+        
+        // Comprimir imagen a ~500kb
+        const manipResult = await ImageManipulator.manipulateAsync(
+          pickerUri,
+          [{ resize: { width: 800 } }],
+          { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+        );
+
         const localSafeUri = FileSystem.documentDirectory + `avatar_local_${Date.now()}.jpg`;
-        await FileSystem.copyAsync({ from: pickerUri, to: localSafeUri });
+        await FileSystem.copyAsync({ from: manipResult.uri, to: localSafeUri });
         setAvatarUrl(localSafeUri); 
         await AsyncStorage.setItem('@pending_avatar', localSafeUri);
         uploadPhoto(localSafeUri);
