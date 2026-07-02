@@ -204,7 +204,7 @@ export async function generateAndSharePdf(modalProd, pdfCache = {}, logoRefreshK
   let finalLogoB64 = pdfCache?.logoBase64;
   
   if (!finalProdB64) {
-    const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\\s+/g, '_') || '';
+    const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
     const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg?v=${logoRefreshKey}`;
     const imgUrl = modalProd?.imagen_local || modalProd?.imagen;
     
