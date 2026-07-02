@@ -278,7 +278,8 @@ export default function ConfigScreen({ navigation }) {
     }
 
     try {
-      const { data } = await supabase.from('version_apk').select('version_code, url, release_notes, sha256').order('created_at', { ascending: false }).limit(1).single();
+      const { data, error } = await supabase.from('version_apk').select('version_code, download_url, release_notes, sha256_hash, md5_hash').order('created_at', { ascending: false }).limit(1).single();
+      if (error) throw error;
       if (data && data.version_code > versionCode) {
         setUpdateModalType('available');
         setUpdateModalData(data);
