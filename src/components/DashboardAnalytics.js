@@ -331,11 +331,34 @@ export default function DashboardAnalytics({ navigation }) {
       setMyData(finalMyData);
       AsyncStorage.setItem(`@analytics_my_all`, JSON.stringify(finalMyData));
 
-      const gd = process(all, 10);
-      gd.brands = countByKey(all, i => i.marca, 8);
-      gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map(u => ({ ...u, modelo: u.user_email }));
-      setGlobalData(gd);
-      AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
+      if (period === 'all' && isOnline) {
+        const { data: rpcData } = await supabase.rpc('get_analytics_summary');
+        if (rpcData) {
+          const gdRpc = {
+            views: rpcData.total_views || 0,
+            shares: rpcData.total_shares || 0,
+            topV: rpcData.top_viewed || [],
+            topSh: rpcData.top_shared || [],
+            brands: (rpcData.top_brands || []).map(b => ({ modelo: b.marca, count: b.count })),
+            users: rpcData.top_users || []
+          };
+          setGlobalData(gdRpc);
+          AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gdRpc));
+        } else {
+          // Fallback
+          const gd = process(all, 10);
+          gd.brands = countByKey(all, i => i.marca, 8);
+          gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map(u => ({ ...u, modelo: u.user_email }));
+          setGlobalData(gd);
+          AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gd));
+        }
+      } else {
+        const gd = process(all, 10);
+        gd.brands = countByKey(all, i => i.marca, 8);
+        gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map(u => ({ ...u, modelo: u.user_email }));
+        setGlobalData(gd);
+        AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
+      }
     } catch (e) {
       console.log('Dashboard error:', e);
     } finally {
