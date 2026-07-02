@@ -144,8 +144,8 @@ export default function DashboardAnalytics({ navigation }) {
   const { showToast } = useCustomAlert();
   const { isOnline } = useOfflineSync();
   const [imageMap, setImageMap] = useState({});
-  const [myData, setMyData] = useState({ views: 0, shares: 0, searches: 0, tV: '', tS: '', tSe: '', topV: [], topSh: [], topSe: [] });
-  const [globalData, setGlobalData] = useState({ views: 0, shares: 0, searches: 0, tV: '', tS: '', tSe: '', topV: [], topSh: [], topSe: [], brands: [], users: [] });
+  const [myData, setMyData] = useState({ views: 0, shares: 0, topV: [], topSh: [] });
+  const [globalData, setGlobalData] = useState({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
 
   const [showUserModal, setShowUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -211,7 +211,7 @@ export default function DashboardAnalytics({ navigation }) {
         full_name: profile?.full_name || '',
         telefono: profile?.telefono || '',
         avatar_url: profile?.avatar_url || null,
-        stats: { views: v, shares: sh, searches: se }
+        stats: { views: v, shares: sh }
       });
     } catch(e) {
       console.log('Error cargando usuario', e);
@@ -276,12 +276,10 @@ export default function DashboardAnalytics({ navigation }) {
                
                if (item.action === 'view') { res.views++; addTop(res.topV, item); }
                else if (item.action.startsWith('share')) { res.shares++; addTop(res.topSh, item); }
-               else if (item.action === 'search') { res.searches++; addTop(res.topSe, item); }
             });
             
             res.topV.sort((a,b) => b.count - a.count);
             res.topSh.sort((a,b) => b.count - a.count);
-            res.topSe.sort((a,b) => b.count - a.count);
             return res;
          };
          
@@ -319,27 +317,21 @@ export default function DashboardAnalytics({ navigation }) {
       const my = all.filter(d => d.user_email === user.email);
       const myPrev = prev.filter(d => d.user_email === user.email);
 
-      const process = (items, prevItems, limit) => {
+      const process = (items, limit) => {
         const views = items.filter(d => d.action === 'view');
         const shares = items.filter(d => d.action === 'share_pdf' || d.action === 'share_image');
-        const searches = items.filter(d => d.action === 'search');
-        const pv = prevItems.filter(d => d.action === 'view').length;
-        const ps = prevItems.filter(d => d.action === 'share_pdf' || d.action === 'share_image').length;
-        const pse = prevItems.filter(d => d.action === 'search').length;
         return {
-          views: views.length, shares: shares.length, searches: searches.length,
-          tV: pDate ? getTrend(views.length, pv) : '', tS: pDate ? getTrend(shares.length, ps) : '', tSe: pDate ? getTrend(searches.length, pse) : '',
+          views: views.length, shares: shares.length,
           topV: countByKey(views, i => i.sku || i.modelo, limit),
           topSh: countByKey(shares, i => i.sku || i.modelo, limit),
-          topSe: countByKey(searches, i => i.sku || i.modelo, limit),
         };
       };
 
-      const finalMyData = process(my, myPrev, 5);
+      const finalMyData = process(my, 5);
       setMyData(finalMyData);
-      AsyncStorage.setItem(`@analytics_my_${period}`, JSON.stringify(finalMyData));
+      AsyncStorage.setItem(`@analytics_my_all`, JSON.stringify(finalMyData));
 
-      const gd = process(all, prev, 10);
+      const gd = process(all, 10);
       gd.brands = countByKey(all, i => i.marca, 8);
       gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map(u => ({ ...u, modelo: u.user_email }));
       setGlobalData(gd);
@@ -375,7 +367,6 @@ export default function DashboardAnalytics({ navigation }) {
 
       const maxV = d.topV[0]?.count || 1;
       const maxSh = d.topSh[0]?.count || 1;
-      const maxSe = d.topSe[0]?.count || 1;
       
       const html = `
         <html>
@@ -411,16 +402,11 @@ export default function DashboardAnalytics({ navigation }) {
               <div class="kpi-num" style="color: #0D8A39;">${d.shares}</div>
               <div class="kpi-label">Compartidos</div>
             </div>
-            <div class="kpi-card">
-              <div class="kpi-num" style="color: #00A3FF;">${d.searches}</div>
-              <div class="kpi-label">Búsquedas</div>
-            </div>
           </div>
           
           <div class="grid">
             ${d.topV.length > 0 ? `<div class="card"><div class="card-title" style="color: #1a2530;">Top Productos Vistos</div>${renderBars(d.topV, maxV, '#1a2530')}</div>` : ''}
             ${d.topSh.length > 0 ? `<div class="card"><div class="card-title" style="color: #0D8A39;">Top Productos Compartidos</div>${renderBars(d.topSh, maxSh, '#0D8A39')}</div>` : ''}
-            ${d.topSe.length > 0 ? `<div class="card"><div class="card-title" style="color: #00A3FF;">Top Productos Buscados</div>${renderBars(d.topSe, maxSe, '#00A3FF')}</div>` : ''}
             ${tab === 'general' && d.brands?.length > 0 ? `<div class="card"><div class="card-title" style="color: #1a2530;">Marcas Más Consultadas</div>${renderBars(d.brands, d.brands[0]?.count || 1, '#1a2530')}</div>` : ''}
             ${tab === 'general' && d.users?.length > 0 ? `<div class="card"><div class="card-title" style="color: #1a2530;">Usuarios Más Activos</div>${renderBars(d.users, d.users[0]?.count || 1, '#1a2530')}</div>` : ''}
           </div>
@@ -457,13 +443,6 @@ export default function DashboardAnalytics({ navigation }) {
       </View>
 
       <View style={s.periodRow}>
-        {['7d', '30d', 'all'].map(p => (
-          <TouchableOpacity key={p} style={[s.periodBtn, period === p && s.periodActive]} onPress={() => setPeriod(p)}>
-            <Text style={[s.periodText, period === p && s.periodTextActive]}>
-              {p === '7d' ? '7 días' : p === '30d' ? '30 días' : 'Todo'}
-            </Text>
-          </TouchableOpacity>
-        ))}
         {tab === 'general' && (
           <TouchableOpacity onPress={generatePdfReport} style={[s.periodBtn, {marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.navy, opacity: loading ? 0.5 : 1}]} disabled={loading}>
             <SvgIcon name="upload" size={14} color={COLORS.white} />
@@ -477,14 +456,12 @@ export default function DashboardAnalytics({ navigation }) {
       ) : (
         <>
           <View style={s.statsRow}>
-            <StatCard number={data.views} label="Vistas" trend={data.tV} color={COLORS.navy} />
-            <StatCard number={data.shares} label="Compartidos" trend={data.tS} color={COLORS.green} />
-            <StatCard number={data.searches} label="Búsquedas" trend={data.tSe} color={COLORS.celeste} />
+            <StatCard number={data.views} label="Vistas" color={COLORS.navy} />
+            <StatCard number={data.shares} label="Compartidos" color={COLORS.green} />
           </View>
 
           <RankSection title="Productos más vistos" items={data.topV} color={COLORS.navy} imageMap={imageMap} iconName="ojo" navigation={navigation} defaultExpanded={true} />
           <RankSection title="Productos más compartidos" items={data.topSh} color={COLORS.green} imageMap={imageMap} iconName="upload" navigation={navigation} defaultExpanded={false} />
-          <RankSection title="Productos más buscados" items={data.topSe} color={COLORS.celeste} imageMap={imageMap} iconName="lupa2" navigation={navigation} defaultExpanded={false} />
 
           {tab === 'general' && globalData.brands.length > 0 && (
             <CollapsibleSection title="Marcas más consultadas" color={COLORS.navy} iconName="chart" defaultExpanded={false}>
