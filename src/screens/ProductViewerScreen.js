@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View } from 'react-native';
+import { View, SafeAreaView, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ProductDetailModal from '../components/ProductDetailModal';
 import CompareModal from '../components/CompareModal';
