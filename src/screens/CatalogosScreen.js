@@ -89,14 +89,26 @@ export default function CatalogosScreen({ navigation }) {
         .map(f => {
           // Extrae el nombre sin la extensión (ej. "jasic.pdf" -> "jasic")
           const baseName = f.name.substring(0, f.name.lastIndexOf('.'));
-          // Convierte a mayúsculas para coincidir con el estándar de los logos (ej. "JASIC")
-          const brandName = baseName.toUpperCase();
+          
+          let brandName = '';
+          let displayName = '';
+
+          // Si el nombre tiene un guión (ej: "jasic-Equipos de Soldadura.pdf")
+          if (baseName.includes('-')) {
+            const parts = baseName.split('-');
+            brandName = parts[0].trim().toUpperCase();
+            displayName = parts.slice(1).join('-').trim();
+          } else {
+            // Comportamiento por defecto (ej: "jasic.pdf")
+            brandName = baseName.toUpperCase();
+            displayName = brandName;
+          }
           
           return {
             archivo: f.name,
             logo: brandName,
-            label: brandName,
-            orden: brandName
+            label: displayName,
+            orden: displayName
           };
         })
         .sort((a, b) => a.label.localeCompare(b.label));
