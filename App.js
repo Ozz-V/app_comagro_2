@@ -10,6 +10,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Sharing from 'expo-sharing';
 import { OfflineSyncProvider } from './src/contexts/OfflineSyncContext';
 import { CustomAlertProvider } from './src/contexts/CustomAlertContext';
+import { useOTAUpdate } from './src/hooks/useOTAUpdate';
 import {
   useFonts,
   BarlowCondensed_400Regular,
@@ -95,17 +96,9 @@ function App() {
   const [offlineAuthChecked, setOfflineAuthChecked] = useState(false);
   const [showLottie, setShowLottie] = useState(true);
   const [profileComplete, setProfileComplete] = useState(true); // Inicialmente true para no bloquear la pantalla inicial
-
+  
   // --- SISTEMA DE ACTUALIZACIÓN ---
-  const [updateState, setUpdateState] = useState('idle'); // idle | checking | prompt | downloading | ready | none
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [updateNotes, setUpdateNotes] = useState('');
-  const [updateUrl, setUpdateUrl] = useState(null);
-  const [expectedSha256, setExpectedSha256] = useState(null);
-  const [expectedMd5, setExpectedMd5] = useState(null);
-  const [apkLocalUri, setApkLocalUri] = useState(null);
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const spinAnim = useRef(new Animated.Value(0)).current;
+  const { updateState, downloadProgress, updateNotes, setUpdateState, startDownloadUpdate, installUpdate } = useOTAUpdate();
 
   const [fontsLoaded] = useFonts({
     BarlowCondensed_400Regular,
@@ -117,20 +110,6 @@ function App() {
   });
 
   const { showAlert } = require('./src/contexts/CustomAlertContext').useCustomAlert();
-
-  // Animación de spin para el logo
-  useEffect(() => {
-    if (updateState === 'checking' || updateState === 'downloading') {
-      Animated.loop(
-        Animated.timing(spinAnim, {
-          toValue: 1,
-          duration: 2000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        })
-      ).start();
-    }
-  }, [updateState]);
 
   useEffect(() => {
     // Verificar login local (para modo offline) — esto es rápido (ms)
@@ -254,7 +233,6 @@ function App() {
     return () => {
       subscription.unsubscribe();
       sub.remove();
-      subProfile.remove();
     };
   }, []);
 
@@ -267,186 +245,11 @@ function App() {
       subProfile.remove();
     };
   }, []);
-
-  // --- COMPROBADOR DE ACTUALIZACIONES: Inicia automáticamente sin importar el Login ---
-  useEffect(() => {
-    checkUpdate();
-  }, []);
-
-
-
-  async function checkUpdate() {
-    setUpdateState('checking');
-    try {
-      const { data, error } = await supabase
-        .from('version_apk')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (data && data.version_code) {
-        // ✅ FIX: usar expo-application para leer el versionCode real de la APK instalada.
-        // Constants.expoConfig.android.versionCode es undefined en APKs compiladas con EAS.
-        const installedCode = Application.nativeBuildVersion
-          ? parseInt(Application.nativeBuildVersion, 10)
-          : (Constants.expoConfig?.android?.versionCode || 1);
-        if (data.version_code > installedCode) {
-          setUpdateNotes(data.release_notes || 'Nueva versión disponible');
-          setUpdateUrl(data.download_url);
-          setExpectedSha256(data.sha256_hash || null);
-          setExpectedMd5(data.md5_hash || null);
-          setUpdateState('prompt');
-        } else {
-          setUpdateState('none');
-        }
-      } else {
-        setUpdateState('none');
-      }
-    } catch (err) {
-      console.log('Error checkUpdate:', err);
-      setUpdateState('none');
-    }
-  }
-
-  async function startDownloadUpdate() {
-    setUpdateState('downloading');
-    setDownloadProgress(0);
-    setApkLocalUri(null);
-
-    try {
-      const fileUri = `${FileSystem.documentDirectory}comagro_update.apk`;
-
-      const downloadOptions = {
-        headers: {
-          'User-Agent': 'ComagroApp/1.0 (Android)',
-          'Accept': 'application/octet-stream, */*',
-        },
-      };
-
-      let downloadResumable;
-      try {
-        downloadResumable = FileSystem.createDownloadResumable(
-          updateUrl,
-          fileUri,
-          downloadOptions,
-          (dp) => {
-            const written = dp.totalBytesWritten ?? 0;
-            const expected = dp.totalBytesExpectedToWrite ?? 0;
-            const progress = expected > 0 ? written / expected : 0;
-            setDownloadProgress(progress);
-          }
-        );
-      } catch (createErr) {
-        throw createErr;
-      }
-
-      let result;
-      try {
-        result = await downloadResumable.downloadAsync();
-      } catch (downloadErr) {
-        throw downloadErr;
-      }
-
-      if (result && result.uri && result.status === 200) {
-        const headers = result.headers || {};
-        const contentType = String(headers['content-type'] || headers['Content-Type'] || '');
-        if (contentType.toLowerCase().includes('text/html')) {
-          throw new Error(`La descarga no parece ser una APK. Content-Type=${contentType}`);
-        }
-
-        // VALIDACIÓN DE HASH ESTRICTA CON FALLBACK TEMPORAL
-        const hasSha256 = !!expectedSha256;
-        const hasMd5 = !!expectedMd5;
-
-        if (hasSha256) {
-          // 1. Verificación Fuerte SHA-256
-          const ReactNativeBlobUtil = require('react-native-blob-util').default;
-          const nativePath = result.uri.startsWith('file://') ? result.uri.replace('file://', '') : result.uri;
-          const calculatedSha256 = await ReactNativeBlobUtil.fs.hash(nativePath, 'sha256');
-          
-          if (calculatedSha256.toLowerCase() !== expectedSha256.toLowerCase()) {
-            await FileSystem.deleteAsync(result.uri, { idempotent: true });
-            throw new Error('Firma de seguridad SHA-256 inválida. Descarga abortada por seguridad.');
-          }
-        } else if (hasMd5) {
-          // 2. Transición Legacy MD5 (DEPRECACIÓN: 17 Julio 2026)
-          console.warn("ALERTA DE SEGURIDAD: Uso de verificación MD5 en transición. Migrar BD a SHA-256 antes del 17-Jul-2026.");
-          const fileInfo = await FileSystem.getInfoAsync(result.uri, { md5: true });
-          
-          if (fileInfo.md5.toLowerCase() !== expectedMd5.toLowerCase()) {
-            await FileSystem.deleteAsync(result.uri, { idempotent: true });
-            throw new Error('Firma MD5 inválida. Descarga abortada.');
-          }
-        } else {
-          // 3. Bloqueo Incondicional (NO HASH) - EVITA DOWNGRADE ATTACK
-          await FileSystem.deleteAsync(result.uri, { idempotent: true });
-          throw new Error('ALERTA DE SEGURIDAD CRÍTICA: El servidor no proporcionó firma de integridad (Hash). Instalación bloqueada para prevenir inyección de código.');
-        }
-
-        setApkLocalUri(result.uri);
-        setUpdateState('ready');
-        return;
-      } else {
-        throw new Error('Error al descargar la actualización. Intentá de nuevo.');
-      }
-
-    } catch (err) {
-
-      showAlert(
-        'Error de descarga',
-        `Fallo al descargar la actualización.\n\nDetalle: ${err?.message || 'Error desconocido'}\n\nRevisá los logs de Logcat para más información.`
-      );
-      setUpdateState('none');
-    }
-  }
-
-  async function installUpdate() {
-    if (!apkLocalUri) return;
-    try {
-      console.log('[OTA] install apkLocalUri:', apkLocalUri);
-
-      let contentUri;
-      try {
-        contentUri = await FileSystem.getContentUriAsync(apkLocalUri);
-        console.log('[OTA] getContentUriAsync OK:', contentUri);
-      } catch (uriErr) {
-        const pkg = Constants.expoConfig?.android?.package || 'com.comagro.catalogo';
-        contentUri = `content://${pkg}.FileSystemFileProvider/expo_files/comagro_update.apk`;
-        console.log('[OTA] getContentUriAsync falló, usando URI manual:', contentUri, uriErr?.message);
-      }
-
-      await require('expo-intent-launcher').startActivityAsync('android.intent.action.VIEW', {
-        data: contentUri,
-        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-        type: 'application/vnd.android.package-archive',
-      });
-    } catch (err) {
-      console.log('[OTA] Error instalando:', err?.message, err);
-      showAlert(
-        'No se pudo instalar',
-        'El instalador no pudo abrirse automáticamente.\n\nTip: buscá el archivo "comagro_update.apk" en el almacenamiento del dispositivo e instalalo manualmente.',
-        [{ text: 'OK' }]
-      );
-    }
-  }
-
   if (!fontsLoaded || (!offlineAuthChecked && session === undefined)) {
     return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
   }
 
-  const spin = spinAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  const progressWidth = progressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
-
   const autenticado = !!((session || isOfflineLoggedIn) && (session?.user?.email?.endsWith('@comagro.com.py') || isOfflineLoggedIn));
-
   return (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <OfflineSyncProvider>
@@ -493,7 +296,7 @@ function App() {
             downloadProgress={downloadProgress}
             onAccept={startDownloadUpdate}
             onDecline={() => setUpdateState('none')}
-            onInstall={installUpdate}
+            onInstall={handleInstallUpdate}
           />
         )}
       </OfflineSyncProvider>

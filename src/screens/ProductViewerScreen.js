@@ -5,14 +5,14 @@ import ProductDetailModal from '../components/ProductDetailModal';
 import CompareModal from '../components/CompareModal';
 import { supabase } from '../supabase';
 import { getProductBySku } from '../utils/database';
+import { useAiData } from '../hooks/useAiData';
 
 export default function ProductViewerScreen({ route, navigation }) {
   const { sku, contextSkus } = route.params || {};
   const [modalProd, setModalProd] = useState(null);
   const [activeSliderList, setActiveSliderList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [aiData, setAiData] = useState(null);
-  const [loadingAi, setLoadingAi] = useState(false);
+  const { aiData, setAiData, loadingAi, fetchAiData } = useAiData();
 
   // Compare state (self-contained: no need to navigate away to ProductosScreen)
   const [compareItems, setCompareItems] = useState([]);
@@ -20,52 +20,7 @@ export default function ProductViewerScreen({ route, navigation }) {
 
   const [logoRefreshKey] = useState(Date.now().toString());
 
-  async function fetchAiData(skuToFetch, offlinePitch) {
-    if (!skuToFetch) {
-      setAiData('Texto inteligente en preparación.');
-      return;
-    }
-    
-    if (offlinePitch && offlinePitch.trim().length > 0) {
-      setAiData(offlinePitch);
-      return;
-    }
-
-    setLoadingAi(true);
-    try {
-      const rawCache = await AsyncStorage.getItem('@ai_cache_all');
-      if (rawCache) {
-        const aiDict = JSON.parse(rawCache);
-        if (aiDict[skuToFetch]) {
-          setAiData(aiDict[skuToFetch]);
-          setLoadingAi(false);
-          return;
-        }
-      }
-    } catch (_) {}
-
-    try {
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-      const fetchPromise = supabase.from('productos_ai_data').select('sales_pitch').eq('sku', skuToFetch).single();
-      const { data } = await Promise.race([fetchPromise, timeoutPromise]);
-      
-      if (data?.sales_pitch) {
-        setAiData(data.sales_pitch);
-        try {
-          const rawCache = await AsyncStorage.getItem('@ai_cache_all');
-          const aiDict = rawCache ? JSON.parse(rawCache) : {};
-          aiDict[skuToFetch] = data.sales_pitch;
-          await AsyncStorage.setItem('@ai_cache_all', JSON.stringify(aiDict));
-        } catch (_) {}
-      } else {
-        setAiData('ℹ️ El Asistente IA requiere conexión a internet para descargar este texto por primera vez. Cuando tengas red, se guardará aquí.');
-      }
-    } catch (e) {
-      setAiData('ℹ️ Sin conexión o red lenta. El Asistente IA requiere internet para descargar este texto por primera vez. Cuando vuelva la conexión, se mostrará aquí.');
-    } finally {
-      setLoadingAi(false);
-    }
-  }
+  // fetchAiData is now imported from useAiData hook
 
   function handleOpenProduct(prod) {
     setAiData(null);

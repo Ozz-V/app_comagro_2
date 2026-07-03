@@ -15,6 +15,7 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generarHtmlFicha, fetchImageBase64, generateAndSharePdf } from '../utils/pdfService';
 import { searchProducts } from '../utils/database';
+import { findSimilarProducts } from '../utils/productLogic';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 
@@ -86,73 +87,12 @@ export default function ProductDetailModal({
     }
   }), [prevProd, nextProd, onOpenProduct]);
 
-  const extractPower = (specs) => {
-    if (!specs) return null;
-    const specArray = specs;
-    for (const [k, v] of specArray) {
-      const kl = String(k).toLowerCase();
-      const vl = String(v).toLowerCase();
-      
-      let match = vl.match(/([\d.,]+)\s*(hp|kva|kw|w)\b/i);
-      let unit = match ? match[2].toLowerCase() : null;
-      let numStr = match ? match[1] : null;
-
-      if (!match) {
-        const numMatch = vl.match(/^([\d.,]+)$/);
-        if (numMatch) {
-          if (kl.includes('hp')) { unit = 'hp'; numStr = numMatch[1]; }
-          else if (kl.includes('kva')) { unit = 'kva'; numStr = numMatch[1]; }
-          else if (kl.includes('kw')) { unit = 'kw'; numStr = numMatch[1]; }
-          else if (kl.includes('potencia')) { unit = 'hp'; numStr = numMatch[1]; }
-        }
-      }
-
-      if (unit && numStr) {
-        let val = parseFloat(numStr.replace(',', '.'));
-        if (unit === 'kw') val = val * 1.34102;
-        else if (unit === 'w') val = (val / 1000) * 1.34102;
-        return val;
-      }
-    }
-    return null;
-  };
-
   useEffect(() => {
     async function fetchRelated() {
-      if (!modalProd) {
-        setProductosSimilares([]);
-        setProductosMismaMarca([]);
-        return;
-      }
-      
-      try {
-        const baseList = await searchProducts('Todas', modalProd.subcategoria, '');
-        const targetPower = extractPower(modalProd.specs);
-        let similars = [];
-        
-        if (targetPower !== null) {
-          similars = baseList.filter(p => p.modelo !== modalProd.modelo).map(p => {
-            const pPower = extractPower(p.specs);
-            return { ...p, pPower };
-          }).filter(p => {
-            if (p.pPower === null) return false;
-            return p.pPower >= targetPower * 0.5 && p.pPower <= targetPower * 1.5;
-          }).map(p => {
-            const diff = Math.abs(p.pPower - targetPower);
-            return { ...p, diff };
-          }).sort((a, b) => a.diff - b.diff).slice(0, 8);
-        } else {
-          similars = baseList.filter(p => p.modelo !== modalProd.modelo).slice(0, 8);
-        }
-        setProductosSimilares(similars);
-      } catch (e) {}
-
-      try {
-        const brandList = await searchProducts(modalProd.marca, 'Todas', '');
-        setProductosMismaMarca(brandList.filter(p => p.modelo !== modalProd.modelo).slice(0, 20));
-      } catch (e) {}
+      const { similares, mismaMarca } = await findSimilarProducts(modalProd);
+      setProductosSimilares(similares);
+      setProductosMismaMarca(mismaMarca);
     }
-    
     fetchRelated();
   }, [modalProd]);
 
