@@ -296,7 +296,7 @@ function App() {
             downloadProgress={downloadProgress}
             onAccept={startDownloadUpdate}
             onDecline={() => setUpdateState('none')}
-            onInstall={handleInstallUpdate}
+            onInstall={installUpdate}
           />
         )}
       </OfflineSyncProvider>
