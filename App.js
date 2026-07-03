@@ -94,7 +94,7 @@ function App() {
   const [isOfflineLoggedIn, setIsOfflineLoggedIn] = useState(false);
   const [offlineAuthChecked, setOfflineAuthChecked] = useState(false);
   const [showLottie, setShowLottie] = useState(true);
-  const [profileComplete, setProfileComplete] = useState(null);
+  const [profileComplete, setProfileComplete] = useState(true); // Inicialmente true para no bloquear la pantalla inicial
 
   // --- SISTEMA DE ACTUALIZACIÓN ---
   const [updateState, setUpdateState] = useState('idle'); // idle | checking | prompt | downloading | ready | none
@@ -135,7 +135,9 @@ function App() {
   useEffect(() => {
     // Verificar login local (para modo offline) — esto es rápido (ms)
     SecureStore.getItemAsync('@is_logged_in').then(val => {
-      if (val === 'true') setIsOfflineLoggedIn(true);
+      if (val === 'true') {
+        setIsOfflineLoggedIn(true);
+      }
       setOfflineAuthChecked(true); // ya sabemos el estado local, no esperamos más a Supabase
     });
 
@@ -168,7 +170,8 @@ function App() {
           setProfileComplete(false);
         }
       } catch(e) {
-        setProfileComplete(false);
+        // Si falla (ej. sin internet), no podemos bloquear el acceso offline. Lo dejamos pasar.
+        setProfileComplete(true);
       }
     }
 
@@ -428,7 +431,7 @@ function App() {
     }
   }
 
-  if (!fontsLoaded || (!offlineAuthChecked && session === undefined) || profileComplete === null) {
+  if (!fontsLoaded || (!offlineAuthChecked && session === undefined)) {
     return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
   }
 
