@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
   StatusBar, Platform, TextInput, FlatList, ActivityIndicator,
-  KeyboardAvoidingView, Image
+  KeyboardAvoidingView
 } from 'react-native';
+import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
 import { supabase, EDGE_URL } from '../supabase';
@@ -259,7 +260,7 @@ const AiProductCard = ({ sku, skusContext, navigation }) => {
     >
       <View style={styles.cardContent}>
         {displayImage ? (
-          <Image source={{ uri: displayImage }} style={styles.cardImage} />
+          <Image source={{ uri: displayImage }} style={styles.cardImage} contentFit="contain" />
         ) : (
           <View style={styles.cardImagePlaceholder} />
         )}
@@ -326,7 +327,7 @@ const styles = StyleSheet.create({
     borderRadius: 8, padding: 8,
   },
   cardContent: { flexDirection: 'row', alignItems: 'center' },
-  cardImage: { width: 50, height: 50, resizeMode: 'contain', marginRight: 10, borderRadius: 4 },
+  cardImage: { width: 50, height: 50, marginRight: 10, borderRadius: 4 },
   cardImagePlaceholder: { width: 50, height: 50, backgroundColor: '#E2E8F0', marginRight: 10, borderRadius: 4 },
   cardTextContainer: { flex: 1 },
   cardBrand: { fontSize: 11, color: COLORS.gray4, fontWeight: 'bold' },

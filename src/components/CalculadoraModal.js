@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, Image } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList } from 'react-native';
+import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
 import { getProductsBySubcategory } from '../utils/database';
@@ -312,7 +313,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
                           }}
                         >
                           {item.imagen ? (
-                            <Image source={{ uri: item.imagen }} style={{ width: '100%', height: 80, resizeMode: 'contain', marginBottom: 10 }} />
+                            <Image source={{ uri: item.imagen }} style={{ width: '100%', height: 80, marginBottom: 10 }} contentFit="contain" />
                           ) : (
                             <View style={{ width: '100%', height: 80, backgroundColor: '#f0f0f0', marginBottom: 10, borderRadius: 4 }} />
                           )}

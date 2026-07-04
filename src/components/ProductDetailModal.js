@@ -124,8 +124,8 @@ export default function ProductDetailModal({
       let finalLogoB64 = pdfCache?.logoBase64;
       
       if (!finalProdB64) {
-        const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
-        const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg?v=${logoRefreshKey}`;
+        const marcaSlug = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+        const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg`;
         
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
         finalProdB64 = await Promise.race([fetchImageBase64(modalProd?.imagen), timeoutPromise]).catch(() => '');
@@ -242,7 +242,7 @@ export default function ProductDetailModal({
                 <View style={styles.fichaCard}>
                   <View style={styles.fichaHeaderMobile}>
                     <View style={styles.logoContainer}>
-                      <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg?v=${logoRefreshKey}` }} style={{ width: 130, height: 60 }} contentFit="contain" />
+                      <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={{ width: 130, height: 60 }} contentFit="contain" />
                     </View>
                     <View style={styles.headerSeparator} />
                     <Text style={styles.headerTitleText}>FICHA TÉCNICA</Text>
@@ -386,7 +386,7 @@ export default function ProductDetailModal({
                     <Text style={styles.simSectionTitle}>Misma categoría</Text>
                     {productosSimilares.map((sim) => (
                       <TouchableOpacity key={sim.modelo} style={styles.simCard} onPress={() => onOpenProduct(sim)}>
-                        <Image source={{ uri: sim.imagen }} style={styles.simImg} contentFit="contain" transition={200} />
+                        <Image source={{ uri: sim.imagen }} style={styles.simImg} contentFit="contain" />
                         <View style={styles.simInfo}>
                           <Text style={styles.simMarca}>{sim.marca}</Text>
                           <Text style={styles.simModelo} numberOfLines={2}>{sim.modelo}</Text>

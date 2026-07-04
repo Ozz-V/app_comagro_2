@@ -69,7 +69,7 @@ function RankItem({ item, maxCount, color, imageMap, navigation }) {
       activeOpacity={0.7}
       onPress={() => handleProductPress(item)}
     >
-      <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" transition={200} />
+      <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" />
       <View style={{ flex: 1 }}>
         <Text style={s.rankModelo} numberOfLines={1}>{item.modelo}</Text>
         <Text style={s.rankMarca}>{item.marca}</Text>

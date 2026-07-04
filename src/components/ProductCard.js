@@ -11,7 +11,7 @@ export default function ProductCard({ item, cardW, isSelected, onPress }) {
       onPress={onPress}
     >
       <View style={[styles.cardImg, { height: cardW * 0.85 }]}>
-        <Image source={{ uri: item.imagen }} style={styles.cardImgI} contentFit="contain" transition={200} />
+        <Image source={{ uri: item.imagen }} style={styles.cardImgI} contentFit="contain" />
         {isSelected && (
           <View style={styles.selectedBadge}>
             <Text style={styles.selectedText}>✓</Text>
