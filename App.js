@@ -100,12 +100,10 @@ function App() {
   // --- SISTEMA DE ACTUALIZACIÓN ---
   const { updateState, downloadProgress, updateNotes, setUpdateState, startDownloadUpdate, installUpdate, checkUpdate } = useOTAUpdate();
 
+  // --- COMPROBADOR DE ACTUALIZACIONES: Inicia automáticamente sin importar el Login ---
   useEffect(() => {
-    // Si la sesión ya se verificó localmente y sabemos que estaba logueado, chequeamos la OTA en la splash screen
-    if (offlineAuthChecked && isOfflineLoggedIn) {
-      checkUpdate();
-    }
-  }, [offlineAuthChecked, isOfflineLoggedIn]);
+    checkUpdate();
+  }, []);
 
   const [fontsLoaded] = useFonts({
     BarlowCondensed_400Regular,
@@ -252,9 +250,9 @@ function App() {
     const subProfile = DeviceEventEmitter.addListener('PROFILE_COMPLETED', () => {
       setProfileComplete(true);
     });
-    const subOta = DeviceEventEmitter.addListener('TRIGGER_OTA_UPDATE', () => {
+    const subOta = DeviceEventEmitter.addListener('TRIGGER_OTA_UPDATE', (payload) => {
       setShowLottie(true);
-      checkUpdate();
+      checkUpdate(payload?.directDownload);
     });
     return () => {
       subProfile.remove();

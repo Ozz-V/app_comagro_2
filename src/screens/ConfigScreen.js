@@ -457,7 +457,7 @@ export default function ConfigScreen({ navigation }) {
         onClose={() => setShowUpdateModal(false)}
         onUpdate={() => {
           setShowUpdateModal(false);
-          DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE');
+          DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE', { directDownload: true });
         }}
         updateData={updateModalData}
         isAvailable={true}
