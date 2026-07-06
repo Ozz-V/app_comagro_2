@@ -71,20 +71,19 @@ export async function insertProductsBatch(productosArray, manifest, isDelta = fa
       const imagen = (manifest && manifest[sku + '.jpg']) || imagenOriginal;
 
       const specs = [];
+      // Solo excluimos columnas estructurales de la BD y sales_pitch.
+      // El resto lo controla el usuario desde Plytix.
       const colsExcluidas = new Set([
         'SKU', 'imagen 1', 'imagen 2', 'imagen 3', 'imagen 4', 'imagen 5',
-        'Brand', 'Marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
-        'url_key', 'visibility', 'status', 'price', 'Precio'
+        'Brand', 'Marca', 'marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
+        'url_key', 'sales_pitch'
       ]);
-      const basura = ['n/a', 'na', 'n.a', 'n.a.', 'no aplica', 'sin dato', 'sin datos',
-        'no', 'no tiene', 'no disponible', 'pim', '-', '--', '---', 'st', 'sin información',
-        'no corresponde', 'sin especificar', 'sin info'];
 
       for (const [col, val] of Object.entries(p)) {
         if (!colsExcluidas.has(col) && !col.startsWith('_')) {
-          const s = String(val).trim().toLowerCase();
-          if (s.length > 0 && !/^0([.,]0+)?$/.test(s) && !basura.includes(s)) {
-            specs.push([col, String(val).trim()]);
+          const s = String(val).trim();
+          if (s.length > 0) {
+            specs.push([col, s]);
           }
         }
       }

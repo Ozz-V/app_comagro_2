@@ -40,10 +40,19 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
     setHasCalculated(true);
     let filtered = [];
     try {
-      if (calcMode === 'gen') {
+      } else if (calcMode === 'gen') {
         const target = parseFloat(calcInput) || 0;
         const dbProducts = await getProductsBySubcategory('GENERADOR', true);
-        filtered = dbProducts.map(p => {
+        filtered = dbProducts.filter(p => {
+          let hasFuel = false;
+          const sub = String(p.subcategoria).toUpperCase();
+          if (sub.includes('NAFTA') || sub.includes('DIESEL') || sub.includes('DIÉSEL') || sub.includes('GASOLINA')) hasFuel = true;
+          if (p.specs) {
+            const allSpecs = JSON.stringify(p.specs).toUpperCase();
+            if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('DIÉSEL') || allSpecs.includes('GASOLINA')) hasFuel = true;
+          }
+          return hasFuel;
+        }).map(p => {
           let val = 0;
           if (p.specs) {
             p.specs.forEach(s => {
@@ -55,7 +64,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
             });
           }
           return { ...p, calcVal: val };
-        }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
+        }).filter(p => p.calcVal > 0)
+        .sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
       } else if (calcMode === 'motor') {
         const target = parseFloat(calcInput) || 0;
         const dbProducts = await getProductsBySubcategory('MOTOR', true);
@@ -74,7 +84,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
             });
           }
           return { ...p, calcVal: val };
-        }).sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
+        }).filter(p => p.calcVal > 0)
+        .sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
       } else if (calcMode === 'bomba') {
         const target = parseFloat(calcInput) || 0;
         const dbProducts = await getProductsBySubcategory('BOMBA', true);
@@ -103,10 +114,21 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
             if (pumpWizard.type === 'piscina' && !sub.includes('PISCINA') && !sub.includes('PILETA')) return false;
             if (pumpWizard.type === 'combustion') {
               if (sub.includes('ELÉCTRIC') || sub.includes('ELEC') || sub.includes('ELECT')) return false;
-              if (!sub.includes('COMBUSTIÓN') && !sub.includes('NAFTERA') && !sub.includes('DIESEL') && !sub.includes('DIÉSEL') && !sub.includes('MOTOBOMBA')) return false;
+              let hasFuel = false;
+              if (sub.includes('COMBUSTIÓN') || sub.includes('NAFTERA') || sub.includes('DIESEL') || sub.includes('DIÉSEL') || sub.includes('MOTOBOMBA') || sub.includes('GASOLINA') || sub.includes('NAFTA')) {
+                  hasFuel = true;
+              }
+              if (p.specs) {
+                const allSpecs = JSON.stringify(p.specs).toUpperCase();
+                if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('DIÉSEL') || allSpecs.includes('GASOLINA') || allSpecs.includes('COMBUSTIÓN')) {
+                    hasFuel = true;
+                }
+              }
+              return hasFuel;
             }
             return true;
-         }).sort((a,b) => {
+         }).filter(p => p.calcVal > 0)
+         .sort((a,b) => {
             return Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target);
          }).slice(0, 5);
       }
@@ -213,6 +235,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Bomba de Piscina</Text>
                       <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Recirculación para filtros de piscina</Text>
+                    </View>
+                    <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setPumpWizard({ step: 2, type: 'combustion' })} style={{ padding: 15, backgroundColor: '#F0F4F8', borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: 'bold', color: COLORS.navy }}>Motobombas / Combustión</Text>
+                      <Text style={{ fontSize: 12, color: COLORS.gray4 }}>Bombas a nafta, diésel o gasolina</Text>
                     </View>
                     <Text style={{ fontSize: 20, color: COLORS.gray4 }}>›</Text>
                   </TouchableOpacity>
