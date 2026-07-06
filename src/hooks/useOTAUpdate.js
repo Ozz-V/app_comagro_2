@@ -15,10 +15,7 @@ export function useOTAUpdate() {
   const [expectedMd5, setExpectedMd5] = useState(null);
   const [apkLocalUri, setApkLocalUri] = useState(null);
 
-  // --- COMPROBADOR DE ACTUALIZACIONES: Inicia automáticamente ---
-  useEffect(() => {
-    checkUpdate();
-  }, []);
+  // --- COMPROBADOR DE ACTUALIZACIONES: Ahora se llama manualmente desde App.js o PortalScreen ---
 
   async function checkUpdate() {
     setUpdateState('checking');

@@ -98,7 +98,14 @@ function App() {
   const [profileComplete, setProfileComplete] = useState(true); // Inicialmente true para no bloquear la pantalla inicial
   
   // --- SISTEMA DE ACTUALIZACIÓN ---
-  const { updateState, downloadProgress, updateNotes, setUpdateState, startDownloadUpdate, installUpdate } = useOTAUpdate();
+  const { updateState, downloadProgress, updateNotes, setUpdateState, startDownloadUpdate, installUpdate, checkUpdate } = useOTAUpdate();
+
+  useEffect(() => {
+    // Si la sesión ya se verificó localmente y sabemos que estaba logueado, chequeamos la OTA en la splash screen
+    if (offlineAuthChecked && isOfflineLoggedIn) {
+      checkUpdate();
+    }
+  }, [offlineAuthChecked, isOfflineLoggedIn]);
 
   const [fontsLoaded] = useFonts({
     BarlowCondensed_400Regular,
@@ -245,8 +252,8 @@ function App() {
       subProfile.remove();
     };
   }, []);
-  if (!fontsLoaded || (!offlineAuthChecked && session === undefined)) {
-    return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
+  if (!fontsLoaded) {
+    return null;
   }
 
   const autenticado = !!((session || isOfflineLoggedIn) && (session?.user?.email?.endsWith('@comagro.com.py') || isOfflineLoggedIn));

@@ -7,6 +7,8 @@ import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 import CalculadoraModal from '../components/CalculadoraModal';
 import ProfileCompleteModal from '../components/ProfileCompleteModal';
+import UpdateModal from '../components/UpdateModal';
+import Constants from 'expo-constants';
 
 export default function PortalScreen({ navigation }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
@@ -16,12 +18,29 @@ export default function PortalScreen({ navigation }) {
   const [profName, setProfName] = useState('');
   const [profPhoneInit, setProfPhoneInit] = useState('');
   const [remoteConfig, setRemoteConfig] = useState(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateModalData, setUpdateModalData] = useState(null);
+
+  const versionCode = Constants.expoConfig?.android?.versionCode || 1;
 
   useEffect(() => {
     syncAnalyticsQueue();
     checkProfile();
     fetchRemoteConfig();
+    buscarActualizacionSilenciosa();
   }, []);
+
+  async function buscarActualizacionSilenciosa() {
+    try {
+      const { data, error } = await supabase.from('version_apk').select('version_code, download_url, release_notes, sha256_hash, md5_hash').order('created_at', { ascending: false }).limit(1).single();
+      if (data && data.version_code > versionCode) {
+        setUpdateModalData(data);
+        setShowUpdateModal(true);
+      }
+    } catch (e) {
+      // Ignorar errores en búsqueda silenciosa
+    }
+  }
 
   async function fetchRemoteConfig() {
     try {
@@ -198,6 +217,13 @@ export default function PortalScreen({ navigation }) {
         onSuccess={(name) => { setProfName(name); setShowProfileModal(false); }} 
         initialName={profName}
         initialPhone={profPhoneInit}
+      />
+
+      <UpdateModal
+        visible={showUpdateModal}
+        onClose={() => setShowUpdateModal(false)}
+        updateData={updateModalData}
+        isAvailable={true}
       />
 
     </SafeAreaView>
