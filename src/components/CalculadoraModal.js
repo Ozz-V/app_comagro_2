@@ -113,18 +113,18 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
             if (pumpWizard.type === 'drenaje' && !sub.includes('ACHIQUE') && !sub.includes('DRENAJE') && !sub.includes('SUCIA')) return false;
             if (pumpWizard.type === 'piscina' && !sub.includes('PISCINA') && !sub.includes('PILETA')) return false;
             if (pumpWizard.type === 'combustion') {
-              if (sub.includes('ELÉCTRIC') || sub.includes('ELEC') || sub.includes('ELECT')) return false;
-              let hasFuel = false;
-              if (sub.includes('COMBUSTIÓN') || sub.includes('NAFTERA') || sub.includes('DIESEL') || sub.includes('DIÉSEL') || sub.includes('MOTOBOMBA') || sub.includes('GASOLINA') || sub.includes('NAFTA')) {
-                  hasFuel = true;
-              }
-              if (p.specs) {
-                const allSpecs = JSON.stringify(p.specs).toUpperCase();
-                if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('DIÉSEL') || allSpecs.includes('GASOLINA') || allSpecs.includes('COMBUSTIÓN')) {
-                    hasFuel = true;
-                }
-              }
-              return hasFuel;
+               if (sub.includes('ELÉCTRIC') || sub.includes('ELEC') || sub.includes('ELECT') || sub.includes('220V') || sub.includes('380V')) return false;
+               let hasFuel = false;
+               if (sub.includes('COMBUSTIÓN') || sub.includes('NAFTERA') || sub.includes('DIESEL') || sub.includes('DIÉSEL') || sub.includes('GASOLINA') || sub.includes('NAFTA')) {
+                   hasFuel = true;
+               }
+               if (p.specs) {
+                 const allSpecs = JSON.stringify(p.specs).toUpperCase();
+                 if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('DIÉSEL') || allSpecs.includes('GASOLINA') || allSpecs.includes('COMBUSTIÓN') || allSpecs.includes('CILINDRADA') || allSpecs.includes(' CC') || allSpecs.includes('COMBUSTIBLE')) {
+                     hasFuel = true;
+                 }
+               }
+               return hasFuel;
             }
             return true;
          }).filter(p => p.calcVal > 0)
