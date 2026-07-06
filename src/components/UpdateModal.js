@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Modal, BackHandler } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
 
-export default function UpdateModal({ visible, onClose, updateData, isAvailable }) {
+export default function UpdateModal({ visible, onClose, onUpdate, updateData, isAvailable }) {
   const updateVersionLabel = updateData?.version_name || (updateData?.version_code ? `build ${updateData.version_code}` : 'nueva');
   const updateNotesText = updateData?.release_notes || 'Nuevas mejoras y correcciones generales.';
 
@@ -19,23 +19,33 @@ export default function UpdateModal({ visible, onClose, updateData, isAvailable 
           </Text>
           <Text style={{ fontFamily: FONTS.body, fontSize: 15, color: COLORS.gray4, textAlign: 'center', marginBottom: 30, lineHeight: 22 }}>
             {isAvailable
-              ? `Versión ${updateVersionLabel} disponible.\n${updateNotesText}\n\nLa aplicación se cerrará automáticamente. Por favor, vuelve a abrirla para aplicar la actualización.`
+              ? `Versión ${updateVersionLabel} disponible.\n${updateNotesText}\n\n¿Deseas descargar e instalar la actualización ahora?`
               : 'Tenés instalada la versión más reciente de la aplicación.'}
           </Text>
-          <TouchableOpacity 
-            style={{ backgroundColor: COLORS.navy, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, width: '100%', alignItems: 'center' }} 
-            onPress={() => {
-              if (isAvailable) {
-                BackHandler.exitApp();
-              } else {
-                onClose();
-              }
-            }}
-          >
-            <Text style={{ fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.white }}>
-              {isAvailable ? 'Cerrar Aplicación' : 'Entendido'}
-            </Text>
-          </TouchableOpacity>
+          
+          {isAvailable ? (
+            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: '#F5F5F5', paddingVertical: 14, borderRadius: 12, alignItems: 'center' }} 
+                onPress={onClose}
+              >
+                <Text style={{ fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: '#707070' }}>Más tarde</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: COLORS.navy, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }} 
+                onPress={onUpdate}
+              >
+                <Text style={{ fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.white }}>Actualizar</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={{ backgroundColor: COLORS.navy, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, width: '100%', alignItems: 'center' }} 
+              onPress={onClose}
+            >
+              <Text style={{ fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.white }}>Entendido</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </Modal>

@@ -13,6 +13,7 @@ import DashboardAnalytics from '../components/DashboardAnalytics';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import OfflineSyncModal from '../components/OfflineSyncModal';
+import UpdateModal from '../components/UpdateModal';
 
 export default function ConfigScreen({ navigation }) {
   const appVersion = Constants.expoConfig?.version || '1.0.0';
@@ -29,6 +30,8 @@ export default function ConfigScreen({ navigation }) {
   const [isEditing, setIsEditing] = useState(false);
 
   const { showAlert, showToast } = useCustomAlert();
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateModalData, setUpdateModalData] = useState(null);
 
   const { isSyncing, isPaused, progress, startSync, syncAlert, setSyncAlert } = useOfflineSync();
   const [showOfflineModal, setShowOfflineModal] = useState(false);
@@ -277,7 +280,8 @@ export default function ConfigScreen({ navigation }) {
       const { data, error } = await supabase.from('version_apk').select('version_code, download_url, release_notes, sha256_hash, md5_hash').order('created_at', { ascending: false }).limit(1).single();
       if (error) throw error;
       if (data && data.version_code > versionCode) {
-        DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE');
+        setUpdateModalData(data);
+        setShowUpdateModal(true);
       } else { 
         showToast('App actualizada a la última versión.');
       }
@@ -447,6 +451,17 @@ export default function ConfigScreen({ navigation }) {
         </TouchableOpacity>
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <UpdateModal
+        visible={showUpdateModal}
+        onClose={() => setShowUpdateModal(false)}
+        onUpdate={() => {
+          setShowUpdateModal(false);
+          DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE');
+        }}
+        updateData={updateModalData}
+        isAvailable={true}
+      />
 
       <OfflineSyncModal
         visible={showOfflineModal}
