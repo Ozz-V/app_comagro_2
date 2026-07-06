@@ -252,8 +252,13 @@ function App() {
     const subProfile = DeviceEventEmitter.addListener('PROFILE_COMPLETED', () => {
       setProfileComplete(true);
     });
+    const subOta = DeviceEventEmitter.addListener('TRIGGER_OTA_UPDATE', () => {
+      setShowLottie(true);
+      checkUpdate();
+    });
     return () => {
       subProfile.remove();
+      subOta.remove();
     };
   }, []);
   if (!fontsLoaded) {

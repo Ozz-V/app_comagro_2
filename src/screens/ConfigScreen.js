@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, ActivityIndicator, Image, TextInput, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, ActivityIndicator, Image, TextInput, Modal, DeviceEventEmitter } from 'react-native';
 import LottieView from 'lottie-react-native';
 import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,7 +12,6 @@ import SvgIcon from '../components/SvgIcon';
 import DashboardAnalytics from '../components/DashboardAnalytics';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
-import UpdateModal from '../components/UpdateModal';
 import OfflineSyncModal from '../components/OfflineSyncModal';
 
 export default function ConfigScreen({ navigation }) {
@@ -30,9 +29,6 @@ export default function ConfigScreen({ navigation }) {
   const [isEditing, setIsEditing] = useState(false);
 
   const { showAlert, showToast } = useCustomAlert();
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateModalType, setUpdateModalType] = useState('current');
-  const [updateModalData, setUpdateModalData] = useState(null);
 
   const { isSyncing, isPaused, progress, startSync, syncAlert, setSyncAlert } = useOfflineSync();
   const [showOfflineModal, setShowOfflineModal] = useState(false);
@@ -281,12 +277,8 @@ export default function ConfigScreen({ navigation }) {
       const { data, error } = await supabase.from('version_apk').select('version_code, download_url, release_notes, sha256_hash, md5_hash').order('created_at', { ascending: false }).limit(1).single();
       if (error) throw error;
       if (data && data.version_code > versionCode) {
-        setUpdateModalType('available');
-        setUpdateModalData(data);
-        setShowUpdateModal(true);
+        DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE');
       } else { 
-        setUpdateModalType('current');
-        setUpdateModalData(null);
         showToast('App actualizada a la última versión.');
       }
     } catch (e) { showAlert('Error', 'No se pudo verificar.'); }
@@ -455,13 +447,6 @@ export default function ConfigScreen({ navigation }) {
         </TouchableOpacity>
         <View style={{ height: 40 }} />
       </ScrollView>
-
-      <UpdateModal
-        visible={showUpdateModal}
-        onClose={() => setShowUpdateModal(false)}
-        updateData={updateModalData}
-        isAvailable={updateModalType === 'available'}
-      />
 
       <OfflineSyncModal
         visible={showOfflineModal}
