@@ -101,11 +101,11 @@ function App() {
   const { updateState, downloadProgress, updateNotes, setUpdateState, startDownloadUpdate, installUpdate, checkUpdate } = useOTAUpdate();
 
   useEffect(() => {
-    // Si la sesión ya se verificó localmente y sabemos que estaba logueado, chequeamos la OTA en la splash screen
-    if (offlineAuthChecked && isOfflineLoggedIn) {
+    // Chequear OTA siempre, sin importar si está logueado o no
+    if (offlineAuthChecked) {
       checkUpdate();
     }
-  }, [offlineAuthChecked, isOfflineLoggedIn]);
+  }, [offlineAuthChecked]);
 
   const [fontsLoaded] = useFonts({
     BarlowCondensed_400Regular,
