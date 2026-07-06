@@ -23,6 +23,6 @@ entrypoint = "./functions/setup-db/index.ts"
 
 [functions.sync-plytix]
 enabled = true
-verify_jwt = true
+verify_jwt = false
 import_map = "./functions/sync-plytix/deno.json"
 entrypoint = "./functions/sync-plytix/index.ts"

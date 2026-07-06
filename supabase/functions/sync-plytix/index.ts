@@ -9,8 +9,8 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
 
-    const authHeader = req.headers.get('Authorization') ?? '';
-    if (authHeader !== `Bearer ${supabaseServiceKey}`) {
+    const secret = req.headers.get('x-sync-secret') ?? '';
+    if (secret !== 'ComagroSync2026') {
       return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
