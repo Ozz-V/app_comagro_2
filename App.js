@@ -169,6 +169,8 @@ function App() {
         registerAndSaveToken(data.session.user.id);
         checkProfile(data.session.user.id);
       } else {
+        SecureStore.deleteItemAsync('@is_logged_in');
+        setIsOfflineLoggedIn(false);
         setProfileComplete(true);
       }
     });
@@ -182,6 +184,8 @@ function App() {
         registerAndSaveToken(sess.user.id);
         checkProfile(sess.user.id);
       } else {
+        SecureStore.deleteItemAsync('@is_logged_in');
+        setIsOfflineLoggedIn(false);
         setProfileComplete(true);
       }
     });
