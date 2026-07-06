@@ -63,7 +63,18 @@ export function useOTAUpdate() {
       destPath,
       {},
       (downloadProgress) => {
-        const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+        const { totalBytesWritten, totalBytesExpectedToWrite } = downloadProgress;
+        let progress = 0;
+        if (totalBytesExpectedToWrite > 0) {
+          progress = totalBytesWritten / totalBytesExpectedToWrite;
+        } else {
+          // Si el servidor no envía Content-Length (ej. redirects), estimar en base a 50MB
+          progress = Math.min(totalBytesWritten / 50000000, 0.95);
+        }
+        
+        if (isNaN(progress) || !isFinite(progress) || progress < 0) progress = 0;
+        if (progress > 1) progress = 1;
+        
         setDownloadProgress(progress);
       }
     );
