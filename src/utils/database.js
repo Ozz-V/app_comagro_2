@@ -79,11 +79,16 @@ export async function insertProductsBatch(productosArray, manifest, isDelta = fa
         'url_key', 'sales_pitch'
       ]);
 
+      const basura = ['n/a', 'na', 'n.a', 'n.a.', 'no aplica', 'sin dato', 'sin datos',
+        'no', 'no tiene', 'no disponible', 'pim', '-', '--', '---', 'st', 'sin información',
+        'no corresponde', 'sin especificar', 'sin info'];
+
       for (const [col, val] of Object.entries(p)) {
         if (!colsExcluidas.has(col) && !col.startsWith('_')) {
           const s = String(val).trim();
-          // Excluir vacíos y valores que sean solo 0, 0.0, 0,00, etc.
-          if (s.length > 0 && !/^0([.,]0+)?$/.test(s)) {
+          const sLower = s.toLowerCase();
+          // Excluir vacíos, valores cero, y textos basura
+          if (s.length > 0 && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
             specs.push([col, s]);
           }
         }

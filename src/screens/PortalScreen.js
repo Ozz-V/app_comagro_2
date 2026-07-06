@@ -69,12 +69,17 @@ export default function PortalScreen({ navigation }) {
       const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim().toUpperCase();
       const imagen = row['imagen 1'] || row['imagen'] || null;
       const specs = [];
+      const basura = ['n/a', 'na', 'n.a', 'n.a.', 'no aplica', 'sin dato', 'sin datos',
+        'no', 'no tiene', 'no disponible', 'pim', '-', '--', '---', 'st', 'sin información',
+        'no corresponde', 'sin especificar', 'sin info'];
+
       for (const [col, val] of Object.entries(row)) {
         if (!COLS_EXCLUIDAS.has(col) && !col.startsWith('_')) {
           if (val !== null && val !== undefined && val !== '') {
             const s = String(val).trim();
-            // Excluir valores que sean solo 0, 0.0, 0,00, etc.
-            if (s.length > 0 && !/^0([.,]0+)?$/.test(s)) {
+            const sLower = s.toLowerCase();
+            // Excluir valores cero y textos basura
+            if (s.length > 0 && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
               specs.push([col, s]);
             }
           }
