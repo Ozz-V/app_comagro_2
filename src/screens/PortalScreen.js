@@ -73,7 +73,8 @@ export default function PortalScreen({ navigation }) {
         if (!COLS_EXCLUIDAS.has(col) && !col.startsWith('_')) {
           if (val !== null && val !== undefined && val !== '') {
             const s = String(val).trim();
-            if (s.length > 0) {
+            // Excluir valores que sean solo 0, 0.0, 0,00, etc.
+            if (s.length > 0 && !/^0([.,]0+)?$/.test(s)) {
               specs.push([col, s]);
             }
           }

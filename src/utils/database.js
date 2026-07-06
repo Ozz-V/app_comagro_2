@@ -82,7 +82,8 @@ export async function insertProductsBatch(productosArray, manifest, isDelta = fa
       for (const [col, val] of Object.entries(p)) {
         if (!colsExcluidas.has(col) && !col.startsWith('_')) {
           const s = String(val).trim();
-          if (s.length > 0) {
+          // Excluir vacíos y valores que sean solo 0, 0.0, 0,00, etc.
+          if (s.length > 0 && !/^0([.,]0+)?$/.test(s)) {
             specs.push([col, s]);
           }
         }
