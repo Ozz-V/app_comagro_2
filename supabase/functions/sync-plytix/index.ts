@@ -85,7 +85,7 @@ ${productContext}
 
 Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párrafos para este producto. Resalta sus usos principales y características clave. Usa un tono vendedor pero profesional. No uses Markdown, solo texto plano. NO incluyas el código SKU en el texto. Empieza directamente con la descripción.`;
 
-         const generateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+         const generateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -94,7 +94,11 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
             })
          });
          
-         if (!generateRes.ok) throw new Error('Error en Gemini Generate');
+         if (!generateRes.ok) {
+            const errText = await generateRes.text();
+            console.error(`Gemini Error para ${sku}:`, errText);
+            throw new Error(`Error en Gemini Generate: ${generateRes.status}`);
+         }
          const generateData = await generateRes.json();
          let salesPitch = generateData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Producto técnico de alta calidad.';
 
@@ -146,6 +150,7 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
          processedSkus.push(sku);
 
        } catch (err) {
+         console.error(`Error procesando SKU ${sku}:`, err.message);
          errors.push({ sku, error: err.message });
        }
     }
