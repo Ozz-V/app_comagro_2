@@ -40,7 +40,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
     setHasCalculated(true);
     let filtered = [];
     try {
-      } else if (calcMode === 'gen') {
+      if (calcMode === 'gen') {
         const target = parseFloat(calcInput) || 0;
         const dbProducts = await getProductsBySubcategory('GENERADOR', true);
         filtered = dbProducts.filter(p => {
