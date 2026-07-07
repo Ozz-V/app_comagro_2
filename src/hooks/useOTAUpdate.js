@@ -59,21 +59,36 @@ export function useOTAUpdate() {
   }
 
   async function startDownloadUpdate(urlOrEvent, sha256Override, md5Override) {
-    const url = typeof urlOrEvent === 'string' ? urlOrEvent : updateUrl;
-    const sha256 = typeof sha256Override === 'string' ? sha256Override : expectedSha256;
-    const md5 = typeof md5Override === 'string' ? md5Override : expectedMd5;
+    let url = typeof urlOrEvent === 'string' ? urlOrEvent : updateUrl;
+    let sha256 = typeof sha256Override === 'string' ? sha256Override : expectedSha256;
+    let md5 = typeof md5Override === 'string' ? md5Override : expectedMd5;
+
+    // Fallback de ultra-seguridad: si la URL se perdió en el closure de React, forzar lectura de DB
+    if (!url) {
+      try {
+        const { data } = await supabase.from('version_apk').select('*').order('created_at', { ascending: false }).limit(1).single();
+        if (data && data.download_url) {
+          url = data.download_url;
+          sha256 = data.sha256_hash || null;
+          md5 = data.md5_hash || null;
+        }
+      } catch (e) {
+        console.log("Error en fallback:", e);
+      }
+    }
 
     if (!url) {
+      import('react-native').then(({ Alert }) => Alert.alert("Error Crítico", "No se encontró el link de descarga."));
       setUpdateState('none');
       return;
     }
+
     setUpdateState('downloading');
     setDownloadProgress(0);
     setApkLocalUri(null);
 
     try {
       const fileUri = `${FileSystem.documentDirectory}comagro_update.apk`;
-
       const downloadOptions = {
         headers: {
           'User-Agent': 'ComagroApp/1.0 (Android)',
@@ -95,59 +110,66 @@ export function useOTAUpdate() {
           }
         );
       } catch (createErr) {
-        throw createErr;
+        throw new Error("Error iniciando gestor de descarga: " + (createErr?.message || String(createErr)));
       }
 
       let result;
       try {
         result = await downloadResumable.downloadAsync();
       } catch (downloadErr) {
-        throw downloadErr;
+        throw new Error("Error descargando archivo: " + (downloadErr?.message || String(downloadErr)));
       }
 
       if (result && result.uri && result.status === 200) {
         const headers = result.headers || {};
         const contentType = String(headers['content-type'] || headers['Content-Type'] || '');
         if (contentType.toLowerCase().includes('text/html')) {
-          throw new Error(`La descarga no parece ser una APK. Content-Type=${contentType}`);
+          throw new Error(`El archivo descargado no es una APK (Recibido: ${contentType}). Verifica el link en Supabase.`);
         }
 
-        // VALIDACIÓN DE HASH ESTRICTA CON FALLBACK TEMPORAL
         const hasSha256 = !!sha256;
         const hasMd5 = !!md5;
 
         if (hasSha256) {
           const ReactNativeBlobUtil = require('react-native-blob-util').default;
           const nativePath = result.uri.startsWith('file://') ? result.uri.replace('file://', '') : result.uri;
-          const calculatedSha256 = await ReactNativeBlobUtil.fs.hash(nativePath, 'sha256');
+          let calculatedSha256;
+          try {
+            calculatedSha256 = await ReactNativeBlobUtil.fs.hash(nativePath, 'sha256');
+          } catch (hashErr) {
+            throw new Error("Fallo al calcular SHA-256 local: " + (hashErr?.message || String(hashErr)));
+          }
           
           if (calculatedSha256.toLowerCase() !== sha256.toLowerCase()) {
             await FileSystem.deleteAsync(result.uri, { idempotent: true });
-            throw new Error('Firma de seguridad SHA-256 inválida. Descarga abortada por seguridad.');
+            throw new Error('Firma SHA-256 inválida. Posible archivo corrupto.');
           }
         } else if (hasMd5) {
-          console.warn("ALERTA DE SEGURIDAD: Uso de verificación MD5 en transición. Migrar BD a SHA-256 antes del 17-Jul-2026.");
           const fileInfo = await FileSystem.getInfoAsync(result.uri, { md5: true });
-          
           if (fileInfo.md5.toLowerCase() !== md5.toLowerCase()) {
             await FileSystem.deleteAsync(result.uri, { idempotent: true });
-            throw new Error('Firma MD5 inválida. Descarga abortada.');
+            throw new Error('Firma MD5 inválida. Archivo corrupto.');
           }
         } else {
           await FileSystem.deleteAsync(result.uri, { idempotent: true });
-          throw new Error('ALERTA DE SEGURIDAD CRÍTICA: El servidor no proporcionó firma de integridad (Hash). Instalación bloqueada para prevenir inyección de código.');
+          throw new Error('ALERTA: Sin hash de seguridad en BD. Abortado.');
         }
 
         setApkLocalUri(result.uri);
         setUpdateState('ready');
         return;
       } else {
-        throw new Error('Error al descargar la actualización. Intentá de nuevo.');
+        throw new Error(`HTTP Error ${result?.status || 'desconocido'} al descargar.`);
       }
 
     } catch (err) {
-      console.log('Error de descarga:', err);
-      // alert here could be missing context so we just fail silently to state none, or rely on App.js alerts
+      console.log('Error de descarga OTA:', err);
+      import('react-native').then(({ Alert }) => {
+        Alert.alert(
+          'Error de Actualización',
+          `No se pudo completar la actualización.\n\nDetalle: ${err?.message || 'Error desconocido'}`
+        );
+      });
       setUpdateState('none');
     }
   }
