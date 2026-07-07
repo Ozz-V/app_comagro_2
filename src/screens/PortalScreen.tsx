@@ -9,14 +9,14 @@ import CalculadoraModal from '../components/CalculadoraModal';
 import ProfileCompleteModal from '../components/ProfileCompleteModal';
 import Constants from 'expo-constants';
 
-export default function PortalScreen({ navigation }) {
+export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
-  const [allProdsCache, setAllProdsCache] = useState([]);
+  const [allProdsCache, setAllProdsCache] = useState<any[]>([]);
   
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profName, setProfName] = useState('');
   const [profPhoneInit, setProfPhoneInit] = useState('');
-  const [remoteConfig, setRemoteConfig] = useState(null);
+  const [remoteConfig, setRemoteConfig] = useState<any>(null);
 
   const versionCode = Constants.expoConfig?.android?.versionCode || 1;
 
@@ -42,13 +42,13 @@ export default function PortalScreen({ navigation }) {
     return unsubscribe;
   }, [navigation]);
 
-  const parseRawProducts = (rawData) => {
+  const parseRawProducts = (rawData: string) => {
     const COLS_EXCLUIDAS = new Set([
       'SKU', 'imagen 1', 'imagen 2', 'imagen 3', 'imagen 4', 'imagen 5',
       'Brand', 'Marca', 'marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
       'url_key', 'sales_pitch'
     ]);
-    return JSON.parse(rawData).map(row => {
+    return JSON.parse(rawData).map((row: any) => {
       const marca = (row['Brand'] || row['Marca'] || row['marca'] || row['MARCA'] || '').toString().trim();
       const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim().toUpperCase();
       const imagen = row['imagen 1'] || row['imagen'] || null;
@@ -198,6 +198,7 @@ export default function PortalScreen({ navigation }) {
         </View>
       </ScrollView>
 
+      {/* @ts-ignore */}
       <CalculadoraModal 
         visible={showCalcModal} 
         onClose={() => setShowCalcModal(false)} 
@@ -207,7 +208,7 @@ export default function PortalScreen({ navigation }) {
 
       <ProfileCompleteModal 
         visible={showProfileModal} 
-        onSuccess={(name) => { setProfName(name); setShowProfileModal(false); }} 
+        onSuccess={(name: string) => { setProfName(name); setShowProfileModal(false); }} 
         initialName={profName}
         initialPhone={profPhoneInit}
       />
