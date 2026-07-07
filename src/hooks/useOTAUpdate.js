@@ -58,7 +58,11 @@ export function useOTAUpdate() {
     }
   }
 
-  async function startDownloadUpdate(url = updateUrl, sha256 = expectedSha256, md5 = expectedMd5) {
+  async function startDownloadUpdate(urlOrEvent, sha256Override, md5Override) {
+    const url = typeof urlOrEvent === 'string' ? urlOrEvent : updateUrl;
+    const sha256 = typeof sha256Override === 'string' ? sha256Override : expectedSha256;
+    const md5 = typeof md5Override === 'string' ? md5Override : expectedMd5;
+
     if (!url) {
       setUpdateState('none');
       return;
