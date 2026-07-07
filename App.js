@@ -215,6 +215,7 @@ function App() {
         SecureStore.deleteItemAsync('@is_logged_in');
         setIsOfflineLoggedIn(false);
         setProfileComplete(true);
+        queryClient.clear();
       }
     });
 
@@ -230,6 +231,7 @@ function App() {
         SecureStore.deleteItemAsync('@is_logged_in');
         setIsOfflineLoggedIn(false);
         setProfileComplete(true);
+        queryClient.clear();
       }
     });
 
