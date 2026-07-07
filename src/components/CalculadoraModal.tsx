@@ -5,12 +5,12 @@ import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
 import { getProductsBySubcategory } from '../utils/database';
 
-export default function CalculadoraModal({ visible, onClose, navigation }) {
+export default function CalculadoraModal({ visible, onClose, navigation, allProdsCache }: { visible: boolean; onClose: () => void; navigation: any; allProdsCache?: any[] }) {
   const [calcMode, setCalcMode] = useState('');
   const [calcInput, setCalcInput] = useState('');
   const [calcInput2, setCalcInput2] = useState('');
-  const [pumpWizard, setPumpWizard] = useState({ step: 0, type: '', appType: '', waterType: '', params: {} });
-  const [calcResult, setCalcResult] = useState(null);
+  const [pumpWizard, setPumpWizard] = useState<any>({ step: 0, type: '', appType: '', waterType: '', params: {} });
+  const [calcResult, setCalcResult] = useState<any[] | null>(null);
   const [hasCalculated, setHasCalculated] = useState(false);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
     }
   }, [visible]);
 
-  function extractNum(val) {
+  function extractNum(val: any) {
     if (!val || typeof val !== 'string') return null;
     const m = val.match(/([\d]+[\.,]?[\d]*)/);
     if (!m) return null;
@@ -43,7 +43,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
       if (calcMode === 'gen') {
         const target = parseFloat(calcInput) || 0;
         const dbProducts = await getProductsBySubcategory('GENERADOR', true);
-        filtered = dbProducts.filter(p => {
+        filtered = dbProducts.filter((p: any) => {
           let hasFuel = false;
           const sub = String(p.subcategoria).toUpperCase();
           if (sub.includes('NAFTA') || sub.includes('DIESEL') || sub.includes('DIÉSEL') || sub.includes('GASOLINA')) hasFuel = true;
@@ -52,10 +52,10 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
             if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('DIÉSEL') || allSpecs.includes('GASOLINA')) hasFuel = true;
           }
           return hasFuel;
-        }).map(p => {
+        }).map((p: any) => {
           let val = 0;
           if (p.specs) {
-            p.specs.forEach(s => {
+            p.specs.forEach((s: any) => {
               const k = String(s[0]).toUpperCase();
               if (k.includes('POTENCIA') || k.includes('KVA')) {
                 const n = extractNum(s[1]);
@@ -64,18 +64,18 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
             });
           }
           return { ...p, calcVal: val };
-        }).filter(p => p.calcVal > 0)
-        .sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
+        }).filter((p: any) => p.calcVal > 0)
+        .sort((a: any, b: any) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
       } else if (calcMode === 'motor') {
         const target = parseFloat(calcInput) || 0;
         const dbProducts = await getProductsBySubcategory('MOTOR', true);
-        filtered = dbProducts.filter(p => {
+        filtered = dbProducts.filter((p: any) => {
           const sub = String(p.subcategoria).toUpperCase();
           return sub.includes('ELEC') || sub.includes('ELÉC');
-        }).map(p => {
+        }).map((p: any) => {
           let val = 0;
           if (p.specs) {
-            p.specs.forEach(s => {
+            p.specs.forEach((s: any) => {
               const k = String(s[0]).toUpperCase();
               if (k.includes('HP') || k.includes('POTENCIA')) {
                 const n = extractNum(s[1]);
@@ -84,15 +84,15 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
             });
           }
           return { ...p, calcVal: val };
-        }).filter(p => p.calcVal > 0)
-        .sort((a,b) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
+        }).filter((p: any) => p.calcVal > 0)
+        .sort((a: any, b: any) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
       } else if (calcMode === 'bomba') {
         const target = parseFloat(calcInput) || 0;
         const dbProducts = await getProductsBySubcategory('BOMBA', true);
-        filtered = dbProducts.map(p => {
+        filtered = dbProducts.map((p: any) => {
            let hpVal = 0;
            if (p.specs) {
-             p.specs.forEach(s => {
+             p.specs.forEach((s: any) => {
                const key = String(s[0]).toUpperCase();
                const val = String(s[1]).toUpperCase();
                if (key.includes('HP') || key.includes('POTENCIA')) {
@@ -106,7 +106,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
              });
            }
            return { ...p, calcVal: hpVal };
-         }).filter(p => {
+         }).filter((p: any) => {
             const sub = String(p.subcategoria).toUpperCase();
             if (pumpWizard.type === 'hogar' && !sub.includes('AGUA') && !sub.includes('CENTRÍFUGA') && !sub.includes('PRESURIZA') && !sub.includes('PERIFÉRICA')) return false;
             if (pumpWizard.type === 'pozo' && !sub.includes('SUMERGIBLE') && !sub.includes('PROFUNDO')) return false;
@@ -126,8 +126,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
                return hasFuel;
             }
             return true;
-         }).filter(p => p.calcVal > 0)
-         .sort((a,b) => {
+         }).filter((p: any) => p.calcVal > 0)
+         .sort((a: any, b: any) => {
             return Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target);
          }).slice(0, 5);
       }
@@ -258,7 +258,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }) {
                   </TouchableOpacity>
                   
                   <TextInput
-                    style={{ flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, fontSize: 18, color: COLORS.black, backgroundColor: '#F0F4F8', marginHorizontal: 10, textAlign: 'center' }}
+                    style={{ flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, fontSize: 18, color: '#000', backgroundColor: '#F0F4F8', marginHorizontal: 10, textAlign: 'center' }}
                     keyboardType="numeric"
                     placeholder="Ej: 2"
                     placeholderTextColor={COLORS.gray4}
