@@ -19,8 +19,8 @@ export default function LottieSplashScreen({ onFinish, updateState, updateNotes,
   }, [downloadProgress]);
 
   useEffect(() => {
-    // Solo hacer fade out si NO hay actualización pendiente o en curso
-    if (updateState === 'checking' || updateState === 'prompt' || updateState === 'downloading' || updateState === 'ready') return;
+    // Solo hacer fade out si NO hay actualización pendiente
+    if (updateState === 'prompt' || updateState === 'downloading' || updateState === 'ready') return;
 
     const timer = setTimeout(() => {
       Animated.timing(fadeAnim, {

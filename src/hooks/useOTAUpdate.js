@@ -4,6 +4,7 @@ import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 
 export function useOTAUpdate() {
   const [updateState, setUpdateState] = useState('idle'); // idle | checking | prompt | downloading | ready | none
@@ -17,6 +18,12 @@ export function useOTAUpdate() {
   async function checkUpdate(autoStartDownload = false) {
     setUpdateState('checking');
     try {
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        setUpdateState('none');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('version_apk')
         .select('*')
