@@ -8,15 +8,15 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 
 export function useOTAUpdate() {
   const { showAlert } = useCustomAlert();
-  const [updateState, setUpdateState] = useState('idle'); // idle | checking | prompt | downloading | ready | none
+  const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'prompt' | 'downloading' | 'ready' | 'none'>('idle');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [updateNotes, setUpdateNotes] = useState('');
-  const [updateUrl, setUpdateUrl] = useState(null);
-  const [expectedSha256, setExpectedSha256] = useState(null);
-  const [expectedMd5, setExpectedMd5] = useState(null);
-  const [apkLocalUri, setApkLocalUri] = useState(null);
+  const [updateUrl, setUpdateUrl] = useState<string | null>(null);
+  const [expectedSha256, setExpectedSha256] = useState<string | null>(null);
+  const [expectedMd5, setExpectedMd5] = useState<string | null>(null);
+  const [apkLocalUri, setApkLocalUri] = useState<string | null>(null);
 
-  async function checkUpdate(autoStartDownload = false) {
+  async function checkUpdate(autoStartDownload: boolean = false) {
     setUpdateState('checking');
     try {
       const netState = await NetInfo.fetch();
@@ -59,7 +59,7 @@ export function useOTAUpdate() {
     }
   }
 
-  async function startDownloadUpdate(urlOrEvent, sha256Override, md5Override) {
+  async function startDownloadUpdate(urlOrEvent?: string | any, sha256Override?: string | null, md5Override?: string | null) {
     let url = typeof urlOrEvent === 'string' ? urlOrEvent : updateUrl;
     let sha256 = typeof sha256Override === 'string' ? sha256Override : expectedSha256;
     let md5 = typeof md5Override === 'string' ? md5Override : expectedMd5;
@@ -110,15 +110,15 @@ export function useOTAUpdate() {
             setDownloadProgress(progress);
           }
         );
-      } catch (createErr) {
-        throw new Error("Error iniciando gestor de descarga: " + (createErr?.message || String(createErr)));
+      } catch (createErr: unknown) {
+        throw new Error("Error iniciando gestor de descarga: " + ((createErr as Error)?.message || String(createErr)));
       }
 
       let result;
       try {
         result = await downloadResumable.downloadAsync();
-      } catch (downloadErr) {
-        throw new Error("Error descargando archivo: " + (downloadErr?.message || String(downloadErr)));
+      } catch (downloadErr: unknown) {
+        throw new Error("Error descargando archivo: " + ((downloadErr as Error)?.message || String(downloadErr)));
       }
 
       if (result && result.uri && result.status === 200) {
@@ -137,17 +137,17 @@ export function useOTAUpdate() {
           let calculatedSha256;
           try {
             calculatedSha256 = await ReactNativeBlobUtil.fs.hash(nativePath, 'sha256');
-          } catch (hashErr) {
-            throw new Error("Fallo al calcular SHA-256 local: " + (hashErr?.message || String(hashErr)));
+          } catch (hashErr: unknown) {
+            throw new Error("Fallo al calcular SHA-256 local: " + ((hashErr as Error)?.message || String(hashErr)));
           }
           
-          if (calculatedSha256.toLowerCase() !== sha256.toLowerCase()) {
+          if (calculatedSha256.toLowerCase() !== sha256!.toLowerCase()) {
             await FileSystem.deleteAsync(result.uri, { idempotent: true });
             throw new Error('Firma SHA-256 inválida. Posible archivo corrupto.');
           }
         } else if (hasMd5) {
-          const fileInfo = await FileSystem.getInfoAsync(result.uri, { md5: true });
-          if (fileInfo.md5.toLowerCase() !== md5.toLowerCase()) {
+          const fileInfo = await FileSystem.getInfoAsync(result.uri, { md5: true }) as any;
+          if (fileInfo.md5?.toLowerCase() !== md5!.toLowerCase()) {
             await FileSystem.deleteAsync(result.uri, { idempotent: true });
             throw new Error('Firma MD5 inválida. Archivo corrupto.');
           }
@@ -163,11 +163,11 @@ export function useOTAUpdate() {
         throw new Error(`HTTP Error ${result?.status || 'desconocido'} al descargar.`);
       }
 
-    } catch (err) {
+    } catch (err: unknown) {
       console.log('Error de descarga OTA:', err);
       showAlert(
         'Error de Actualización',
-        `No se pudo completar la actualización.\n\nDetalle: ${err?.message || 'Error desconocido'}`
+        `No se pudo completar la actualización.\n\nDetalle: ${(err as Error)?.message || 'Error desconocido'}`
       );
       setUpdateState('none');
     }
@@ -189,8 +189,8 @@ export function useOTAUpdate() {
         flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
         type: 'application/vnd.android.package-archive',
       });
-    } catch (err) {
-      console.log('[OTA] Error instalando:', err?.message, err);
+    } catch (err: unknown) {
+      console.log('[OTA] Error instalando:', (err as Error)?.message, err);
       throw err;
     }
   }
