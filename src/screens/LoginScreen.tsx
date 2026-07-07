@@ -14,11 +14,11 @@ export default function LoginScreen() {
   const [email, setEmail]   = useState('');
   const [code, setCode]     = useState('');
   const [step, setStep]     = useState(1); // 1 = correo, 2 = código OTP, 3 = PIN super user
-  const [status, setStatus] = useState({ msg: '', color: COLORS.navy });
+  const [status, setStatus] = useState<{ msg: string; color: string }>({ msg: '', color: COLORS.navy });
   const [loading, setLoading] = useState(false);
   const [isSuperUser, setIsSuperUser] = useState(false);
 
-  function validarCorreo(c) {
+  function validarCorreo(c: string) {
     return /^[a-zA-Z0-9._%+-]+@comagro\.com\.py$/i.test(c.trim());
   }
 
@@ -73,7 +73,7 @@ export default function LoginScreen() {
         },
       });
       error = response.error;
-    } catch (e) {
+    } catch (e: any) {
       console.error('signInWithOtp failed:', e);
       error = e;
     }
@@ -81,7 +81,7 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (error) {
-      const msg = error?.message || 'No fue posible enviar el código. Intentá de nuevo.';
+      const msg = (error as any)?.message || 'No fue posible enviar el código. Intentá de nuevo.';
       console.error('OTP error:', msg);
       setStatus({ msg: msg, color: 'red' });
       return;
