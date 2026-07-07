@@ -3,6 +3,7 @@ import { supabase } from '../supabase';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import NetInfo from '@react-native-community/netinfo';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 
@@ -99,7 +100,7 @@ export function useOTAUpdate() {
 
       let downloadResumable;
       try {
-        downloadResumable = FileSystem.createDownloadResumable(
+        downloadResumable = FileSystemLegacy.createDownloadResumable(
           url,
           fileUri,
           downloadOptions,
