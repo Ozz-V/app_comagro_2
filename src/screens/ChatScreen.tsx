@@ -11,15 +11,15 @@ import { supabase, EDGE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function ChatScreen({ navigation }) {
+export default function ChatScreen({ navigation }: { navigation: any }) {
   const [chatInput, setChatInput] = useState('');
-  const [chatHistory, setChatHistory] = useState([]);
+  const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
-  const [remoteConfig, setRemoteConfig] = useState(null);
+  const [remoteConfig, setRemoteConfig] = useState<any>(null);
   const [profName, setProfName] = useState('');
   const insets = useSafeAreaInsets();
 
-  const flatListRef = useRef(null);
+  const flatListRef = useRef<FlatList<any>>(null);
 
   useEffect(() => {
     fetchInitData();
@@ -108,7 +108,7 @@ export default function ChatScreen({ navigation }) {
       } else {
         throw new Error('Respuesta vacía de la Edge Function');
       }
-    } catch (err) {
+    } catch (err: any) {
       lastError = err.message;
       // Error silente en petición al chatbot
     }
@@ -125,7 +125,7 @@ export default function ChatScreen({ navigation }) {
   }
 
   // Extrae la etiqueta [SKU: XXX] del texto y devuelve el texto limpio y los SKUs encontrados
-  const parseMessage = (text) => {
+  const parseMessage = (text: string) => {
     const skuRegex = /\[SKU:\s*([^\]]+)\]/gi;
     let match;
     const skus = [];
@@ -138,7 +138,7 @@ export default function ChatScreen({ navigation }) {
     return { cleanText: cleanText.trim(), skus };
   };
 
-  const renderProductCard = (sku, skusContext) => {
+  const renderProductCard = (sku: string, skusContext: string[]) => {
     return <AiProductCard key={sku} sku={sku} skusContext={skusContext} navigation={navigation} />;
   };
 
@@ -227,8 +227,8 @@ export default function ChatScreen({ navigation }) {
   );
 }
 
-const AiProductCard = ({ sku, skusContext, navigation }) => {
-  const [product, setProduct] = useState(null);
+const AiProductCard = ({ sku, skusContext, navigation }: { sku: string; skusContext: string[]; navigation: any }) => {
+  const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
