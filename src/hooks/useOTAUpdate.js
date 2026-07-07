@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '../supabase';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system';
-import { Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
+import { useCustomAlert } from '../contexts/CustomAlertContext';
 
 export function useOTAUpdate() {
+  const { showAlert } = useCustomAlert();
   const [updateState, setUpdateState] = useState('idle'); // idle | checking | prompt | downloading | ready | none
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [updateNotes, setUpdateNotes] = useState('');
@@ -78,7 +79,7 @@ export function useOTAUpdate() {
     }
 
     if (!url) {
-      import('react-native').then(({ Alert }) => Alert.alert("Error Crítico", "No se encontró el link de descarga."));
+      showAlert("Error Crítico", "No se encontró el link de descarga. Por favor, intenta de nuevo más tarde.");
       setUpdateState('none');
       return;
     }
@@ -164,12 +165,10 @@ export function useOTAUpdate() {
 
     } catch (err) {
       console.log('Error de descarga OTA:', err);
-      import('react-native').then(({ Alert }) => {
-        Alert.alert(
-          'Error de Actualización',
-          `No se pudo completar la actualización.\n\nDetalle: ${err?.message || 'Error desconocido'}`
-        );
-      });
+      showAlert(
+        'Error de Actualización',
+        `No se pudo completar la actualización.\n\nDetalle: ${err?.message || 'Error desconocido'}`
+      );
       setUpdateState('none');
     }
   }
