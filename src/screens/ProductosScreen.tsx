@@ -19,13 +19,13 @@ import { supabase } from '../supabase';
 
 const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
 
-function isAccessorySubcat(subcat) {
+function isAccessorySubcat(subcat: string) {
   if (!subcat) return false;
   const s = subcat.toLowerCase();
   return s.includes('accesorios') || s.includes('repuestos') || s.includes('pieza') || s.includes('kit');
 }
 
-export default function ProductosScreen({ navigation, route }) {
+export default function ProductosScreen({ navigation, route }: { navigation: any; route: any }) {
   const insets = useSafeAreaInsets();
   const { showAlert } = useCustomAlert();
   
@@ -53,12 +53,12 @@ export default function ProductosScreen({ navigation, route }) {
     }
   }, [filtroMarca, filtroSubcategoria, busqueda, cargando, dbVersion, fetchCatalog]);
 
-  const [modalProd, setModalProd] = useState(null);
+  const [modalProd, setModalProd] = useState<any>(null);
   const { aiData, setAiData, loadingAi, fetchAiData } = useAiData();
 
   // Compare State
   const [isComparing, setIsComparing] = useState(false);
-  const [compareItems, setCompareItems] = useState([]);
+  const [compareItems, setCompareItems] = useState<any[]>([]);
   const [showCompareGrid, setShowCompareGrid] = useState(false);
   const [fromProductViewer, setFromProductViewer] = useState(false);
 
@@ -73,7 +73,7 @@ export default function ProductosScreen({ navigation, route }) {
   const activeSliderList = productosFiltrados;
 
   // Funciones de Modal
-  function handleOpenModal(prod) {
+  function handleOpenModal(prod: any) {
     setAiData(null);
     setModalProd(prod);
     fetchAiData(prod.modelo, prod.sales_pitch);
@@ -102,7 +102,7 @@ export default function ProductosScreen({ navigation, route }) {
   useEffect(() => {
     if (route?.params?.compareSkus) {
       const skus = route.params.compareSkus;
-      Promise.all(skus.map(s => getProductBySkuSafe(s))).then(items => {
+      Promise.all(skus.map((s: any) => getProductBySkuSafe(s))).then(items => {
         const itemsToCompare = items.filter(Boolean);
         if (itemsToCompare.length > 0) {
           setCompareItems(itemsToCompare);
@@ -116,7 +116,7 @@ export default function ProductosScreen({ navigation, route }) {
   }, [route?.params?.compareSkus]);
 
   // Renders de listas
-  const renderMarcaBtn = useCallback(({ item: marca }) => {
+  const renderMarcaBtn = useCallback(({ item: marca }: { item: string }) => {
     const logoUri = `${LOGO_BASE}${marca.replace(/\s+/g, '_')}.jpg?v=${logoRefreshKey}`;
     const activo = filtroMarca === marca;
     return (
@@ -179,7 +179,7 @@ export default function ProductosScreen({ navigation, route }) {
           {bgActualiz && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando catálogo…</Text></View>}
           <FlatList
             data={productosFiltrados}
-            renderItem={({ item }) => (
+            renderItem={({ item }: { item: any }) => (
               <ProductCard 
                 item={item} 
                 cardW={cardW} 
@@ -230,6 +230,7 @@ export default function ProductosScreen({ navigation, route }) {
       )}
 
       {/* MODAL DEL PRODUCTO */}
+      {/* @ts-ignore */}
       <ProductDetailModal
         visible={!!modalProd}
         modalProd={modalProd}
@@ -240,7 +241,7 @@ export default function ProductosScreen({ navigation, route }) {
         loadingAi={loadingAi}
         activeSliderList={activeSliderList}
         onOpenProduct={handleOpenModal}
-        onCompare={(items) => {
+        onCompare={(items: any[]) => {
           setCompareItems(items);
           setIsComparing(true);
           setShowCompareGrid(true);
@@ -261,7 +262,7 @@ export default function ProductosScreen({ navigation, route }) {
             navigation.goBack();
           }
         }}
-        onOpenProduct={(prod) => {
+        onOpenProduct={(prod: any) => {
           setShowCompareGrid(false);
           handleOpenModal(prod);
         }}
@@ -276,7 +277,7 @@ const styles = StyleSheet.create({
   topBorder: { height: 1, backgroundColor: COLORS.border },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   centerText: { marginTop: 10, color: COLORS.gray4, fontFamily: FONTS.body },
-  errorText: { color: COLORS.red, textAlign: 'center', marginBottom: 15 },
+  errorText: { color: 'red', textAlign: 'center', marginBottom: 15 },
   retryBtn: { padding: 10, backgroundColor: COLORS.navy, borderRadius: 8 },
   retryText: { color: COLORS.white },
   marcasGrid: { padding: 12 },
