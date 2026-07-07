@@ -22,7 +22,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.comagro.catalogo",
-      "versionCode": 53,
+      "versionCode": 54,
       "permissions": [
         "REQUEST_INSTALL_PACKAGES"
       ],
