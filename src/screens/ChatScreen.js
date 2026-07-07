@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
 import { supabase, EDGE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ChatScreen({ navigation }) {
   const [chatInput, setChatInput] = useState('');
@@ -16,6 +17,7 @@ export default function ChatScreen({ navigation }) {
   const [chatLoading, setChatLoading] = useState(false);
   const [remoteConfig, setRemoteConfig] = useState(null);
   const [profName, setProfName] = useState('');
+  const insets = useSafeAreaInsets();
 
   const flatListRef = useRef(null);
 
@@ -170,7 +172,7 @@ export default function ChatScreen({ navigation }) {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
         <FlatList
@@ -202,7 +204,7 @@ export default function ChatScreen({ navigation }) {
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         />
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'android' ? Math.max(10, insets.bottom + 5) : 10 }]}>
           <TextInput
             style={styles.input}
             placeholder="Escribe tu consulta técnica..."

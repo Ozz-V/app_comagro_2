@@ -37,7 +37,7 @@ export default function CompareModal({
   return (
     <>
       <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg, paddingTop: require('react-native').Platform.OS === 'android' ? insets.top : 0 }}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Comparando {compareItems?.length || 0} productos</Text>
             <TouchableOpacity onPress={onClose}>
