@@ -3,12 +3,13 @@ import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 
-export default function ProductCard({ item, cardW, isSelected, onPress }) {
+export default function ProductCard({ item, cardW, isSelected, onPress, onLongPress }: { item: any; cardW: number; isSelected?: boolean; onPress?: () => void; onLongPress?: () => void }) {
   return (
     <TouchableOpacity
       style={[styles.card, { width: cardW }, isSelected && { borderColor: COLORS.navy, borderWidth: 2 }]}
       activeOpacity={0.85}
       onPress={onPress}
+      onLongPress={onLongPress}
     >
       <View style={[styles.cardImg, { height: cardW * 0.85 }]}>
         <Image source={{ uri: item.imagen }} style={styles.cardImgI} contentFit="contain" />

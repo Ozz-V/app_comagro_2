@@ -7,22 +7,22 @@ import { supabase } from '../supabase';
 import { getProductBySku } from '../utils/database';
 import { useAiData } from '../hooks/useAiData';
 
-export default function ProductViewerScreen({ route, navigation }) {
+export default function ProductViewerScreen({ route, navigation }: { route: any; navigation: any }) {
   const { sku, contextSkus } = route.params || {};
-  const [modalProd, setModalProd] = useState(null);
-  const [activeSliderList, setActiveSliderList] = useState([]);
+  const [modalProd, setModalProd] = useState<any>(null);
+  const [activeSliderList, setActiveSliderList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { aiData, setAiData, loadingAi, fetchAiData } = useAiData();
 
   // Compare state (self-contained: no need to navigate away to ProductosScreen)
-  const [compareItems, setCompareItems] = useState([]);
+  const [compareItems, setCompareItems] = useState<any[]>([]);
   const [showCompare, setShowCompare] = useState(false);
 
   const [logoRefreshKey] = useState(Date.now().toString());
 
   // fetchAiData is now imported from useAiData hook
 
-  function handleOpenProduct(prod) {
+  function handleOpenProduct(prod: any) {
     setAiData(null);
     setModalProd(prod);
     fetchAiData(prod.modelo, prod.sales_pitch);
@@ -43,12 +43,12 @@ export default function ProductViewerScreen({ route, navigation }) {
           }
         }
         if (contextSkus && contextSkus.length > 0) {
-          const items = await Promise.all(contextSkus.map(s => getProductBySku(s)));
+          const items = await Promise.all(contextSkus.map((s: any) => getProductBySku(s)));
           setActiveSliderList(items.filter(Boolean));
         } else {
           setActiveSliderList([]);
         }
-      } catch (e) {
+      } catch (e: any) {
         console.log('Error en ProductViewerScreen DB', e);
       } finally {
         setLoading(false);
@@ -73,6 +73,7 @@ export default function ProductViewerScreen({ route, navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+      {/* @ts-ignore */}
       <ProductDetailModal
         visible={!!modalProd}
         modalProd={modalProd}
@@ -83,7 +84,7 @@ export default function ProductViewerScreen({ route, navigation }) {
         loadingAi={loadingAi}
         pdfCache={{}}
         logoRefreshKey={logoRefreshKey}
-        onCompare={(items) => {
+        onCompare={(items: any[]) => {
           setCompareItems(items);
           setShowCompare(true);
         }}
@@ -94,7 +95,7 @@ export default function ProductViewerScreen({ route, navigation }) {
         compareItems={compareItems}
         setCompareItems={setCompareItems}
         onClose={() => setShowCompare(false)}
-        onOpenProduct={(prod) => {
+        onOpenProduct={(prod: any) => {
           setShowCompare(false);
           handleOpenProduct(prod);
         }}

@@ -20,13 +20,13 @@ const CACHE_KEY      = 'comagro_catalogos_v1';
 const CACHE_TIME_KEY = 'comagro_catalogos_fecha_v1';
 const HORAS_VIGENCIA = 2; // lista de catálogos cambia menos frecuente
 
-export default function CatalogosScreen({ navigation }) {
-  const [catalogos, setCatalogos] = useState([]);
+export default function CatalogosScreen({ navigation }: { navigation: any }) {
+  const [catalogos, setCatalogos] = useState<any[]>([]);
   const [cargando, setCargando]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError]         = useState(null);
-  const [abriendo, setAbriendo]   = useState(null);
-  const [pdfModal, setPdfModal]   = useState({ visible: false, url: null, title: null });
+  const [error, setError]         = useState<string | null>(null);
+  const [abriendo, setAbriendo]   = useState<string | null>(null);
+  const [pdfModal, setPdfModal]   = useState<{ visible: boolean; url: string | null; title: string | null }>({ visible: false, url: null, title: null });
   const { manifest, manifestReady, isOnline } = useOfflineSync();
 
   const { width } = useWindowDimensions();
@@ -44,7 +44,7 @@ export default function CatalogosScreen({ navigation }) {
   }
 
   // ─── CARGA DESDE SUPABASE CON CACHÉ ──────────────────────────────
-  async function cargarCatalogos(forzar = false) {
+  async function cargarCatalogos(forzar: boolean = false) {
     if (!isOnline && !forzar) {
       try {
         const saved = await AsyncStorage.getItem(CACHE_KEY);
@@ -120,7 +120,7 @@ export default function CatalogosScreen({ navigation }) {
       } catch (_) {}
 
       setCatalogos(lista);
-    } catch (e) {
+    } catch (e: any) {
       if (!tieneCache) {
         // Solo mostrar error si tampoco teníamos caché
         try {
@@ -136,7 +136,7 @@ export default function CatalogosScreen({ navigation }) {
     }
   }
 
-  async function abrirCatalogo(archivo, label) {
+  async function abrirCatalogo(archivo: string, label: string) {
     setAbriendo(archivo);
     try {
       // Buscar en manifest (ya cargado de AsyncStorage por el contexto)
@@ -164,10 +164,10 @@ export default function CatalogosScreen({ navigation }) {
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
       const fetchPromise = supabase.storage.from(BUCKET).createSignedUrl(archivo, 300);
       
-      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
       if (error || !data) throw new Error('No se pudo generar el enlace');
       setPdfModal({ visible: true, url: data.signedUrl, title: label || archivo });
-    } catch (e) {
+    } catch (e: any) {
       if (e.message === 'timeout') {
         alert('Sin conexión. Descarga el catálogo para usarlo offline.');
       }
@@ -177,7 +177,7 @@ export default function CatalogosScreen({ navigation }) {
     }
   }
 
-  const renderCard = ({ item }) => {
+  const renderCard = ({ item }: { item: any }) => {
     const cargandoEste = abriendo === item.archivo;
     const logoUri = `${LOGO_BASE}${item.logo}.png`;
     const descargado = !!(manifest && manifest[item.archivo]);

@@ -16,15 +16,15 @@ const LOGO = { uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_C
 const BUCKET = 'Fichas';
 const CATEGORIAS = ['BOMBAS DE AGUA', 'SOLDADORES', 'GENERADORES', 'MOTORES ELECTRICOS', 'COMPRESORES'];
 
-export default function FichasScreen({ navigation }) {
-  const [allFiles, setAllFiles]       = useState({});
+export default function FichasScreen({ navigation }: { navigation: any }) {
+  const [allFiles, setAllFiles]       = useState<Record<string, any[]>>({});
   const [catActual, setCatActual]     = useState('TODAS');
   const [busqueda, setBusqueda]       = useState('');
   const [cargando, setCargando]       = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
-  const [error, setError]             = useState(null);
-  const [abriendo, setAbriendo]       = useState(null);
-  const [pdfModal, setPdfModal]       = useState({ visible: false, url: null, title: null });
+  const [error, setError]             = useState<string | null>(null);
+  const [abriendo, setAbriendo]       = useState<string | null>(null);
+  const [pdfModal, setPdfModal]       = useState<{ visible: boolean; url: string | null; title: string | null }>({ visible: false, url: null, title: null });
   const { manifest, manifestReady, isOnline } = useOfflineSync();
 
   useEffect(() => { cargarTodo(); }, []);
@@ -38,7 +38,7 @@ export default function FichasScreen({ navigation }) {
     cargarTodo(true);
   }
 
-  async function cargarTodo(forzar = false) {
+  async function cargarTodo(forzar: boolean = false) {
     if (!isOnline && !forzar) {
       try {
         const saved = await AsyncStorage.getItem('@fichas_cache');
@@ -47,7 +47,7 @@ export default function FichasScreen({ navigation }) {
         } else {
           setError('No hay fichas guardadas. Conéctese a internet para descargar.');
         }
-      } catch (e) {}
+      } catch (e: any) {}
       setCargando(false);
       setRefreshing(false);
       return;
@@ -64,7 +64,7 @@ export default function FichasScreen({ navigation }) {
         setCargando(false);
         tieneCache = true;
       }
-    } catch (_) {}
+    } catch (_: any) {}
 
     // 2. Actualizar desde red en silencio
     try {
@@ -76,11 +76,11 @@ export default function FichasScreen({ navigation }) {
         CATEGORIAS.map(cat => fetchCategoria(cat, token))
       );
 
-      const mapa = {};
+      const mapa: Record<string, any[]> = {};
       CATEGORIAS.forEach((cat, i) => { mapa[cat] = resultados[i]; });
       setAllFiles(mapa);
       await AsyncStorage.setItem('@fichas_cache', JSON.stringify(mapa));
-    } catch (e) {
+    } catch (e: any) {
       if (!tieneCache) {
         setError(e.message || 'Error de conexión');
       }
@@ -90,7 +90,7 @@ export default function FichasScreen({ navigation }) {
     }
   }
 
-  async function fetchCategoria(cat, token) {
+  async function fetchCategoria(cat: string, token: string) {
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${BUCKET}`, {
       method: 'POST',
       headers: {
@@ -103,8 +103,8 @@ export default function FichasScreen({ navigation }) {
     if (!res.ok) throw new Error(`Error cargando ${cat}`);
     const files = await res.json();
     return (files || [])
-      .filter(f => f.name && f.name.toLowerCase().endsWith('.pdf'))
-      .map(f => ({
+      .filter((f: any) => f.name && f.name.toLowerCase().endsWith('.pdf'))
+      .map((f: any) => ({
         name:     f.name.replace(/\.pdf$/i, ''),
         fullName: f.name,
         size:     f.metadata?.size || 0,
@@ -113,7 +113,7 @@ export default function FichasScreen({ navigation }) {
       }));
   }
 
-  async function abrirFicha(path, nombre) {
+  async function abrirFicha(path: string, nombre: string) {
     setAbriendo(path);
     try {
       // Buscar en manifest (ya cargado de AsyncStorage por el contexto)
@@ -134,18 +134,18 @@ export default function FichasScreen({ navigation }) {
               return;
             }
           }
-        } catch (_) {}
+        } catch (_: any) {}
       }
 
       // Online: obtener URL firmada con timeout de 4 segundos
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
       const fetchPromise = supabase.storage.from(BUCKET).createSignedUrl(path, 300);
       
-      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
       if (error || !data) throw new Error('No se pudo generar el enlace');
       
       setPdfModal({ visible: true, url: data.signedUrl, title: nombre || path });
-    } catch (e) {
+    } catch (e: any) {
       if (e.message === 'timeout') {
         alert('Sin conexión. Descarga la ficha para usarla offline.');
       }
@@ -155,7 +155,7 @@ export default function FichasScreen({ navigation }) {
     }
   }
 
-  function fmtSize(b) {
+  function fmtSize(b: number) {
     if (!b) return '';
     if (b >= 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + ' MB';
     return Math.round(b / 1024) + ' KB';
@@ -165,7 +165,7 @@ export default function FichasScreen({ navigation }) {
   const listaFiltrada = React.useMemo(() => {
     const cats = catActual === 'TODAS' ? CATEGORIAS : [catActual];
     const q = busqueda.toLowerCase().trim();
-    const items = [];
+    const items: any[] = [];
     cats.forEach(cat => {
       const files = allFiles[cat] || [];
       const filtrados = q ? files.filter(f => f.name.toLowerCase().includes(q)) : files;
@@ -177,7 +177,7 @@ export default function FichasScreen({ navigation }) {
     return items;
   }, [allFiles, catActual, busqueda]);
 
-  function renderItem({ item }) {
+  function renderItem({ item }: { item: any }) {
     if (item.type === 'label') {
       return <Text style={styles.catLabel}>{item.cat}</Text>;
     }
@@ -288,7 +288,7 @@ export default function FichasScreen({ navigation }) {
           <Text style={styles.errorText}>
             {!isOnline ? 'No hay conexión. Conéctate a internet para cargar los datos por primera vez.' : error}
           </Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={cargarTodo}>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => cargarTodo(true)}>
             <Text style={styles.retryText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
