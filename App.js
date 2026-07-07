@@ -53,6 +53,29 @@ const navTheme = {
   },
 };
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.log('Error de Pantalla:', error);
+    if (this.props.showAlert) {
+      this.props.showAlert(
+        'Error de Pantalla',
+        `Hubo un problema al cargar esta vista.\n\nDetalle: ${error?.message || 'Error desconocido'}\n\nRecomendamos reiniciar la app si notas problemas.`
+      );
+    }
+  }
+  render() {
+    if (this.state.hasError) return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
+    return this.props.children;
+  }
+}
+
 export default function AppWrapper() {
   const [isRooted, setIsRooted] = useState(false);
 
@@ -115,6 +138,24 @@ function App() {
   });
 
   const { showAlert } = require('./src/contexts/CustomAlertContext').useCustomAlert();
+
+  useEffect(() => {
+    const defaultErrorHandler = global.ErrorUtils?.getGlobalHandler?.();
+    if (global.ErrorUtils) {
+      global.ErrorUtils.setGlobalHandler((error, isFatal) => {
+        console.log('Error Global (Crash):', error);
+        showAlert(
+          'Fallo del Sistema',
+          `Ocurrió un error inesperado${isFatal ? ' fatal' : ''}.\n\nDetalle: ${error?.message || 'Desconocido'}\n\nEl sistema bloqueó el cierre forzoso, pero recomendamos reiniciar la app.`
+        );
+      });
+    }
+    return () => {
+      if (global.ErrorUtils && defaultErrorHandler) {
+        global.ErrorUtils.setGlobalHandler(defaultErrorHandler);
+      }
+    };
+  }, [showAlert]);
 
   useEffect(() => {
     // Verificar login local (para modo offline) — esto es rápido (ms)
@@ -267,40 +308,42 @@ function App() {
   return (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <OfflineSyncProvider>
-        <NavigationContainer theme={navTheme}>
-          <Stack.Navigator 
-            screenOptions={{ 
-              headerShown: false, 
-              animation: 'slide_from_right', 
-              contentStyle: { backgroundColor: '#FFFFFF' } 
-            }}
-            detachInactiveScreens={false}
-          >
-            {!autenticado ? (
-              <Stack.Screen name="Login" component={LoginScreen} />
-            ) : !profileComplete ? (
-              <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
-            ) : (
-              <>
-                <Stack.Screen name="Portal"    component={PortalScreen} />
-                <Stack.Screen name="Catalogos" component={CatalogosScreen} />
-                <Stack.Screen name="Fichas"    component={FichasScreen} />
-                <Stack.Screen name="Productos" component={ProductosScreen} />
-                <Stack.Screen name="Config"    component={ConfigScreen} />
-                <Stack.Screen name="ChatScreen" component={ChatScreen} />
-                <Stack.Screen 
-                  name="ProductViewer" 
-                  component={ProductViewerScreen} 
-                  options={{ 
-                    presentation: 'transparentModal', 
-                    animation: 'none',
-                    contentStyle: { backgroundColor: 'transparent' }
-                  }} 
-                />
-              </>
-            )}
-          </Stack.Navigator>
-        </NavigationContainer>
+        <ErrorBoundary showAlert={showAlert}>
+          <NavigationContainer theme={navTheme}>
+            <Stack.Navigator 
+              screenOptions={{ 
+                headerShown: false, 
+                animation: 'slide_from_right', 
+                contentStyle: { backgroundColor: '#FFFFFF' } 
+              }}
+              detachInactiveScreens={false}
+            >
+              {!autenticado ? (
+                <Stack.Screen name="Login" component={LoginScreen} />
+              ) : !profileComplete ? (
+                <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
+              ) : (
+                <>
+                  <Stack.Screen name="Portal"    component={PortalScreen} />
+                  <Stack.Screen name="Catalogos" component={CatalogosScreen} />
+                  <Stack.Screen name="Fichas"    component={FichasScreen} />
+                  <Stack.Screen name="Productos" component={ProductosScreen} />
+                  <Stack.Screen name="Config"    component={ConfigScreen} />
+                  <Stack.Screen name="ChatScreen" component={ChatScreen} />
+                  <Stack.Screen 
+                    name="ProductViewer" 
+                    component={ProductViewerScreen} 
+                    options={{ 
+                      presentation: 'transparentModal', 
+                      animation: 'none',
+                      contentStyle: { backgroundColor: 'transparent' }
+                    }} 
+                  />
+                </>
+              )}
+            </Stack.Navigator>
+          </NavigationContainer>
+        </ErrorBoundary>
         
         {showLottie && (
           <LottieSplashScreen
