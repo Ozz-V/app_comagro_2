@@ -23,6 +23,8 @@ import {
   Barlow_600SemiBold,
 } from '@expo-google-fonts/barlow';
 
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './src/queryClient';
 import { supabase } from './src/supabase';
 import { COLORS } from './src/theme';
 import * as Linking from 'expo-linking';
@@ -107,9 +109,11 @@ export default function AppWrapper() {
   }
 
   return (
-    <CustomAlertProvider>
-      <App />
-    </CustomAlertProvider>
+    <QueryClientProvider client={queryClient}>
+      <CustomAlertProvider>
+        <App />
+      </CustomAlertProvider>
+    </QueryClientProvider>
   );
 }
 

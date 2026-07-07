@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { AppState, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -7,10 +7,45 @@ import NetInfo from '@react-native-community/netinfo';
 import { supabase, EDGE_URL } from '../supabase';
 import { initDB, insertProductsBatch } from '../utils/database';
 
-const OfflineSyncContext = createContext({});
+export interface OfflineGroups {
+  catalogos: boolean;
+  fichas: boolean;
+  productos: boolean;
+}
 
-export function useOfflineSync() {
-  return useContext(OfflineSyncContext);
+export interface SyncProgress {
+  current: number;
+  total: number;
+  currentItem: string;
+}
+
+export interface SyncAlert {
+  title: string;
+  message: string;
+}
+
+export interface OfflineSyncContextProps {
+  isSyncing: boolean;
+  isPaused: boolean;
+  progress: SyncProgress;
+  manifest: Record<string, string>;
+  manifestReady: boolean;
+  isOnline: boolean;
+  syncAlert: SyncAlert | null;
+  setSyncAlert: (alert: SyncAlert | null) => void;
+  startSync: (groups: OfflineGroups) => Promise<void>;
+  pauseSync: () => void;
+  selectedGroups: OfflineGroups;
+}
+
+const OfflineSyncContext = createContext<OfflineSyncContextProps | undefined>(undefined);
+
+export function useOfflineSync(): OfflineSyncContextProps {
+  const context = useContext(OfflineSyncContext);
+  if (!context) {
+    throw new Error('useOfflineSync must be used within an OfflineSyncProvider');
+  }
+  return context;
 }
 
 const OFFLINE_DIR = FileSystem.documentDirectory + 'offline_cache/';
@@ -26,27 +61,27 @@ async function ensureDirExists() {
   }
 }
 
-export function OfflineSyncProvider({ children }) {
+export function OfflineSyncProvider({ children }: { children: ReactNode }) {
   // state: { catalogos: boolean, fichas: boolean, productos: boolean } - if selected
-  const [selectedGroups, setSelectedGroups] = useState({ catalogos: false, fichas: false, productos: false });
+  const [selectedGroups, setSelectedGroups] = useState<OfflineGroups>({ catalogos: false, fichas: false, productos: false });
   // isSyncing: boolean
   const [isSyncing, setIsSyncing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   
-  const [progress, setProgress] = useState({ current: 0, total: 0, currentItem: '' });
-  const [manifest, setManifest] = useState({});
+  const [progress, setProgress] = useState<SyncProgress>({ current: 0, total: 0, currentItem: '' });
+  const [manifest, setManifest] = useState<Record<string, string>>({});
   const [manifestReady, setManifestReady] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
   // Nuevo estado para reemplazar Alert.alert con un modal UI propio
-  const [syncAlert, setSyncAlert] = useState(null);
+  const [syncAlert, setSyncAlert] = useState<SyncAlert | null>(null);
 
   const cancelFlag = useRef(false);
 
   useEffect(() => {
     // Escuchar el estado de red globalmente
     const unsubscribe = NetInfo.addEventListener(state => {
-      setIsOnline(state.isConnected && state.isInternetReachable !== false);
+      setIsOnline(!!state.isConnected && state.isInternetReachable !== false);
     });
 
     loadManifest();
@@ -65,7 +100,7 @@ export function OfflineSyncProvider({ children }) {
     finally { setManifestReady(true); }
   }
 
-  async function saveManifest(newManifest) {
+  async function saveManifest(newManifest: Record<string, string>) {
     try {
       setManifest(newManifest);
       await AsyncStorage.setItem(MANIFEST_KEY, JSON.stringify(newManifest));
@@ -73,14 +108,14 @@ export function OfflineSyncProvider({ children }) {
   }
 
   // Comienza o reanuda la descarga
-  async function startSync(groups) {
+  async function startSync(groups: OfflineGroups) {
     if (isSyncing) return;
     setIsSyncing(true);
     setIsPaused(false);
     cancelFlag.current = false;
     setSelectedGroups(groups);
     
-    let totalItems = [];
+    let totalItems: any[] = [];
     let fetchedProducts = null;
 
     try {
@@ -149,9 +184,9 @@ export function OfflineSyncProvider({ children }) {
         // 3.5. Obtener los "sales_pitch" para uso offline
         const { data: aiData } = await supabase.from('productos_ai_data').select('sku, sales_pitch');
         if (aiData) {
-          const aiMap = {};
+          const aiMap: Record<string, string> = {};
           aiData.forEach(r => aiMap[r.sku] = r.sales_pitch);
-          nuevosRows.forEach(prod => {
+          nuevosRows.forEach((prod: any) => {
             const sku = String(prod.SKU || prod.sku).trim();
             prod.sales_pitch = aiMap[sku] || '';
           });
@@ -159,7 +194,7 @@ export function OfflineSyncProvider({ children }) {
 
         fetchedProducts = nuevosRows;
 
-        nuevosRows.forEach(prod => {
+        nuevosRows.forEach((prod: any) => {
           const imgUrl = prod['imagen 1'] || prod.imagen;
           if (imgUrl) {
             totalItems.push({ type: 'imagen', name: prod.SKU + '.jpg', url: imgUrl });
@@ -265,7 +300,7 @@ export function OfflineSyncProvider({ children }) {
         await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
       }
 
-    } catch (e) {
+    } catch (e: any) {
       console.log('Error general sync', e);
       setSyncAlert({
         title: 'Error de descarga',

@@ -15,23 +15,23 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 import OfflineSyncModal from '../components/OfflineSyncModal';
 import UpdateModal from '../components/UpdateModal';
 
-export default function ConfigScreen({ navigation }) {
+export default function ConfigScreen({ navigation }: { navigation: any }) {
   const appVersion = Constants.expoConfig?.version || '1.0.0';
   const versionCode = Constants.expoConfig?.android?.versionCode || 1;
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [fullName, setFullName] = useState('');
   const [phoneCode, setPhoneCode] = useState('+595');
   const [phone, setPhone] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
   const { showAlert, showToast } = useCustomAlert();
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateModalData, setUpdateModalData] = useState(null);
+  const [updateModalData, setUpdateModalData] = useState<any>(null);
 
   const { isSyncing, isPaused, progress, startSync, syncAlert, setSyncAlert } = useOfflineSync();
   const [showOfflineModal, setShowOfflineModal] = useState(false);
@@ -131,13 +131,13 @@ export default function ConfigScreen({ navigation }) {
 
       const { data } = await supabase.from('profiles').select('id, full_name, telefono, avatar_url, email').eq('id', user.id).single();
       if (data && !pendingProfileObj) {
-        data.email = user.email; 
+        (data as any).email = user.email; 
         
         if (data.avatar_url && data.avatar_url.startsWith('http')) {
            try {
              const localUri = FileSystem.documentDirectory + `avatar_cache_${Date.now()}.jpg`;
              await FileSystem.downloadAsync(data.avatar_url, localUri);
-             data.avatar_local = localUri;
+             (data as any).avatar_local = localUri;
            } catch(e) {}
         }
         
@@ -154,7 +154,7 @@ export default function ConfigScreen({ navigation }) {
         }
         const hasPendingAvatar = await AsyncStorage.getItem('@pending_avatar');
         if (!hasPendingAvatar) {
-          setAvatarUrl(data.avatar_local || data.avatar_url || null);
+          setAvatarUrl((data as any).avatar_local || data.avatar_url || null);
         }
       }
     } catch (e) {}
@@ -194,7 +194,7 @@ export default function ConfigScreen({ navigation }) {
     }
   }
 
-  async function uploadPhoto(localUri) {
+  async function uploadPhoto(localUri: string) {
     try {
       if (!userId) {
          saveProfile(undefined, localUri);
@@ -206,7 +206,7 @@ export default function ConfigScreen({ navigation }) {
         uri: localUri,
         name: fileName,
         type: 'image/jpeg',
-      });
+      } as any);
       const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, formData, { upsert: true });
       if (uploadError) {
          saveProfile(undefined, localUri);
@@ -225,7 +225,7 @@ export default function ConfigScreen({ navigation }) {
     }
   }
 
-  async function saveProfile(newAvatarUrl, localAvatarUrl) {
+  async function saveProfile(newAvatarUrl?: string, localAvatarUrl?: string) {
     try {
       setIsEditing(false);
       if (!userId) return;
@@ -475,7 +475,7 @@ export default function ConfigScreen({ navigation }) {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
           <View style={{ backgroundColor: COLORS.white, borderRadius: 20, padding: 28, elevation: 5, alignItems: 'center' }}>
             <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#FFF5F5', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-              <SvgIcon name="cloud" size={32} color={COLORS.red || '#E53935'} />
+              <SvgIcon name="cloud" size={32} color={COLORS.navy || '#E53935'} />
             </View>
             <Text style={{ fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, marginBottom: 12, textAlign: 'center' }}>
               Sin conexión
@@ -494,7 +494,7 @@ export default function ConfigScreen({ navigation }) {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
           <View style={{ backgroundColor: COLORS.white, borderRadius: 20, padding: 28, elevation: 5, alignItems: 'center' }}>
             <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: syncAlert?.title?.includes('error') || syncAlert?.title?.includes('Error') ? '#FFF5F5' : syncAlert?.title?.includes('día') ? '#E8F5E9' : '#FFF9E6', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-              <SvgIcon name="cloud" size={32} color={syncAlert?.title?.includes('error') || syncAlert?.title?.includes('Error') ? (COLORS.red || '#E53935') : syncAlert?.title?.includes('día') ? COLORS.green : '#FFB020'} />
+              <SvgIcon name="cloud" size={32} color={syncAlert?.title?.includes('error') || syncAlert?.title?.includes('Error') ? (COLORS.navy || '#E53935') : syncAlert?.title?.includes('día') ? COLORS.green : '#FFB020'} />
             </View>
             <Text style={{ fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, marginBottom: 12, textAlign: 'center' }}>
               {syncAlert?.title}
