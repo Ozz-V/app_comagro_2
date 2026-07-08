@@ -279,8 +279,8 @@ export default function ProductDetailModal({
           </View>
 
           <ScrollView 
-            style={styles.modalBody} 
-            contentContainerStyle={{ flexGrow: 1 }} 
+            style={[styles.modalBody, { flex: 1, padding: 0, paddingHorizontal: 18 }]} 
+            contentContainerStyle={{ flexGrow: 1, paddingTop: 18, paddingBottom: 40 }} 
             showsVerticalScrollIndicator={false}
           >
             
@@ -310,22 +310,20 @@ export default function ProductDetailModal({
                     </View>
                   </View>
 
-                  <View style={{ minHeight: 52, marginBottom: 16 }}>
-                    {loadingSimilares ? (
-                      <View style={[styles.compareBtn, { backgroundColor: '#E0E0E0' }]}>
-                        <ActivityIndicator size="small" color={COLORS.gray4} />
-                        <Text style={[styles.compareBtnText, { color: COLORS.gray4 }]}>Buscando similares...</Text>
-                      </View>
-                    ) : productosSimilares.length > 0 ? (
-                      <TouchableOpacity
-                        style={styles.compareBtn}
-                        onPress={() => onCompare([modalProd, ...productosSimilares.slice(0, 3)])}
-                      >
-                        <SvgIcon name="actualizar" size={16} color={COLORS.white} />
-                        <Text style={styles.compareBtnText}>Comparar con similares</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
+                  {loadingSimilares ? (
+                    <View style={[styles.compareBtn, { backgroundColor: '#E0E0E0', marginBottom: 16 }]}>
+                      <ActivityIndicator size="small" color={COLORS.gray4} />
+                      <Text style={[styles.compareBtnText, { color: COLORS.gray4 }]}>Buscando similares...</Text>
+                    </View>
+                  ) : productosSimilares.length > 0 ? (
+                    <TouchableOpacity
+                      style={[styles.compareBtn, { marginBottom: 16 }]}
+                      onPress={() => onCompare([modalProd, ...productosSimilares.slice(0, 3)])}
+                    >
+                      <SvgIcon name="actualizar" size={16} color={COLORS.white} />
+                      <Text style={styles.compareBtnText}>Comparar con similares</Text>
+                    </TouchableOpacity>
+                  ) : null}
 
                   {modalProd?.specs?.length > 0 && (
                     <View style={styles.specsWrap}>
