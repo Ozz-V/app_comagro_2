@@ -2,6 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Importante para React Native: manejar el estado de la app para refrescar el token
+import { AppState, AppStateStatus } from 'react-native';
+
 // Adaptador para SecureStore
 const ExpoSecureStoreAdapter = {
   getItem: (key: string) => SecureStore.getItemAsync(key),
@@ -21,9 +24,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     detectSessionInUrl: false, // CRITICO: en React Native debe ser false o crashea la app al usar Magic Links
   },
 });
-
-// Importante para React Native: manejar el estado de la app para refrescar el token
-import { AppState, AppStateStatus } from 'react-native';
 
 AppState.addEventListener('change', (state: AppStateStatus) => {
   if (state === 'active') {

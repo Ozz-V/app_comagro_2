@@ -8,7 +8,7 @@ export const extractPower = (specs: [string, string][] | undefined): number | nu
     const kl = String(k).toLowerCase();
     const vl = String(v).toLowerCase();
     
-    let match = vl.match(/([\d.,]+)\s*(hp|kva|kw|w)\b/i);
+    const match = vl.match(/([\d.,]+)\s*(hp|kva|kw|w)\b/i);
     let unit = match ? match[2].toLowerCase() : null;
     let numStr = match ? match[1] : null;
 

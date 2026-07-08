@@ -20,11 +20,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
 
   const versionCode = Constants.expoConfig?.android?.versionCode || 1;
 
-  useEffect(() => {
-    syncAnalyticsQueue();
-    checkProfile();
-    fetchRemoteConfig();
-  }, []);
+
 
   async function fetchRemoteConfig() {
     try {
@@ -77,7 +73,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     if (showCalcModal && allProdsCache.length === 0) {
       const loadCache = async () => {
         try {
-          let res = await AsyncStorage.getItem('@productos_cache');
+          const res = await AsyncStorage.getItem('@productos_cache');
           let parsed = false;
           if (res) {
             try {
@@ -88,7 +84,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
             }
           }
           if (!parsed) {
-            let res2 = await AsyncStorage.getItem('comagro_productos_v3');
+            const res2 = await AsyncStorage.getItem('comagro_productos_v3');
             if (res2) {
               setAllProdsCache(parseRawProducts(res2));
             }
@@ -130,6 +126,12 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
       }
     } catch (e) {}
   }
+
+  useEffect(() => {
+    syncAnalyticsQueue();
+    checkProfile();
+    fetchRemoteConfig();
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe}>

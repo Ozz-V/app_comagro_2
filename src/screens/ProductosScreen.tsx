@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, SafeAreaView, StatusBar,
@@ -11,20 +11,13 @@ import FilterHeader from '../components/FilterHeader';
 import SvgIcon from '../components/SvgIcon';
 import ProductDetailModal from '../components/ProductDetailModal';
 import CompareModal from '../components/CompareModal';
-import { COLORS, FONTS } from '../theme';
+import { COLORS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAiData } from '../hooks/useAiData';
-import { supabase } from '../supabase';
 import { APP_CONSTANTS } from '../config/constants';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
-
-function isAccessorySubcat(subcat: string) {
-  if (!subcat) return false;
-  const s = subcat.toLowerCase();
-  return s.includes('accesorios') || s.includes('repuestos') || s.includes('pieza') || s.includes('kit');
-}
 
 export default function ProductosScreen({ navigation, route }: { navigation: any; route: any }) {
   const insets = useSafeAreaInsets();

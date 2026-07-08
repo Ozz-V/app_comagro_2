@@ -254,8 +254,8 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       const cachedMyData = await AsyncStorage.getItem(`@analytics_my_${period}`);
       const cachedGlobalData = await AsyncStorage.getItem(`@analytics_global_${period}`);
       
-      let parsedMyData = cachedMyData ? JSON.parse(cachedMyData) : null;
-      let parsedGlobalData = cachedGlobalData ? JSON.parse(cachedGlobalData) : null;
+      const parsedMyData = cachedMyData ? JSON.parse(cachedMyData) : null;
+      const parsedGlobalData = cachedGlobalData ? JSON.parse(cachedGlobalData) : null;
       
       if (parsedMyData && isMounted.current) setMyData(parsedMyData);
       if (parsedGlobalData && isMounted.current) setGlobalData(parsedGlobalData);

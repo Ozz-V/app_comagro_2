@@ -74,7 +74,7 @@ export function useProducts() {
 
   async function sincronizarFondo(fechaCache: string | null) {
     try {
-      let { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       let accessToken = session?.access_token;
       if (!accessToken) {
         const { data: refreshed } = await supabase.auth.refreshSession();

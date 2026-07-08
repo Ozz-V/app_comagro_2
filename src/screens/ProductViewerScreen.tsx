@@ -18,7 +18,7 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
   const [compareItems, setCompareItems] = useState<any[]>([]);
   const [showCompare, setShowCompare] = useState(false);
 
-  const [logoRefreshKey] = useState(Date.now().toString());
+  const [logoRefreshKey] = useState(() => Date.now().toString());
 
   // fetchAiData is now imported from useAiData hook
 

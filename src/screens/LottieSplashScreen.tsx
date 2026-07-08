@@ -15,8 +15,8 @@ interface Props {
 }
 
 export default function LottieSplashScreen({ onFinish, updateState, updateNotes, downloadProgress, onAccept, onDecline, onInstall }: Props) {
-  const fadeAnim = React.useRef(new Animated.Value(1)).current;
-  const progressAnim = React.useRef(new Animated.Value(0)).current;
+  const [fadeAnim] = React.useState(() => new Animated.Value(1));
+  const [progressAnim] = React.useState(() => new Animated.Value(0));
   const appVersion = Constants.expoConfig?.version || '1.0.0';
 
   // Animar la barra de progreso

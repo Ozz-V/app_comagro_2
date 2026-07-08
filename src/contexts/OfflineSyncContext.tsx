@@ -115,12 +115,12 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
     cancelFlag.current = false;
     setSelectedGroups(groups);
     
-    let totalItems: any[] = [];
+    const totalItems: any[] = [];
     let fetchedProducts = null;
 
     try {
       await ensureDirExists();
-      let currentManifest = { ...manifest };
+      const currentManifest = { ...manifest };
 
       // 0. Asegurar sesión activa antes de consultar Storage o la API
       let accessToken = null;
