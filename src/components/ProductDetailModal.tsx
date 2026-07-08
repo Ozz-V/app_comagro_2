@@ -279,7 +279,7 @@ export default function ProductDetailModal({
           </View>
 
           <ScrollView 
-            style={[styles.modalBody, { flex: 1, padding: 0, paddingHorizontal: 18 }]} 
+            style={[styles.modalBody, { flexShrink: 1, padding: 0, paddingHorizontal: 18 }]} 
             contentContainerStyle={{ flexGrow: 1, paddingTop: 18, paddingBottom: 40 }} 
             showsVerticalScrollIndicator={false}
           >
