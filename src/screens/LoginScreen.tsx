@@ -67,9 +67,7 @@ export default function LoginScreen() {
       const response = await supabase.auth.signInWithOtp({
         email: correo,
         options: {
-          shouldCreateUser: false,
-          // Para el flujo por código OTP no necesitamos emailRedirectTo.
-          // Enviar un deep link aquí puede interferir con el envío en builds reales.
+          shouldCreateUser: true, // Permitir que usuarios nuevos reciban el PIN al instante
         },
       });
       error = response.error;
