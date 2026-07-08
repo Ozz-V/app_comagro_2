@@ -22,6 +22,7 @@ import {
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './src/queryClient';
 import { supabase } from './src/supabase';
+import { useAuthStore } from './src/store/useAuthStore';
 import { COLORS } from './src/theme';
 import * as Linking from 'expo-linking';
 import LottieView from 'lottie-react-native';
@@ -93,9 +94,7 @@ export default function AppWrapper() {
 }
 
 function App() {
-  const [session, setSession] = useState<any>(undefined);
-  const [isOfflineLoggedIn, setIsOfflineLoggedIn] = useState(false);
-  const [offlineAuthChecked, setOfflineAuthChecked] = useState(false);
+  const { session, isAuthenticated, isInitialized, setAuth, clearAuth } = useAuthStore();
   const [showLottie, setShowLottie] = useState(true);
   const [profileComplete, setProfileComplete] = useState(true); // Inicialmente true para no bloquear la pantalla inicial
   
@@ -137,14 +136,6 @@ function App() {
   }, [showAlert]);
 
   useEffect(() => {
-    // Verificar login local (para modo offline) — esto es rápido (ms)
-    SecureStore.getItemAsync('@is_logged_in').then(val => {
-      if (val === 'true') {
-        setIsOfflineLoggedIn(true);
-      }
-      setOfflineAuthChecked(true); // ya sabemos el estado local, no esperamos más a Supabase
-    });
-
     async function registerAndSaveToken(userId: string) {
       try {
         const token = await registerForPushNotificationsAsync();
@@ -181,14 +172,12 @@ function App() {
 
     // Carga sesión inicial
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
       if (data.session) {
-        SecureStore.setItemAsync('@is_logged_in', 'true');
+        setAuth(data.session);
         registerAndSaveToken(data.session.user.id);
         checkProfile(data.session.user.id);
       } else {
-        SecureStore.deleteItemAsync('@is_logged_in');
-        setIsOfflineLoggedIn(false);
+        clearAuth();
         setProfileComplete(true);
         queryClient.clear();
       }
@@ -196,74 +185,19 @@ function App() {
 
     // Escucha cambios de sesión en tiempo real
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, sess: any) => {
-      setSession(sess ?? null);
       if (sess) {
-        SecureStore.setItemAsync('@is_logged_in', 'true');
-        setIsOfflineLoggedIn(true);
+        setAuth(sess);
         registerAndSaveToken(sess.user.id);
         checkProfile(sess.user.id);
       } else {
-        SecureStore.deleteItemAsync('@is_logged_in');
-        setIsOfflineLoggedIn(false);
+        clearAuth();
         setProfileComplete(true);
         queryClient.clear();
       }
     });
 
-    async function procesarUrl(url: string | null) {
-      if (!url) return;
-      try {
-        if (url.includes('access_token=') && url.includes('refresh_token=')) {
-          const qs = url.split('#')[1] || url.split('?')[1];
-          if (!qs) return;
-          const params = qs.split('&').reduce((acc: Record<string, string>, curr: string) => {
-            const [k, v] = curr.split('=');
-            acc[k] = v;
-            return acc;
-          }, {});
-          
-          if (params.access_token && params.refresh_token) {
-            showAlert("Link Recibido", "Iniciando sesión segura...", [
-              {
-                text: "Aceptar",
-                onPress: async () => {
-                  try {
-                    await supabase.auth.setSession({
-                      access_token: params.access_token,
-                      refresh_token: params.refresh_token
-                    });
-                  } catch (err: any) {
-                    showAlert("Error", err.message);
-                  }
-                }
-              }
-            ]);
-          }
-        } else if (url.includes('error=')) {
-           showAlert("Error en el Link", "El enlace ya fue usado o expiró.");
-        }
-      } catch (e: any) {
-        showAlert("Error URL", e.message);
-      }
-    }
-
-    // Escucha URLs entrantes (Deep Linking de Magic Links)
-    const sub = Linking.addEventListener('url', (event: any) => {
-      setTimeout(() => {
-        procesarUrl(event.url);
-      }, 800);
-    });
-
-    // Procesa URL inicial si la app estaba cerrada
-    Linking.getInitialURL().then((url) => {
-      setTimeout(() => {
-        procesarUrl(url);
-      }, 800);
-    });
-
     return () => {
       subscription.unsubscribe();
-      sub.remove();
     };
   }, []);
 
@@ -281,11 +215,11 @@ function App() {
       subOta.remove();
     };
   }, []);
-  if (!fontsLoaded) {
-    return null;
+  if (!fontsLoaded || !isInitialized) {
+    return null; // Esperar a que Supabase inicialice la sesión
   }
 
-  const autenticado = !!((session || isOfflineLoggedIn) && (session?.user?.email?.endsWith('@comagro.com.py') || isOfflineLoggedIn));
+  const autenticado = !!(isAuthenticated && (session?.user?.email?.endsWith('@comagro.com.py')));
   return (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <OfflineSyncProvider>
