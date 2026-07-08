@@ -183,6 +183,15 @@ jobs:
             console.log(JSON.stringify(metadata, null, 2));
           '
 
+      - name: Check GH_PAT_RELEASES Secret
+        run: |
+          if [ -z "${{ secrets.GH_PAT_RELEASES }}" ]; then
+            echo "::error::El secret GH_PAT_RELEASES esta vacio o no existe. Por favor, agregalo en Settings -> Secrets and variables -> Actions."
+            exit 1
+          else
+            echo "Secret GH_PAT_RELEASES detectado correctamente."
+          fi
+
       - name: Create GitHub Release Candidate (Public Repo)
         uses: softprops/action-gh-release@v2
         with:
@@ -191,6 +200,7 @@ jobs:
           name: Candidato ${{ env.CANDIDATE_TAG }}
           prerelease: true
           make_latest: false
+          token: ${{ secrets.GH_PAT_RELEASES }}
           files: |
             android/app/build/outputs/apk/release/comagroapp.apk
             /tmp/metadata.json
