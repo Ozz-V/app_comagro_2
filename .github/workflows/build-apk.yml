@@ -147,6 +147,8 @@ jobs:
           echo "org.gradle.parallel=false" >> android/gradle.properties
 
       - name: Build APK
+        env:
+          SENTRY_DISABLE_AUTO_UPLOAD: true
         run: |
           cd android
           ./gradlew assembleRelease --no-daemon --stacktrace
