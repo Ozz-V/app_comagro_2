@@ -15,8 +15,9 @@ export async function generateResponse(
     });
 
     if (!res.ok) {
-      console.error(JSON.stringify({ event: "gemini_generate_failed", status: res.status }));
-      return "El servicio está temporalmente ocupado. Por favor, intenta de nuevo en unos segundos.";
+      const errText = await res.text();
+      console.error(JSON.stringify({ event: "gemini_generate_failed", status: res.status, error: errText }));
+      return `Error del motor de IA (Código ${res.status}): ${errText.substring(0, 150)}...`;
     }
 
     const data = await res.json();

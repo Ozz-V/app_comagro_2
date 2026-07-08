@@ -103,7 +103,7 @@ export default function ProductDetailModal({
 
   const panResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (evt, gestureState) => {
-      return Math.abs(gestureState.dx) > 30 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      return Math.abs(gestureState.dx) > 40 && Math.abs(gestureState.dy) < 30;
     },
     onPanResponderRelease: (evt, gestureState) => {
       if (gestureState.dx > 50 && prevProd) {
@@ -377,7 +377,6 @@ export default function ProductDetailModal({
                     style={styles.copyBtn}
                     onPress={async () => {
                       await Clipboard.setStringAsync(aiData);
-                      showToast('El texto ha sido copiado al portapapeles.');
                     }}
                   >
                     <View style={styles.actionBtnContent}>
