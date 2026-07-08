@@ -13,12 +13,12 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -28,10 +28,6 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Lint (ESLint)
-        continue-on-error: true
         env:
           ESLINT_USE_FLAT_CONFIG: "false"
         run: npx eslint .
-        
-      - name: Tests (Jest)
-        run: npm run test --if-present

@@ -1,6 +1,7 @@
 import { searchProducts } from './database';
+import { ParsedProduct } from '../types';
 
-export const extractPower = (specs: any) => {
+export const extractPower = (specs: [string, string][] | undefined): number | null => {
   if (!specs) return null;
   const specArray = specs;
   for (const [k, v] of specArray) {
@@ -31,36 +32,36 @@ export const extractPower = (specs: any) => {
   return null;
 };
 
-export const findSimilarProducts = async (modalProd: any) => {
+export const findSimilarProducts = async (modalProd: ParsedProduct | null) => {
   if (!modalProd) return { similares: [], mismaMarca: [] };
 
-  let similares = [];
-  let mismaMarca = [];
+  let similares: ParsedProduct[] = [];
+  let mismaMarca: ParsedProduct[] = [];
 
   try {
     const baseList = await searchProducts('Todas', modalProd.subcategoria, '');
     const targetPower = extractPower(modalProd.specs);
     
     if (targetPower !== null) {
-      similares = baseList.filter((p: any) => p.modelo !== modalProd.modelo).map((p: any) => {
+      similares = baseList.filter((p) => p.modelo !== modalProd.modelo).map((p) => {
         const pPower = extractPower(p.specs);
         return { ...p, pPower };
-      }).filter((p: any) => {
+      }).filter((p) => {
         if (p.pPower === null) return false;
         return p.pPower >= targetPower * 0.5 && p.pPower <= targetPower * 1.5;
-      }).map((p: any) => {
-        const diff = Math.abs(p.pPower - targetPower);
+      }).map((p) => {
+        const diff = Math.abs((p.pPower as number) - targetPower);
         return { ...p, diff };
-      }).sort((a: any, b: any) => a.diff - b.diff).slice(0, 8);
+      }).sort((a, b) => a.diff - b.diff).slice(0, 8);
     } else {
-      similares = baseList.filter((p: any) => p.modelo !== modalProd.modelo).slice(0, 8);
+      similares = baseList.filter((p) => p.modelo !== modalProd.modelo).slice(0, 8);
     }
-  } catch (e: any) {}
+  } catch (e: unknown) {}
 
   try {
     const brandList = await searchProducts(modalProd.marca, 'Todas', '');
-    mismaMarca = brandList.filter((p: any) => p.modelo !== modalProd.modelo).slice(0, 20);
-  } catch (e: any) {}
+    mismaMarca = brandList.filter((p) => p.modelo !== modalProd.modelo).slice(0, 20);
+  } catch (e: unknown) {}
 
   return { similares, mismaMarca };
 };

@@ -10,10 +10,11 @@ import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import PdfViewerModal from '../components/PdfViewerModal';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
+import { APP_CONSTANTS } from '../config/constants';
 
 const LOGO        = { uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png' };
 const BUCKET      = 'catalogos';
-const LOGO_BASE   = 'https://www.chacomer.com.py/media/wysiwyg/comagro/LogosPNG/';
+const LOGO_BASE   = APP_CONSTANTS.LOGO_BASE_PNG;
 
 // Caché AsyncStorage — lista de catálogos (se invalida solo si hay cambios en Supabase)
 const CACHE_KEY      = 'comagro_catalogos_v1';

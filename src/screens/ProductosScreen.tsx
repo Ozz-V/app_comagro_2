@@ -16,8 +16,9 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAiData } from '../hooks/useAiData';
 import { supabase } from '../supabase';
+import { APP_CONSTANTS } from '../config/constants';
 
-const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
+const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 
 function isAccessorySubcat(subcat: string) {
   if (!subcat) return false;

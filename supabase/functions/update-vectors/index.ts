@@ -30,9 +30,9 @@ serve(async (req) => {
         try {
             const cleanSalesPitch = (p.sales_pitch || '').replace(/\*\*/g, '');
             
-            const embedRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${geminiKey}`, {
+            const embedRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
               body: JSON.stringify({
                 model: 'models/gemini-embedding-2',
                 content: { parts: [{ text: cleanSalesPitch }] },

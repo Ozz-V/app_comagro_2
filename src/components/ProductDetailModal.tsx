@@ -18,21 +18,28 @@ import { searchProducts } from '../utils/database';
 import { findSimilarProducts } from '../utils/productLogic';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
+import { ParsedProduct } from '../types';
+import { APP_CONSTANTS } from '../config/constants';
 
-const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
+const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 
 interface ProductDetailModalProps {
   visible: boolean;
-  modalProd: any;
   onClose: () => void;
-  onCompare: (prods: any[]) => void;
+  modalProd: ParsedProduct | null;
+  onNavigateToCatalogs: (catalogo?: string) => void;
+  onCompare: (prods: ParsedProduct[]) => void;
+  isLandscape: boolean;
+  pdfCache: Record<string, string>;
+  setPdfCache: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  onDeletePdf: (modelo: string) => void;
+  theme: any;
+  activeSliderList: ParsedProduct[];
+  onOpenProduct: (prod: ParsedProduct) => void;
   logoRefreshKey: string;
-  pdfCache: any;
   trackAnalytics: (action: string) => void;
   aiData: string | null;
   loadingAi: boolean;
-  activeSliderList: any[];
-  onOpenProduct: (prod: any) => void;
 }
 
 export default function ProductDetailModal({
@@ -53,11 +60,18 @@ export default function ProductDetailModal({
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [generandoPdf, setGenerandoPdf] = useState(false);
   
-  const [productosSimilares, setProductosSimilares] = useState<any[]>([]);
-  const [productosMismaMarca, setProductosMismaMarca] = useState<any[]>([]);
+  const [productosSimilares, setProductosSimilares] = useState<ParsedProduct[]>([]);
+  const [productosMismaMarca, setProductosMismaMarca] = useState<ParsedProduct[]>([]);
   const [compartiendo, setCompartiendo] = useState(false);
+  
+  const hiddenWebViewRef = useRef<View>(null);
   const [htmlForImage, setHtmlForImage] = useState<string | null>(null);
-  const hiddenWebViewRef = useRef<any>(null);
+
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   async function logProductAction(action: string) {
     if (!modalProd) return;
@@ -76,7 +90,6 @@ export default function ProductDetailModal({
     } catch(e: any) {}
   }
 
-  // Reset tab when modalProd changes
   useEffect(() => {
     if (visible && modalProd) {
       setActiveTab('FICHA');
@@ -84,7 +97,7 @@ export default function ProductDetailModal({
     }
   }, [modalProd?.modelo, visible]);
 
-  const currentIndex = modalProd && activeSliderList ? activeSliderList.findIndex((p: any) => p.modelo === modalProd.modelo) : -1;
+  const currentIndex = modalProd && activeSliderList ? activeSliderList.findIndex((p: ParsedProduct) => p.modelo === modalProd.modelo) : -1;
   const prevProd = currentIndex > 0 ? activeSliderList[currentIndex - 1] : null;
   const nextProd = currentIndex !== -1 && currentIndex < (activeSliderList?.length || 0) - 1 ? activeSliderList[currentIndex + 1] : null;
 
@@ -104,8 +117,10 @@ export default function ProductDetailModal({
   useEffect(() => {
     async function fetchRelated() {
       const { similares, mismaMarca } = await findSimilarProducts(modalProd);
-      setProductosSimilares(similares);
-      setProductosMismaMarca(mismaMarca);
+      if (isMounted.current) {
+        setProductosSimilares(similares);
+        setProductosMismaMarca(mismaMarca);
+      }
     }
     fetchRelated();
   }, [modalProd]);
@@ -115,11 +130,11 @@ export default function ProductDetailModal({
       setGenerandoPdf(true);
       await generateAndSharePdf(modalProd, pdfCache, logoRefreshKey);
       logProductAction('share_pdf');
-    } catch (e: any) {
-      console.log('Error generando PDF:', e);
+    } catch (e: unknown) {
+      console.log('Error sharing:', e);
       showAlert('Error', 'No se pudo generar el PDF corporativo.');
     } finally {
-      setGenerandoPdf(false);
+      if (isMounted.current) setGenerandoPdf(false);
     }
   };
 
@@ -129,7 +144,7 @@ export default function ProductDetailModal({
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
         showAlert('Error', 'Compartir no está disponible en este dispositivo');
-        setCompartiendo(false);
+        if (isMounted.current) setCompartiendo(false);
         return;
       }
       
@@ -142,16 +157,16 @@ export default function ProductDetailModal({
         const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg`;
         
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
-        finalProdB64 = await Promise.race([fetchImageBase64(modalProd?.imagen), timeoutPromise]).catch(() => '');
-        finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => '');
+        finalProdB64 = (await Promise.race([fetchImageBase64(modalProd?.imagen || ''), timeoutPromise]).catch(() => '')) as string;
+        finalLogoB64 = (await Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => '')) as string;
       }
       
       const htmlContent = generarHtmlFicha(specs, finalProdB64, finalLogoB64, modalProd);
-      setHtmlForImage(htmlContent);
-    } catch (e: any) {
+      if (isMounted.current) setHtmlForImage(htmlContent);
+    } catch (e: unknown) {
       console.log('Error preparando HTML para imagen:', e);
       showAlert('Error', 'No se pudo preparar la ficha. Intentá de nuevo.');
-      setCompartiendo(false);
+      if (isMounted.current) setCompartiendo(false);
     }
   };
 
@@ -190,8 +205,10 @@ export default function ProductDetailModal({
       console.log('Error capturando WebView:', e);
       showAlert('Error', 'Fallo al capturar la imagen en alta calidad.');
     } finally {
-      setCompartiendo(false);
-      setHtmlForImage(null);
+      if (isMounted.current) {
+        setCompartiendo(false);
+        setHtmlForImage(null);
+      }
     }
   };
 
@@ -295,15 +312,14 @@ export default function ProductDetailModal({
 
                   {modalProd?.specs?.length > 0 && (
                     <View style={styles.specsWrap}>
-                      <View style={styles.specsHead}>
-                        <Text style={styles.specsHeadText}>Especificaciones técnicas</Text>
+                      <View style={{ borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#E0E0E0' }}>
+                        {modalProd.specs.map(([n, v]: [string, string], i: number) => (
+                          <View key={i} style={[styles.specRow, i % 2 === 1 && styles.specRowAlt]}>
+                            <Text style={styles.specName}>{n}</Text>
+                            <Text style={styles.specVal}>{v}</Text>
+                          </View>
+                        ))}
                       </View>
-                      {modalProd.specs.map(([n, v]: any, i: number) => (
-                        <View key={i} style={[styles.specRow, i % 2 === 1 && styles.specRowAlt]}>
-                          <Text style={styles.specName}>{n}</Text>
-                          <Text style={styles.specVal}>{v}</Text>
-                        </View>
-                      ))}
                     </View>
                   )}
                 </View>
@@ -378,8 +394,8 @@ export default function ProductDetailModal({
                 {productosMismaMarca.length > 0 && (
                   <View style={{ marginBottom: 16 }}>
                     <Text style={styles.simSectionTitle}>Más de {modalProd?.marca}</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
-                      {productosMismaMarca.map((sim: any) => (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
+                      {productosMismaMarca.map((sim: ParsedProduct) => (
                         <TouchableOpacity
                           key={sim.modelo}
                           style={styles.simSlideCard}

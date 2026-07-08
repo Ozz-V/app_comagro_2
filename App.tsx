@@ -1,13 +1,9 @@
 // Build Trigger: Restauración versión estable 30-Abril
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, Animated, Easing } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import Constants from 'expo-constants';
-import * as Application from 'expo-application';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
-import * as Sharing from 'expo-sharing';
 import { OfflineSyncProvider } from './src/contexts/OfflineSyncContext';
 import { CustomAlertProvider } from './src/contexts/CustomAlertContext';
 import { useOTAUpdate } from './src/hooks/useOTAUpdate';
@@ -44,6 +40,7 @@ import ProductViewerScreen from './src/screens/ProductViewerScreen';
 import LottieSplashScreen from './src/screens/LottieSplashScreen';
 import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
 import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 const Stack = createNativeStackNavigator();
 
@@ -55,28 +52,6 @@ const navTheme = {
   },
 };
 
-class ErrorBoundary extends React.Component<{ children: any; showAlert?: any }, { hasError: boolean }> {
-  constructor(props: { children: any; showAlert?: any }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true };
-  }
-  componentDidCatch(error: Error, errorInfo: any) {
-    console.log('Error de Pantalla:', error);
-    if (this.props.showAlert) {
-      this.props.showAlert(
-        'Error de Pantalla',
-        `Hubo un problema al cargar esta vista.\n\nDetalle: ${error?.message || 'Error desconocido'}\n\nRecomendamos reiniciar la app si notas problemas.`
-      );
-    }
-  }
-  render() {
-    if (this.state.hasError) return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
-    return this.props.children;
-  }
-}
 
 export default function AppWrapper() {
   const [isRooted, setIsRooted] = useState(false);
@@ -314,7 +289,7 @@ function App() {
   return (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <OfflineSyncProvider>
-        <ErrorBoundary showAlert={showAlert}>
+        <ErrorBoundary>
           <NavigationContainer theme={navTheme}>
             <Stack.Navigator 
               screenOptions={{ 

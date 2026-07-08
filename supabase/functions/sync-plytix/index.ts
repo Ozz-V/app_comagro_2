@@ -9,8 +9,8 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
 
-    const secret = req.headers.get('x-sync-secret') ?? '';
-    if (secret !== 'ComagroSync2026') {
+    const secret = req.headers.get('x-sync-secret');
+    if (!secret || secret !== Deno.env.get('SYNC_SECRET')) {
       return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
@@ -85,9 +85,9 @@ ${productContext}
 
 Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párrafos para este producto. Resalta sus usos principales y características clave. Usa un tono vendedor pero profesional. No uses Markdown, solo texto plano. NO incluyas el código SKU en el texto. Empieza directamente con la descripción.`;
 
-         const generateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+         const generateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
             body: JSON.stringify({
                contents: [{ role: 'user', parts: [{ text: prompt }] }],
                generationConfig: { maxOutputTokens: 2000, temperature: 0.3 }
@@ -111,9 +111,9 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
             
          const embedText = `Producto: ${nombreProd}. Especificaciones: ${specsText}. Descripción general: ${salesPitch}`;
 
-         const embedRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${geminiKey}`, {
+         const embedRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
             body: JSON.stringify({
                model: 'models/gemini-embedding-2',
                content: { parts: [{ text: embedText }] },

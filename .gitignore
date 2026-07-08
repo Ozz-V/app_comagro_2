@@ -28,6 +28,5 @@ supabase/.temp/
 *.aab
 
 # Dev artifacts
-*.html
-*.sql
+
 _dev_scripts_and_docs/

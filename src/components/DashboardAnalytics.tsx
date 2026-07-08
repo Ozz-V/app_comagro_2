@@ -12,8 +12,9 @@ import SvgIcon from './SvgIcon';
 import StatCard from './StatCard';
 import DirectoryModal from './DirectoryModal';
 import UserProfileModal from './UserProfileModal';
+import { APP_CONSTANTS } from '../config/constants';
 
-const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
+const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 const CACHE_KEY = 'comagro_productos_v3';
 
 function getPeriodDate(p: string) {
@@ -155,18 +156,24 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
   const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
   const [loadingDirectory, setLoadingDirectory] = useState(false);
 
+  const isMounted = React.useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
   useEffect(() => { loadImages(); fetchDirectoryBackground(); }, []);
   useEffect(() => { loadData(); }, [period, isOnline]);
 
   async function fetchDirectoryBackground() {
     try {
       const cachedDir = await AsyncStorage.getItem('@directory_cache');
-      if (cachedDir) setDirectoryUsers(JSON.parse(cachedDir));
+      if (cachedDir && isMounted.current) setDirectoryUsers(JSON.parse(cachedDir));
       if (!isOnline) return;
       const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url, email, telefono').order('full_name');
       if (data && !error) {
         const valid = data.filter(u => u.full_name && u.full_name !== 'EMPTY');
-        setDirectoryUsers(valid);
+        if (isMounted.current) setDirectoryUsers(valid);
         await AsyncStorage.setItem('@directory_cache', JSON.stringify(valid));
       }
     } catch(e: any) {
@@ -175,6 +182,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
   }
 
   async function handleUserClick(email: string) {
+    if (!isMounted.current) return;
     setShowUserModal(true);
     setLoadingUser(true);
     const cachedProfile = directoryUsers.find(u => u.email === email);
@@ -206,17 +214,19 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
         });
       }
 
-      setSelectedUser({
-        email,
-        full_name: profile?.full_name || '',
-        telefono: profile?.telefono || '',
-        avatar_url: profile?.avatar_url || null,
-        stats: { views: v, shares: sh }
-      });
+      if (isMounted.current) {
+        setSelectedUser({
+          email,
+          full_name: profile?.full_name || '',
+          telefono: profile?.telefono || '',
+          avatar_url: profile?.avatar_url || null,
+          stats: { views: v, shares: sh }
+        });
+      }
     } catch(e: any) {
       console.log('Error cargando usuario', e);
     } finally {
-      setLoadingUser(false);
+      if (isMounted.current) setLoadingUser(false);
     }
   }
 
@@ -231,13 +241,14 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
         const img = r.imagen || r.imagenOriginal;
         if (sku && img) m[sku] = img;
       });
-      setImageMap(m);
+      if (isMounted.current) setImageMap(m);
     } catch (e: any) {
       console.log('Error loadImages DB:', e);
     }
   }
 
   async function loadData() {
+    if (!isMounted.current) return;
     setLoading(true);
     try {
       const cachedMyData = await AsyncStorage.getItem(`@analytics_my_${period}`);
@@ -246,9 +257,9 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       let parsedMyData = cachedMyData ? JSON.parse(cachedMyData) : null;
       let parsedGlobalData = cachedGlobalData ? JSON.parse(cachedGlobalData) : null;
       
-      if (parsedMyData) setMyData(parsedMyData);
-      if (parsedGlobalData) setGlobalData(parsedGlobalData);
-      if (parsedMyData && parsedGlobalData) {
+      if (parsedMyData && isMounted.current) setMyData(parsedMyData);
+      if (parsedGlobalData && isMounted.current) setGlobalData(parsedGlobalData);
+      if (parsedMyData && parsedGlobalData && isMounted.current) {
         setLoading(false);
       }
       
@@ -283,13 +294,13 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
             return res;
          };
          
-         if (parsedMyData) setMyData(mergeQueue(parsedMyData, false));
-         if (parsedGlobalData) setGlobalData(mergeQueue(parsedGlobalData, true));
+         if (parsedMyData && isMounted.current) setMyData(mergeQueue(parsedMyData, false));
+         if (parsedGlobalData && isMounted.current) setGlobalData(mergeQueue(parsedGlobalData, true));
       }
     } catch (_: any) {}
 
     if (!isOnline) {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
       return;
     }
 
@@ -328,7 +339,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       };
 
       const finalMyData = process(my, 5);
-      setMyData(finalMyData);
+      if (isMounted.current) setMyData(finalMyData);
       AsyncStorage.setItem(`@analytics_my_all`, JSON.stringify(finalMyData));
 
       if (period === 'all' && isOnline) {
@@ -342,27 +353,27 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
             brands: (rpcData.top_brands || []).map((b: any) => ({ marca: b.marca, count: b.count })),
             users: (rpcData.top_users || []).map((u: any) => ({ user_email: u.modelo, count: u.count, modelo: u.modelo }))
           };
-          setGlobalData(gdRpc);
+          if (isMounted.current) setGlobalData(gdRpc);
           AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gdRpc));
         } else {
           // Fallback
           const gd = process(all, 10);
           gd.brands = countByKey(all, i => i.marca, 8);
           gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, modelo: u.user_email }));
-          setGlobalData(gd);
+          if (isMounted.current) setGlobalData(gd);
           AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gd));
         }
       } else {
         const gd = process(all, 10);
         gd.brands = countByKey(all, i => i.marca, 8);
         gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, modelo: u.user_email }));
-        setGlobalData(gd);
+        if (isMounted.current) setGlobalData(gd);
         AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
       }
     } catch (e: any) {
       console.log('Dashboard error:', e);
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   }
 

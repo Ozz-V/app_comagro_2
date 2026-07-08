@@ -4,9 +4,9 @@ export async function generateResponse(
   geminiKey: string
 ): Promise<string> {
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: finalPrompt }] },
         contents: geminiHistory,
@@ -40,9 +40,9 @@ export function parseLearnTag(reply: string): { cleanReply: string; learnedRule:
 
 export function saveLearnedRule(learnedRule: string, geminiKey: string, supaAdmin: any): void {
   // Fire and forget (zero latency for user)
-  fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=${geminiKey}`, {
+  fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
     body: JSON.stringify({
       model: 'models/gemini-embedding-2',
       content: { parts: [{ text: learnedRule }] },
@@ -51,9 +51,11 @@ export function saveLearnedRule(learnedRule: string, geminiKey: string, supaAdmi
     })
   }).then(r => r.json()).then(data => {
     if (data?.embedding?.values) {
-      supaAdmin.from('ai_company_knowledge').insert({
+      // Insert into a suggestions table to prevent automatic poisoning
+      supaAdmin.from('ai_knowledge_suggestions').insert({
         rule: learnedRule,
-        embedding: data.embedding.values
+        embedding: data.embedding.values,
+        status: 'pending'
       }).then();
     }
   }).catch(err => console.error("Error saving knowledge:", err));
