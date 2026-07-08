@@ -5,6 +5,17 @@ import SvgIcon from './SvgIcon';
 import { COLORS, FONTS } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+interface FilterHeaderProps {
+  filtroMarca: string;
+  busqueda: string;
+  filtroSubcategoria: string;
+  setFiltroMarca: (v: string) => void;
+  setBusqueda: (v: string) => void;
+  setFiltroSubcategoria: (v: string) => void;
+  onClearFilters: () => void;
+  onGoBack: () => void;
+}
+
 export default function FilterHeader({
   filtroMarca,
   busqueda,
@@ -14,7 +25,7 @@ export default function FilterHeader({
   setFiltroSubcategoria,
   onClearFilters,
   onGoBack
-}) {
+}: FilterHeaderProps) {
   const insets = useSafeAreaInsets();
   const isFiltered = filtroMarca || busqueda;
 

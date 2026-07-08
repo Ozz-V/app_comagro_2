@@ -6,11 +6,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { searchProducts } from '../utils/database';
 
 // Extrae el primer número de un string para comparación de specs
-function extractNum(val) {
+function extractNum(val: any) {
   if (!val || typeof val !== 'string') return null;
   const m = val.match(/([\d]+[\.,]?[\d]*)/);
   if (!m) return null;
   return parseFloat(m[1].replace(',', '.'));
+}
+
+interface CompareModalProps {
+  visible: boolean;
+  compareItems: any[];
+  onClose: () => void;
+  onOpenProduct: (prod: any) => void;
+  setCompareItems?: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 export default function CompareModal({
@@ -19,12 +27,12 @@ export default function CompareModal({
   onClose,
   onOpenProduct,
   setCompareItems
-}) {
+}: CompareModalProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const [itemToReplaceIndex, setItemToReplaceIndex] = useState(null);
+  const [itemToReplaceIndex, setItemToReplaceIndex] = useState<number | null>(null);
   const [showReplaceSelector, setShowReplaceSelector] = useState(false);
-  const [similares, setSimilares] = useState([]);
+  const [similares, setSimilares] = useState<any[]>([]);
 
   useEffect(() => {
     if (showReplaceSelector && compareItems?.length > 0) {
@@ -49,7 +57,7 @@ export default function CompareModal({
             {/* Cabecera con imágenes y nombres */}
             <View style={{ flexDirection: 'row', marginBottom: 15, marginTop: 10 }}>
               <View style={{ width: 110 }} />
-              {compareItems?.map((prod, idx) => (
+              {compareItems?.map((prod: any, idx: number) => (
                 <TouchableOpacity 
                   key={prod.modelo} 
                   style={{ flex: 1, alignItems: 'center', marginHorizontal: 3 }}
@@ -73,11 +81,11 @@ export default function CompareModal({
             {(() => {
               if (!compareItems || compareItems.length === 0) return null;
               // Reunir todos los nombres de specs únicos en orden
-              const allSpecNames = [];
+              const allSpecNames: string[] = [];
               const BLACKLIST_SPECS = ['nombre del producto', 'denominador estándar', 'denominador estandar', 'sku', 'accesorios', 'aplicación', 'aplicacion', 'descripción', 'descripcion', 'marca', 'modelo', 'imagen', 'video', 'id'];
 
-              compareItems.forEach(prod => {
-                (prod.specs || []).forEach(([n]) => {
+              compareItems.forEach((prod: any) => {
+                (prod.specs || []).forEach(([n]: any) => {
                   if (!BLACKLIST_SPECS.includes(n.toLowerCase().trim()) && !allSpecNames.includes(n)) {
                     allSpecNames.push(n);
                   }
@@ -85,8 +93,8 @@ export default function CompareModal({
               });
               return allSpecNames.map((specName, si) => {
                 // Obtener valores de cada producto para este spec
-                const vals = compareItems.map(prod => {
-                  const found = (prod.specs || []).find(([n]) => n === specName);
+                const vals = compareItems.map((prod: any) => {
+                  const found = (prod.specs || []).find(([n]: any) => n === specName);
                   return found ? found[1] : null;
                 });
                 // Extraer números para comparación
@@ -94,7 +102,7 @@ export default function CompareModal({
                 const isComparable = COMPARABLE_SPECS.some(k => specName.toLowerCase().includes(k));
                 
                 const nums = vals.map(v => extractNum(v));
-                const validNums = nums.filter(n => n !== null);
+                const validNums = nums.filter((n): n is number => n !== null);
                 const maxNum = (validNums.length > 1 && isComparable) ? Math.max(...validNums) : null;
                 const minNum = (validNums.length > 1 && isComparable) ? Math.min(...validNums) : null;
                 const hasDiff = maxNum !== null && maxNum !== minNum;
@@ -103,7 +111,7 @@ export default function CompareModal({
                     <View style={{ width: 110, paddingHorizontal: 8 }}>
                       <Text style={{ fontSize: 10, color: COLORS.gray4, fontWeight: 'bold', textTransform: 'uppercase' }} numberOfLines={2}>{specName}</Text>
                     </View>
-                    {compareItems.map((prod, pi) => {
+                    {compareItems.map((prod: any, pi: number) => {
                       const val = vals[pi];
                       const num = nums[pi];
                       let indicator = null;
@@ -138,8 +146,8 @@ export default function CompareModal({
               </TouchableOpacity>
             </View>
             <ScrollView style={{ padding: 10 }}>
-              {similares.map(sim => {
-                const isAlreadyInGrid = compareItems?.some(c => c.modelo === sim.modelo);
+              {similares.map((sim: any) => {
+                const isAlreadyInGrid = compareItems?.some((c: any) => c.modelo === sim.modelo);
                 return (
                   <TouchableOpacity 
                     key={sim.modelo} 
@@ -149,7 +157,9 @@ export default function CompareModal({
                       if (setCompareItems) {
                         setCompareItems(prev => {
                           const newArr = [...prev];
-                          newArr[itemToReplaceIndex] = sim;
+                          if (itemToReplaceIndex !== null) {
+                            newArr[itemToReplaceIndex] = sim;
+                          }
                           return newArr;
                         });
                       }

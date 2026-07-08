@@ -1,6 +1,6 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 // ── Constantes de página (px a 96dpi, A4 portrait = 297mm ≈ 1122px) ─────
 const PX_PAGE     = 1108; // alto total usable
@@ -13,7 +13,7 @@ const PX_SAFETY   = 14;   // margen de seguridad
 const MIN_IMG_H   = 80;   // altura mínima aceptable de la imagen
 const TEXT_H      = 77;   // altura aproximada del bloque de texto
 
-export function generarHtmlFicha(specs, base64Img, logoBase64, modalProd) {
+export function generarHtmlFicha(specs: any[], base64Img: string, logoBase64: string, modalProd: any) {
   const numSpecs = specs.length;
 
   const fs1  = numSpecs > 22 ? '8.5pt' : numSpecs > 16 ? '9pt'  : '10pt';
@@ -178,7 +178,7 @@ export function generarHtmlFicha(specs, base64Img, logoBase64, modalProd) {
   `;
 }
 
-export async function fetchImageBase64(url) {
+export async function fetchImageBase64(url: string): Promise<string> {
   if (!url) return '';
   try {
     if (url.startsWith('file://') || url.startsWith('/')) {
@@ -187,18 +187,18 @@ export async function fetchImageBase64(url) {
     }
     const res = await fetch(url);
     const blob = await res.blob();
-    return await new Promise((resolve) => {
+    return await new Promise<string>((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
+      reader.onloadend = () => resolve(reader.result as string);
       reader.readAsDataURL(blob);
     });
-  } catch (err) {
+  } catch (err: any) {
     console.log('Error obteniendo base64:', err);
     return '';
   }
 }
 
-export async function generateAndSharePdf(modalProd, pdfCache = {}, logoRefreshKey = Date.now()) {
+export async function generateAndSharePdf(modalProd: any, pdfCache: any = {}, logoRefreshKey: string = String(Date.now())) {
   const specs = modalProd?.specs || [];
   let finalProdB64 = pdfCache?.prodBase64;
   let finalLogoB64 = pdfCache?.logoBase64;
@@ -209,8 +209,8 @@ export async function generateAndSharePdf(modalProd, pdfCache = {}, logoRefreshK
     const imgUrl = modalProd?.imagen_local || modalProd?.imagen;
     
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000));
-    finalProdB64 = await Promise.race([fetchImageBase64(imgUrl), timeoutPromise]).catch(() => '');
-    finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => '');
+    finalProdB64 = await Promise.race([fetchImageBase64(imgUrl), timeoutPromise]).catch(() => '') as string;
+    finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => '') as string;
   }
   
   const htmlContent = generarHtmlFicha(specs, finalProdB64, finalLogoB64, modalProd);

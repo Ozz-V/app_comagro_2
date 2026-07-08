@@ -55,15 +55,15 @@ const navTheme = {
   },
 };
 
-class ErrorBoundary extends React.Component {
-  constructor(props) {
+class ErrorBoundary extends React.Component<{ children: any; showAlert?: any }, { hasError: boolean }> {
+  constructor(props: { children: any; showAlert?: any }) {
     super(props);
     this.state = { hasError: false };
   }
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error) {
     return { hasError: true };
   }
-  componentDidCatch(error, errorInfo) {
+  componentDidCatch(error: Error, errorInfo: any) {
     console.log('Error de Pantalla:', error);
     if (this.props.showAlert) {
       this.props.showAlert(
@@ -118,7 +118,7 @@ export default function AppWrapper() {
 }
 
 function App() {
-  const [session, setSession] = useState(undefined);
+  const [session, setSession] = useState<any>(undefined);
   const [isOfflineLoggedIn, setIsOfflineLoggedIn] = useState(false);
   const [offlineAuthChecked, setOfflineAuthChecked] = useState(false);
   const [showLottie, setShowLottie] = useState(true);
@@ -144,9 +144,9 @@ function App() {
   const { showAlert } = require('./src/contexts/CustomAlertContext').useCustomAlert();
 
   useEffect(() => {
-    const defaultErrorHandler = global.ErrorUtils?.getGlobalHandler?.();
-    if (global.ErrorUtils) {
-      global.ErrorUtils.setGlobalHandler((error, isFatal) => {
+    const defaultErrorHandler = (global as any).ErrorUtils?.getGlobalHandler?.();
+    if ((global as any).ErrorUtils) {
+      (global as any).ErrorUtils.setGlobalHandler((error: any, isFatal: boolean) => {
         console.log('Error Global (Crash):', error);
         showAlert(
           'Fallo del Sistema',
@@ -155,8 +155,8 @@ function App() {
       });
     }
     return () => {
-      if (global.ErrorUtils && defaultErrorHandler) {
-        global.ErrorUtils.setGlobalHandler(defaultErrorHandler);
+      if ((global as any).ErrorUtils && defaultErrorHandler) {
+        (global as any).ErrorUtils.setGlobalHandler(defaultErrorHandler);
       }
     };
   }, [showAlert]);
@@ -170,7 +170,7 @@ function App() {
       setOfflineAuthChecked(true); // ya sabemos el estado local, no esperamos más a Supabase
     });
 
-    async function registerAndSaveToken(userId) {
+    async function registerAndSaveToken(userId: string) {
       try {
         const token = await registerForPushNotificationsAsync();
         if (token) {
@@ -181,7 +181,7 @@ function App() {
       }
     }
 
-    async function checkProfile(userId) {
+    async function checkProfile(userId: string) {
       try {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const cached = await AsyncStorage.getItem('@user_profile_cache');
@@ -220,7 +220,7 @@ function App() {
     });
 
     // Escucha cambios de sesión en tiempo real
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sess) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, sess: any) => {
       setSession(sess ?? null);
       if (sess) {
         SecureStore.setItemAsync('@is_logged_in', 'true');
@@ -235,13 +235,13 @@ function App() {
       }
     });
 
-    async function procesarUrl(url) {
+    async function procesarUrl(url: string | null) {
       if (!url) return;
       try {
         if (url.includes('access_token=') && url.includes('refresh_token=')) {
           const qs = url.split('#')[1] || url.split('?')[1];
           if (!qs) return;
-          const params = qs.split('&').reduce((acc, curr) => {
+          const params = qs.split('&').reduce((acc: Record<string, string>, curr: string) => {
             const [k, v] = curr.split('=');
             acc[k] = v;
             return acc;
@@ -257,7 +257,7 @@ function App() {
                       access_token: params.access_token,
                       refresh_token: params.refresh_token
                     });
-                  } catch (err) {
+                  } catch (err: any) {
                     showAlert("Error", err.message);
                   }
                 }
@@ -267,13 +267,13 @@ function App() {
         } else if (url.includes('error=')) {
            showAlert("Error en el Link", "El enlace ya fue usado o expiró.");
         }
-      } catch (e) {
+      } catch (e: any) {
         showAlert("Error URL", e.message);
       }
     }
 
     // Escucha URLs entrantes (Deep Linking de Magic Links)
-    const sub = Linking.addEventListener('url', (event) => {
+    const sub = Linking.addEventListener('url', (event: any) => {
       setTimeout(() => {
         procesarUrl(event.url);
       }, 800);
@@ -297,7 +297,7 @@ function App() {
     const subProfile = DeviceEventEmitter.addListener('PROFILE_COMPLETED', () => {
       setProfileComplete(true);
     });
-    const subOta = DeviceEventEmitter.addListener('TRIGGER_OTA_UPDATE', (payload) => {
+    const subOta = DeviceEventEmitter.addListener('TRIGGER_OTA_UPDATE', (payload: any) => {
       setShowLottie(true);
       checkUpdate(payload?.directDownload);
     });
@@ -322,6 +322,7 @@ function App() {
                 animation: 'slide_from_right', 
                 contentStyle: { backgroundColor: '#FFFFFF' } 
               }}
+              // @ts-ignore
               detachInactiveScreens={false}
             >
               {!autenticado ? (

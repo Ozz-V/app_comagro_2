@@ -4,7 +4,14 @@ import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
 import { supabase } from '../supabase';
 
-export default function ProfileCompleteModal({ visible, onSuccess, initialName = '', initialPhone = '' }) {
+interface ProfileCompleteModalProps {
+  visible: boolean;
+  onSuccess?: (name: string) => void;
+  initialName?: string;
+  initialPhone?: string;
+}
+
+export default function ProfileCompleteModal({ visible, onSuccess, initialName = '', initialPhone = '' }: ProfileCompleteModalProps) {
   const [profName, setProfName] = useState(initialName);
   const [profPhoneCode, setProfPhoneCode] = useState('+595');
   const [profPhone, setProfPhone] = useState(initialPhone);
@@ -33,6 +40,7 @@ export default function ProfileCompleteModal({ visible, onSuccess, initialName =
     setProfSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
       const combinedPhone = `${profPhoneCode.trim()} ${profPhone.trim()}`;
       const { error } = await supabase.from('profiles').upsert({
         id: user.id,
@@ -40,13 +48,13 @@ export default function ProfileCompleteModal({ visible, onSuccess, initialName =
         telefono: combinedPhone,
         email: user.email,
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
+      } as any, { onConflict: 'id' });
       if (!error) {
         if (onSuccess) onSuccess(profName);
       } else {
         alert('Error DB: ' + (error.message || JSON.stringify(error)));
       }
-    } catch (e) {
+    } catch (e: any) {
       alert('Error guardando perfil.');
     } finally {
       setProfSaving(false);

@@ -4,9 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Adaptador para SecureStore
 const ExpoSecureStoreAdapter = {
-  getItem: (key) => SecureStore.getItemAsync(key),
-  setItem: (key, value) => SecureStore.setItemAsync(key, value),
-  removeItem: (key) => SecureStore.deleteItemAsync(key),
+  getItem: (key: string) => SecureStore.getItemAsync(key),
+  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
+  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
 };
 
 export const SUPABASE_URL = 'https://itylpvuzflqlmmqvdhbz.supabase.co';
@@ -23,9 +23,9 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 // Importante para React Native: manejar el estado de la app para refrescar el token
-import { AppState } from 'react-native';
+import { AppState, AppStateStatus } from 'react-native';
 
-AppState.addEventListener('change', (state) => {
+AppState.addEventListener('change', (state: AppStateStatus) => {
   if (state === 'active') {
     supabase.auth.startAutoRefresh();
   } else {

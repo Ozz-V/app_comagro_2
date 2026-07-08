@@ -9,12 +9,12 @@ const HORAS_VIGENCIA = 24;
 
 export function useProducts() {
   const { manifest, isOnline } = useOfflineSync();
-  const [productosFiltrados, setProductosFiltrados] = useState([]);
-  const [marcas, setMarcas] = useState([]);
+  const [productosFiltrados, setProductosFiltrados] = useState<any[]>([]);
+  const [marcas, setMarcas] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [bgActualiz, setBgActualiz] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [logoRefreshKey, setLogoRefreshKey] = useState('');
   const [dbVersion, setDbVersion] = useState(0);
 
@@ -27,17 +27,17 @@ export function useProducts() {
     try {
       const savedKey = await AsyncStorage.getItem('@logo_refresh_key');
       if (savedKey) setLogoRefreshKey(savedKey);
-    } catch(e) {}
+    } catch(e: any) {}
   }
 
   // Nueva función limpia para realizar búsquedas sin cierres de estado (stale closures)
-  const fetchCatalog = useCallback(async (marcaFiltro, subcatFiltro, busqueda) => {
+  const fetchCatalog = useCallback(async (marcaFiltro: string, subcatFiltro: string, busqueda: string) => {
     try {
       const resultados = await searchProducts(marcaFiltro, subcatFiltro, busqueda);
       setProductosFiltrados(resultados);
       const m = await getUniqueBrands();
       setMarcas(m);
-    } catch (e) {
+    } catch (e: any) {
       console.log('Error buscando en DB', String(e));
     }
   }, []);
@@ -47,7 +47,7 @@ export function useProducts() {
     try {
       try {
         await initDB();
-      } catch (e) {
+      } catch (e: any) {
         console.log('initDB falló (posiblemente ya inicializado o ocupado)', e);
       }
       
@@ -64,7 +64,7 @@ export function useProducts() {
         setBgActualiz(true);
         sincronizarFondo(fechaCache);
       }
-    } catch (err) {
+    } catch (err: any) {
       setError('Error iniciando base de datos');
     } finally {
       setCargando(false);
@@ -72,7 +72,7 @@ export function useProducts() {
     }
   }
 
-  async function sincronizarFondo(fechaCache) {
+  async function sincronizarFondo(fechaCache: string | null) {
     try {
       let { data: { session } } = await supabase.auth.getSession();
       let accessToken = session?.access_token;
@@ -81,7 +81,7 @@ export function useProducts() {
         accessToken = refreshed?.session?.access_token;
       }
       
-      const headers = { 
+      const headers: any = { 
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken || ''}` 
       };
@@ -101,7 +101,7 @@ export function useProducts() {
         setLogoRefreshKey(newKey);
         AsyncStorage.setItem('@logo_refresh_key', newKey).catch(()=>{});
       }
-    } catch (e) {
+    } catch (e: any) {
       console.log('Fallo bgActualiz', e);
     } finally {
       setBgActualiz(false);
@@ -113,10 +113,10 @@ export function useProducts() {
     }
   }
 
-  async function getProductBySkuSafe(sku) {
+  async function getProductBySkuSafe(sku: string) {
     try {
       return await getProductBySku(sku);
-    } catch (e) {
+    } catch (e: any) {
       return null;
     }
   }

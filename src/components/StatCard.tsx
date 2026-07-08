@@ -2,7 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 
-export default function StatCard({ number, label, trend, color }) {
+interface StatCardProps {
+  number: number | string;
+  label: string;
+  trend?: string;
+  color?: string;
+}
+
+export default function StatCard({ number, label, trend, color }: StatCardProps) {
   return (
     <View style={s.statCard}>
       <Text style={[s.statNum, { color: color || COLORS.navy }]}>{number}</Text>

@@ -8,7 +8,7 @@ import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { captureRef } from 'react-native-view-shot';
 import { Image } from 'expo-image';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import SvgIcon from './SvgIcon';
 import { COLORS, FONTS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
@@ -20,6 +20,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 
 const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
+
+interface ProductDetailModalProps {
+  visible: boolean;
+  modalProd: any;
+  onClose: () => void;
+  onCompare: (prods: any[]) => void;
+  logoRefreshKey: string;
+  pdfCache: any;
+  trackAnalytics: (action: string) => void;
+  aiData: string | null;
+  loadingAi: boolean;
+  activeSliderList: any[];
+  onOpenProduct: (prod: any) => void;
+}
 
 export default function ProductDetailModal({
   visible,
@@ -33,19 +47,19 @@ export default function ProductDetailModal({
   loadingAi,
   activeSliderList,
   onOpenProduct
-}) {
+}: ProductDetailModalProps) {
   const insets = useSafeAreaInsets();
   const { showAlert, showToast } = useCustomAlert();
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [generandoPdf, setGenerandoPdf] = useState(false);
   
-  const [productosSimilares, setProductosSimilares] = useState([]);
-  const [productosMismaMarca, setProductosMismaMarca] = useState([]);
+  const [productosSimilares, setProductosSimilares] = useState<any[]>([]);
+  const [productosMismaMarca, setProductosMismaMarca] = useState<any[]>([]);
   const [compartiendo, setCompartiendo] = useState(false);
-  const [htmlForImage, setHtmlForImage] = useState(null);
-  const hiddenWebViewRef = useRef(null);
+  const [htmlForImage, setHtmlForImage] = useState<string | null>(null);
+  const hiddenWebViewRef = useRef<any>(null);
 
-  async function logProductAction(action) {
+  async function logProductAction(action: string) {
     if (!modalProd) return;
     try {
       const email = (await supabase.auth.getUser()).data?.user?.email || 'anon@comagro.com.py';
@@ -59,7 +73,7 @@ export default function ProductDetailModal({
         user_email: email
       });
       await AsyncStorage.setItem('@analytics_queue', JSON.stringify(queue));
-    } catch(e) {}
+    } catch(e: any) {}
   }
 
   // Reset tab when modalProd changes
@@ -70,7 +84,7 @@ export default function ProductDetailModal({
     }
   }, [modalProd?.modelo, visible]);
 
-  const currentIndex = modalProd && activeSliderList ? activeSliderList.findIndex(p => p.modelo === modalProd.modelo) : -1;
+  const currentIndex = modalProd && activeSliderList ? activeSliderList.findIndex((p: any) => p.modelo === modalProd.modelo) : -1;
   const prevProd = currentIndex > 0 ? activeSliderList[currentIndex - 1] : null;
   const nextProd = currentIndex !== -1 && currentIndex < (activeSliderList?.length || 0) - 1 ? activeSliderList[currentIndex + 1] : null;
 
@@ -101,7 +115,7 @@ export default function ProductDetailModal({
       setGenerandoPdf(true);
       await generateAndSharePdf(modalProd, pdfCache, logoRefreshKey);
       logProductAction('share_pdf');
-    } catch (e) {
+    } catch (e: any) {
       console.log('Error generando PDF:', e);
       showAlert('Error', 'No se pudo generar el PDF corporativo.');
     } finally {
@@ -134,7 +148,7 @@ export default function ProductDetailModal({
       
       const htmlContent = generarHtmlFicha(specs, finalProdB64, finalLogoB64, modalProd);
       setHtmlForImage(htmlContent);
-    } catch (e) {
+    } catch (e: any) {
       console.log('Error preparando HTML para imagen:', e);
       showAlert('Error', 'No se pudo preparar la ficha. Intentá de nuevo.');
       setCompartiendo(false);
@@ -172,7 +186,7 @@ export default function ProductDetailModal({
         mimeType: 'image/png',
       });
       logProductAction('share_image');
-    } catch (e) {
+    } catch (e: any) {
       console.log('Error capturando WebView:', e);
       showAlert('Error', 'Fallo al capturar la imagen en alta calidad.');
     } finally {
@@ -181,7 +195,7 @@ export default function ProductDetailModal({
     }
   };
 
-  const parseBoldText = (text) => {
+  const parseBoldText = (text: string) => {
     if (!text) return null;
     return text.replace(/\*\*/g, '').replace(/\*/g, '');
   };
@@ -284,7 +298,7 @@ export default function ProductDetailModal({
                       <View style={styles.specsHead}>
                         <Text style={styles.specsHeadText}>Especificaciones técnicas</Text>
                       </View>
-                      {modalProd.specs.map(([n, v], i) => (
+                      {modalProd.specs.map(([n, v]: any, i: number) => (
                         <View key={i} style={[styles.specRow, i % 2 === 1 && styles.specRowAlt]}>
                           <Text style={styles.specName}>{n}</Text>
                           <Text style={styles.specVal}>{v}</Text>
@@ -365,7 +379,7 @@ export default function ProductDetailModal({
                   <View style={{ marginBottom: 16 }}>
                     <Text style={styles.simSectionTitle}>Más de {modalProd?.marca}</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
-                      {productosMismaMarca.map((sim) => (
+                      {productosMismaMarca.map((sim: any) => (
                         <TouchableOpacity
                           key={sim.modelo}
                           style={styles.simSlideCard}
@@ -384,7 +398,7 @@ export default function ProductDetailModal({
                 {productosSimilares.length > 0 && (
                   <View>
                     <Text style={styles.simSectionTitle}>Misma categoría</Text>
-                    {productosSimilares.map((sim) => (
+                    {productosSimilares.map((sim: any) => (
                       <TouchableOpacity key={sim.modelo} style={styles.simCard} onPress={() => onOpenProduct(sim)}>
                         <Image source={{ uri: sim.imagen }} style={styles.simImg} contentFit="contain" />
                         <View style={styles.simInfo}>

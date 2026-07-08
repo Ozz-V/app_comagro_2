@@ -3,7 +3,7 @@
 /**
  * Convierte un string de caudal (ej. "3 m3/h", "3000 l/h", "50 l/min") a L/min numérico.
  */
-export function normalizeCaudal(caudalStr) {
+export function normalizeCaudal(caudalStr: any) {
   if (!caudalStr) return 0;
   const s = caudalStr.toString().toLowerCase();
   const num = parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
@@ -16,7 +16,7 @@ export function normalizeCaudal(caudalStr) {
 /**
  * Convierte un string de presión/altura (ej. "3 bar", "45 psi", "30 m") a m.c.a numérico.
  */
-export function normalizeMca(mcaStr) {
+export function normalizeMca(mcaStr: any) {
   if (!mcaStr) return 0;
   const s = mcaStr.toString().toLowerCase();
   const num = parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
@@ -30,7 +30,7 @@ export function normalizeMca(mcaStr) {
  * @param {object} params - { appType, tankHeight, tankVolume, fillTimeMin, showers, floors }
  * @returns {object} { targetMca, targetFlow, typeDesc }
  */
-export function calcSuperficie(params) {
+export function calcSuperficie(params: any) {
   let targetMca = 0;
   let targetFlow = 0;
   
@@ -58,7 +58,7 @@ export function calcSuperficie(params) {
 /**
  * Calcula los requerimientos para Bombas Sumergibles de Pozo
  */
-export function calcPozo(params) {
+export function calcPozo(params: any) {
   // Nivel dinámico del agua + margen de bombeo
   const depth = parseFloat(params.depth) || 0;
   const targetMca = depth > 0 ? depth + 20 : 0; // Queremos que tire con buena presión arriba
@@ -72,7 +72,7 @@ export function calcPozo(params) {
 /**
  * Calcula los requerimientos para Bombas de Drenaje / Achique
  */
-export function calcDrenaje(params) {
+export function calcDrenaje(params: any) {
   // Distancia vertical/horizontal. Horizontal cuenta como 1/10 de la vertical.
   const distVert = parseFloat(params.distVert) || 0;
   const distHoriz = parseFloat(params.distHoriz) || 0;

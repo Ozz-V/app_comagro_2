@@ -3,15 +3,38 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } fro
 import LottieView from 'lottie-react-native';
 import { COLORS } from '../theme';
 
-const CustomAlertContext = createContext();
-
-export function useCustomAlert() {
-  return useContext(CustomAlertContext);
+interface AlertButton {
+  text: string;
+  onPress?: () => void;
+  style?: 'cancel' | 'default';
 }
 
-export function CustomAlertProvider({ children }) {
-  const [alertConfig, setAlertConfig] = useState(null); // { title, message, buttons }
-  const [toastConfig, setToastConfig] = useState(null); // { message }
+interface AlertConfig {
+  title: string;
+  message: string;
+  buttons?: AlertButton[];
+}
+
+interface ToastConfig {
+  message: string;
+}
+
+interface CustomAlertContextType {
+  showAlert: (title: string, message: string, buttons?: AlertButton[]) => void;
+  showToast: (message: string) => void;
+}
+
+const CustomAlertContext = createContext<CustomAlertContextType | undefined>(undefined);
+
+export function useCustomAlert() {
+  const ctx = useContext(CustomAlertContext);
+  if (!ctx) throw new Error('useCustomAlert must be used within CustomAlertProvider');
+  return ctx;
+}
+
+export function CustomAlertProvider({ children }: { children: React.ReactNode }) {
+  const [alertConfig, setAlertConfig] = useState<AlertConfig | null>(null);
+  const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(-50)).current;
@@ -35,7 +58,7 @@ export function CustomAlertProvider({ children }) {
     }
   }, [toastConfig]);
 
-  const showAlert = (title, message, buttons = [{ text: 'OK', onPress: () => closeAlert() }]) => {
+  const showAlert = (title: string, message: string, buttons: AlertButton[] = [{ text: 'OK', onPress: () => closeAlert() }]) => {
     setAlertConfig({ title, message, buttons });
   };
 
@@ -43,7 +66,7 @@ export function CustomAlertProvider({ children }) {
     setAlertConfig(null);
   };
 
-  const showToast = (message) => {
+  const showToast = (message: string) => {
     setToastConfig({ message });
   };
 
@@ -78,12 +101,12 @@ export function CustomAlertProvider({ children }) {
             <Text style={styles.alertMessage}>{alertConfig?.message}</Text>
             
             <View style={styles.buttonsRow}>
-              {alertConfig?.buttons?.map((btn, index) => {
+              {alertConfig?.buttons?.map((btn: AlertButton, index: number) => {
                 const isCancel = btn.style === 'cancel';
                 return (
                   <TouchableOpacity
                     key={index}
-                    style={[styles.button, isCancel ? styles.buttonCancel : styles.buttonPrimary, alertConfig.buttons.length === 1 && { flex: 1 }]}
+                    style={[styles.button, isCancel ? styles.buttonCancel : styles.buttonPrimary, alertConfig.buttons?.length === 1 && { flex: 1 }]}
                     activeOpacity={0.7}
                     onPress={() => {
                       closeAlert();

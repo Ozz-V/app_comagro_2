@@ -3,7 +3,15 @@ import { View, Text, TouchableOpacity, Modal, BackHandler } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
 
-export default function UpdateModal({ visible, onClose, onUpdate, updateData, isAvailable }) {
+interface UpdateModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onUpdate: () => void;
+  updateData: any;
+  isAvailable: boolean;
+}
+
+export default function UpdateModal({ visible, onClose, onUpdate, updateData, isAvailable }: UpdateModalProps) {
   const updateVersionLabel = updateData?.version_name || (updateData?.version_code ? `build ${updateData.version_code}` : 'nueva');
   const updateNotesText = updateData?.release_notes || 'Nuevas mejoras y correcciones generales.';
 

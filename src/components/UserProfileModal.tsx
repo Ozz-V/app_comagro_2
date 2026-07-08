@@ -3,8 +3,15 @@ import { View, Text, TouchableOpacity, Modal, ActivityIndicator, Image, Linking,
 import { COLORS, FONTS } from '../theme';
 import StatCard from './StatCard';
 
-export default function UserProfileModal({ visible, onClose, loadingUser, selectedUser }) {
-  const [showFullAvatar, setShowFullAvatar] = useState(null);
+interface UserProfileModalProps {
+  visible: boolean;
+  onClose: () => void;
+  loadingUser: boolean;
+  selectedUser: any;
+}
+
+export default function UserProfileModal({ visible, onClose, loadingUser, selectedUser }: UserProfileModalProps) {
+  const [showFullAvatar, setShowFullAvatar] = useState<string | null>(null);
 
   return (
     <>
@@ -71,7 +78,7 @@ export default function UserProfileModal({ visible, onClose, loadingUser, select
           <TouchableOpacity style={{position: 'absolute', top: 40, right: 20, zIndex: 10, padding: 10}} onPress={() => setShowFullAvatar(null)}>
             <Text style={{color: '#fff', fontSize: 30}}>✕</Text>
           </TouchableOpacity>
-          <Image source={{uri: showFullAvatar}} style={{width: '90%', height: '70%'}} resizeMode="contain" />
+          <Image source={{uri: showFullAvatar || ''}} style={{width: '90%', height: '70%'}} resizeMode="contain" />
         </View>
       </Modal>
     </>

@@ -4,7 +4,17 @@ import LottieView from 'lottie-react-native';
 import { COLORS } from '../theme';
 import Constants from 'expo-constants';
 
-export default function LottieSplashScreen({ onFinish, updateState, updateNotes, downloadProgress, onAccept, onDecline, onInstall }) {
+interface Props {
+  onFinish: () => void;
+  updateState: string;
+  updateNotes: string;
+  downloadProgress: number;
+  onAccept: () => void;
+  onDecline: () => void;
+  onInstall: () => void;
+}
+
+export default function LottieSplashScreen({ onFinish, updateState, updateNotes, downloadProgress, onAccept, onDecline, onInstall }: Props) {
   const fadeAnim = React.useRef(new Animated.Value(1)).current;
   const progressAnim = React.useRef(new Animated.Value(0)).current;
   const appVersion = Constants.expoConfig?.version || '1.0.0';

@@ -4,7 +4,15 @@ import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 
-export default function OfflineSyncModal({ visible, onClose, offlineGroups, setOfflineGroups, onDownload }) {
+interface OfflineSyncModalProps {
+  visible: boolean;
+  onClose: () => void;
+  offlineGroups: any;
+  setOfflineGroups: React.Dispatch<React.SetStateAction<any>>;
+  onDownload: () => void;
+}
+
+export default function OfflineSyncModal({ visible, onClose, offlineGroups, setOfflineGroups, onDownload }: OfflineSyncModalProps) {
   const { isSyncing, isPaused, progress, startSync, pauseSync } = useOfflineSync();
   const isAnySelected = offlineGroups.catalogos || offlineGroups.fichas || offlineGroups.productos;
 
@@ -43,21 +51,21 @@ export default function OfflineSyncModal({ visible, onClose, offlineGroups, setO
             </View>
           ) : (
             <View style={st.optionsContainer}>
-              <TouchableOpacity style={st.checkRow} onPress={() => setOfflineGroups(p => ({ ...p, catalogos: !p.catalogos }))} activeOpacity={0.7}>
+              <TouchableOpacity style={st.checkRow} onPress={() => setOfflineGroups((p: any) => ({ ...p, catalogos: !p.catalogos }))} activeOpacity={0.7}>
                 <View style={[st.checkbox, offlineGroups.catalogos && st.checkboxActive]}>
                   {offlineGroups.catalogos && <Text style={{color: '#fff', fontSize: 12}}>✓</Text>}
                 </View>
                 <Text style={st.checkText}>Catálogos Generales</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={st.checkRow} onPress={() => setOfflineGroups(p => ({ ...p, fichas: !p.fichas }))} activeOpacity={0.7}>
+              <TouchableOpacity style={st.checkRow} onPress={() => setOfflineGroups((p: any) => ({ ...p, fichas: !p.fichas }))} activeOpacity={0.7}>
                 <View style={[st.checkbox, offlineGroups.fichas && st.checkboxActive]}>
                   {offlineGroups.fichas && <Text style={{color: '#fff', fontSize: 12}}>✓</Text>}
                 </View>
                 <Text style={st.checkText}>Fichas Técnicas</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={st.checkRow} onPress={() => setOfflineGroups(p => ({ ...p, productos: !p.productos }))} activeOpacity={0.7}>
+              <TouchableOpacity style={st.checkRow} onPress={() => setOfflineGroups((p: any) => ({ ...p, productos: !p.productos }))} activeOpacity={0.7}>
                 <View style={[st.checkbox, offlineGroups.productos && st.checkboxActive]}>
                   {offlineGroups.productos && <Text style={{color: '#fff', fontSize: 12}}>✓</Text>}
                 </View>
