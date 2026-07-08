@@ -11,12 +11,12 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 
 export default function CompleteProfileScreen() {
   const [profileSaving, setProfileSaving] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [fullName, setFullName] = useState('');
   const [phoneCode, setPhoneCode] = useState('+595');
   const [phone, setPhone] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const { showAlert } = useCustomAlert();
 
@@ -45,7 +45,7 @@ export default function CompleteProfileScreen() {
         }
         setAvatarUrl(data.avatar_url || null);
       }
-    } catch (e) {}
+    } catch (e: any) {}
   }
 
   async function pickPhoto() {
@@ -72,7 +72,7 @@ export default function CompleteProfileScreen() {
         setAvatarUrl(localSafeUri); 
         await AsyncStorage.setItem('@pending_avatar', localSafeUri);
       }
-    } catch (e) { 
+    } catch (e: any) { 
         showAlert('Error', 'No se pudo seleccionar la imagen.');
     }
   }
@@ -98,7 +98,7 @@ export default function CompleteProfileScreen() {
       if (pendingAvatar) {
          const fileName = `${userId}_avatar.jpg`;
          const formData = new FormData();
-         formData.append('file', { uri: pendingAvatar, name: fileName, type: 'image/jpeg' });
+         formData.append('file', { uri: pendingAvatar, name: fileName, type: 'image/jpeg' } as any);
          const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, formData, { upsert: true });
          if (!uploadError) {
             const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
@@ -124,7 +124,7 @@ export default function CompleteProfileScreen() {
       // Señal para que App.js quite esta pantalla y lo deje entrar al Main
       DeviceEventEmitter.emit('PROFILE_COMPLETED');
       
-    } catch (e) {
+    } catch (e: any) {
       // Guardar pendiente si falla la red
       const combinedPhone = `${phoneCode.trim()} ${phone.trim()}`;
       const updatedData = {

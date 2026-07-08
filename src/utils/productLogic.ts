@@ -1,6 +1,6 @@
 import { searchProducts } from './database';
 
-export const extractPower = (specs) => {
+export const extractPower = (specs: any) => {
   if (!specs) return null;
   const specArray = specs;
   for (const [k, v] of specArray) {
@@ -31,7 +31,7 @@ export const extractPower = (specs) => {
   return null;
 };
 
-export const findSimilarProducts = async (modalProd) => {
+export const findSimilarProducts = async (modalProd: any) => {
   if (!modalProd) return { similares: [], mismaMarca: [] };
 
   let similares = [];
@@ -42,25 +42,25 @@ export const findSimilarProducts = async (modalProd) => {
     const targetPower = extractPower(modalProd.specs);
     
     if (targetPower !== null) {
-      similares = baseList.filter(p => p.modelo !== modalProd.modelo).map(p => {
+      similares = baseList.filter((p: any) => p.modelo !== modalProd.modelo).map((p: any) => {
         const pPower = extractPower(p.specs);
         return { ...p, pPower };
-      }).filter(p => {
+      }).filter((p: any) => {
         if (p.pPower === null) return false;
         return p.pPower >= targetPower * 0.5 && p.pPower <= targetPower * 1.5;
-      }).map(p => {
+      }).map((p: any) => {
         const diff = Math.abs(p.pPower - targetPower);
         return { ...p, diff };
-      }).sort((a, b) => a.diff - b.diff).slice(0, 8);
+      }).sort((a: any, b: any) => a.diff - b.diff).slice(0, 8);
     } else {
-      similares = baseList.filter(p => p.modelo !== modalProd.modelo).slice(0, 8);
+      similares = baseList.filter((p: any) => p.modelo !== modalProd.modelo).slice(0, 8);
     }
-  } catch (e) {}
+  } catch (e: any) {}
 
   try {
     const brandList = await searchProducts(modalProd.marca, 'Todas', '');
-    mismaMarca = brandList.filter(p => p.modelo !== modalProd.modelo).slice(0, 20);
-  } catch (e) {}
+    mismaMarca = brandList.filter((p: any) => p.modelo !== modalProd.modelo).slice(0, 20);
+  } catch (e: any) {}
 
   return { similares, mismaMarca };
 };

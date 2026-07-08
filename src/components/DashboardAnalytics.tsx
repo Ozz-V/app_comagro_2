@@ -16,29 +16,29 @@ import UserProfileModal from './UserProfileModal';
 const LOGO_BASE = 'https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/';
 const CACHE_KEY = 'comagro_productos_v3';
 
-function getPeriodDate(p) {
+function getPeriodDate(p: string) {
   if (p === '7d') return new Date(Date.now() - 7 * 86400000).toISOString();
   if (p === '30d') return new Date(Date.now() - 30 * 86400000).toISOString();
   return null;
 }
-function getPrevPeriodDate(p) {
+function getPrevPeriodDate(p: string) {
   if (p === '7d') return new Date(Date.now() - 14 * 86400000).toISOString();
   if (p === '30d') return new Date(Date.now() - 60 * 86400000).toISOString();
   return null;
 }
 
-function countByKey(items, keyFn, limit) {
-  const m = {};
+function countByKey(items: any[], keyFn: (i: any) => any, limit: number) {
+  const m: any = {};
   items.forEach(i => {
     const k = keyFn(i);
     if (!k) return;
     if (!m[k]) m[k] = { ...i, count: 0 };
     m[k].count++;
   });
-  return Object.values(m).sort((a, b) => b.count - a.count).slice(0, limit);
+  return Object.values(m).sort((a: any, b: any) => b.count - a.count).slice(0, limit);
 }
 
-function getTrend(cur, prev) {
+function getTrend(cur: number, prev: number) {
   if (prev === 0) return cur > 0 ? '↑' : '';
   const ch = ((cur - prev) / prev) * 100;
   if (ch > 5) return `↑${Math.round(ch)}%`;
@@ -46,7 +46,7 @@ function getTrend(cur, prev) {
   return '→';
 }
 
-function ProgressBar({ value, max, color }) {
+function ProgressBar({ value, max, color }: { value: number, max: number, color: string }) {
   const w = max > 0 ? Math.max(8, (value / max) * 100) : 0;
   return (
     <View style={{ flex: 1, height: 6, backgroundColor: '#E8ECF0', borderRadius: 3, marginHorizontal: 8 }}>
@@ -55,11 +55,11 @@ function ProgressBar({ value, max, color }) {
   );
 }
 
-function RankItem({ item, maxCount, color, imageMap, navigation }) {
+function RankItem({ item, maxCount, color, imageMap, navigation }: { item: any, maxCount: number, color: string, imageMap: any, navigation: any }) {
   const imgUrl = imageMap[item.sku || item.modelo] || null;
   const [sessionKey] = useState(() => Date.now().toString());
   const logoUrl = `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg?v=${sessionKey}`;
-  const handleProductPress = (item) => {
+  const handleProductPress = (item: any) => {
     // Si no está en el mapa, ProductViewer lo cargará en la nube on-the-fly
     navigation.navigate('ProductViewer', { sku: item.sku || item.modelo });
   };
@@ -80,7 +80,7 @@ function RankItem({ item, maxCount, color, imageMap, navigation }) {
   );
 }
 
-function CollapsibleSection({ title, color, iconName, defaultExpanded = false, children }) {
+function CollapsibleSection({ title, color, iconName, defaultExpanded = false, children }: { title: string, color: string, iconName: string, defaultExpanded?: boolean, children: any }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   return (
     <View style={s.section}>
@@ -96,7 +96,7 @@ function CollapsibleSection({ title, color, iconName, defaultExpanded = false, c
   );
 }
 
-function RankSection({ title, items, color, imageMap, iconName, navigation, defaultExpanded = false }) {
+function RankSection({ title, items, color, imageMap, iconName, navigation, defaultExpanded = false }: { title: string, items: any[], color: string, imageMap: any, iconName: string, navigation: any, defaultExpanded?: boolean }) {
   if (!items || items.length === 0) return (
     <CollapsibleSection title={title} color={color} iconName={iconName} defaultExpanded={defaultExpanded}>
       <Text style={s.empty}>Sin datos aún</Text>
@@ -110,7 +110,7 @@ function RankSection({ title, items, color, imageMap, iconName, navigation, defa
   );
 }
 
-function BrandBar({ marca, count, maxCount }) {
+function BrandBar({ marca, count, maxCount }: { marca: string, count: number, maxCount: number }) {
   const w = maxCount > 0 ? Math.max(8, (count / maxCount) * 100) : 0;
   return (
     <View style={s.brandRow}>
@@ -123,7 +123,7 @@ function BrandBar({ marca, count, maxCount }) {
   );
 }
 
-function UserBar({ email, count, maxCount, onUserClick }) {
+function UserBar({ email, count, maxCount, onUserClick }: { email: string, count: number, maxCount: number, onUserClick?: (e: string) => void }) {
   const w = maxCount > 0 ? Math.max(8, (count / maxCount) * 100) : 0;
   const short = email.split('@')[0];
   return (
@@ -137,22 +137,22 @@ function UserBar({ email, count, maxCount, onUserClick }) {
   );
 }
 
-export default function DashboardAnalytics({ navigation }) {
+export default function DashboardAnalytics({ navigation }: { navigation: any }) {
   const [tab, setTab] = useState('mine');
   const [period, setPeriod] = useState('all');
   const [loading, setLoading] = useState(true);
   const { showToast } = useCustomAlert();
   const { isOnline } = useOfflineSync();
-  const [imageMap, setImageMap] = useState({});
-  const [myData, setMyData] = useState({ views: 0, shares: 0, topV: [], topSh: [] });
-  const [globalData, setGlobalData] = useState({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
+  const [imageMap, setImageMap] = useState<any>({});
+  const [myData, setMyData] = useState<any>({ views: 0, shares: 0, topV: [], topSh: [] });
+  const [globalData, setGlobalData] = useState<any>({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
 
   const [showUserModal, setShowUserModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [loadingUser, setLoadingUser] = useState(false);
 
   const [showDirectoryModal, setShowDirectoryModal] = useState(false);
-  const [directoryUsers, setDirectoryUsers] = useState([]);
+  const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
   const [loadingDirectory, setLoadingDirectory] = useState(false);
 
   useEffect(() => { loadImages(); fetchDirectoryBackground(); }, []);
@@ -169,12 +169,12 @@ export default function DashboardAnalytics({ navigation }) {
         setDirectoryUsers(valid);
         await AsyncStorage.setItem('@directory_cache', JSON.stringify(valid));
       }
-    } catch(e) {
+    } catch(e: any) {
       console.log('Error directory background', e);
     }
   }
 
-  async function handleUserClick(email) {
+  async function handleUserClick(email: string) {
     setShowUserModal(true);
     setLoadingUser(true);
     const cachedProfile = directoryUsers.find(u => u.email === email);
@@ -213,7 +213,7 @@ export default function DashboardAnalytics({ navigation }) {
         avatar_url: profile?.avatar_url || null,
         stats: { views: v, shares: sh }
       });
-    } catch(e) {
+    } catch(e: any) {
       console.log('Error cargando usuario', e);
     } finally {
       setLoadingUser(false);
@@ -224,15 +224,15 @@ export default function DashboardAnalytics({ navigation }) {
     try {
       const { getAllProducts } = require('../utils/database');
       const rows = await getAllProducts();
-      const m = {};
-      rows.forEach(r => {
+      const m: any = {};
+      rows.forEach((r: any) => {
         const sku = r.modelo;
         // imagenOriginal tiene la URL directa del servidor (sin manifest local)
         const img = r.imagen || r.imagenOriginal;
         if (sku && img) m[sku] = img;
       });
       setImageMap(m);
-    } catch (e) {
+    } catch (e: any) {
       console.log('Error loadImages DB:', e);
     }
   }
@@ -258,17 +258,17 @@ export default function DashboardAnalytics({ navigation }) {
       
       if (qStr && user) {
          const queue = JSON.parse(qStr);
-         const mergeQueue = (data, isGlobal) => {
+         const mergeQueue = (data: any, isGlobal: boolean) => {
             if (!data) return data;
             const res = { ...data };
             res.topV = [...(res.topV || [])];
             res.topSh = [...(res.topSh || [])];
             res.topSe = [...(res.topSe || [])];
             
-            queue.forEach(item => {
+            queue.forEach((item: any) => {
                if (!isGlobal && item.user_email !== user.email) return;
                
-               const addTop = (list, it) => {
+               const addTop = (list: any[], it: any) => {
                   const ex = list.find(x => (x.sku || x.modelo) === (it.sku || it.modelo));
                   if (ex) ex.count = (ex.count || 0) + 1;
                   else list.push({ ...it, count: 1 });
@@ -278,15 +278,15 @@ export default function DashboardAnalytics({ navigation }) {
                else if (item.action.startsWith('share')) { res.shares++; addTop(res.topSh, item); }
             });
             
-            res.topV.sort((a,b) => b.count - a.count);
-            res.topSh.sort((a,b) => b.count - a.count);
+            res.topV.sort((a: any,b: any) => b.count - a.count);
+            res.topSh.sort((a: any,b: any) => b.count - a.count);
             return res;
          };
          
          if (parsedMyData) setMyData(mergeQueue(parsedMyData, false));
          if (parsedGlobalData) setGlobalData(mergeQueue(parsedGlobalData, true));
       }
-    } catch (_) {}
+    } catch (_: any) {}
 
     if (!isOnline) {
       setLoading(false);
@@ -307,7 +307,7 @@ export default function DashboardAnalytics({ navigation }) {
       if (curError) throw new Error(curError.message);
       const all = cur || [];
 
-      let prev = [];
+      let prev: any[] = [];
       if (pDate && ppDate) {
         const { data: p, error: pError } = await supabase.from('producto_analytics').select('action,user_email').gte('created_at', ppDate).lt('created_at', pDate).limit(10000);
         if (pError) throw new Error(pError.message);
@@ -317,7 +317,7 @@ export default function DashboardAnalytics({ navigation }) {
       const my = all.filter(d => d.user_email === user.email);
       const myPrev = prev.filter(d => d.user_email === user.email);
 
-      const process = (items, limit) => {
+      const process = (items: any[], limit: number): any => {
         const views = items.filter(d => d.action === 'view');
         const shares = items.filter(d => d.action === 'share_pdf' || d.action === 'share_image');
         return {
@@ -339,8 +339,8 @@ export default function DashboardAnalytics({ navigation }) {
             shares: rpcData.total_shares || 0,
             topV: rpcData.top_viewed || [],
             topSh: rpcData.top_shared || [],
-            brands: (rpcData.top_brands || []).map(b => ({ marca: b.marca, count: b.count })),
-            users: (rpcData.top_users || []).map(u => ({ user_email: u.modelo, count: u.count, modelo: u.modelo }))
+            brands: (rpcData.top_brands || []).map((b: any) => ({ marca: b.marca, count: b.count })),
+            users: (rpcData.top_users || []).map((u: any) => ({ user_email: u.modelo, count: u.count, modelo: u.modelo }))
           };
           setGlobalData(gdRpc);
           AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gdRpc));
@@ -348,18 +348,18 @@ export default function DashboardAnalytics({ navigation }) {
           // Fallback
           const gd = process(all, 10);
           gd.brands = countByKey(all, i => i.marca, 8);
-          gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map(u => ({ ...u, modelo: u.user_email }));
+          gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, modelo: u.user_email }));
           setGlobalData(gd);
           AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gd));
         }
       } else {
         const gd = process(all, 10);
         gd.brands = countByKey(all, i => i.marca, 8);
-        gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map(u => ({ ...u, modelo: u.user_email }));
+        gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, modelo: u.user_email }));
         setGlobalData(gd);
         AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
       }
-    } catch (e) {
+    } catch (e: any) {
       console.log('Dashboard error:', e);
     } finally {
       setLoading(false);
@@ -373,7 +373,7 @@ export default function DashboardAnalytics({ navigation }) {
       const label = tab === 'mine' ? 'Mi actividad' : 'General';
       const pLabel = period === '7d' ? 'Últimos 7 días' : period === '30d' ? 'Últimos 30 días' : 'Todo el tiempo';
       
-      const renderBars = (items, max, color) => items.map(i => {
+      const renderBars = (items: any[], max: number, color: string) => items.map(i => {
         const w = max > 0 ? Math.max(5, (i.count / max) * 100) : 0;
         return `
           <div style="margin-bottom: 8px;">
@@ -444,7 +444,7 @@ export default function DashboardAnalytics({ navigation }) {
       } else {
          showToast('Compartir no disponible en este dispositivo.');
       }
-    } catch(e) {
+    } catch(e: any) {
       showToast('Error generando PDF.');
       console.log('Error PDF', e);
     } finally {
@@ -488,13 +488,13 @@ export default function DashboardAnalytics({ navigation }) {
 
           {tab === 'general' && globalData.brands.length > 0 && (
             <CollapsibleSection title="Marcas más consultadas" color={COLORS.navy} iconName="chart" defaultExpanded={false}>
-              {globalData.brands.map((b, i) => <BrandBar key={i} marca={b.marca} count={b.count} maxCount={globalData.brands[0]?.count || 1} />)}
+              {globalData.brands.map((b: any, i: number) => <BrandBar key={i} marca={b.marca} count={b.count} maxCount={globalData.brands[0]?.count || 1} />)}
             </CollapsibleSection>
           )}
 
           {tab === 'general' && globalData.users.length > 0 && (
             <CollapsibleSection title="Usuarios más activos" color={COLORS.navy} iconName="usuarios" defaultExpanded={false}>
-              {globalData.users.map((u, i) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={globalData.users[0]?.count || 1} onUserClick={handleUserClick} />)}
+              {globalData.users.map((u: any, i: number) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={globalData.users[0]?.count || 1} onUserClick={handleUserClick} />)}
               
               <TouchableOpacity style={{ marginTop: 15, padding: 12, backgroundColor: '#F0F4F8', borderRadius: 8, alignItems: 'center' }} onPress={() => setShowDirectoryModal(true)}>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy }}>Ver directorio completo de usuarios</Text>

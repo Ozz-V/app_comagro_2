@@ -1,10 +1,11 @@
 import * as SQLite from 'expo-sqlite';
+import { supabase, EDGE_URL } from '../supabase';
 
 const DB_NAME = 'comagro.db';
 
 // Singleton: una sola conexión compartida por todas las funciones.
 // Esto evita errores "database is locked" cuando hay transacciones concurrentes.
-let _db = null;
+let _db: any = null;
 
 async function getDB() {
   if (!_db) {
@@ -18,9 +19,9 @@ export async function initDB() {
 
   // Verificar si existe un esquema viejo (sin columna 'sku', 'search_text' o 'sales_pitch')
   const tableInfo = await db.getAllAsync('PRAGMA table_info(productos)');
-  const hasSkuColumn = tableInfo.some(col => col.name === 'sku');
-  const hasSearchTextColumn = tableInfo.some(col => col.name === 'search_text');
-  const hasSalesPitchColumn = tableInfo.some(col => col.name === 'sales_pitch');
+  const hasSkuColumn = tableInfo.some((col: any) => col.name === 'sku');
+  const hasSearchTextColumn = tableInfo.some((col: any) => col.name === 'search_text');
+  const hasSalesPitchColumn = tableInfo.some((col: any) => col.name === 'sales_pitch');
 
   if (tableInfo.length > 0 && (!hasSkuColumn || !hasSearchTextColumn || !hasSalesPitchColumn)) {
     console.log('Esquema antiguo detectado. Migrando...');
@@ -28,7 +29,7 @@ export async function initDB() {
     try {
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       await AsyncStorage.removeItem('comagro_productos_fecha_v3');
-    } catch (e) {}
+    } catch (e: any) {}
   }
 
   await db.execAsync(`
@@ -52,7 +53,7 @@ export async function clearProducts() {
   await db.execAsync('DELETE FROM productos;');
 }
 
-export async function insertProductsBatch(productosArray, manifest, isDelta = false) {
+export async function insertProductsBatch(productosArray: any[], manifest: any, isDelta = false) {
   const db = await getDB();
 
   await db.withTransactionAsync(async () => {
@@ -106,7 +107,7 @@ export async function insertProductsBatch(productosArray, manifest, isDelta = fa
   });
 }
 
-export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
+export async function searchProducts(marcaFiltro: string, subcatFiltro: string, textoBusqueda: string) {
   const db = await getDB();
 
   let query = 'SELECT * FROM productos WHERE 1=1';
@@ -140,7 +141,7 @@ export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
 
   const results = await db.getAllAsync(query, params);
 
-  return results.map(r => ({
+  return results.map((r: any) => ({
     modelo: r.sku,
     marca: r.marca,
     subcategoria: r.subcategoria,
@@ -154,17 +155,17 @@ export async function searchProducts(marcaFiltro, subcatFiltro, textoBusqueda) {
 export async function getUniqueBrands() {
   const db = await getDB();
   const results = await db.getAllAsync('SELECT DISTINCT marca FROM productos ORDER BY marca ASC');
-  return results.map(r => r.marca).filter(Boolean);
+  return results.map((r: any) => r.marca).filter(Boolean);
 }
 
-export async function getProductsBySubcategory(substring, excludeAccessories = false) {
+export async function getProductsBySubcategory(substring: string, excludeAccessories = false) {
   const db = await getDB();
   let query = 'SELECT * FROM productos WHERE subcategoria LIKE ?';
   if (excludeAccessories) {
     query += " AND NOT (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
   }
   const results = await db.getAllAsync(query, [`%${substring}%`]);
-  return results.map(r => ({
+  return results.map((r: any) => ({
     modelo: r.sku,
     marca: r.marca,
     subcategoria: r.subcategoria,
@@ -175,7 +176,7 @@ export async function getProductsBySubcategory(substring, excludeAccessories = f
   }));
 }
 
-export async function getProductBySku(sku) {
+export async function getProductBySku(sku: string) {
   const db = await getDB();
   const result = await db.getFirstAsync('SELECT * FROM productos WHERE sku = ?', [sku]);
   if (!result) return null;
@@ -190,19 +191,19 @@ export async function getProductBySku(sku) {
   };
 }
 
-export async function fetchMissingProductFromCloud(sku) {
+export async function fetchMissingProductFromCloud(sku: string) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
     
-    const headers = { 'Content-Type': 'application/json' };
+    const headers: any = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetch(EDGE_URL, { headers });
     if (!res.ok) return null;
     const all = await res.json();
     
-    const p = all.find(x => String(x.SKU || x.sku).trim().toLowerCase() === String(sku).trim().toLowerCase());
+    const p = all.find((x: any) => String(x.SKU || x.sku).trim().toLowerCase() === String(sku).trim().toLowerCase());
     if (!p) return null;
     
     const { data: ai } = await supabase.from('productos_ai_data').select('sales_pitch').eq('sku', sku).single();
@@ -210,7 +211,7 @@ export async function fetchMissingProductFromCloud(sku) {
 
     await insertProductsBatch([p], null, true);
     return await getProductBySku(sku);
-  } catch (e) {
+  } catch (e: any) {
     console.log('Error fetchMissingProductFromCloud:', e);
     return null;
   }
@@ -219,7 +220,7 @@ export async function fetchMissingProductFromCloud(sku) {
 export async function getAllProducts() {
   const db = await getDB();
   const results = await db.getAllAsync('SELECT * FROM productos ORDER BY marca ASC, sku ASC');
-  return results.map(r => ({
+  return results.map((r: any) => ({
     modelo: r.sku,
     marca: r.marca,
     subcategoria: r.subcategoria,

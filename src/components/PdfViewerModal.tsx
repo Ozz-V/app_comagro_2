@@ -18,13 +18,20 @@ import { COLORS, FONTS } from '../theme';
  *   url      {string}   — URL (remota o local `file://`)
  *   title    {string}   — nombre del documento
  */
-export default function PdfViewerModal({ visible, url, title, onClose }) {
+interface PdfViewerModalProps {
+  visible: boolean;
+  url: string | null;
+  title: string | null;
+  onClose: () => void;
+}
+
+export default function PdfViewerModal({ visible, url, title, onClose }: PdfViewerModalProps) {
   const [loading, setLoading]       = useState(true);
   const { showAlert } = useCustomAlert();
   const [sharing, setSharing]       = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [showAlreadyDownloaded, setShowAlreadyDownloaded] = useState(false);
-  const [localViewUrl, setLocalViewUrl] = useState(null);
+  const [localViewUrl, setLocalViewUrl] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState(false);
 
   React.useEffect(() => {
@@ -49,10 +56,10 @@ export default function PdfViewerModal({ visible, url, title, onClose }) {
           const downloadPromise = FileSystem.downloadAsync(safeUrl, tempUri);
           const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000)); // 15s max para descargar
           
-          const { uri } = await Promise.race([downloadPromise, timeoutPromise]);
+          const { uri } = await Promise.race([downloadPromise, timeoutPromise]) as { uri: string };
           
           if (isMounted) setLocalViewUrl(uri);
-        } catch (e) {
+        } catch (e: any) {
           console.log('Error downloading temp pdf:', e);
           if (isMounted) {
             setDownloadError(true);
@@ -93,7 +100,7 @@ export default function PdfViewerModal({ visible, url, title, onClose }) {
         return;
       }
       await Sharing.shareAsync(result.uri);
-    } catch (e) {
+    } catch (e: any) {
       console.log('Error sharing PDF:', e);
       showAlert('Error al compartir', e?.message || 'No se pudo compartir el archivo.');
     } finally {
@@ -115,7 +122,7 @@ export default function PdfViewerModal({ visible, url, title, onClose }) {
       const separator = url.includes('?') ? '&' : '?';
       const downloadUrl = `${url}${separator}download=${encodeURIComponent(safeName + '.pdf')}`;
       await Linking.openURL(downloadUrl);
-    } catch (e) {
+    } catch (e: any) {
       console.log('Error download PDF:', e);
       showAlert('Error al descargar', e?.message || 'No se pudo iniciar la descarga.');
     } finally {

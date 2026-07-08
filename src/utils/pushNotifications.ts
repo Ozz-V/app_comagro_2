@@ -8,11 +8,11 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
-  }),
+  } as any),
 });
 
 export async function registerForPushNotificationsAsync() {
-  let token;
+  let token: string | undefined;
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
@@ -42,7 +42,7 @@ export async function registerForPushNotificationsAsync() {
         projectId,
       })).data;
       console.log('Expo Push Token:', token);
-    } catch (e) {
+    } catch (e: any) {
       console.log('Error obteniendo Push Token', e);
     }
   } else {

@@ -2,7 +2,15 @@ import React from 'react';
 import { View, Text, TouchableOpacity, Modal, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 
-export default function DirectoryModal({ visible, onClose, loadingDirectory, directoryUsers, onUserClick }) {
+interface DirectoryModalProps {
+  visible: boolean;
+  onClose: () => void;
+  loadingDirectory: boolean;
+  directoryUsers: any[];
+  onUserClick: (email: string) => void;
+}
+
+export default function DirectoryModal({ visible, onClose, loadingDirectory, directoryUsers, onUserClick }: DirectoryModalProps) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
@@ -17,7 +25,7 @@ export default function DirectoryModal({ visible, onClose, loadingDirectory, dir
             <ActivityIndicator size="large" color={COLORS.navy} style={{ marginTop: 40 }} />
           ) : (
             <ScrollView showsVerticalScrollIndicator={false}>
-              {directoryUsers.map((u, i) => (
+              {directoryUsers.map((u: any, i: number) => (
                 <TouchableOpacity 
                   key={i} 
                   style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border }}
