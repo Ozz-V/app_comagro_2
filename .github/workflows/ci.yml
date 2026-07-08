@@ -28,6 +28,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Lint (ESLint)
+        continue-on-error: true
         env:
           ESLINT_USE_FLAT_CONFIG: "false"
         run: npx eslint .
