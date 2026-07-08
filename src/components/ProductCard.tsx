@@ -3,7 +3,7 @@ import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 
-export default function ProductCard({ item, cardW, isSelected, onPress, onLongPress }: { item: any; cardW: number; isSelected?: boolean; onPress?: () => void; onLongPress?: () => void }) {
+function ProductCard({ item, cardW, isSelected, onPress, onLongPress }: { item: any; cardW: number; isSelected?: boolean; onPress?: () => void; onLongPress?: () => void }) {
   return (
     <TouchableOpacity
       style={[styles.card, { width: cardW }, isSelected && { borderColor: COLORS.navy, borderWidth: 2 }]}
@@ -28,6 +28,16 @@ export default function ProductCard({ item, cardW, isSelected, onPress, onLongPr
     </TouchableOpacity>
   );
 }
+
+export default React.memo(ProductCard, (prevProps, nextProps) => {
+  // Ignoramos cambios en funciones en línea (onPress, onLongPress) para evitar
+  // re-renders masivos del FlatList cuando cambia el estado isComparing.
+  return (
+    prevProps.item.modelo === nextProps.item.modelo &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.cardW === nextProps.cardW
+  );
+});
 
 const styles = StyleSheet.create({
   card: {
