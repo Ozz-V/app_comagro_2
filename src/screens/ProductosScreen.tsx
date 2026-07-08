@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, SafeAreaView, StatusBar,
-  ActivityIndicator, useWindowDimensions, RefreshControl, Image
+  ActivityIndicator, useWindowDimensions, RefreshControl
 } from 'react-native';
+import { Image } from 'expo-image';
 
 import { useProducts } from '../hooks/useProducts';
 import ProductCard from '../components/ProductCard';
@@ -119,7 +120,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
         onPress={() => setFiltroMarca(activo ? '' : marca)}
         activeOpacity={0.75}
       >
-        <Image source={{ uri: logoUri }} style={styles.marcaLogo} resizeMode="contain" />
+        <Image source={{ uri: logoUri }} style={styles.marcaLogo} contentFit="contain" />
         {activo && <View style={styles.marcaOverlay} />}
       </TouchableOpacity>
     );

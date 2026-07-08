@@ -20,6 +20,12 @@ export default function CompleteProfileScreen() {
 
   const { showAlert } = useCustomAlert();
 
+  const isMounted = React.useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
   useEffect(() => {
     loadProfile();
   }, []);
@@ -32,6 +38,8 @@ export default function CompleteProfileScreen() {
       setUserId(user.id);
       
       const { data } = await supabase.from('profiles').select('id, full_name, telefono, avatar_url').eq('id', user.id).single();
+      if (!isMounted.current) return;
+      
       if (data) {
         if (data.full_name && data.full_name !== 'EMPTY') setFullName(data.full_name);
         if (data.telefono && data.telefono !== '+595') {
@@ -69,7 +77,7 @@ export default function CompleteProfileScreen() {
         const localSafeUri = FileSystem.documentDirectory + `avatar_local_${Date.now()}.jpg`;
         await FileSystem.copyAsync({ from: manipResult.uri, to: localSafeUri });
         
-        setAvatarUrl(localSafeUri); 
+        if (isMounted.current) setAvatarUrl(localSafeUri); 
         await AsyncStorage.setItem('@pending_avatar', localSafeUri);
       }
     } catch (e: any) { 
@@ -138,7 +146,7 @@ export default function CompleteProfileScreen() {
       
       DeviceEventEmitter.emit('PROFILE_COMPLETED'); // Dejarlo pasar igual en modo offline
     } finally {
-      setProfileSaving(false);
+      if (isMounted.current) setProfileSaving(false);
     }
   }
 

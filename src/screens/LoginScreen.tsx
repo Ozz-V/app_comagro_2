@@ -18,6 +18,12 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [isSuperUser, setIsSuperUser] = useState(false);
 
+  const isMounted = React.useRef(true);
+  React.useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
   function validarCorreo(c: string) {
     return /^[a-zA-Z0-9._%+-]+@comagro\.com\.py$/i.test(c.trim());
   }
@@ -47,6 +53,7 @@ export default function LoginScreen() {
 
       if (superData) {
         // Es super user → pedir PIN fijo
+        if (!isMounted.current) return;
         setIsSuperUser(true);
         setStep(3);
         setLoading(false);
@@ -76,6 +83,7 @@ export default function LoginScreen() {
       error = e;
     }
 
+    if (!isMounted.current) return;
     setLoading(false);
 
     if (error) {
@@ -108,6 +116,7 @@ export default function LoginScreen() {
         password: code.trim(),
       });
 
+      if (!isMounted.current) return;
       setLoading(false);
 
       if (error) {
@@ -122,6 +131,7 @@ export default function LoginScreen() {
         type: 'email'
       });
 
+      if (!isMounted.current) return;
       setLoading(false);
 
       if (error) {

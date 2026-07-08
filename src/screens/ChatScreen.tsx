@@ -20,6 +20,13 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
   const insets = useSafeAreaInsets();
 
   const flatListRef = useRef<FlatList<any>>(null);
+  const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+    };
+  }, []);
 
   useEffect(() => {
     fetchInitData();
@@ -121,7 +128,8 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
     }
 
     setChatLoading(false);
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+    scrollTimeout.current = setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }
 
   // Extrae la etiqueta [SKU: XXX] del texto y devuelve el texto limpio y los SKUs encontrados
@@ -232,15 +240,19 @@ const AiProductCard = ({ sku, skusContext, navigation }: { sku: string; skusCont
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     import('../utils/database').then(async ({ getProductBySku, fetchMissingProductFromCloud }) => {
       let p = await getProductBySku(sku);
-      if (!p) {
+      if (!p && isMounted) {
         // No está en local, lo buscamos en la nube "on-the-fly"
         p = await fetchMissingProductFromCloud(sku);
       }
-      if (p) setProduct(p);
-      setLoading(false);
+      if (isMounted) {
+        if (p) setProduct(p);
+        setLoading(false);
+      }
     });
+    return () => { isMounted = false; };
   }, [sku]);
 
   if (loading) {
