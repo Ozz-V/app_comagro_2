@@ -62,7 +62,18 @@ export default function ProductDetailModal({
   
   const [productosSimilares, setProductosSimilares] = useState<ParsedProduct[]>([]);
   const [productosMismaMarca, setProductosMismaMarca] = useState<ParsedProduct[]>([]);
+  const [loadingSimilares, setLoadingSimilares] = useState(true);
   const [compartiendo, setCompartiendo] = useState(false);
+  
+  // Anti-Flicker: Derived State Pattern
+  const [prevModelo, setPrevModelo] = useState(modalProd?.modelo);
+  if (modalProd && modalProd.modelo !== prevModelo) {
+    setPrevModelo(modalProd.modelo);
+    setActiveTab('FICHA');
+    setProductosSimilares([]);
+    setProductosMismaMarca([]);
+    setLoadingSimilares(true);
+  }
   
   const hiddenWebViewRef = useRef<View>(null);
   const [htmlForImage, setHtmlForImage] = useState<string | null>(null);
@@ -92,7 +103,6 @@ export default function ProductDetailModal({
 
   useEffect(() => {
     if (visible && modalProd) {
-      setActiveTab('FICHA');
       logProductAction('view');
     }
   }, [modalProd?.modelo, visible]);
@@ -116,10 +126,12 @@ export default function ProductDetailModal({
 
   useEffect(() => {
     async function fetchRelated() {
+      if (isMounted.current) setLoadingSimilares(true);
       const { similares, mismaMarca } = await findSimilarProducts(modalProd);
       if (isMounted.current) {
         setProductosSimilares(similares);
         setProductosMismaMarca(mismaMarca);
+        setLoadingSimilares(false);
       }
     }
     fetchRelated();
@@ -266,7 +278,11 @@ export default function ProductDetailModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.modalBody} 
+            contentContainerStyle={{ flexGrow: 1 }} 
+            showsVerticalScrollIndicator={false}
+          >
             
             {activeTab === 'FICHA' && (
               <View>
@@ -294,21 +310,22 @@ export default function ProductDetailModal({
                     </View>
                   </View>
 
-                  {(() => {
-                    const similares = productosSimilares.slice(0, 3);
-                    if (similares.length > 0) {
-                      return (
-                        <TouchableOpacity
-                          style={styles.compareBtn}
-                          onPress={() => onCompare([modalProd, ...similares])}
-                        >
-                          <SvgIcon name="actualizar" size={16} color={COLORS.white} />
-                          <Text style={styles.compareBtnText}>Comparar con similares</Text>
-                        </TouchableOpacity>
-                      );
-                    }
-                    return null;
-                  })()}
+                  <View style={{ minHeight: 52, marginBottom: 16 }}>
+                    {loadingSimilares ? (
+                      <View style={[styles.compareBtn, { backgroundColor: '#E0E0E0' }]}>
+                        <ActivityIndicator size="small" color={COLORS.gray4} />
+                        <Text style={[styles.compareBtnText, { color: COLORS.gray4 }]}>Buscando similares...</Text>
+                      </View>
+                    ) : productosSimilares.length > 0 ? (
+                      <TouchableOpacity
+                        style={styles.compareBtn}
+                        onPress={() => onCompare([modalProd, ...productosSimilares.slice(0, 3)])}
+                      >
+                        <SvgIcon name="actualizar" size={16} color={COLORS.white} />
+                        <Text style={styles.compareBtnText}>Comparar con similares</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
 
                   {modalProd?.specs?.length > 0 && (
                     <View style={styles.specsWrap}>
@@ -509,7 +526,7 @@ const styles = StyleSheet.create({
   infoModelo: { fontFamily: FONTS.heading, fontSize: 18, color: '#0a2566', marginVertical: 4 },
   infoSubcat: { fontFamily: FONTS.body, fontSize: 11, fontWeight: 'bold', color: '#8a939c', textTransform: 'uppercase' },
   
-  compareBtn: { backgroundColor: COLORS.navy, padding: 12, borderRadius: 8, marginBottom: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  compareBtn: { backgroundColor: COLORS.navy, padding: 12, borderRadius: 8, height: 44, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
   compareBtnText: { color: COLORS.white, fontWeight: 'bold' },
   
   // Specs
