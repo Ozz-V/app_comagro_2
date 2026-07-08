@@ -11,7 +11,7 @@ import FilterHeader from '../components/FilterHeader';
 import SvgIcon from '../components/SvgIcon';
 import ProductDetailModal from '../components/ProductDetailModal';
 import CompareModal from '../components/CompareModal';
-import { COLORS } from '../theme';
+import { COLORS, FONTS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAiData } from '../hooks/useAiData';
