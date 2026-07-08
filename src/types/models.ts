@@ -26,7 +26,7 @@ export interface CalcProduct extends ParsedProduct {
   calcVal: number;
 }
 
-export interface CompareItem extends ParsedProduct {}
+export type CompareItem = ParsedProduct;
 
 export interface PumpWizardState {
   step: number;

@@ -56,12 +56,12 @@ export const findSimilarProducts = async (modalProd: ParsedProduct | null) => {
     } else {
       similares = baseList.filter((p) => p.modelo !== modalProd.modelo).slice(0, 8);
     }
-  } catch (e: unknown) {}
+  } catch {}
 
   try {
     const brandList = await searchProducts(modalProd.marca, 'Todas', '');
     mismaMarca = brandList.filter((p) => p.modelo !== modalProd.modelo).slice(0, 20);
-  } catch (e: unknown) {}
+  } catch {}
 
   return { similares, mismaMarca };
 };

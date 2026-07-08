@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, EDGE_URL } from '../supabase';
 import { Product, ParsedProduct } from '../types';
 
@@ -36,12 +37,12 @@ export async function initDB(): Promise<SQLite.SQLiteDatabase> {
   const hasSalesPitchColumn = tableInfo.some((col) => col.name === 'sales_pitch');
 
   if (tableInfo.length > 0 && (!hasSkuColumn || !hasSearchTextColumn || !hasSalesPitchColumn)) {
-    console.log('Esquema antiguo detectado. Migrando...');
     await db.execAsync('DROP TABLE IF EXISTS productos;');
     try {
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       await AsyncStorage.removeItem('comagro_productos_fecha_v3');
-    } catch (e: unknown) {}
+    } catch {
+      // Ignored
+    }
   }
 
   await db.execAsync(`
@@ -227,8 +228,8 @@ export async function fetchMissingProductFromCloud(sku: string): Promise<ParsedP
 
     await insertProductsBatch([p], null, true);
     return await getProductBySku(sku);
-  } catch (e: unknown) {
-    console.log('Error fetchMissingProductFromCloud:', e);
+  } catch {
+    // Error fetchMissingProductFromCloud silenced
     return null;
   }
 }

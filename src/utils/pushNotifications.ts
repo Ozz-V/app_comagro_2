@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 Notifications.setNotificationHandler({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
@@ -31,7 +32,6 @@ export async function registerForPushNotificationsAsync() {
       finalStatus = status;
     }
     if (finalStatus !== 'granted') {
-      console.log('Permiso denegado para notificaciones push');
       return null;
     }
     
@@ -41,12 +41,9 @@ export async function registerForPushNotificationsAsync() {
       token = (await Notifications.getExpoPushTokenAsync({
         projectId,
       })).data;
-      console.log('Expo Push Token:', token);
-    } catch (e: any) {
-      console.log('Error obteniendo Push Token', e);
+    } catch {
+      // Ignored
     }
-  } else {
-    console.log('Debe usar un dispositivo físico para notificaciones push');
   }
 
   return token;

@@ -138,6 +138,7 @@ export default function ProductDetailModal({
   }, [modalProd]);
 
   const compartirPdf = async () => {
+    if (!modalProd) return;
     try {
       setGenerandoPdf(true);
       await generateAndSharePdf(modalProd, pdfCache, logoRefreshKey);
@@ -151,6 +152,7 @@ export default function ProductDetailModal({
   };
 
   const compartirImagen = async () => {
+    if (!modalProd) return;
     try {
       setCompartiendo(true);
       const isAvailable = await Sharing.isAvailableAsync();

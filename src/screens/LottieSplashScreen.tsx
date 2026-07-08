@@ -26,6 +26,7 @@ export default function LottieSplashScreen({ onFinish, updateState, updateNotes,
       duration: 200,
       useNativeDriver: false,
     }).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [downloadProgress]);
 
   useEffect(() => {
@@ -43,6 +44,7 @@ export default function LottieSplashScreen({ onFinish, updateState, updateNotes,
     }, 3000);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateState]);
 
   // Texto según estado

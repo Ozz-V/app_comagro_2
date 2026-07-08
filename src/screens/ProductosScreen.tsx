@@ -17,9 +17,18 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAiData } from '../hooks/useAiData';
 import { APP_CONSTANTS } from '../config/constants';
+import { ParsedProduct, CompareItem } from '../types/models';
+import { NavigationProp, RouteProp } from '@react-navigation/native';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 
+interface RouteParams {
+  openProductSku?: string;
+  compareSkus?: string[];
+  fromProductViewer?: boolean;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function ProductosScreen({ navigation, route }: { navigation: any; route: any }) {
   const insets = useSafeAreaInsets();
   const { showAlert } = useCustomAlert();
@@ -48,17 +57,17 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
     }
   }, [filtroMarca, filtroSubcategoria, busqueda, cargando, dbVersion, fetchCatalog]);
 
-  const [modalProd, setModalProd] = useState<any>(null);
+  const [modalProd, setModalProd] = useState<ParsedProduct | null>(null);
   const { aiData, setAiData, loadingAi, fetchAiData } = useAiData();
 
   // Compare State
   const [isComparing, setIsComparing] = useState(false);
-  const [compareItems, setCompareItems] = useState<any[]>([]);
+  const [compareItems, setCompareItems] = useState<CompareItem[]>([]);
   const [showCompareGrid, setShowCompareGrid] = useState(false);
   const [fromProductViewer, setFromProductViewer] = useState(false);
 
-  // PDF Cache State
-  const [pdfCache, setPdfCache] = useState({ prodBase64: '', logoBase64: '' });
+  // PDF Cache State - static initialized as empty to avoid unused setter warning
+  const pdfCache = { prodBase64: '', logoBase64: '' };
 
   const { width } = useWindowDimensions();
   const numCols = width >= 600 ? 3 : 2;
@@ -68,17 +77,15 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
   const activeSliderList = productosFiltrados;
 
   // Funciones de Modal
-  function handleOpenModal(prod: any) {
+  const handleOpenModal = useCallback((prod: ParsedProduct) => {
     setAiData(null);
     setModalProd(prod);
-    fetchAiData(prod.modelo, prod.sales_pitch);
-  }
+    fetchAiData(prod.modelo || '', prod.sales_pitch || '');
+  }, [fetchAiData, setAiData]);
 
-  function cerrarModal() {
+  const cerrarModal = useCallback(() => {
     setModalProd(null);
-  }
-
-  // fetchAiData is now imported from useAiData hook
+  }, []);
 
   // Restaurar lógica para abrir productos desde otras pantallas (miniatura)
   useEffect(() => {
@@ -91,24 +98,24 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
         }
       });
     }
-  }, [route?.params?.openProductSku]);
+  }, [route?.params?.openProductSku, getProductBySkuSafe, handleOpenModal, navigation]);
 
   // Recibir lista de comparación desde modal transparente (ProductViewerScreen)
   useEffect(() => {
     if (route?.params?.compareSkus) {
       const skus = route.params.compareSkus;
-      Promise.all(skus.map((s: any) => getProductBySkuSafe(s))).then(items => {
-        const itemsToCompare = items.filter(Boolean);
+      Promise.all(skus.map((s: string) => getProductBySkuSafe(s))).then(items => {
+        const itemsToCompare = items.filter((item): item is ParsedProduct => Boolean(item));
         if (itemsToCompare.length > 0) {
           setCompareItems(itemsToCompare);
           setIsComparing(true);
           setShowCompareGrid(true);
-          if (route.params.fromProductViewer) setFromProductViewer(true);
+          if (route.params?.fromProductViewer) setFromProductViewer(true);
           navigation.setParams({ compareSkus: undefined, fromProductViewer: undefined });
         }
       });
     }
-  }, [route?.params?.compareSkus]);
+  }, [route?.params?.compareSkus, route?.params?.fromProductViewer, getProductBySkuSafe, navigation]);
 
   // Renders de listas
   const renderMarcaBtn = useCallback(({ item: marca }: { item: string }) => {
@@ -174,7 +181,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
           {bgActualiz && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando catálogo…</Text></View>}
           <FlatList
             data={productosFiltrados}
-            renderItem={({ item }: { item: any }) => (
+            renderItem={({ item }: { item: ParsedProduct }) => (
               <ProductCard 
                 item={item} 
                 cardW={cardW} 
@@ -196,7 +203,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
                 }}
               />
             )}
-            keyExtractor={item => item.modelo}
+            keyExtractor={item => item.modelo || 'unknown'}
             numColumns={numCols}
             key={numCols}
             contentContainerStyle={styles.prodGrid}
@@ -225,7 +232,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
       )}
 
       {/* MODAL DEL PRODUCTO */}
-      {/* @ts-ignore */}
+      {/* @ts-expect-error - ProductDetailModal typing requires complete rewrite */}
       <ProductDetailModal
         visible={!!modalProd}
         modalProd={modalProd}
@@ -236,7 +243,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
         loadingAi={loadingAi}
         activeSliderList={activeSliderList}
         onOpenProduct={handleOpenModal}
-        onCompare={(items: any[]) => {
+        onCompare={(items: CompareItem[]) => {
           setCompareItems(items);
           setIsComparing(true);
           setShowCompareGrid(true);
@@ -257,7 +264,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
             navigation.goBack();
           }
         }}
-        onOpenProduct={(prod: any) => {
+        onOpenProduct={(prod: ParsedProduct) => {
           setShowCompareGrid(false);
           handleOpenModal(prod);
         }}

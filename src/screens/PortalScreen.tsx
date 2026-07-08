@@ -7,33 +7,22 @@ import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 import CalculadoraModal from '../components/CalculadoraModal';
 import ProfileCompleteModal from '../components/ProfileCompleteModal';
-import Constants from 'expo-constants';
+import { ParsedProduct } from '../types/models';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
-  const [allProdsCache, setAllProdsCache] = useState<any[]>([]);
+  const [allProdsCache, setAllProdsCache] = useState<ParsedProduct[]>([]);
   
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profName, setProfName] = useState('');
   const [profPhoneInit, setProfPhoneInit] = useState('');
-  const [remoteConfig, setRemoteConfig] = useState<any>(null);
-
-  const versionCode = Constants.expoConfig?.android?.versionCode || 1;
 
   const isMounted = React.useRef(true);
   useEffect(() => {
     isMounted.current = true;
     return () => { isMounted.current = false; };
   }, []);
-
-  async function fetchRemoteConfig() {
-    try {
-      const { data } = await supabase.from('app_config').select('status, message').eq('id', 'global').single();
-      if (data && isMounted.current) {
-        setRemoteConfig(data);
-      }
-    } catch(e) {}
-  }
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -48,10 +37,10 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
       'Brand', 'Marca', 'marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
       'url_key', 'sales_pitch'
     ]);
-    return JSON.parse(rawData).map((row: any) => {
+    return JSON.parse(rawData).map((row: Record<string, unknown>) => {
       const marca = (row['Brand'] || row['Marca'] || row['marca'] || row['MARCA'] || '').toString().trim();
       const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim().toUpperCase();
-      const imagen = row['imagen 1'] || row['imagen'] || null;
+      const imagen = (row['imagen 1'] || row['imagen'] || null) as string | null;
       const specs = [];
       const basura = ['n/a', 'na', 'n.a', 'n.a.', 'no aplica', 'sin dato', 'sin datos',
         'no', 'no tiene', 'no disponible', 'pim', '-', '--', '---', 'st', 'sin información',
@@ -83,8 +72,8 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
             try {
               setAllProdsCache(parseRawProducts(res));
               parsed = true;
-            } catch (e) {
-              console.log('Error parseando @productos_cache', e);
+            } catch {
+              // error silenced
             }
           }
           if (!parsed) {
@@ -93,11 +82,11 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
               setAllProdsCache(parseRawProducts(res2));
             }
           }
-        } catch (e) {}
+        } catch {}
       };
       loadCache();
     }
-  }, [showCalcModal]);
+  }, [showCalcModal, allProdsCache.length]);
 
   async function checkProfile() {
     try {
@@ -113,7 +102,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
       } else {
         setProfName(data.full_name);
       }
-    } catch (e) {}
+    } catch {}
   }
 
   async function syncAnalyticsQueue() {
@@ -130,13 +119,12 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
       if (!error) {
         await AsyncStorage.removeItem('@analytics_queue');
       }
-    } catch (e) {}
+    } catch {}
   }
 
   useEffect(() => {
     syncAnalyticsQueue();
     checkProfile();
-    fetchRemoteConfig();
   }, []);
 
   return (
@@ -206,7 +194,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         </View>
       </ScrollView>
 
-      {/* @ts-ignore */}
       <CalculadoraModal 
         visible={showCalcModal} 
         onClose={() => setShowCalcModal(false)} 
