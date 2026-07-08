@@ -3,14 +3,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, EDGE_URL } from '../supabase';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { initDB, searchProducts, getUniqueBrands, getProductBySku, insertProductsBatch } from '../utils/database';
+import { ParsedProduct } from '../types';
 
 const CACHE_TIME_KEY = 'comagro_productos_fecha_v3';
 const HORAS_VIGENCIA = 24;
 
 export function useProducts() {
   const { manifest, isOnline } = useOfflineSync();
-  const [productosFiltrados, setProductosFiltrados] = useState<any[]>([]);
-  const [marcas, setMarcas] = useState<any[]>([]);
+  const [productosFiltrados, setProductosFiltrados] = useState<ParsedProduct[]>([]);
+  const [marcas, setMarcas] = useState<string[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [bgActualiz, setBgActualiz] = useState(false);
@@ -27,7 +28,7 @@ export function useProducts() {
     try {
       const savedKey = await AsyncStorage.getItem('@logo_refresh_key');
       if (savedKey) setLogoRefreshKey(savedKey);
-    } catch(e: any) {}
+    } catch(e: unknown) {}
   }
 
   // Nueva función limpia para realizar búsquedas sin cierres de estado (stale closures)
@@ -37,7 +38,7 @@ export function useProducts() {
       setProductosFiltrados(resultados);
       const m = await getUniqueBrands();
       setMarcas(m);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.log('Error buscando en DB', String(e));
     }
   }, []);
@@ -47,7 +48,7 @@ export function useProducts() {
     try {
       try {
         await initDB();
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.log('initDB falló (posiblemente ya inicializado o ocupado)', e);
       }
       
@@ -64,7 +65,7 @@ export function useProducts() {
         setBgActualiz(true);
         sincronizarFondo(fechaCache);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Error iniciando base de datos');
     } finally {
       setCargando(false);
@@ -101,7 +102,7 @@ export function useProducts() {
         setLogoRefreshKey(newKey);
         AsyncStorage.setItem('@logo_refresh_key', newKey).catch(()=>{});
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.log('Fallo bgActualiz', e);
     } finally {
       setBgActualiz(false);
@@ -116,7 +117,7 @@ export function useProducts() {
   async function getProductBySkuSafe(sku: string) {
     try {
       return await getProductBySku(sku);
-    } catch (e: any) {
+    } catch (e: unknown) {
       return null;
     }
   }

@@ -13,33 +13,44 @@ import StatCard from './StatCard';
 import DirectoryModal from './DirectoryModal';
 import UserProfileModal from './UserProfileModal';
 import { APP_CONSTANTS } from '../config/constants';
+import { AnalyticsRankItem } from '../types';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 const CACHE_KEY = 'comagro_productos_v3';
 
-function getPeriodDate(p: string) {
+interface DashboardData {
+  views: number;
+  shares: number;
+  topV: AnalyticsRankItem[];
+  topSh: AnalyticsRankItem[];
+  topSe?: AnalyticsRankItem[];
+  brands?: AnalyticsRankItem[];
+  users?: (AnalyticsRankItem & { user_email: string })[];
+}
+
+function getPeriodDate(p: string): string | null {
   if (p === '7d') return new Date(Date.now() - 7 * 86400000).toISOString();
   if (p === '30d') return new Date(Date.now() - 30 * 86400000).toISOString();
   return null;
 }
-function getPrevPeriodDate(p: string) {
+function getPrevPeriodDate(p: string): string | null {
   if (p === '7d') return new Date(Date.now() - 14 * 86400000).toISOString();
   if (p === '30d') return new Date(Date.now() - 60 * 86400000).toISOString();
   return null;
 }
 
-function countByKey(items: any[], keyFn: (i: any) => any, limit: number) {
-  const m: any = {};
+function countByKey<T>(items: T[], keyFn: (i: T) => string | undefined | null, limit: number): AnalyticsRankItem[] {
+  const m: Record<string, AnalyticsRankItem & T> = {};
   items.forEach(i => {
     const k = keyFn(i);
     if (!k) return;
     if (!m[k]) m[k] = { ...i, count: 0 };
     m[k].count++;
   });
-  return Object.values(m).sort((a: any, b: any) => b.count - a.count).slice(0, limit);
+  return Object.values(m).sort((a, b) => b.count - a.count).slice(0, limit);
 }
 
-function getTrend(cur: number, prev: number) {
+function getTrend(cur: number, prev: number): string {
   if (prev === 0) return cur > 0 ? '↑' : '';
   const ch = ((cur - prev) / prev) * 100;
   if (ch > 5) return `↑${Math.round(ch)}%`;
@@ -50,19 +61,19 @@ function getTrend(cur: number, prev: number) {
 function ProgressBar({ value, max, color }: { value: number, max: number, color: string }) {
   const w = max > 0 ? Math.max(8, (value / max) * 100) : 0;
   return (
-    <View style={{ flex: 1, height: 6, backgroundColor: '#E8ECF0', borderRadius: 3, marginHorizontal: 8 }}>
-      <View style={{ width: `${w}%`, height: 6, backgroundColor: color, borderRadius: 3 }} />
+    <View style={s.progressBarTrack}>
+      <View style={[s.progressBarFill, { width: `${w}%`, backgroundColor: color }]} />
     </View>
   );
 }
 
-function RankItem({ item, maxCount, color, imageMap, navigation }: { item: any, maxCount: number, color: string, imageMap: any, navigation: any }) {
-  const imgUrl = imageMap[item.sku || item.modelo] || null;
+function RankItem({ item, maxCount, color, imageMap, navigation }: { item: AnalyticsRankItem, maxCount: number, color: string, imageMap: Record<string, string>, navigation: any }) {
+  const modelOrSku = item.modelo || item.marca || ''; // fallback
+  const imgUrl = imageMap[modelOrSku] || null;
   const [sessionKey] = useState(() => Date.now().toString());
   const logoUrl = `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg?v=${sessionKey}`;
-  const handleProductPress = (item: any) => {
-    // Si no está en el mapa, ProductViewer lo cargará en la nube on-the-fly
-    navigation.navigate('ProductViewer', { sku: item.sku || item.modelo });
+  const handleProductPress = (it: AnalyticsRankItem) => {
+    navigation.navigate('ProductViewer', { sku: it.modelo || it.marca });
   };
   return (
     <TouchableOpacity 
@@ -71,7 +82,7 @@ function RankItem({ item, maxCount, color, imageMap, navigation }: { item: any, 
       onPress={() => handleProductPress(item)}
     >
       <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" />
-      <View style={{ flex: 1 }}>
+      <View style={s.rankItemTextContainer}>
         <Text style={s.rankModelo} numberOfLines={1}>{item.modelo}</Text>
         <Text style={s.rankMarca}>{item.marca}</Text>
         <ProgressBar value={item.count} max={maxCount} color={color} />
@@ -81,23 +92,23 @@ function RankItem({ item, maxCount, color, imageMap, navigation }: { item: any, 
   );
 }
 
-function CollapsibleSection({ title, color, iconName, defaultExpanded = false, children }: { title: string, color: string, iconName: string, defaultExpanded?: boolean, children: any }) {
+function CollapsibleSection({ title, color, iconName, defaultExpanded = false, children }: { title: string, color: string, iconName: string, defaultExpanded?: boolean, children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   return (
     <View style={s.section}>
-      <TouchableOpacity style={[s.sectionTitleRow, {justifyContent: 'space-between', paddingVertical: 4}]} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
-        <View style={{flexDirection:'row', alignItems:'center'}}>
+      <TouchableOpacity style={s.sectionTitleRow} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
+        <View style={s.sectionTitleLeft}>
            <SvgIcon name={iconName} size={16} color={color} />
-           <Text style={[s.sectionTitle, { marginLeft: 6 }]}>{title}</Text>
+           <Text style={s.sectionTitleText}>{title}</Text>
         </View>
-        <Text style={{color: COLORS.gray4, fontSize: 16}}>{expanded ? '▲' : '▼'}</Text>
+        <Text style={s.sectionArrowIcon}>{expanded ? '▲' : '▼'}</Text>
       </TouchableOpacity>
       {expanded && children}
     </View>
   );
 }
 
-function RankSection({ title, items, color, imageMap, iconName, navigation, defaultExpanded = false }: { title: string, items: any[], color: string, imageMap: any, iconName: string, navigation: any, defaultExpanded?: boolean }) {
+function RankSection({ title, items, color, imageMap, iconName, navigation, defaultExpanded = false }: { title: string, items: AnalyticsRankItem[], color: string, imageMap: Record<string, string>, iconName: string, navigation: any, defaultExpanded?: boolean }) {
   if (!items || items.length === 0) return (
     <CollapsibleSection title={title} color={color} iconName={iconName} defaultExpanded={defaultExpanded}>
       <Text style={s.empty}>Sin datos aún</Text>
@@ -116,8 +127,8 @@ function BrandBar({ marca, count, maxCount }: { marca: string, count: number, ma
   return (
     <View style={s.brandRow}>
       <Text style={s.brandName} numberOfLines={1}>{marca}</Text>
-      <View style={{ flex: 1, height: 8, backgroundColor: '#E8ECF0', borderRadius: 4, marginHorizontal: 8 }}>
-        <View style={{ width: `${w}%`, height: 8, backgroundColor: COLORS.navy, borderRadius: 4 }} />
+      <View style={s.brandProgressBarTrack}>
+        <View style={[s.brandProgressBarFill, { width: `${w}%` }]} />
       </View>
       <Text style={s.brandCount}>{count}</Text>
     </View>
@@ -130,8 +141,8 @@ function UserBar({ email, count, maxCount, onUserClick }: { email: string, count
   return (
     <TouchableOpacity style={s.brandRow} activeOpacity={0.7} onPress={() => onUserClick && onUserClick(email)}>
       <Text style={s.brandName} numberOfLines={1}>{short}</Text>
-      <View style={{ flex: 1, height: 8, backgroundColor: '#E8ECF0', borderRadius: 4, marginHorizontal: 8 }}>
-        <View style={{ width: `${w}%`, height: 8, backgroundColor: COLORS.celeste, borderRadius: 4 }} />
+      <View style={s.brandProgressBarTrack}>
+        <View style={[s.userProgressBarFill, { width: `${w}%` }]} />
       </View>
       <Text style={s.brandCount}>{count}</Text>
     </TouchableOpacity>
@@ -144,16 +155,16 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
   const [loading, setLoading] = useState(true);
   const { showToast } = useCustomAlert();
   const { isOnline } = useOfflineSync();
-  const [imageMap, setImageMap] = useState<any>({});
-  const [myData, setMyData] = useState<any>({ views: 0, shares: 0, topV: [], topSh: [] });
-  const [globalData, setGlobalData] = useState<any>({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
+  const [imageMap, setImageMap] = useState<Record<string, string>>({});
+  const [myData, setMyData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [] });
+  const [globalData, setGlobalData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
 
   const [showUserModal, setShowUserModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedUser, setSelectedUser] = useState<Record<string, unknown> | null>(null);
   const [loadingUser, setLoadingUser] = useState(false);
 
   const [showDirectoryModal, setShowDirectoryModal] = useState(false);
-  const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
+  const [directoryUsers, setDirectoryUsers] = useState<Record<string, unknown>[]>([]);
   const [loadingDirectory, setLoadingDirectory] = useState(false);
 
   const isMounted = React.useRef(true);
@@ -176,7 +187,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
         if (isMounted.current) setDirectoryUsers(valid);
         await AsyncStorage.setItem('@directory_cache', JSON.stringify(valid));
       }
-    } catch(e: any) {
+    } catch(e: unknown) {
       console.log('Error directory background', e);
     }
   }
@@ -223,7 +234,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
           stats: { views: v, shares: sh }
         });
       }
-    } catch(e: any) {
+    } catch(e: unknown) {
       console.log('Error cargando usuario', e);
     } finally {
       if (isMounted.current) setLoadingUser(false);
@@ -234,7 +245,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
     try {
       const { getAllProducts } = require('../utils/database');
       const rows = await getAllProducts();
-      const m: any = {};
+      const m: Record<string, string> = {};
       rows.forEach((r: any) => {
         const sku = r.modelo;
         // imagenOriginal tiene la URL directa del servidor (sin manifest local)
@@ -242,7 +253,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
         if (sku && img) m[sku] = img;
       });
       if (isMounted.current) setImageMap(m);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.log('Error loadImages DB:', e);
     }
   }
@@ -269,7 +280,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       
       if (qStr && user) {
          const queue = JSON.parse(qStr);
-         const mergeQueue = (data: any, isGlobal: boolean) => {
+         const mergeQueue = (data: DashboardData | null, isGlobal: boolean): DashboardData | null => {
             if (!data) return data;
             const res = { ...data };
             res.topV = [...(res.topV || [])];
@@ -279,7 +290,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
             queue.forEach((item: any) => {
                if (!isGlobal && item.user_email !== user.email) return;
                
-               const addTop = (list: any[], it: any) => {
+               const addTop = (list: AnalyticsRankItem[], it: any) => {
                   const ex = list.find(x => (x.sku || x.modelo) === (it.sku || it.modelo));
                   if (ex) ex.count = (ex.count || 0) + 1;
                   else list.push({ ...it, count: 1 });
@@ -289,15 +300,15 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
                else if (item.action.startsWith('share')) { res.shares++; addTop(res.topSh, item); }
             });
             
-            res.topV.sort((a: any,b: any) => b.count - a.count);
-            res.topSh.sort((a: any,b: any) => b.count - a.count);
+            res.topV.sort((a,b) => b.count - a.count);
+            res.topSh.sort((a,b) => b.count - a.count);
             return res;
          };
          
-         if (parsedMyData && isMounted.current) setMyData(mergeQueue(parsedMyData, false));
-         if (parsedGlobalData && isMounted.current) setGlobalData(mergeQueue(parsedGlobalData, true));
+         if (parsedMyData && isMounted.current) setMyData(mergeQueue(parsedMyData, false) as DashboardData);
+         if (parsedGlobalData && isMounted.current) setGlobalData(mergeQueue(parsedGlobalData, true) as DashboardData);
       }
-    } catch (_: any) {}
+    } catch (_: unknown) {}
 
     if (!isOnline) {
       if (isMounted.current) setLoading(false);
@@ -328,7 +339,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       const my = all.filter(d => d.user_email === user.email);
       const myPrev = prev.filter(d => d.user_email === user.email);
 
-      const process = (items: any[], limit: number): any => {
+      const process = (items: any[], limit: number): DashboardData => {
         const views = items.filter(d => d.action === 'view');
         const shares = items.filter(d => d.action === 'share_pdf' || d.action === 'share_image');
         return {
@@ -345,7 +356,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       if (period === 'all' && isOnline) {
         const { data: rpcData } = await supabase.rpc('get_analytics_summary');
         if (rpcData) {
-          const gdRpc = {
+          const gdRpc: DashboardData = {
             views: rpcData.total_views || 0,
             shares: rpcData.total_shares || 0,
             topV: rpcData.top_viewed || [],
@@ -359,18 +370,18 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
           // Fallback
           const gd = process(all, 10);
           gd.brands = countByKey(all, i => i.marca, 8);
-          gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, modelo: u.user_email }));
+          gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
           if (isMounted.current) setGlobalData(gd);
           AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gd));
         }
       } else {
         const gd = process(all, 10);
         gd.brands = countByKey(all, i => i.marca, 8);
-        gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, modelo: u.user_email }));
+        gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
         if (isMounted.current) setGlobalData(gd);
         AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.log('Dashboard error:', e);
     } finally {
       if (isMounted.current) setLoading(false);
@@ -439,10 +450,10 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
           </div>
           
           <div class="grid">
-            ${d.topV.length > 0 ? `<div class="card"><div class="card-title" style="color: #1a2530;">Top Productos Vistos</div>${renderBars(d.topV, maxV, '#1a2530')}</div>` : ''}
-            ${d.topSh.length > 0 ? `<div class="card"><div class="card-title" style="color: #0D8A39;">Top Productos Compartidos</div>${renderBars(d.topSh, maxSh, '#0D8A39')}</div>` : ''}
-            ${tab === 'general' && d.brands?.length > 0 ? `<div class="card"><div class="card-title" style="color: #1a2530;">Marcas Más Consultadas</div>${renderBars(d.brands, d.brands[0]?.count || 1, '#1a2530')}</div>` : ''}
-            ${tab === 'general' && d.users?.length > 0 ? `<div class="card"><div class="card-title" style="color: #1a2530;">Usuarios Más Activos</div>${renderBars(d.users, d.users[0]?.count || 1, '#1a2530')}</div>` : ''}
+            ${d.topV.length > 0 ? '<div class="card"><div class="card-title" style="color: #1a2530;">Top Productos Vistos</div>' + renderBars(d.topV, maxV, '#1a2530') + '</div>' : ''}
+            ${d.topSh.length > 0 ? '<div class="card"><div class="card-title" style="color: #0D8A39;">Top Productos Compartidos</div>' + renderBars(d.topSh, maxSh, '#0D8A39') + '</div>' : ''}
+            ${tab === 'general' && d.brands && d.brands.length > 0 ? '<div class="card"><div class="card-title" style="color: #1a2530;">Marcas Más Consultadas</div>' + renderBars(d.brands, d.brands[0]?.count || 1, '#1a2530') + '</div>' : ''}
+            ${tab === 'general' && d.users && d.users.length > 0 ? '<div class="card"><div class="card-title" style="color: #1a2530;">Usuarios Más Activos</div>' + renderBars(d.users, d.users[0]?.count || 1, '#1a2530') + '</div>' : ''}
           </div>
         </body>
         </html>
@@ -455,7 +466,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       } else {
          showToast('Compartir no disponible en este dispositivo.');
       }
-    } catch(e: any) {
+    } catch(e: unknown) {
       showToast('Error generando PDF.');
       console.log('Error PDF', e);
     } finally {
@@ -478,15 +489,15 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
 
       <View style={s.periodRow}>
         {tab === 'general' && (
-          <TouchableOpacity onPress={generatePdfReport} style={[s.periodBtn, {marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.navy, opacity: loading ? 0.5 : 1}]} disabled={loading}>
+          <TouchableOpacity onPress={generatePdfReport} style={[s.periodBtn, s.generateReportBtn, { opacity: loading ? 0.5 : 1 }]} disabled={loading}>
             <SvgIcon name="upload" size={14} color={COLORS.white} />
-            <Text style={[s.periodText, {color: COLORS.white, marginLeft: 6, fontWeight: 'bold'}]}>Reporte</Text>
+            <Text style={s.generateReportText}>Reporte</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={COLORS.navy} style={{ marginTop: 30, marginBottom: 30 }} />
+        <ActivityIndicator size="large" color={COLORS.navy} style={s.loader} />
       ) : (
         <>
           <View style={s.statsRow}>
@@ -497,18 +508,18 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
           <RankSection title="Productos más vistos" items={data.topV} color={COLORS.navy} imageMap={imageMap} iconName="ojo" navigation={navigation} defaultExpanded={true} />
           <RankSection title="Productos más compartidos" items={data.topSh} color={COLORS.green} imageMap={imageMap} iconName="upload" navigation={navigation} defaultExpanded={false} />
 
-          {tab === 'general' && globalData.brands.length > 0 && (
+          {tab === 'general' && data.brands && data.brands.length > 0 && (
             <CollapsibleSection title="Marcas más consultadas" color={COLORS.navy} iconName="chart" defaultExpanded={false}>
-              {globalData.brands.map((b: any, i: number) => <BrandBar key={i} marca={b.marca} count={b.count} maxCount={globalData.brands[0]?.count || 1} />)}
+              {data.brands.map((b: AnalyticsRankItem, i: number) => <BrandBar key={i} marca={b.marca || ''} count={b.count} maxCount={data.brands?.[0]?.count || 1} />)}
             </CollapsibleSection>
           )}
 
-          {tab === 'general' && globalData.users.length > 0 && (
+          {tab === 'general' && data.users && data.users.length > 0 && (
             <CollapsibleSection title="Usuarios más activos" color={COLORS.navy} iconName="usuarios" defaultExpanded={false}>
-              {globalData.users.map((u: any, i: number) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={globalData.users[0]?.count || 1} onUserClick={handleUserClick} />)}
+              {data.users.map((u: any, i: number) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={data.users?.[0]?.count || 1} onUserClick={handleUserClick} />)}
               
-              <TouchableOpacity style={{ marginTop: 15, padding: 12, backgroundColor: '#F0F4F8', borderRadius: 8, alignItems: 'center' }} onPress={() => setShowDirectoryModal(true)}>
-                <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy }}>Ver directorio completo de usuarios</Text>
+              <TouchableOpacity style={s.directoryBtn} onPress={() => setShowDirectoryModal(true)}>
+                <Text style={s.directoryBtnText}>Ver directorio completo de usuarios</Text>
               </TouchableOpacity>
             </CollapsibleSection>
           )}
@@ -544,18 +555,31 @@ const s = StyleSheet.create({
   periodActive: { backgroundColor: COLORS.navy },
   periodText: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4 },
   periodTextActive: { color: COLORS.white, fontWeight: '700' },
+  generateReportBtn: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.navy },
+  generateReportText: { color: COLORS.white, marginLeft: 6, fontWeight: 'bold' },
+  loader: { marginTop: 30, marginBottom: 30 },
   shareBtn: { marginLeft: 'auto', padding: 6 },
   statsRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   section: { marginBottom: 20 },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  sectionTitle: { fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, marginBottom: 10 },
+  sectionTitleLeft: { flexDirection: 'row', alignItems: 'center' },
+  sectionTitleText: { fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, marginLeft: 6 },
+  sectionArrowIcon: { color: COLORS.gray4, fontSize: 16 },
   empty: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, fontStyle: 'italic' },
   rankItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F7F8FA', borderRadius: 8, padding: 8, marginBottom: 5 },
   rankImg: { width: 40, height: 40, borderRadius: 6, backgroundColor: '#fff', marginRight: 8 },
+  rankItemTextContainer: { flex: 1 },
   rankModelo: { fontFamily: FONTS.heading, fontSize: 13, fontWeight: '600', color: COLORS.navy },
   rankMarca: { fontFamily: FONTS.body, fontSize: 10, color: COLORS.gray4 },
   rankCount: { fontFamily: FONTS.heading, fontSize: 14, fontWeight: '700', minWidth: 28, textAlign: 'right' },
   brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, paddingVertical: 4 },
   brandName: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.navy, width: 80 },
   brandCount: { fontFamily: FONTS.heading, fontSize: 13, fontWeight: '700', color: COLORS.navy, minWidth: 28, textAlign: 'right' },
+  progressBarTrack: { flex: 1, height: 6, backgroundColor: '#E8ECF0', borderRadius: 3, marginHorizontal: 8 },
+  progressBarFill: { height: 6, borderRadius: 3 },
+  brandProgressBarTrack: { flex: 1, height: 8, backgroundColor: '#E8ECF0', borderRadius: 4, marginHorizontal: 8 },
+  brandProgressBarFill: { height: 8, backgroundColor: COLORS.navy, borderRadius: 4 },
+  userProgressBarFill: { height: 8, backgroundColor: COLORS.celeste, borderRadius: 4 },
+  directoryBtn: { marginTop: 15, padding: 12, backgroundColor: '#F0F4F8', borderRadius: 8, alignItems: 'center' },
+  directoryBtnText: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy }
 });
