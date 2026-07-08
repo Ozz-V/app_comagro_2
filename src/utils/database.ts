@@ -73,6 +73,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       await db.execAsync('DELETE FROM productos;');
     }
 
+    let count = 0;
     for (const p of productosArray) {
       const pSku = p.SKU || p.sku;
       if (!pSku) continue;
@@ -84,8 +85,6 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const imagen = (manifest && manifest[sku + '.jpg']) || imagenOriginal;
 
       const specs: [string, string][] = [];
-      // Solo excluimos columnas estructurales de la BD y sales_pitch.
-      // El resto lo controla el usuario desde Plytix.
       const colsExcluidas = new Set([
         'SKU', 'imagen 1', 'imagen 2', 'imagen 3', 'imagen 4', 'imagen 5',
         'Brand', 'Marca', 'marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
@@ -100,7 +99,6 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         if (!colsExcluidas.has(col) && !col.startsWith('_')) {
           const s = String(val).trim();
           const sLower = s.toLowerCase();
-          // Excluir vacíos, valores cero, y textos basura
           if (s.length > 0 && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
             specs.push([col, s]);
           }
@@ -115,6 +113,12 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, specs_json, search_text, sales_pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [sku, marca, subcategoria, imagen, imagenOriginal, specsJson, searchText, salesPitch]
       );
+
+      // Yield al hilo principal para evitar congelamiento de la interfaz (Anti-Jank)
+      count++;
+      if (count % 50 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
   });
 }

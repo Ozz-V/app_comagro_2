@@ -273,7 +273,12 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
               const safeSignedUrl = data.signedUrl.replace(/ /g, '%20');
               const res = await FileSystem.createDownloadResumable(safeSignedUrl, localUri, {}).downloadAsync();
               if (res && res.uri) {
-                currentManifest[key] = localUri;
+                const info = await FileSystem.getInfoAsync(res.uri);
+                if (info.exists && info.size > 0) {
+                  currentManifest[key] = localUri;
+                } else {
+                  await FileSystem.deleteAsync(res.uri, { idempotent: true });
+                }
               }
             }
           }
@@ -297,6 +302,7 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
         setProgress(prev => ({ ...prev, currentItem: 'Optimizando base de datos...' }));
         await initDB();
         await insertProductsBatch(fetchedProducts, currentManifest);
+        fetchedProducts = null; // GARBAGE COLLECTION para evitar OutOfMemory crash
         await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
       }
 
