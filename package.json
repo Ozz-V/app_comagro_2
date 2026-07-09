@@ -31,7 +31,7 @@
     "expo-image": "~3.0.11",
     "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "~17.0.11",
-    "expo-intent-launcher": "~13.0.8",
+    "expo-intent-launcher": "~57.0.0",
     "expo-linking": "~8.0.12",
     "expo-network-security-config": "^1.1.2",
     "expo-notifications": "~0.32.17",
