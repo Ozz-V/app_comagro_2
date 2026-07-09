@@ -57,7 +57,7 @@ export default function ProductDetailModal({
   onOpenProduct
 }: ProductDetailModalProps) {
   const insets = useSafeAreaInsets();
-  const { height: screenHeight } = useWindowDimensions();
+  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const { showAlert, showToast } = useCustomAlert();
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [generandoPdf, setGenerandoPdf] = useState(false);
@@ -66,6 +66,7 @@ export default function ProductDetailModal({
   const [productosMismaMarca, setProductosMismaMarca] = useState<ParsedProduct[]>([]);
   const [loadingSimilares, setLoadingSimilares] = useState(true);
   const [compartiendo, setCompartiendo] = useState(false);
+  const [contentReady, setContentReady] = useState(false);
   
   // Anti-Flicker: Derived State Pattern
   const [prevModelo, setPrevModelo] = useState(modalProd?.modelo);
@@ -85,6 +86,22 @@ export default function ProductDetailModal({
     isMounted.current = true;
     return () => { isMounted.current = false; };
   }, []);
+  useEffect(() => {
+    if (!visible) setContentReady(false);
+  }, [visible]);
+  useEffect(() => {
+    if (visible) {
+      const t = setTimeout(() => setContentReady(true), 600);
+      return () => clearTimeout(t);
+    }
+  }, [visible]);
+
+  const handleProbeLayout = (e: any) => {
+    const w = e.nativeEvent.layout.width;
+    if (Math.abs(w - screenWidth) < 2) {
+      setContentReady(true);
+    }
+  };
 
   async function logProductAction(action: string) {
     if (!modalProd) return;
@@ -235,6 +252,10 @@ export default function ProductDetailModal({
     >
       <Reanimated.View style={styles.modalOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
         
+        {!contentReady && (
+          <View style={StyleSheet.absoluteFill} onLayout={handleProbeLayout} pointerEvents="none" />
+        )}
+
         <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', zIndex: 999 }]} pointerEvents="box-none">
           {prevProd && (
             <TouchableOpacity onPress={() => onOpenProduct(prevProd)} style={styles.navBtnLeft}>
@@ -249,9 +270,10 @@ export default function ProductDetailModal({
           )}
         </View>
 
+        {contentReady && (
         <Reanimated.View 
           style={[styles.modalDialog, { paddingBottom: insets.bottom || 15, maxHeight: screenHeight * 0.92 }]}
-          entering={SlideInDown.duration(400).springify().damping(16)}
+          entering={SlideInDown.duration(400).springify().damping(18)}
           exiting={SlideOutDown.duration(200)}
         >
           <View style={styles.modalHead}>
@@ -456,6 +478,7 @@ export default function ProductDetailModal({
             <View style={{ height: 40 }} />
           </ScrollView>
         </Reanimated.View>
+        )}
 
         {/* WEBVIEW OCULTO PARA EXPORTAR PNG A4 */}
         {htmlForImage && (
