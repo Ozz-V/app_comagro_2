@@ -225,7 +225,14 @@ export default function ProductDetailModal({
   if (!modalProd) return null;
 
   return (
-    <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="none"
+      transparent
+      onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent
+    >
       <Reanimated.View style={styles.modalOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
         
         <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', zIndex: 999 }]} pointerEvents="box-none">
