@@ -70,7 +70,9 @@ jobs:
           
           for try in 1 2 3 4; do
             echo "Installing $TARGET_NDK (attempt $try)..."
-            yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" "$TARGET_NDK" && break
+            # Accept licenses safely without pipefail causing yes to crash the script
+            yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+            "$SDKMANAGER" --sdk_root="$SDK_ROOT" "$TARGET_NDK" && break
             echo "Install failed, cleaning partial install and retrying..."
             rm -rf "$SDK_ROOT/ndk/27.1.12297006"
             rm -rf "$SDK_ROOT/.tmp" || true
