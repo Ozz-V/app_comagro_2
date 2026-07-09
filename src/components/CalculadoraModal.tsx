@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, SafeAreaView } from 'react-native';
 import { Image } from 'expo-image';
+import Animated from 'react-native-reanimated';
 import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
 import { getProductsBySubcategory } from '../utils/database';
 import { ParsedProduct, CalcProduct, PumpWizardState, SpecTuple } from '../types';
 
+const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
+
 interface CalculadoraModalProps {
-  visible: boolean;
-  onClose: () => void;
-  navigation: any; // React Navigation type is complex to infer without knowing the stack param list, leaving as 'any' or defining a loose type. Let's use `any` for nav for now, or `unknown` is better, but typical React Navigation allows `any`. Let's just use `any` for navigation since we don't have the exact StackNav types here. Wait, we are eradicating any. I'll use `Record<string, unknown>` or a loose interface.
-  allProdsCache?: ParsedProduct[];
+  navigation: any;
 }
 
-export default function CalculadoraModal({ visible, onClose, navigation, allProdsCache }: CalculadoraModalProps) {
+export default function CalculadoraModal({ navigation }: CalculadoraModalProps) {
   const [calcMode, setCalcMode] = useState('');
   const [calcInput, setCalcInput] = useState('');
   const [calcInput2, setCalcInput2] = useState('');
@@ -22,15 +22,16 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
   const [hasCalculated, setHasCalculated] = useState(false);
 
   useEffect(() => {
-    if (!visible) {
+    // Reset state on unmount
+    return () => {
       setHasCalculated(false);
       setCalcResult(null);
       setCalcInput('');
       setCalcInput2('');
       setCalcMode('');
       setPumpWizard({ step: 0, type: '', appType: '', waterType: '', params: {} });
-    }
-  }, [visible]);
+    };
+  }, []);
 
   function extractNum(val: string | null | undefined): number | null {
     if (!val || typeof val !== 'string') return null;
@@ -146,7 +147,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <SafeAreaView style={styles.modalOverlay}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
         style={styles.keyboardView}
@@ -161,7 +162,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                 setCalcResult(null);
                 setPumpWizard({ step: 0, type: '', appType: '', waterType: '', params: {} });
               } else {
-                onClose();
+                navigation.goBack();
               }
             }}>
               <Text style={styles.closeBtn}>✕</Text>
@@ -349,7 +350,12 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                           }}
                         >
                           {item.imagen ? (
-                            <Image source={{ uri: item.imagen }} style={styles.suggestedImg} contentFit="contain" />
+                            <AnimatedExpoImage 
+                              source={{ uri: item.imagen }} 
+                              style={styles.suggestedImg} 
+                              contentFit="contain"
+                              sharedTransitionTag={`product-${item.modelo}`}
+                            />
                           ) : (
                             <View style={styles.suggestedImgPlaceholder} />
                           )}
@@ -371,11 +377,16 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
-    </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'flex-end',
+  },
   keyboardView: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

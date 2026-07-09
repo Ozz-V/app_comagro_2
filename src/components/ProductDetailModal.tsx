@@ -8,9 +8,12 @@ import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { captureRef } from 'react-native-view-shot';
 import { Image } from 'expo-image';
+import Animated from 'react-native-reanimated';
 import * as FileSystem from 'expo-file-system/legacy';
 import SvgIcon from './SvgIcon';
 import { COLORS, FONTS } from '../theme';
+
+const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generarHtmlFicha, fetchImageBase64, generateAndSharePdf } from '../utils/pdfService';
@@ -234,7 +237,6 @@ export default function ProductDetailModal({
   if (!modalProd) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         
         {prevProd && (
@@ -300,7 +302,7 @@ export default function ProductDetailModal({
 
                   <View style={styles.productBox}>
                     <View style={styles.productImgContainer}>
-                      <Image source={{ uri: modalProd?.imagen }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
+                      <AnimatedExpoImage source={{ uri: modalProd?.imagen }} style={{ width: '100%', height: '100%' }} contentFit="contain" sharedTransitionTag={`product-${modalProd.modelo}`} />
                     </View>
                     <View style={styles.productInfoContainer}>
                       <View style={styles.productInfoGreenBar} />
@@ -465,7 +467,6 @@ export default function ProductDetailModal({
           </View>
         )}
       </View>
-    </Modal>
   );
 }
 

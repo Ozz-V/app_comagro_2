@@ -11,8 +11,6 @@ import { ParsedProduct } from '../types/models';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function PortalScreen({ navigation }: { navigation: any }) {
-  const [showCalcModal, setShowCalcModal] = useState(false);
-  const [allProdsCache, setAllProdsCache] = useState<ParsedProduct[]>([]);
   
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profName, setProfName] = useState('');
@@ -62,31 +60,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     });
   };
 
-  useEffect(() => {
-    if (showCalcModal && allProdsCache.length === 0) {
-      const loadCache = async () => {
-        try {
-          const res = await AsyncStorage.getItem('@productos_cache');
-          let parsed = false;
-          if (res) {
-            try {
-              setAllProdsCache(parseRawProducts(res));
-              parsed = true;
-            } catch {
-              // error silenced
-            }
-          }
-          if (!parsed) {
-            const res2 = await AsyncStorage.getItem('comagro_productos_v3');
-            if (res2) {
-              setAllProdsCache(parseRawProducts(res2));
-            }
-          }
-        } catch {}
-      };
-      loadCache();
-    }
-  }, [showCalcModal, allProdsCache.length]);
+  // allProdsCache logic removed because CalculadoraScreen manages its own state
 
   async function checkProfile() {
     try {
@@ -173,7 +147,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         <View style={styles.gridSeparator} />
 
         <View style={styles.gridRow3}>
-          <TouchableOpacity style={styles.gridCardThird} activeOpacity={0.8} onPress={() => setShowCalcModal(true)}>
+          <TouchableOpacity style={styles.gridCardThird} activeOpacity={0.8} onPress={() => navigation.navigate('Calculadora')}>
             <View style={styles.gridIconThird}>
               <SvgIcon name="calculadora" size={24} color={COLORS.navy} />
             </View>
@@ -194,12 +168,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         </View>
       </ScrollView>
 
-      <CalculadoraModal 
-        visible={showCalcModal} 
-        onClose={() => setShowCalcModal(false)} 
-        allProdsCache={allProdsCache} 
-        navigation={navigation} 
-      />
 
       <ProfileCompleteModal 
         visible={showProfileModal} 

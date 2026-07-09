@@ -17,7 +17,10 @@ export async function generateResponse(
     if (!res.ok) {
       const errText = await res.text();
       console.error(JSON.stringify({ event: "gemini_generate_failed", status: res.status, error: errText }));
-      return `Error del motor de IA (Código ${res.status}): ${errText.substring(0, 150)}...`;
+      if (res.status === 429) {
+         return "Lo siento, actualmente hay un alto volumen de consultas en el servidor. Por favor, espera un minuto e intenta de nuevo.";
+      }
+      return "Lo siento, ocurrió un error de conexión con el motor de Inteligencia Artificial. Por favor, intenta de nuevo más tarde.";
     }
 
     const data = await res.json();

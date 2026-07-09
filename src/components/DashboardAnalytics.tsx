@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
+import Animated from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -17,6 +18,7 @@ import { AnalyticsRankItem } from '../types';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 const CACHE_KEY = 'comagro_productos_v3';
+const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
 
 interface DashboardData {
   views: number;
@@ -81,7 +83,7 @@ function RankItem({ item, maxCount, color, imageMap, navigation }: { item: Analy
       activeOpacity={0.7}
       onPress={() => handleProductPress(item)}
     >
-      <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" />
+      <AnimatedExpoImage source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" sharedTransitionTag={`product-${modelOrSku}`} />
       <View style={s.rankItemTextContainer}>
         <Text style={s.rankModelo} numberOfLines={1}>{item.modelo}</Text>
         <Text style={s.rankMarca}>{item.marca}</Text>

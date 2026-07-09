@@ -42,6 +42,7 @@ import LottieSplashScreen from './src/screens/LottieSplashScreen';
 import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
 import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import CalculadoraModal from './src/components/CalculadoraModal';
 
 const Stack = createNativeStackNavigator();
 
@@ -249,6 +250,15 @@ function App() {
                   <Stack.Screen 
                     name="ProductViewer" 
                     component={ProductViewerScreen} 
+                    options={{ 
+                      presentation: 'transparentModal', 
+                      animation: 'none',
+                      contentStyle: { backgroundColor: 'transparent' }
+                    }} 
+                  />
+                  <Stack.Screen 
+                    name="Calculadora" 
+                    component={CalculadoraModal} 
                     options={{ 
                       presentation: 'transparentModal', 
                       animation: 'none',
