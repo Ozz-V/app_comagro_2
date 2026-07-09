@@ -184,7 +184,7 @@ export async function searchProducts(marcaFiltro: string, subcatFiltro: string, 
   let query = '';
   const params: string[] = [];
   let useFts = false;
-  let matchClauses: string[] = [];
+  const matchClauses: string[] = [];
 
   if (textoBusqueda && textoBusqueda.trim().length > 0) {
     useFts = true;
