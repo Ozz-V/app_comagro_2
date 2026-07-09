@@ -196,7 +196,7 @@ jobs:
           fi
 
       - name: Create GitHub Release Candidate (Public Repo)
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           repository: Ozz-V/comagro_apk_descargas
           tag_name: ${{ env.CANDIDATE_TAG }}
