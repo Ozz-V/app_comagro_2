@@ -58,6 +58,11 @@ Deno.serve(async (req) => {
     const skuQuery = url.searchParams.get('sku')
     const sinceHeader = req.headers.get('X-Since')
     const since = sinceHeader ? new Date(parseInt(sinceHeader)) : null
+    
+    const limitParam = url.searchParams.get('limit')
+    const offsetParam = url.searchParams.get('offset')
+    const limit = limitParam ? parseInt(limitParam) : null
+    const offset = offsetParam ? parseInt(offsetParam) : null
 
     let finalData: any[] = []
 
@@ -68,6 +73,9 @@ Deno.serve(async (req) => {
     }
     if (since) {
       query = query.gt('updated_at', since.toISOString());
+    }
+    if (limit !== null && offset !== null) {
+      query = query.range(offset, offset + limit - 1);
     }
 
     const { data: dbData, error: dbError } = await query;
@@ -120,6 +128,9 @@ Deno.serve(async (req) => {
       }
       if (since) {
         filtered = filtered.filter(p => p.updated_at && new Date(p.updated_at) > since);
+      }
+      if (limit !== null && offset !== null) {
+        filtered = filtered.slice(offset, offset + limit);
       }
       finalData = filtered;
     }

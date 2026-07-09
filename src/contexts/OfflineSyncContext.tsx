@@ -173,13 +173,41 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}` 
         };
-        const res = await fetch(EDGE_URL, { headers });
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error('Error descargando lista de productos desde el servidor: ' + errText);
+        
+        let offset = 0;
+        const limit = 500;
+        let hasMore = true;
+        const todosNuevosRows: any[] = [];
+
+        setProgress(prev => ({ ...prev, currentItem: 'Descargando catálogo...' }));
+
+        while (hasMore) {
+          if (cancelFlag.current) break;
+          
+          const url = new URL(EDGE_URL);
+          url.searchParams.append('offset', offset.toString());
+          url.searchParams.append('limit', limit.toString());
+
+          const res = await fetch(url.toString(), { headers });
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error('Error descargando lista de productos desde el servidor: ' + errText);
+          }
+          
+          const pageRows = await res.json();
+          if (pageRows && Array.isArray(pageRows) && pageRows.length > 0) {
+            todosNuevosRows.push(...pageRows);
+            if (pageRows.length < limit) {
+              hasMore = false;
+            } else {
+              offset += limit;
+            }
+          } else {
+            hasMore = false;
+          }
         }
         
-        const nuevosRows = await res.json();
+        const nuevosRows = todosNuevosRows;
 
         // 3.5. Obtener los "sales_pitch" para uso offline
         const { data: aiData } = await supabase.from('productos_ai_data').select('sku, sales_pitch');

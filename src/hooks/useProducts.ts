@@ -92,17 +92,40 @@ export function useProducts() {
       };
       if (fechaCache) headers['X-Since'] = fechaCache;
       
-      const res = await fetch(EDGE_URL, { headers });
-      if (!res.ok) {
-         throw new Error(`HTTP Error: ${res.status}`);
-      }
-      
-      const nuevosRows = await res.json();
-      
-      if (nuevosRows && Array.isArray(nuevosRows) && nuevosRows.length > 0) {
-        const isDelta = !!fechaCache;
-        await insertProductsBatch(nuevosRows, manifest, isDelta);
+      let offset = 0;
+      const limit = 500;
+      let hasMore = true;
+      let totalNuevos = 0;
+
+      while (hasMore) {
+        const url = new URL(EDGE_URL);
+        url.searchParams.append('offset', offset.toString());
+        url.searchParams.append('limit', limit.toString());
+
+        const res = await fetch(url.toString(), { headers });
+        if (!res.ok) {
+           throw new Error(`HTTP Error: ${res.status}`);
+        }
         
+        const nuevosRows = await res.json();
+        
+        if (nuevosRows && Array.isArray(nuevosRows) && nuevosRows.length > 0) {
+          // Solo borramos la tabla en la primera página si no es una actualización delta
+          const isDeltaForBatch = !!fechaCache || offset > 0;
+          await insertProductsBatch(nuevosRows, manifest, isDeltaForBatch);
+          totalNuevos += nuevosRows.length;
+          
+          if (nuevosRows.length < limit) {
+             hasMore = false;
+          } else {
+             offset += limit;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (totalNuevos > 0 || !fechaCache) {
         await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
         // Solo actualizamos la llave del logo si la red fue exitosa y hubo cambios (o fue primer sync)
         const newKey = Date.now().toString();
