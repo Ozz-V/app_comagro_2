@@ -3,7 +3,7 @@ name: Build APK Comagro
 on:
   workflow_dispatch:
   push:
-    branches: [main, "refactor/typescript-migration-final"]
+    branches: [main, "refactor/typescript-migration-final", "hardening/v2"]
     paths:
       - '.github/workflows/**'
       - 'src/**'
