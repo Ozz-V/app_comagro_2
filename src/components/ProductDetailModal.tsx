@@ -3,6 +3,7 @@ import {
   View, Text, Modal, ScrollView, TouchableOpacity,
   ActivityIndicator, StyleSheet, useWindowDimensions
 } from 'react-native';
+import Reanimated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, withSpring } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
@@ -224,8 +225,8 @@ export default function ProductDetailModal({
   if (!modalProd) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+    <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
+      <Reanimated.View style={styles.modalOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
         
         <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', zIndex: 999 }]} pointerEvents="box-none">
           {prevProd && (
@@ -241,7 +242,11 @@ export default function ProductDetailModal({
           )}
         </View>
 
-        <View style={[styles.modalDialog, { paddingBottom: insets.bottom || 15, maxHeight: screenHeight * 0.92 }]}>
+        <Reanimated.View 
+          style={[styles.modalDialog, { paddingBottom: insets.bottom || 15, maxHeight: screenHeight * 0.92 }]}
+          entering={SlideInDown.duration(400).springify().damping(16)}
+          exiting={SlideOutDown.duration(200)}
+        >
           <View style={styles.modalHead}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <Text style={[styles.modalTitle, { flex: 1, textAlign: 'center' }]} numberOfLines={1}>{modalProd?.modelo}</Text>
@@ -443,7 +448,7 @@ export default function ProductDetailModal({
             
             <View style={{ height: 40 }} />
           </ScrollView>
-        </View>
+        </Reanimated.View>
 
         {/* WEBVIEW OCULTO PARA EXPORTAR PNG A4 */}
         {htmlForImage && (
@@ -457,7 +462,7 @@ export default function ProductDetailModal({
             />
           </View>
         )}
-      </View>
+      </Reanimated.View>
     </Modal>
   );
 }

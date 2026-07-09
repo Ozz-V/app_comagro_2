@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } from 'react-native';
+import Reanimated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import LottieView from 'lottie-react-native';
 import { COLORS } from '../theme';
 
@@ -85,11 +86,15 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
       <Modal
         transparent={true}
         visible={!!alertConfig}
-        animationType="fade"
+        animationType="none"
         onRequestClose={closeAlert}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.alertBox}>
+        <Reanimated.View style={styles.modalOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
+          <Reanimated.View 
+            style={styles.alertBox} 
+            entering={ZoomIn.duration(400).springify().damping(14)} 
+            exiting={ZoomOut.duration(200)}
+          >
             <LottieView
               source={require('../../assets/iso.json')}
               autoPlay
@@ -120,8 +125,8 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
                 );
               })}
             </View>
-          </View>
-        </View>
+          </Reanimated.View>
+        </Reanimated.View>
       </Modal>
     </CustomAlertContext.Provider>
   );
