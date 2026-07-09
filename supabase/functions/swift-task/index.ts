@@ -68,6 +68,10 @@ Deno.serve(async (req) => {
 
     // 1. Intentar leer de la caché de Supabase (Fase 2.2)
     let query = supabaseClient.from('plytix_cache').select('data, updated_at');
+    
+    // IMPORTANTE: Asegurar orden predecible para que la paginación no salte o repita registros
+    query = query.order('sku', { ascending: true });
+
     if (skuQuery) {
       query = query.eq('sku', skuQuery);
     }
@@ -135,7 +139,9 @@ Deno.serve(async (req) => {
       finalData = filtered;
     }
 
-    if (!finalData.length && !skuQuery && !since) {
+    // Si es una petición paginada vacía, está bien (significa que se acabó el bucle).
+    // Solo tiramos error si no es paginada y no trae nada.
+    if (!finalData.length && !skuQuery && !since && limit === null) {
       return new Response(JSON.stringify({
         error: 'No se pudieron interpretar registros válidos',
       }), {
