@@ -67,7 +67,15 @@
       ],
       "expo-secure-store",
       "expo-sqlite",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "ndkVersion": "26.1.10909125"
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

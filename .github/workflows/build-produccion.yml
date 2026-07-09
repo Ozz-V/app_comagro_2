@@ -45,44 +45,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Ensure Android NDK is installed
-        shell: bash
-        run: |
-          set -euo pipefail
-          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}"
-          echo "Using SDK_ROOT=$SDK_ROOT"
-          
-          if [ -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
-            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          elif [ -x "$SDK_ROOT/cmdline-tools/bin/sdkmanager" ]; then
-            SDKMANAGER="$SDK_ROOT/cmdline-tools/bin/sdkmanager"
-          elif command -v sdkmanager >/dev/null 2>&1; then
-            SDKMANAGER="$(command -v sdkmanager)"
-          else
-            echo "sdkmanager not found under $SDK_ROOT"
-            ls -la "$SDK_ROOT" || true
-            exit 1
-          fi
-          
-          TARGET_NDK="ndk;27.1.12297006"
-          rm -rf "$SDK_ROOT/ndk/27.1.12297006" || true
-          rm -rf "$SDK_ROOT/.tmp" || true
-          
-          for try in 1 2 3 4; do
-            echo "Installing $TARGET_NDK (attempt $try)..."
-            # Accept licenses safely without pipefail causing yes to crash the script
-            yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-            "$SDKMANAGER" --sdk_root="$SDK_ROOT" "$TARGET_NDK" && break
-            echo "Install failed, cleaning partial install and retrying..."
-            rm -rf "$SDK_ROOT/ndk/27.1.12297006"
-            rm -rf "$SDK_ROOT/.tmp" || true
-            sleep 5
-            if [ "$try" = 4 ]; then
-              echo "Failed to install $TARGET_NDK after $try attempts."
-              exit 1
-            fi
-          done
-
       - name: Auto-increment versionCode
         run: |
           node -e "
