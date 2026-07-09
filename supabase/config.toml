@@ -23,7 +23,7 @@ entrypoint = "./functions/setup-db/index.ts"
 
 [functions.sync-plytix]
 enabled = true
-verify_jwt = false
+verify_jwt = false  # Intencional: protegida por header x-sync-secret (ver SYNC_SECRET). No requiere JWT de usuario porque la invoca un cron interno, no la app.
 import_map = "./functions/sync-plytix/deno.json"
 entrypoint = "./functions/sync-plytix/index.ts"
 
