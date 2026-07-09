@@ -9,6 +9,9 @@ web-build/
 *.p8
 *.p12
 *.key
+*.pem
+google-services.json
+GoogleService-Info.plist
 *.mobileprovision
 .env
 
