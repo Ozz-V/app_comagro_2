@@ -68,8 +68,8 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
 
   if (loading || !modalProd) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#FFF" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#0D8A39" />
       </SafeAreaView>
     );
   }

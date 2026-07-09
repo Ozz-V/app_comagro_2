@@ -216,7 +216,7 @@ function App() {
     };
   }, []);
   if (!fontsLoaded || !isInitialized) {
-    return null; // Esperar a que Supabase inicialice la sesión
+    return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />; // Evita parpadeo negro en lugar de return null
   }
 
   const autenticado = !!(isAuthenticated && (session?.user?.email?.endsWith('@comagro.com.py')));

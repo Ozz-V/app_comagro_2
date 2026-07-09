@@ -64,7 +64,6 @@ export default function UserProfileModal({ visible, onClose, loadingUser, select
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <StatCard number={selectedUser.stats.views} label="Vistas" color={COLORS.navy} />
                   <StatCard number={selectedUser.stats.shares} label="Compartidos" color={COLORS.green} />
-                  <StatCard number={selectedUser.stats.searches} label="Búsquedas" color={COLORS.celeste} />
                 </View>
               </View>
             ) : null}

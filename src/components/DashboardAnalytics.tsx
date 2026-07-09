@@ -202,7 +202,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       full_name: cachedProfile?.full_name || '', 
       telefono: cachedProfile?.telefono || '', 
       avatar_url: cachedProfile?.avatar_url || null, 
-      stats: { views: 0, shares: 0, searches: 0 } 
+      stats: { views: 0, shares: 0 } 
     });
     
     if (!isOnline) {
@@ -216,11 +216,10 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       
       if (errProfile || errAnalytics) throw new Error('Network fail');
       
-      let v = 0, sh = 0, se = 0;
+      let v = 0, sh = 0;
       if (analyticsData) {
         analyticsData.forEach(r => {
           if (r.action === 'view') v++;
-          if (r.action === 'search') se++;
           if (r.action === 'share_pdf' || r.action === 'share_image') sh++;
         });
       }
