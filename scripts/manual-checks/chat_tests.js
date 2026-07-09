@@ -1,3 +1,11 @@
+/**
+ * ============================================================================
+ * HERRAMIENTA MANUAL DE TESTING (NO INCLUIDA EN CI/CD AUTOMATIZADO)
+ * ============================================================================
+ * Este script realiza pruebas funcionales (E2E) contra la Edge Function de Chat.
+ * Requiere credenciales reales y NO forma parte de la suite de Jest automatizada.
+ * ============================================================================
+ */
 const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = 'https://itylpvuzflqlmmqvdhbz.supabase.co';
