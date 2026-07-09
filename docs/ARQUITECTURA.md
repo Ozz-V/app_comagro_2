@@ -1,5 +1,5 @@
 # Manual de Arquitectura: App Comagro
-Este archivo instruye a los agentes de IA sobre la arquitectura completa del proyecto.
+Este documento describe la arquitectura técnica, módulos y flujos principales de la aplicación para guiar el desarrollo y mantenimiento del proyecto.
 
 ## 1. Stack Tecnológico (Frontend y Backend)
 - **Frontend (APK):** React Native utilizando Expo (compilado vía `eas build`).
@@ -26,7 +26,6 @@ Este archivo instruye a los agentes de IA sobre la arquitectura completa del pro
 
 ### C. Edge Functions
 Existen varias Edge Functions alojadas en Supabase (`supabase/functions/`):
-- `get-key`: Expone la llave de Gemini a la App (si es necesario) de forma controlada.
 - `chat`: El motor principal de la IA.
 
 ### D. Asistente IA (El Chatbot)
