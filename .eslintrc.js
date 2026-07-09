@@ -13,7 +13,7 @@ module.exports = {
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/ban-ts-comment': 'warn',
     '@typescript-eslint/no-require-imports': 'warn',
-    'react-hooks/rules-of-hooks': 'warn',
+    'react-hooks/rules-of-hooks': 'error',
     'react-hooks/refs': 'warn',
     'react-hooks/immutability': 'warn',
     'react-hooks/purity': 'warn',

@@ -8,7 +8,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
   },
   "dependencies": {
     "@expo-google-fonts/barlow": "^0.4.1",
@@ -69,6 +70,7 @@
   "private": true,
   "devDependencies": {
     "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "^30.0.0",
     "@types/react": "^19.2.17",
     "@typescript-eslint/eslint-plugin": "^8.63.0",
     "@typescript-eslint/parser": "^8.63.0",
@@ -76,6 +78,7 @@
     "eslint-config-expo": "^57.0.0",
     "jest": "^30.4.2",
     "react-test-renderer": "^19.1.0",
+    "ts-jest": "^29.4.11",
     "typescript": "^5.9.3"
   }
 }

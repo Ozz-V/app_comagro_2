@@ -6,7 +6,8 @@
 export function normalizeCaudal(caudalStr: string | number | null | undefined): number {
   if (!caudalStr) return 0;
   const s = caudalStr.toString().toLowerCase();
-  const num = parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
+  const match = s.match(/([0-9.,]+)/);
+  const num = match ? parseFloat(match[1].replace(',', '.')) : 0;
   if (s.includes('m3/h')) return (num * 1000) / 60;
   if (s.includes('l/h')) return num / 60;
   if (s.includes('l/s')) return num * 60;
@@ -19,7 +20,8 @@ export function normalizeCaudal(caudalStr: string | number | null | undefined): 
 export function normalizeMca(mcaStr: string | number | null | undefined): number {
   if (!mcaStr) return 0;
   const s = mcaStr.toString().toLowerCase();
-  const num = parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
+  const match = s.match(/([0-9.,]+)/);
+  const num = match ? parseFloat(match[1].replace(',', '.')) : 0;
   if (s.includes('bar')) return num * 10;
   if (s.includes('psi')) return num * 0.703;
   return num; // asumimos m.c.a o metros por defecto

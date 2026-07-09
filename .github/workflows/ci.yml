@@ -31,3 +31,6 @@ jobs:
         env:
           ESLINT_USE_FLAT_CONFIG: "false"
         run: npx eslint .
+
+      - name: Run tests
+        run: npm test
