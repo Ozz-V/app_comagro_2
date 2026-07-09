@@ -56,6 +56,7 @@ export default function ProductDetailModal({
   onOpenProduct
 }: ProductDetailModalProps) {
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const { showAlert, showToast } = useCustomAlert();
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [generandoPdf, setGenerandoPdf] = useState(false);
@@ -226,19 +227,21 @@ export default function ProductDetailModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         
-        {prevProd && (
-          <TouchableOpacity onPress={() => onOpenProduct(prevProd)} style={styles.navBtnLeft}>
-            <Text style={styles.navBtnText}>‹</Text>
-          </TouchableOpacity>
-        )}
-        
-        {nextProd && (
-          <TouchableOpacity onPress={() => onOpenProduct(nextProd)} style={styles.navBtnRight}>
-            <Text style={styles.navBtnText}>›</Text>
-          </TouchableOpacity>
-        )}
+        <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', zIndex: 999 }]} pointerEvents="box-none">
+          {prevProd && (
+            <TouchableOpacity onPress={() => onOpenProduct(prevProd)} style={styles.navBtnLeft}>
+              <Text style={styles.navBtnText}>‹</Text>
+            </TouchableOpacity>
+          )}
+          
+          {nextProd && (
+            <TouchableOpacity onPress={() => onOpenProduct(nextProd)} style={styles.navBtnRight}>
+              <Text style={styles.navBtnText}>›</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-        <View style={[styles.modalDialog, { paddingBottom: insets.bottom || 15 }]}>
+        <View style={[styles.modalDialog, { paddingBottom: insets.bottom || 15, maxHeight: screenHeight * 0.92 }]}>
           <View style={styles.modalHead}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <Text style={[styles.modalTitle, { flex: 1, textAlign: 'center' }]} numberOfLines={1}>{modalProd?.modelo}</Text>
@@ -487,8 +490,8 @@ const styles = StyleSheet.create({
     color: COLORS.navy, flex: 1, letterSpacing: 0.5,
   },
   modalClose: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy },
-  navBtnLeft: { position: 'absolute', left: 5, top: '50%', zIndex: 999, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 30 },
-  navBtnRight: { position: 'absolute', right: 5, top: '50%', zIndex: 999, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 30 },
+  navBtnLeft: { position: 'absolute', left: 5, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 30 },
+  navBtnRight: { position: 'absolute', right: 5, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 30 },
   navBtnText: { fontSize: 40, color: COLORS.white, fontWeight: 'bold' },
   
   // Tabs
