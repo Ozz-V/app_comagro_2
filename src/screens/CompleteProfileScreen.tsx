@@ -41,8 +41,8 @@ export default function CompleteProfileScreen() {
       if (!isMounted.current) return;
       
       if (data) {
-        if (data.full_name && data.full_name !== 'EMPTY') setFullName(data.full_name);
-        if (data.telefono && data.telefono !== '+595') {
+        if (data.full_name && data.full_name.trim() !== '') setFullName(data.full_name);
+        if (data.telefono && data.telefono.trim() !== '') {
           if (data.telefono.includes(' ')) {
             const parts = data.telefono.split(' ');
             setPhoneCode(parts[0]);
@@ -86,7 +86,7 @@ export default function CompleteProfileScreen() {
   }
 
   async function saveProfile() {
-    if (!fullName.trim() || fullName.trim() === 'EMPTY') {
+    if (!fullName.trim()) {
       showAlert('Error', 'El nombre es obligatorio.');
       return;
     }

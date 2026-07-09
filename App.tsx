@@ -153,13 +153,13 @@ function App() {
         const cached = await AsyncStorage.getItem('@user_profile_cache');
         if (cached) {
           const data = JSON.parse(cached);
-          if (data.full_name && data.full_name !== 'EMPTY' && data.telefono && data.telefono !== '+595' && data.telefono.length > 5) {
+          if (data.full_name && data.full_name.trim() !== '' && data.telefono && data.telefono.trim() !== '') {
             setProfileComplete(true);
             return;
           }
         }
         const { data } = await supabase.from('profiles').select('full_name, telefono').eq('id', userId).single();
-        if (data && data.full_name && data.full_name !== 'EMPTY' && data.telefono && data.telefono !== '+595' && data.telefono.length > 5) {
+        if (data && data.full_name && data.full_name.trim() !== '' && data.telefono && data.telefono.trim() !== '') {
           setProfileComplete(true);
         } else {
           setProfileComplete(false);
@@ -219,7 +219,7 @@ function App() {
     return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />; // Evita parpadeo negro en lugar de return null
   }
 
-  const autenticado = !!(isAuthenticated && (session?.user?.email?.endsWith('@comagro.com.py')));
+  const autenticado = !!isAuthenticated;
   return (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <OfflineSyncProvider>
