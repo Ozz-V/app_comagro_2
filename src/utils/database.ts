@@ -30,21 +30,7 @@ async function getDB(): Promise<SQLite.SQLiteDatabase> {
 export async function initDB(): Promise<SQLite.SQLiteDatabase> {
   const db = await getDB();
 
-  // Verificar si existe un esquema viejo (sin columna 'sku', 'search_text' o 'sales_pitch')
-  const tableInfo = await db.getAllAsync<{ name: string }>('PRAGMA table_info(productos)');
-  const hasSkuColumn = tableInfo.some((col) => col.name === 'sku');
-  const hasSearchTextColumn = tableInfo.some((col) => col.name === 'search_text');
-  const hasSalesPitchColumn = tableInfo.some((col) => col.name === 'sales_pitch');
-
-  if (tableInfo.length > 0 && (!hasSkuColumn || !hasSearchTextColumn || !hasSalesPitchColumn)) {
-    await db.execAsync('DROP TABLE IF EXISTS productos;');
-    try {
-      await AsyncStorage.removeItem('comagro_productos_fecha_v3');
-    } catch {
-      // Ignored
-    }
-  }
-
+  // Crear la tabla base si no existe (la base será la versión actual completa)
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS productos (
       sku TEXT PRIMARY KEY,
@@ -57,6 +43,41 @@ export async function initDB(): Promise<SQLite.SQLiteDatabase> {
       sales_pitch TEXT
     );
   `);
+
+  // Verificar esquema para migraciones incrementales
+  const tableInfo = await db.getAllAsync<{ name: string }>('PRAGMA table_info(productos)');
+  if (tableInfo.length > 0) {
+    const hasSkuColumn = tableInfo.some((col) => col.name === 'sku');
+    const hasSearchTextColumn = tableInfo.some((col) => col.name === 'search_text');
+    const hasSalesPitchColumn = tableInfo.some((col) => col.name === 'sales_pitch');
+
+    if (!hasSkuColumn) {
+      // Si no tiene sku, es versión v1 (obsoleta), borrarla
+      await db.execAsync('DROP TABLE IF EXISTS productos;');
+      try { await AsyncStorage.removeItem('comagro_productos_fecha_v3'); } catch {}
+      // Volver a crear tras el drop
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS productos (
+          sku TEXT PRIMARY KEY,
+          marca TEXT,
+          subcategoria TEXT,
+          imagen TEXT,
+          imagenOriginal TEXT,
+          specs_json TEXT,
+          search_text TEXT,
+          sales_pitch TEXT
+        );
+      `);
+    } else {
+      // Migraciones incrementales (6.4)
+      if (!hasSearchTextColumn) {
+        await db.execAsync('ALTER TABLE productos ADD COLUMN search_text TEXT;');
+      }
+      if (!hasSalesPitchColumn) {
+        await db.execAsync('ALTER TABLE productos ADD COLUMN sales_pitch TEXT;');
+      }
+    }
+  }
 
   return db;
 }

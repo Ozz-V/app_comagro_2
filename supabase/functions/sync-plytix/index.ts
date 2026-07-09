@@ -9,6 +9,12 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
 
+    // Health check (6.3)
+    const url = new URL(req.url);
+    if (req.method === 'GET' && url.pathname.endsWith('/health')) {
+      return new Response(JSON.stringify({ status: 'ok', service: 'sync-plytix', timestamp: new Date().toISOString() }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
     const secret = req.headers.get('x-sync-secret');
     if (!secret || secret !== Deno.env.get('SYNC_SECRET')) {
       return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
@@ -20,11 +26,20 @@ serve(async (req) => {
 
     const supaAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Obtener todos los productos de Plytix
-    const res = await fetch(PLYTIX_URL);
-    if (!res.ok) throw new Error('Error al obtener feed de Plytix');
-    
-    const text = await res.text();
+    // 1. Obtener todos los productos de Plytix (6.2 Fallback de caché)
+    let text = '';
+    try {
+      // Abort controller para no colgar la function si Plytix está lento
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(PLYTIX_URL, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error(`Plytix HTTP Error: ${res.status}`);
+      text = await res.text();
+    } catch (err) {
+      console.warn('Fallback: Plytix feed inaccesible', err);
+      return new Response(JSON.stringify({ error: 'Feed de Plytix inaccesible temporalmente', fallback: true, details: err.message }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+    }
     let plytixData: any[] = [];
     
     try {
