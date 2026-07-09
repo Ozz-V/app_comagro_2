@@ -83,7 +83,7 @@ function RankItem({ item, maxCount, color, imageMap, navigation }: { item: Analy
       activeOpacity={0.7}
       onPress={() => handleProductPress(item)}
     >
-      <AnimatedExpoImage source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" sharedTransitionTag={`product-${modelOrSku}`} />
+      <AnimatedExpoImage source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" {...({ sharedTransitionTag: `product-${modelOrSku}` } as any)} />
       <View style={s.rankItemTextContainer}>
         <Text style={s.rankModelo} numberOfLines={1}>{item.modelo}</Text>
         <Text style={s.rankMarca}>{item.marca}</Text>

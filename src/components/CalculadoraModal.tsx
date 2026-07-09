@@ -354,7 +354,7 @@ export default function CalculadoraModal({ navigation }: CalculadoraModalProps) 
                               source={{ uri: item.imagen }} 
                               style={styles.suggestedImg} 
                               contentFit="contain"
-                              sharedTransitionTag={`product-${item.modelo}`}
+                              {...({ sharedTransitionTag: `product-${item.modelo}` } as any)}
                             />
                           ) : (
                             <View style={styles.suggestedImgPlaceholder} />

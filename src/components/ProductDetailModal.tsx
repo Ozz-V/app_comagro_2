@@ -302,7 +302,7 @@ export default function ProductDetailModal({
 
                   <View style={styles.productBox}>
                     <View style={styles.productImgContainer}>
-                      <AnimatedExpoImage source={{ uri: modalProd?.imagen }} style={{ width: '100%', height: '100%' }} contentFit="contain" sharedTransitionTag={`product-${modalProd.modelo}`} />
+                      <AnimatedExpoImage source={{ uri: modalProd?.imagen }} style={{ width: '100%', height: '100%' }} contentFit="contain" {...({ sharedTransitionTag: `product-${modalProd.modelo}` } as any)} />
                     </View>
                     <View style={styles.productInfoContainer}>
                       <View style={styles.productInfoGreenBar} />
