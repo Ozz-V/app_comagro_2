@@ -1,0 +1,119 @@
+name: Publicar actualizacion Comagro
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_tag:
+        description: 'Tag candidato aprobado, por ejemplo rc-58'
+        required: true
+        type: string
+      release_notes:
+        description: 'Notas opcionales. Si se deja vacio, usa las del candidato.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Publicar candidato aprobado
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+      RELEASE_NOTES_INPUT: ${{ inputs.release_notes }}
+      SUPABASE_URL: https://itylpvuzflqlmmqvdhbz.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Descargar metadata del candidato
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/Ozz-V/comagro_apk_descargas/releases/tags/$CANDIDATE_TAG" \
+            -o release.json
+
+          node -e '
+            const fs = require("fs");
+            const release = JSON.parse(fs.readFileSync("release.json", "utf8"));
+            const metadata = release.assets.find((asset) => asset.name === "metadata.json");
+            const apk = release.assets.find((asset) => asset.name === "comagroapp.apk");
+            if (!metadata) throw new Error("El candidato no tiene metadata.json");
+            if (!apk) throw new Error("El candidato no tiene comagroapp.apk");
+            fs.writeFileSync("metadata_asset_url.txt", metadata.url);
+          '
+
+          curl -fsSL \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$(cat metadata_asset_url.txt)" \
+            -o metadata.json
+
+          node -e '
+            const fs = require("fs");
+            const metadata = JSON.parse(fs.readFileSync("metadata.json", "utf8"));
+            for (const key of ["versionCode", "versionName", "downloadUrl"]) {
+              if (!metadata[key]) throw new Error(`metadata.json no tiene ${key}`);
+            }
+            console.log(JSON.stringify(metadata, null, 2));
+          '
+
+      - name: Publicar candidato en Supabase
+        run: |
+          curl -fsSL \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$(node -e 'console.log(JSON.parse(require("fs").readFileSync("release.json", "utf8")).assets.find(a => a.name === "comagroapp.apk").url)')" \
+            -o comagroapp.apk
+
+          export MD5_HASH=$(md5sum comagroapp.apk | awk '{print $1}')
+          export SHA256_HASH=$(sha256sum comagroapp.apk | awk '{print $1}')
+          echo "MD5 Hash del APK: $MD5_HASH"
+          echo "SHA-256 Hash del APK: $SHA256_HASH"
+
+          node -e '
+            const fs = require("fs");
+            const metadata = JSON.parse(fs.readFileSync("metadata.json", "utf8"));
+            const notes = (process.env.RELEASE_NOTES_INPUT || "").trim() || metadata.releaseNotes || `Actualizacion v${metadata.versionName} (Build ${metadata.versionCode})`;
+            const md5Hash = process.env.MD5_HASH;
+            const sha256Hash = process.env.SHA256_HASH;
+            const payload = {
+              version_code: metadata.versionCode,
+              version_name: metadata.versionName,
+              release_notes: notes,
+              download_url: metadata.downloadUrl,
+              md5_hash: md5Hash,
+              sha256_hash: sha256Hash
+            };
+            fs.writeFileSync("supabase-payload.json", JSON.stringify(payload));
+            fs.writeFileSync("summary.json", JSON.stringify(payload, null, 2));
+          '
+
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "Error: SUPABASE_SERVICE_ROLE_KEY secret is not set in GitHub repository."
+            exit 1
+          fi
+
+          curl --fail-with-body -X POST "$SUPABASE_URL/rest/v1/version_apk" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            --data @supabase-payload.json
+
+      - name: Resumen
+        run: |
+          echo "### Actualizacion publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Candidato: \`$CANDIDATE_TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          node -e '
+            const fs = require("fs");
+            const payload = JSON.parse(fs.readFileSync("summary.json", "utf8"));
+            console.log(`- Version: ${payload.version_name}`);
+            console.log(`- Build: ${payload.version_code}`);
+            console.log(`- MD5: ${payload.md5_hash}`);
+            console.log(`- SHA-256: ${payload.sha256_hash}`);
+            console.log(`- APK: ${payload.download_url}`);
+          ' >> "$GITHUB_STEP_SUMMARY"
