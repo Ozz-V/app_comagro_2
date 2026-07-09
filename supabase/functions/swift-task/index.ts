@@ -2,7 +2,7 @@ const PLYTIX_URL = 'https://pim.plytix.com/channels/69b2c94b558d8c2b27901090/fee
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': 'https://www.comagro.com.py',
-  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
+  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info, x-since',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Content-Type': 'application/json; charset=utf-8',
 }
@@ -54,55 +54,86 @@ Deno.serve(async (req) => {
       })
     }
 
-    const res = await fetch(PLYTIX_URL)
-    const text = await res.text()
+    const url = new URL(req.url)
+    const skuQuery = url.searchParams.get('sku')
+    const sinceHeader = req.headers.get('X-Since')
+    const since = sinceHeader ? new Date(parseInt(sinceHeader)) : null
 
-    if (!res.ok) {
-      return new Response(JSON.stringify({
-        error: 'Error al consultar Plytix',
-        status: res.status,
-        preview: text.slice(0, 500),
-      }), {
-        status: 502,
-        headers: CORS_HEADERS,
-      })
+    let finalData: any[] = []
+
+    // 1. Intentar leer de la caché de Supabase (Fase 2.2)
+    let query = supabaseClient.from('plytix_cache').select('data, updated_at');
+    if (skuQuery) {
+      query = query.eq('sku', skuQuery);
+    }
+    if (since) {
+      query = query.gt('updated_at', since.toISOString());
     }
 
-    let data: unknown[] = []
+    const { data: dbData, error: dbError } = await query;
 
-    try {
-      const parsed = JSON.parse(text)
+    if (!dbError && dbData && dbData.length > 0) {
+      // Usar datos de caché
+      finalData = dbData.map(row => {
+        const prod = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+        prod.updated_at = row.updated_at;
+        return prod;
+      });
+    } else {
+      // 2. Fallback: Consultar directo a Plytix si falla o la tabla no existe
+      const res = await fetch(PLYTIX_URL)
+      const text = await res.text()
 
-      if (Array.isArray(parsed)) {
-        data = parsed
-      } else {
-        data = [parsed]
-      }
-    } catch {
-      data = text
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
-        .flatMap(line => {
-          try {
-            return [JSON.parse(line)]
-          } catch {
-            return []
-          }
+      if (!res.ok) {
+        return new Response(JSON.stringify({
+          error: 'Error al consultar Plytix',
+          status: res.status,
+          preview: text.slice(0, 500),
+        }), {
+          status: 502,
+          headers: CORS_HEADERS,
         })
+      }
+
+      let parsedData: any[] = []
+      try {
+        const parsed = JSON.parse(text)
+        parsedData = Array.isArray(parsed) ? parsed : [parsed]
+      } catch {
+        parsedData = text
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0)
+          .flatMap(line => {
+            try {
+              return [JSON.parse(line)]
+            } catch {
+              return []
+            }
+          })
+      }
+
+      // Aplicar filtros en memoria para el fallback
+      let filtered = parsedData;
+      if (skuQuery) {
+        filtered = filtered.filter(p => p.SKU === skuQuery || p.sku === skuQuery || p.modelo === skuQuery);
+      }
+      if (since) {
+        filtered = filtered.filter(p => p.updated_at && new Date(p.updated_at) > since);
+      }
+      finalData = filtered;
     }
 
-    if (!data.length) {
+    if (!finalData.length && !skuQuery && !since) {
       return new Response(JSON.stringify({
-        error: 'No se pudieron interpretar registros válidos de Plytix',
-        preview: text.slice(0, 800),
+        error: 'No se pudieron interpretar registros válidos',
       }), {
         status: 502,
         headers: CORS_HEADERS,
       })
     }
 
-    return new Response(JSON.stringify(data), {
+    return new Response(JSON.stringify(finalData), {
       status: 200,
       headers: CORS_HEADERS,
     })

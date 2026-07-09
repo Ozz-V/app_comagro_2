@@ -216,11 +216,13 @@ export async function fetchMissingProductFromCloud(sku: string): Promise<ParsedP
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(EDGE_URL, { headers });
+    const res = await fetch(`${EDGE_URL}?sku=${encodeURIComponent(sku)}`, { headers });
     if (!res.ok) return null;
     const all = await res.json();
     
-    const p = all.find((x: Product) => String(x.SKU || x.sku).trim().toLowerCase() === String(sku).trim().toLowerCase());
+    // El edge ya debería haber filtrado y devuelto solo ese producto (o un array con 1 elemento)
+    const dataArray = Array.isArray(all) ? all : [all];
+    const p = dataArray.find((x: Product) => String(x.SKU || x.sku).trim().toLowerCase() === String(sku).trim().toLowerCase());
     if (!p) return null;
     
     const { data: ai } = await supabase.from('productos_ai_data').select('sales_pitch').eq('sku', sku).single();
@@ -228,8 +230,8 @@ export async function fetchMissingProductFromCloud(sku: string): Promise<ParsedP
 
     await insertProductsBatch([p], null, true);
     return await getProductBySku(sku);
-  } catch {
-    // Error fetchMissingProductFromCloud silenced
+  } catch (error) {
+    console.warn(`[fetchMissingProductFromCloud] falló la sincronización puntual para ${sku}:`, error);
     return null;
   }
 }
