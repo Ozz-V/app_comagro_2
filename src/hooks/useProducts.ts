@@ -92,38 +92,17 @@ export function useProducts() {
       };
       if (fechaCache) headers['X-Since'] = fechaCache;
       
-      let page = 0;
-      let hasMore = true;
-      let totalNuevos = 0;
-
-      while (hasMore) {
-        const url = new URL(EDGE_URL);
-        url.searchParams.append('page', page.toString());
-        url.searchParams.append('limit', '500');
-
-        const res = await fetch(url.toString(), { headers });
-        if (!res.ok) {
-           throw new Error(`HTTP Error: ${res.status}`);
-        }
-        
-        const nuevosRows = await res.json();
-        
-        if (nuevosRows && Array.isArray(nuevosRows) && nuevosRows.length > 0) {
-          const isDelta = !!fechaCache && page === 0; // Solo borrar tabla en la primera página si no es delta
-          await insertProductsBatch(nuevosRows, manifest, isDelta || page > 0);
-          totalNuevos += nuevosRows.length;
-          
-          if (nuevosRows.length < 500) {
-             hasMore = false;
-          } else {
-             page++;
-          }
-        } else {
-          hasMore = false;
-        }
+      const res = await fetch(EDGE_URL, { headers });
+      if (!res.ok) {
+         throw new Error(`HTTP Error: ${res.status}`);
       }
-
-      if (totalNuevos > 0 || !fechaCache) {
+      
+      const nuevosRows = await res.json();
+      
+      if (nuevosRows && Array.isArray(nuevosRows) && nuevosRows.length > 0) {
+        const isDelta = !!fechaCache;
+        await insertProductsBatch(nuevosRows, manifest, isDelta);
+        
         await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
         // Solo actualizamos la llave del logo si la red fue exitosa y hubo cambios (o fue primer sync)
         const newKey = Date.now().toString();
