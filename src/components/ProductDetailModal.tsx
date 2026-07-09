@@ -1,7 +1,7 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, Modal, ScrollView, TouchableOpacity,
-  ActivityIndicator, StyleSheet, PanResponder, useWindowDimensions
+  ActivityIndicator, StyleSheet, useWindowDimensions
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
@@ -111,18 +111,7 @@ export default function ProductDetailModal({
   const prevProd = currentIndex > 0 ? activeSliderList[currentIndex - 1] : null;
   const nextProd = currentIndex !== -1 && currentIndex < (activeSliderList?.length || 0) - 1 ? activeSliderList[currentIndex + 1] : null;
 
-  const panResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (evt, gestureState) => {
-      return Math.abs(gestureState.dx) > 40 && Math.abs(gestureState.dy) < 30;
-    },
-    onPanResponderRelease: (evt, gestureState) => {
-      if (gestureState.dx > 50 && prevProd) {
-        onOpenProduct(prevProd);
-      } else if (gestureState.dx < -50 && nextProd) {
-        onOpenProduct(nextProd);
-      }
-    }
-  }), [prevProd, nextProd, onOpenProduct]);
+
 
   useEffect(() => {
     async function fetchRelated() {
@@ -249,7 +238,7 @@ export default function ProductDetailModal({
           </TouchableOpacity>
         )}
 
-        <View style={[styles.modalDialog, { paddingBottom: insets.bottom || 15 }]} {...panResponder.panHandlers}>
+        <View style={[styles.modalDialog, { paddingBottom: insets.bottom || 15 }]}>
           <View style={styles.modalHead}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <Text style={[styles.modalTitle, { flex: 1, textAlign: 'center' }]} numberOfLines={1}>{modalProd?.modelo}</Text>
@@ -281,9 +270,10 @@ export default function ProductDetailModal({
           </View>
 
           <ScrollView 
-            style={[styles.modalBody, { flexShrink: 1, padding: 0, paddingHorizontal: 18 }]} 
+            style={[styles.modalBody, { flex: 1, padding: 0, paddingHorizontal: 18 }]} 
             contentContainerStyle={{ flexGrow: 1, paddingTop: 18, paddingBottom: 40 }} 
             showsVerticalScrollIndicator={false}
+            nestedScrollEnabled={true}
           >
             
             {activeTab === 'FICHA' && (

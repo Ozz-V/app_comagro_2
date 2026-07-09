@@ -152,16 +152,21 @@ export function useProducts() {
     }
   }
 
-  function onRefresh() {
+  async function onRefresh() {
     if (!isOnline) {
       setRefreshing(false);
       return;
     }
     setRefreshing(true);
-    
-    AsyncStorage.removeItem(CACHE_TIME_KEY).then(() => {
-      inicializar();
-    });
+    try {
+      const fechaCache = await AsyncStorage.getItem(CACHE_TIME_KEY);
+      setBgActualiz(true);
+      await sincronizarFondo(fechaCache);
+    } catch (e: unknown) {
+      console.log('Error en onRefresh', e);
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   return {
