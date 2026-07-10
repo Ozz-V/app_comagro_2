@@ -31,5 +31,6 @@ supabase/.temp/
 *.aab
 
 # Dev artifacts
-
 _dev_scripts_and_docs/
+coverage/
+jest_error.txt

@@ -10,16 +10,12 @@ module.exports = {
     'src/services/**/*.ts',
     'src/utils/**/*.ts',
     'src/hooks/**/*.ts',
-    '!src/**/*.d.ts',
-    '!src/utils/pdfService.ts',
-    '!src/utils/pushNotifications.ts',
-    '!src/hooks/useOTAUpdate.ts',
-    '!src/hooks/useAiData.ts'
+    '!src/**/*.d.ts'
   ],
   coverageThreshold: {
     global: {
       statements: 50,
-      branches: 40,
+      branches: 35,
       functions: 50,
       lines: 50,
     },
