@@ -55,12 +55,23 @@ export function useProducts() {
     } catch (e: unknown) {}
   }
 
+  // Guard contra respuestas fuera de orden: cuando el filtro "Productos"/"Accesorios"
+  // está activo, la consulta SQL es más pesada (escanea search_text con varios LIKE),
+  // por lo que tarda más que la de "Todos". Si el usuario sigue escribiendo, cada
+  // letra dispara una nueva búsqueda async y, sin este guard, una respuesta vieja
+  // puede llegar DESPUÉS que una más nueva y pisar el resultado correcto — dando la
+  // sensación de que "el buscador no funciona" solo en Productos/Accesorios.
+  const searchSeq = useRef(0);
+
   // Nueva función limpia para realizar búsquedas sin cierres de estado (stale closures)
   const fetchCatalog = useCallback(async (marcaFiltro: string, subcatFiltro: string, busqueda: string) => {
+    const mySeq = ++searchSeq.current;
     try {
       const resultados = await searchProducts(marcaFiltro, subcatFiltro, busqueda);
+      if (mySeq !== searchSeq.current) return; // Llegó una búsqueda más reciente antes: descartar esta respuesta obsoleta
       setProductosFiltrados(resultados);
       const m = await getUniqueBrands();
+      if (mySeq !== searchSeq.current) return;
       setMarcas(m);
     } catch (e: unknown) {
       console.log('Error buscando en DB', String(e));
