@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import { supabase } from '../supabase';
 import SvgIcon from './SvgIcon';
@@ -10,6 +10,63 @@ interface HealthStatus {
   lastPing: string | null;
   details?: string;
 }
+
+const AnimatedWaveform = ({ status, color }: { status: string, color: string }) => {
+  const anim1 = useRef(new Animated.Value(4)).current;
+  const anim2 = useRef(new Animated.Value(4)).current;
+  const anim3 = useRef(new Animated.Value(4)).current;
+  const anim4 = useRef(new Animated.Value(4)).current;
+
+  useEffect(() => {
+    if (status === 'ok') {
+      const createAnimation = (anim: Animated.Value, delay: number) => {
+        return Animated.loop(
+          Animated.sequence([
+            Animated.timing(anim, { toValue: Math.random() * 10 + 8, duration: 300, delay, useNativeDriver: false }),
+            Animated.timing(anim, { toValue: 4, duration: 300, useNativeDriver: false })
+          ])
+        );
+      };
+      
+      const loop1 = createAnimation(anim1, 0);
+      const loop2 = createAnimation(anim2, 150);
+      const loop3 = createAnimation(anim3, 75);
+      const loop4 = createAnimation(anim4, 225);
+      
+      loop1.start();
+      loop2.start();
+      loop3.start();
+      loop4.start();
+
+      return () => {
+        loop1.stop();
+        loop2.stop();
+        loop3.stop();
+        loop4.stop();
+      };
+    } else {
+      Animated.timing(anim1, { toValue: 4, duration: 200, useNativeDriver: false }).start();
+      Animated.timing(anim2, { toValue: 4, duration: 200, useNativeDriver: false }).start();
+      Animated.timing(anim3, { toValue: 4, duration: 200, useNativeDriver: false }).start();
+      Animated.timing(anim4, { toValue: 4, duration: 200, useNativeDriver: false }).start();
+    }
+  }, [status]);
+
+  if (status === 'loading') {
+    return <ActivityIndicator size="small" color={color} style={{ marginRight: 12, width: 24 }} />;
+  }
+
+  const activeColor = status === 'ok' ? color : status === 'error' ? '#D32F2F' : COLORS.gray4;
+
+  return (
+    <View style={s.waveformContainer}>
+      <Animated.View style={[s.waveformBar, { backgroundColor: activeColor, height: anim1 }]} />
+      <Animated.View style={[s.waveformBar, { backgroundColor: activeColor, height: anim2 }]} />
+      <Animated.View style={[s.waveformBar, { backgroundColor: activeColor, height: anim3 }]} />
+      <Animated.View style={[s.waveformBar, { backgroundColor: activeColor, height: anim4 }]} />
+    </View>
+  );
+};
 
 export default function SystemHealthMonitor() {
   const [plytixHealth, setPlytixHealth] = useState<HealthStatus>({ service: 'Plytix Sync', status: 'loading', lastPing: null });
@@ -64,15 +121,6 @@ export default function SystemHealthMonitor() {
     }
   }
 
-  const renderStatusIcon = (status: string) => {
-    switch (status) {
-      case 'ok': return <View style={[s.dot, { backgroundColor: '#1c9f4b' }]} />;
-      case 'error': return <View style={[s.dot, { backgroundColor: '#D32F2F' }]} />;
-      case 'loading': return <ActivityIndicator size="small" color="#2196F3" />;
-      default: return <View style={[s.dot, { backgroundColor: COLORS.gray4 }]} />;
-    }
-  };
-
   return (
     <View style={s.container}>
       <TouchableOpacity style={s.header} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
@@ -89,7 +137,7 @@ export default function SystemHealthMonitor() {
       {expanded && (
         <View style={s.card}>
           <View style={s.row}>
-            {renderStatusIcon(plytixHealth.status)}
+            <AnimatedWaveform status={plytixHealth.status} color="#1c9f4b" />
             <View style={s.info}>
               <Text style={s.serviceName}>{plytixHealth.service}</Text>
               <Text style={s.subText}>Último ping: {plytixHealth.lastPing || '...'}</Text>
@@ -100,7 +148,7 @@ export default function SystemHealthMonitor() {
           <View style={s.divider} />
           
           <View style={s.row}>
-            {renderStatusIcon(aiHealth.status)}
+            <AnimatedWaveform status={aiHealth.status} color="#2196F3" />
             <View style={s.info}>
               <Text style={s.serviceName}>{aiHealth.service}</Text>
               <Text style={s.subText}>Último ping: {aiHealth.lastPing || '...'}</Text>
@@ -126,7 +174,8 @@ const s = StyleSheet.create({
   arrow: { fontSize: 12, color: COLORS.gray3, marginLeft: 4 },
   card: { marginTop: 12 },
   row: { flexDirection: 'row', alignItems: 'center', marginVertical: 8 },
-  dot: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
+  waveformContainer: { flexDirection: 'row', alignItems: 'flex-end', height: 18, width: 24, justifyContent: 'space-between', marginRight: 12, paddingBottom: 2 },
+  waveformBar: { width: 4, borderRadius: 2 },
   info: { flex: 1 },
   serviceName: { fontFamily: FONTS.heading, fontSize: 15, fontWeight: '600', color: COLORS.navy },
   subText: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, marginTop: 2 },
