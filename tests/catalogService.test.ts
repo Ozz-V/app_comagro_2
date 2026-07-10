@@ -47,3 +47,42 @@ describe('fetchAiPitch', () => {
     expect(result.pitch).toBeNull();
   });
 });
+
+describe('syncCatalog', () => {
+  let originalFetch: any;
+
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    originalFetch = global.fetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('fetches and paginates correctly', async () => {
+    const mockFetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => Array.from({ length: 500 }, (_, i) => ({ sku: `S${i}` })) // full page
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ sku: 'S500' }] // partial page, stops loop
+      });
+    global.fetch = mockFetch;
+
+    const { syncCatalog } = require('../src/services/catalogService');
+    const result = await syncCatalog(null, {});
+    
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(result.totalSynced).toBe(501);
+    expect(result.logoRefreshKey).not.toBeNull();
+  });
+
+  it('throws error if fetch fails', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
+    const { syncCatalog } = require('../src/services/catalogService');
+    await expect(syncCatalog(null, {})).rejects.toThrow('HTTP 500 al sincronizar catálogo');
+  });
+});

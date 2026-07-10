@@ -10,6 +10,7 @@ import { supabase, SUPABASE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 import DashboardAnalytics from '../components/DashboardAnalytics';
+import SystemHealthMonitor from '../components/SystemHealthMonitor';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import OfflineSyncModal from '../components/OfflineSyncModal';
@@ -384,6 +385,8 @@ export default function ConfigScreen({ navigation }: { navigation: any }) {
         </View>
 
         <DashboardAnalytics navigation={navigation} />
+
+        <SystemHealthMonitor />
 
         <View style={st.versionCard}>
           <LottieView source={require('../../assets/iso.json')} autoPlay loop style={{ width: 60, height: 60 }} resizeMode="contain" />
