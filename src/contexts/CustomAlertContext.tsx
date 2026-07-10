@@ -126,7 +126,7 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
               })}
             </View>
           </Reanimated.View>
-        </Reanimated.View>
+        </View>
       </Modal>
     </CustomAlertContext.Provider>
   );
