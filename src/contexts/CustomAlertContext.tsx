@@ -86,10 +86,10 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
       <Modal
         transparent={true}
         visible={!!alertConfig}
-        animationType="fade"
+        animationType="none"
         onRequestClose={closeAlert}
       >
-        <View style={styles.modalOverlay}>
+        <Reanimated.View style={styles.modalOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
           <Reanimated.View 
             style={styles.alertBox} 
             entering={ZoomIn.duration(400).springify().damping(14)} 
@@ -126,7 +126,7 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
               })}
             </View>
           </Reanimated.View>
-        </View>
+        </Reanimated.View>
       </Modal>
     </CustomAlertContext.Provider>
   );
