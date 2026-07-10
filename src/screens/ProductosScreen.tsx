@@ -37,6 +37,16 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
   const [filtroMarca, setFiltroMarca] = useState('');
   const [filtroSubcategoria, setFiltroSubcategoria] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaDebounced, setBusquedaDebounced] = useState('');
+
+  // Espera un poco antes de disparar la consulta a SQLite. La consulta de
+  // "Productos"/"Accesorios" es más pesada (escanea search_text con varios
+  // LIKE) que la de "Todos", así que sin este pequeño delay cada letra
+  // tipeada dispara una consulta nueva y pesada, apilando búsquedas.
+  useEffect(() => {
+    const t = setTimeout(() => setBusquedaDebounced(busqueda), 300);
+    return () => clearTimeout(t);
+  }, [busqueda]);
 
   const {
     productosFiltrados,
@@ -54,9 +64,9 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
 
   useEffect(() => {
     if (!cargando) {
-      fetchCatalog(filtroMarca, filtroSubcategoria, busqueda);
+      fetchCatalog(filtroMarca, filtroSubcategoria, busquedaDebounced);
     }
-  }, [filtroMarca, filtroSubcategoria, busqueda, cargando, dbVersion, fetchCatalog]);
+  }, [filtroMarca, filtroSubcategoria, busquedaDebounced, cargando, dbVersion, fetchCatalog]);
 
   const [modalProd, setModalProd] = useState<ParsedProduct | null>(null);
   const { aiData, setAiData, loadingAi, fetchAiData } = useAiData();
