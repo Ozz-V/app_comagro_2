@@ -86,8 +86,8 @@ export default function SystemHealthMonitor() {
   const renderStatusIcon = (status: string) => {
     switch (status) {
       case 'ok': return <View style={[s.dot, { backgroundColor: COLORS.green }]} />;
-      case 'error': return <View style={[s.dot, { backgroundColor: COLORS.red }]} />;
-      case 'loading': return <ActivityIndicator size="small" color={COLORS.blue} />;
+      case 'error': return <View style={[s.dot, { backgroundColor: '#D32F2F' }]} />;
+      case 'loading': return <ActivityIndicator size="small" color="#2196F3" />;
       default: return <View style={[s.dot, { backgroundColor: COLORS.gray4 }]} />;
     }
   };
@@ -124,7 +124,7 @@ export default function SystemHealthMonitor() {
         <View style={s.divider} />
         
         <View style={s.row}>
-          <View style={[s.dot, { backgroundColor: COLORS.blue }]} />
+          <View style={[s.dot, { backgroundColor: '#2196F3' }]} />
           <View style={s.info}>
             <Text style={s.serviceName}>Actividad de Usuarios</Text>
             <Text style={s.detailText}>{userActivity} usuarios activos (últimos 7 días)</Text>
@@ -150,8 +150,8 @@ const s = StyleSheet.create({
   serviceName: { fontFamily: FONTS.heading, fontSize: 15, fontWeight: '600', color: COLORS.navy },
   subText: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, marginTop: 2 },
   detailText: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray3, marginTop: 2 },
-  errorText: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.red, marginTop: 2 },
+  errorText: { fontFamily: FONTS.body, fontSize: 12, color: '#D32F2F', marginTop: 2 },
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 8 },
   refreshBtn: { marginTop: 12, paddingVertical: 10, backgroundColor: '#F0F4F8', borderRadius: 8, alignItems: 'center' },
-  refreshTxt: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.blue, fontWeight: '600' }
+  refreshTxt: { fontFamily: FONTS.body, fontSize: 14, color: '#2196F3', fontWeight: '600' }
 });
