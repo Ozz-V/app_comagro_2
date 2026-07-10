@@ -27,6 +27,9 @@ import { COLORS } from './src/theme';
 import * as Linking from 'expo-linking';
 import LottieView from 'lottie-react-native';
 import * as Device from 'expo-device';
+import * as SplashScreen from 'expo-splash-screen';
+
+SplashScreen.preventAutoHideAsync();
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 

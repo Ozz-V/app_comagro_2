@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native
 import LottieView from 'lottie-react-native';
 import { COLORS } from '../theme';
 import Constants from 'expo-constants';
+import * as SplashScreen from 'expo-splash-screen';
 
 interface Props {
   onFinish: () => void;
@@ -18,6 +19,11 @@ export default function LottieSplashScreen({ onFinish, updateState, updateNotes,
   const [fadeAnim] = React.useState(() => new Animated.Value(1));
   const [progressAnim] = React.useState(() => new Animated.Value(0));
   const appVersion = Constants.expoConfig?.version || '1.0.0';
+
+  useEffect(() => {
+    // Cuando este componente se monta, ocultamos el splash nativo del OS para que sea un cambio fluido.
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   // Animar la barra de progreso
   useEffect(() => {
