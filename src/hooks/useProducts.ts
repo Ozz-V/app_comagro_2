@@ -51,11 +51,7 @@ export function useProducts() {
         await initDB();
       } catch (e: unknown) {
         console.error('initDB falló críticamente', e);
-        Alert.alert(
-          'Error Crítico de Almacenamiento',
-          'La base de datos local está corrupta o no pudo iniciarse. La aplicación no funcionará correctamente. Intente reiniciar su dispositivo o reinstalar la app.'
-        );
-        setError('Error crítico: La base de datos no pudo iniciar. Reinicie la aplicación.');
+        setError('La base de datos local está corrupta o no pudo iniciarse. La aplicación no funcionará correctamente. Intente reiniciar su dispositivo o reinstalar la app.');
         setCargando(false);
         setRefreshing(false);
         return;
