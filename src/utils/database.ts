@@ -98,13 +98,19 @@ export async function clearProducts(): Promise<void> {
   await db.execAsync('DELETE FROM productos;');
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function insertProductsBatch(productosArray: Product[], manifest: Record<string, string> | null, isDelta = false): Promise<void> {
   const db = await getDB();
 
+  // NOTA: ya NO se borra la tabla acá. Antes se hacía DELETE FROM productos
+  // en la primera página de cada sync "completo", lo que causaba que si el
+  // usuario salía de la pantalla y volvía a entrar antes de que terminara
+  // de descargar todo el catálogo, se reiniciaba la sync y se borraba todo
+  // lo que ya se había descargado (las marcas "desaparecían"). Ahora
+  // siempre se hace upsert, y la limpieza de productos obsoletos se hace
+  // aparte, solo al final de una sincronización completa exitosa
+  // (ver pruneStaleProducts).
   await db.withTransactionAsync(async () => {
-    if (!isDelta) {
-      await db.execAsync('DELETE FROM productos;');
-    }
     for (const p of productosArray) {
       const pSku = p.SKU || p.sku;
       if (!pSku) continue;
@@ -145,6 +151,35 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         [sku, marca, subcategoria, imagen, imagenOriginal, specsJson, searchText, salesPitch]
       );
     }
+  });
+}
+
+/**
+ * Borra de la base local los productos que YA NO vinieron en una
+ * sincronización completa (es decir, se eliminaron en el origen/Plytix).
+ * Se debe llamar SOLO después de que el sync completo terminó con éxito
+ * (todas las páginas), nunca a mitad de camino ni en un sync delta.
+ *
+ * Por seguridad, si validSkus viene vacío no borra nada (evita vaciar
+ * la tabla entera por un bug o una respuesta vacía inesperada).
+ */
+export async function pruneStaleProducts(validSkus: string[]): Promise<void> {
+  if (!validSkus.length) return;
+  const db = await getDB();
+
+  await db.withTransactionAsync(async () => {
+    await db.execAsync('CREATE TEMP TABLE IF NOT EXISTS _synced_skus (sku TEXT PRIMARY KEY);');
+    await db.execAsync('DELETE FROM _synced_skus;');
+
+    const CHUNK = 400;
+    for (let i = 0; i < validSkus.length; i += CHUNK) {
+      const chunk = validSkus.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '(?)').join(',');
+      await db.runAsync(`INSERT OR IGNORE INTO _synced_skus (sku) VALUES ${placeholders}`, chunk);
+    }
+
+    await db.execAsync('DELETE FROM productos WHERE sku NOT IN (SELECT sku FROM _synced_skus);');
+    await db.execAsync('DROP TABLE _synced_skus;');
   });
 }
 
