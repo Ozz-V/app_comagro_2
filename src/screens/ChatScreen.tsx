@@ -156,7 +156,11 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
       skus.push(match[1].trim());
       cleanText = cleanText.replace(match[0], '');
     }
-    return { cleanText: cleanText.trim(), skus };
+    
+    // Collapse 3 or more newlines into 2 (one blank line) to remove gaps left by tags
+    cleanText = cleanText.replace(/(?:\r?\n){3,}/g, '\n\n').trim();
+    
+    return { cleanText, skus };
   };
 
   const renderProductCard = (sku: string, skusContext: string[]) => {
