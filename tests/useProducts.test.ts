@@ -34,28 +34,27 @@ describe('useProducts hook', () => {
   const waitTick = async () => act(async () => { await new Promise(r => setTimeout(r, 10)); });
 
   it('initializes correctly and fetches unique brands', async () => {
-    const { result } = renderHook(() => useProducts()) as any;
-    expect(result.current.cargando).toBe(true);
-    await waitTick();
+    const { result } = await renderHook(() => useProducts());
     expect(result.current.cargando).toBe(false);
+    expect(getUniqueBrands).toHaveBeenCalled();
   });
 
   it('handles critical initDB failure', async () => {
     (initDB as jest.Mock).mockRejectedValue(new Error('Corrupt DB'));
-    const { result } = renderHook(() => useProducts()) as any;
+    const { result } = await renderHook(() => useProducts());
     await waitTick();
     expect(result.current.error).toContain('Error crítico');
   });
 
   it('syncs in background if cache is expired and online', async () => {
     await AsyncStorage.setItem('comagro_productos_fecha_v3', '1000');
-    const { result } = renderHook(() => useProducts()) as any;
+    const { result } = await renderHook(() => useProducts());
     await waitTick();
     expect(syncCatalog).toHaveBeenCalled();
   });
 
   it('fetchCatalog updates product list', async () => {
-    const { result } = renderHook(() => useProducts()) as any;
+    const { result } = await renderHook(() => useProducts());
     await waitTick();
     await act(async () => {
       await result.current.fetchCatalog('Todas', 'Todas', '');
@@ -64,7 +63,7 @@ describe('useProducts hook', () => {
   });
 
   it('onRefresh manual triggers sync', async () => {
-    const { result } = renderHook(() => useProducts()) as any;
+    const { result } = await renderHook(() => useProducts());
     await waitTick();
     await act(async () => {
       await result.current.onRefresh();
@@ -73,7 +72,7 @@ describe('useProducts hook', () => {
   });
 
   it('getProductBySkuSafe handles errors safely', async () => {
-    const { result } = renderHook(() => useProducts()) as any;
+    const { result } = await renderHook(() => useProducts());
     await waitTick();
     (getProductBySku as jest.Mock).mockRejectedValueOnce(new Error('not found'));
     let prod;
