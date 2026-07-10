@@ -50,15 +50,15 @@ export default function SystemHealthMonitor() {
   async function checkAITokens() {
     try {
       const { data, error } = await supabase
-        .from('productos')
-        .select('updated_at')
+        .from('productos_ai_data')
+        .select('created_at')
         .not('sales_pitch', 'is', null)
-        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1);
         
       if (error) throw new Error('Error DB');
       
-      const lastGenerated = data && data.length > 0 ? new Date(data[0].updated_at).toLocaleDateString() : 'Desconocido';
+      const lastGenerated = data && data.length > 0 && data[0].created_at ? new Date(data[0].created_at).toLocaleDateString() : 'Desconocido';
       setAiHealth({ service: 'Gemini AI (Sales Pitch)', status: 'ok', lastPing: new Date().toLocaleTimeString(), details: `Último generado: ${lastGenerated}` });
     } catch (e: any) {
       setAiHealth({ service: 'Gemini AI (Sales Pitch)', status: 'error', lastPing: new Date().toLocaleTimeString(), details: 'Desconectado' });
