@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
@@ -20,9 +20,20 @@ export function useProducts() {
   const [logoRefreshKey, setLogoRefreshKey] = useState('');
   const [dbVersion, setDbVersion] = useState(0);
 
+  const isMounted = useRef(true);
+  const syncTimer = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
+    isMounted.current = true;
     cargarLogoRefreshKey();
     inicializar();
+
+    return () => {
+      isMounted.current = false;
+      if (syncTimer.current) {
+        clearTimeout(syncTimer.current);
+      }
+    };
   }, []);
 
   async function cargarLogoRefreshKey() {
@@ -67,16 +78,18 @@ export function useProducts() {
       
       // Lanzar actualización en segundo plano
       if (!cacheVigente && isOnline) {
-        setBgActualiz(true);
-        setTimeout(() => {
+        if (isMounted.current) setBgActualiz(true);
+        syncTimer.current = setTimeout(() => {
           sincronizarFondo(fechaCache);
         }, 1500);
       }
     } catch (err: unknown) {
-      setError('Error iniciando base de datos');
+      if (isMounted.current) setError('Error iniciando base de datos');
     } finally {
-      setCargando(false);
-      setRefreshing(false);
+      if (isMounted.current) {
+        setCargando(false);
+        setRefreshing(false);
+      }
     }
   }
 
@@ -84,16 +97,20 @@ export function useProducts() {
     try {
       const result = await syncCatalog(fechaCache, manifest);
 
-      if (result.logoRefreshKey) {
+      if (result.logoRefreshKey && isMounted.current) {
         setLogoRefreshKey(result.logoRefreshKey);
       }
     } catch (e: unknown) {
       console.log('Fallo bgActualiz', e);
     } finally {
-      setBgActualiz(false);
+      if (isMounted.current) {
+        setBgActualiz(false);
+      }
       const m = await getUniqueBrands();
-      setMarcas(m);
-      setDbVersion(v => v + 1);
+      if (isMounted.current) {
+        setMarcas(m);
+        setDbVersion(v => v + 1);
+      }
     }
   }
 
