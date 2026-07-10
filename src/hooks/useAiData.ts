@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../supabase';
+import { fetchAiPitch } from '../services/catalogService';
+
+const MSG_NO_SKU    = 'Texto inteligente en preparación.';
+const MSG_NO_NET    = 'ℹ️ El Asistente IA requiere conexión a internet para descargar este texto por primera vez. Cuando tengas red, se guardará aquí.';
+const MSG_SLOW_NET  = 'ℹ️ Sin conexión o red lenta. El Asistente IA requiere internet para descargar este texto por primera vez. Cuando vuelva la conexión, se mostrará aquí.';
 
 export function useAiData() {
   const [aiData, setAiData] = useState<string | null>(null);
@@ -8,50 +11,21 @@ export function useAiData() {
 
   const fetchAiData = useCallback(async (sku: string | null, offlinePitch?: string | null) => {
     if (!sku) {
-      setAiData('Texto inteligente en preparación.');
+      setAiData(MSG_NO_SKU);
       return;
     }
-    
+
     if (offlinePitch && offlinePitch.trim().length > 0) {
       setAiData(offlinePitch);
       return;
     }
 
     setLoadingAi(true);
-
-    // 1. Check cache first
     try {
-      const rawCache = await AsyncStorage.getItem('@ai_cache_all');
-      if (rawCache) {
-        const aiDict = JSON.parse(rawCache);
-        if (aiDict[sku]) {
-          setAiData(aiDict[sku]);
-          setLoadingAi(false);
-          return;
-        }
-      }
-    } catch (e: any) {}
-
-    // 2. Fetch from Supabase
-    try {
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-      const fetchPromise = supabase.from('productos_ai_data').select('sales_pitch').eq('sku', sku).single();
-      const { data } = await Promise.race([fetchPromise, timeoutPromise]) as { data: any };
-      
-      if (data?.sales_pitch) {
-        setAiData(data.sales_pitch);
-        // Save to cache
-        try {
-          const rawCache = await AsyncStorage.getItem('@ai_cache_all');
-          const aiDict = rawCache ? JSON.parse(rawCache) : {};
-          aiDict[sku] = data.sales_pitch;
-          await AsyncStorage.setItem('@ai_cache_all', JSON.stringify(aiDict));
-        } catch (e: any) {}
-      } else {
-        setAiData('ℹ️ El Asistente IA requiere conexión a internet para descargar este texto por primera vez. Cuando tengas red, se guardará aquí.');
-      }
-    } catch (e: any) {
-      setAiData('ℹ️ Sin conexión o red lenta. El Asistente IA requiere internet para descargar este texto por primera vez. Cuando vuelva la conexión, se mostrará aquí.');
+      const result = await fetchAiPitch(sku);
+      setAiData(result.pitch ?? MSG_NO_NET);
+    } catch {
+      setAiData(MSG_SLOW_NET);
     } finally {
       setLoadingAi(false);
     }

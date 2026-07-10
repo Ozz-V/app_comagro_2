@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase, EDGE_URL } from '../supabase';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
-import { initDB, searchProducts, getUniqueBrands, getProductBySku, insertProductsBatch } from '../utils/database';
+import { initDB, searchProducts, getUniqueBrands, getProductBySku } from '../utils/database';
+import { syncCatalog } from '../services/catalogService';
 import { ParsedProduct } from '../types';
 
 const CACHE_TIME_KEY = 'comagro_productos_fecha_v3';
@@ -79,65 +79,15 @@ export function useProducts() {
 
   async function sincronizarFondo(fechaCache: string | null) {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      let accessToken = session?.access_token;
-      if (!accessToken) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        accessToken = refreshed?.session?.access_token;
-      }
-      
-      const headers: any = { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken || ''}` 
-      };
-      if (fechaCache) headers['X-Since'] = fechaCache;
-      
-      let offset = 0;
-      const limit = 500;
-      let hasMore = true;
-      let totalNuevos = 0;
+      const result = await syncCatalog(fechaCache, manifest);
 
-      while (hasMore) {
-        const url = new URL(EDGE_URL);
-        url.searchParams.append('offset', offset.toString());
-        url.searchParams.append('limit', limit.toString());
-
-        const res = await fetch(url.toString(), { headers });
-        if (!res.ok) {
-           throw new Error(`HTTP Error: ${res.status}`);
-        }
-        
-        const nuevosRows = await res.json();
-        
-        if (nuevosRows && Array.isArray(nuevosRows) && nuevosRows.length > 0) {
-          // Solo borramos la tabla en la primera página si no es una actualización delta
-          const isDeltaForBatch = !!fechaCache || offset > 0;
-          await insertProductsBatch(nuevosRows, manifest, isDeltaForBatch);
-          totalNuevos += nuevosRows.length;
-          
-          if (nuevosRows.length < limit) {
-             hasMore = false;
-          } else {
-             offset += limit;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
-
-      if (totalNuevos > 0 || !fechaCache) {
-        await AsyncStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
-        // Solo actualizamos la llave del logo si la red fue exitosa y hubo cambios (o fue primer sync)
-        const newKey = Date.now().toString();
-        setLogoRefreshKey(newKey);
-        AsyncStorage.setItem('@logo_refresh_key', newKey).catch(()=>{});
+      if (result.logoRefreshKey) {
+        setLogoRefreshKey(result.logoRefreshKey);
       }
     } catch (e: unknown) {
       console.log('Fallo bgActualiz', e);
     } finally {
       setBgActualiz(false);
-      // Tras terminar la actualización en segundo plano, recargamos las marcas
-      // y subimos dbVersion para que la pantalla vuelva a pedir el catálogo
       const m = await getUniqueBrands();
       setMarcas(m);
       setDbVersion(v => v + 1);

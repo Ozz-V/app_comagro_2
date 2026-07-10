@@ -14,6 +14,8 @@ Deno.serve(async (req) => {
     })
   }
 
+  const startTime = Date.now();
+
   try {
     const authHeader = req.headers.get('Authorization')
 
@@ -150,12 +152,23 @@ Deno.serve(async (req) => {
       })
     }
 
+    console.log(JSON.stringify({
+      event: 'swift_task_complete',
+      user_id: user.id,
+      sku_query: skuQuery,
+      since: sinceHeader,
+      results_count: finalData.length,
+      source: (!dbError && dbData && dbData.length > 0) ? 'cache' : 'plytix_fallback',
+      duration_ms: Date.now() - startTime,
+    }));
+
     return new Response(JSON.stringify(finalData), {
       status: 200,
       headers: CORS_HEADERS,
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(JSON.stringify({ event: 'swift_task_error', error: message, duration_ms: Date.now() - startTime }));
 
     return new Response(JSON.stringify({ error: message }), {
       status: 500,

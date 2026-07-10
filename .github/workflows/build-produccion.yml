@@ -65,68 +65,57 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          # Decodificar el keystore desde el secret
+          # 1. Decodificar el keystore desde el secret
           echo "$KEYSTORE_BASE64" | base64 --decode > android/app/comagro-release.keystore
           echo "Keystore decodificado: $(ls -lh android/app/comagro-release.keystore)"
 
-          # Escribir keystore.properties (Gradle lo leerá directamente)
+          # 2. Escribir keystore.properties sin indentación extra (Gradle es sensible)
           cat > android/keystore.properties << EOF
-          storeFile=comagro-release.keystore
-          storePassword=${KEYSTORE_PASSWORD}
-          keyAlias=${KEY_ALIAS}
-          keyPassword=${KEY_PASSWORD}
-          EOF
-          echo "keystore.properties creado"
+storeFile=comagro-release.keystore
+storePassword=${KEYSTORE_PASSWORD}
+keyAlias=${KEY_ALIAS}
+keyPassword=${KEY_PASSWORD}
+EOF
+          echo "keystore.properties creado:"
+          cat android/keystore.properties
 
-          # Inyectar configuración de signing en build.gradle ANTES del bloque android {
-          # Usamos un marcador fijo que siempre está en el build.gradle generado por Expo
-          python3 -c "
-          import re, sys
+          # 3. Escribir signing.gradle — archivo de Gradle separado y limpio
+          #    Expo prebuild genera build.gradle con 'signingConfigs { debug { ... } }'
+          #    Este script lo extiende de forma segura SIN tocar el archivo generado.
+          cat > android/app/signing.gradle << 'GRADLE'
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
 
-          with open('android/app/build.gradle', 'r') as f:
-              content = f.read()
+android {
+    signingConfigs {
+        release {
+            storeFile     file(keystoreProps['storeFile'])
+            storePassword keystoreProps['storePassword']
+            keyAlias      keystoreProps['keyAlias']
+            keyPassword   keystoreProps['keyPassword']
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+}
+GRADLE
+          echo "signing.gradle creado"
 
-          # 1. Agregar lectura de keystore.properties al inicio del archivo
-          props_block = '''
-          def keystorePropertiesFile = rootProject.file(\"keystore.properties\")
-          def keystoreProperties = new Properties()
-          if (keystorePropertiesFile.exists()) {
-              keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-          }
-
-          '''
-          if 'keystorePropertiesFile' not in content:
-              content = props_block + content
-
-          # 2. Agregar signingConfig release dentro de signingConfigs { ... }
-          release_signing = '''
-              release {
-                  storeFile file(keystoreProperties['storeFile'])
-                  storePassword keystoreProperties['storePassword']
-                  keyAlias keystoreProperties['keyAlias']
-                  keyPassword keystoreProperties['keyPassword']
-              }'''
-          if 'signingConfigs' in content and 'keystoreProperties' not in content.split('signingConfigs')[1][:500]:
-              content = re.sub(
-                  r'(signingConfigs\s*\{)',
-                  r'\1' + release_signing,
-                  content,
-                  count=1
-              )
-
-          # 3. Cambiar el signingConfig del buildType release para que use release en vez de debug
-          content = re.sub(
-              r'(buildTypes\s*\{[^}]*?release\s*\{[^}]*?)signingConfig\s+signingConfigs\.\w+',
-              r'\1signingConfig signingConfigs.release',
-              content,
-              flags=re.DOTALL
-          )
-
-          with open('android/app/build.gradle', 'w') as f:
-              f.write(content)
-
-          print('build.gradle actualizado con signing de produccion')
-          "
+          # 4. Aplicar signing.gradle en build.gradle con una sola línea de sed
+          #    Busca 'apply plugin: "com.android.application"' (siempre presente en Expo prebuild)
+          #    y agrega 'apply from: "signing.gradle"' justo debajo.
+          if ! grep -q 'signing.gradle' android/app/build.gradle; then
+            sed -i '/apply plugin: .com.android.application./a apply from: "signing.gradle"' android/app/build.gradle
+            echo "signing.gradle aplicado en build.gradle"
+          else
+            echo "signing.gradle ya estaba aplicado"
+          fi
 
       - name: Security Hardening – allowBackup=false
         run: |

@@ -39,7 +39,47 @@ export function parseLearnTag(reply: string): { cleanReply: string; learnedRule:
   };
 }
 
+// Patrones sospechosos de prompt injection (multi-idioma)
+const INJECTION_PATTERNS = [
+  /ignora\s+(tus\s+)?instrucciones/i,
+  /ignore\s+(your\s+)?instructions/i,
+  /olvida\s+(todo|tus\s+reglas)/i,
+  /forget\s+(everything|your\s+rules)/i,
+  /eres\s+(ahora|un|una)\s+(?!asesor)/i,
+  /you\s+are\s+now/i,
+  /act\s+as/i,
+  /jailbreak/i,
+  /system\s*:/i,
+  /\[\s*system\s*\]/i,
+  /<\s*system/i,
+];
+
+const MAX_RULE_LENGTH = 500;
+
 export function saveLearnedRule(learnedRule: string, geminiKey: string, supaAdmin: any): void {
+  // ── Validación de seguridad ────────────────────────────────────────────────
+  if (learnedRule.length > MAX_RULE_LENGTH) {
+    console.warn(JSON.stringify({
+      event: 'learn_rejected',
+      reason: 'too_long',
+      length: learnedRule.length,
+      preview: learnedRule.substring(0, 100),
+    }));
+    return;
+  }
+
+  const suspiciousPattern = INJECTION_PATTERNS.find(p => p.test(learnedRule));
+  if (suspiciousPattern) {
+    console.warn(JSON.stringify({
+      event: 'learn_rejected',
+      reason: 'injection_pattern',
+      pattern: suspiciousPattern.toString(),
+      preview: learnedRule.substring(0, 100),
+    }));
+    return;
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
   // Fire and forget (zero latency for user)
   fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`, {
     method: 'POST',
