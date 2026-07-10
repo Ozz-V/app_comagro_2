@@ -42,29 +42,23 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
 
   useEffect(() => {
     fetchInitData();
-    pingApi();
   }, []);
 
-  async function pingApi() {
-    setApiStatus('connecting');
-    try {
-      // Lightweight ping to check if Supabase is reachable
-      const { error } = await supabase.from('productos').select('sku').limit(1);
-      if (error) throw error;
-      setApiStatus('online');
-    } catch (e) {
-      setApiStatus('offline');
-    }
-  }
-
   async function fetchInitData() {
+    setApiStatus('connecting');
     try {
       // 1. Remote Config — leído con el token del usuario autenticado
       const { data: config, error: configError } = await supabase
         .from('app_config')
         .select('ai_prompt')
         .eq('id', 'global')
-        .single();
+        .maybeSingle();
+
+      if (!configError) {
+        setApiStatus('online');
+      } else {
+        setApiStatus('offline');
+      }
 
       if (config) setRemoteConfig(config);
 
@@ -91,7 +85,7 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
         }
       }
     } catch (e) {
-      // Error silente al inicializar chat
+      setApiStatus('offline');
     }
   }
 
@@ -126,6 +120,7 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
       if (data && data.reply) {
         setChatHistory(prev => [...prev, { role: 'assistant', content: data.reply }]);
         success = true;
+        setApiStatus('online');
       } else {
         throw new Error('Respuesta vacía de la Edge Function');
       }
@@ -134,6 +129,7 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
     }
 
     if (!success) {
+      setApiStatus('offline');
       setChatHistory(prev => [...prev, {
         role: 'assistant',
         content: `Fallo de conexión en servidores IA: ${lastError}`
@@ -200,7 +196,7 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
             </View>
           </View>
         </View>
-        <TouchableOpacity onPress={() => { setChatHistory([]); fetchInitData(); pingApi(); }} style={styles.clearButton}>
+        <TouchableOpacity onPress={() => { setChatHistory([]); fetchInitData(); }} style={styles.clearButton}>
           <Text style={styles.clearText}>Limpiar</Text>
         </TouchableOpacity>
       </View>
