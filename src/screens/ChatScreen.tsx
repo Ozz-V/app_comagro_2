@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
   StatusBar, Platform, TextInput, FlatList, ActivityIndicator,
-  KeyboardAvoidingView
+  KeyboardAvoidingView, Animated
 } from 'react-native';
 import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,6 +17,8 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
   const [chatLoading, setChatLoading] = useState(false);
   const [remoteConfig, setRemoteConfig] = useState<any>(null);
   const [profName, setProfName] = useState('');
+  const [apiStatus, setApiStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
+  const dotOpacity = useRef(new Animated.Value(1)).current;
   const insets = useSafeAreaInsets();
 
   const flatListRef = useRef<FlatList<any>>(null);
@@ -29,21 +31,41 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
   }, []);
 
   useEffect(() => {
+    // Blinking animation for online status dot
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotOpacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+        Animated.timing(dotOpacity, { toValue: 1, duration: 800, useNativeDriver: true })
+      ])
+    ).start();
+  }, [dotOpacity]);
+
+  useEffect(() => {
     fetchInitData();
+    pingApi();
   }, []);
+
+  async function pingApi() {
+    setApiStatus('connecting');
+    try {
+      // Lightweight ping to check if Supabase is reachable
+      const { error } = await supabase.from('productos').select('sku').limit(1);
+      if (error) throw error;
+      setApiStatus('online');
+    } catch (e) {
+      setApiStatus('offline');
+    }
+  }
 
   async function fetchInitData() {
     try {
       // 1. Remote Config — leído con el token del usuario autenticado
       const { data: config, error: configError } = await supabase
         .from('app_config')
-        .select('ai_prompt')   // Solo el prompt: ya NO necesitamos ai_api_keys en el cliente
+        .select('ai_prompt')
         .eq('id', 'global')
         .single();
 
-      if (configError) {
-        // Error al leer app_config — se usa prompt por defecto
-      }
       if (config) setRemoteConfig(config);
 
       // 2. Perfil Usuario
@@ -82,27 +104,19 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
     setChatHistory(newHistory);
     setChatInput('');
 
-    // ----------------------------------------------------------------
-    // SEGURIDAD: La Gemini API Key vive SOLO en los secrets de la Edge
-    // Function en el servidor. La APK nunca la toca ni la expone.
-    // Todo el RAG (embeddings + búsqueda vectorial) lo hace la Edge Function.
-    // ----------------------------------------------------------------
     let success = false;
     let lastError = '';
 
     try {
-      // 1. Forzar refresco de token para evitar el "error temporal" por inactividad
       const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
       const session = refreshData?.session || (await supabase.auth.getSession()).data?.session;
       
-      // Filtrar el saludo inicial porque a Gemini le da error 400 si el historial no empieza con 'user'
       const historyForApi = newHistory.filter(msg => !(msg.role === 'assistant' && msg.content.includes('Soy el Asistente IA de Comagro')));
 
       const { data, error } = await supabase.functions.invoke('chat', {
         body: {
           messages: historyForApi,
           user_id: session?.user?.id || 'anon',
-          // Pasamos el prompt personalizado si existe, para que la Edge Function lo use
           custom_prompt: remoteConfig?.ai_prompt || null,
         }
       });
@@ -117,7 +131,6 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
       }
     } catch (err: any) {
       lastError = err.message;
-      // Error silente en petición al chatbot
     }
 
     if (!success) {
@@ -132,7 +145,6 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
     scrollTimeout.current = setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }
 
-  // Extrae la etiqueta [SKU: XXX] del texto y devuelve el texto limpio y los SKUs encontrados
   const parseMessage = (text: string) => {
     const skuRegex = /\[SKU:\s*([^\]]+)\]/gi;
     let match;
@@ -154,7 +166,6 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
     <SafeAreaView style={styles.safe}>
       <StatusBar backgroundColor={COLORS.navy} barStyle="light-content" />
 
-      {/* HEADER DE CHAT NATIVO */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -171,10 +182,25 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
           </View>
           <View>
             <Text style={styles.headerTitle}>Comagro AI Bot</Text>
-            <Text style={styles.headerSubtitle}>Conectado a DB Oficial</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+              {apiStatus === 'connecting' && <ActivityIndicator size={10} color={COLORS.gray3} style={{ marginRight: 4 }} />}
+              {apiStatus === 'online' && (
+                <Animated.View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#1c9f4b', marginRight: 4, opacity: dotOpacity }} />
+              )}
+              {apiStatus === 'offline' && (
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#D32F2F', marginRight: 4 }} />
+              )}
+              <Text style={[
+                styles.headerSubtitle,
+                apiStatus === 'online' && { color: '#1c9f4b' },
+                apiStatus === 'offline' && { color: '#D32F2F' }
+              ]}>
+                {apiStatus === 'connecting' ? 'Conectando...' : (apiStatus === 'online' ? 'Online' : 'Desconectado')}
+              </Text>
+            </View>
           </View>
         </View>
-        <TouchableOpacity onPress={() => { setChatHistory([]); fetchInitData(); }} style={styles.clearButton}>
+        <TouchableOpacity onPress={() => { setChatHistory([]); fetchInitData(); pingApi(); }} style={styles.clearButton}>
           <Text style={styles.clearText}>Limpiar</Text>
         </TouchableOpacity>
       </View>
