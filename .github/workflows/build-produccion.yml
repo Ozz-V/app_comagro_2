@@ -69,13 +69,10 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > android/app/comagro-release.keystore
           echo "Keystore decodificado: $(ls -lh android/app/comagro-release.keystore)"
 
-          # 2. Escribir keystore.properties sin indentación extra (Gradle es sensible)
-          cat > android/keystore.properties << EOF
-storeFile=comagro-release.keystore
-storePassword=${KEYSTORE_PASSWORD}
-keyAlias=${KEY_ALIAS}
-keyPassword=${KEY_PASSWORD}
-EOF
+          # 2. Escribir keystore.properties (Gradle es sensible a espacios extra)
+          printf 'storeFile=comagro-release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
+            > android/keystore.properties
           echo "keystore.properties creado:"
           cat android/keystore.properties
 
