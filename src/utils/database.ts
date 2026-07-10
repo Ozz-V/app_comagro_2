@@ -127,8 +127,6 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
     if (!isDelta) {
       await db.execAsync('DELETE FROM productos;');
     }
-
-    let count = 0;
     for (const p of productosArray) {
       const pSku = p.SKU || p.sku;
       if (!pSku) continue;
