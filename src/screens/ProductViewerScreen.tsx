@@ -4,8 +4,9 @@ import ProductDetailModal from '../components/ProductDetailModal';
 import CompareModal from '../components/CompareModal';
 import { getProductBySku, fetchMissingProductFromCloud } from '../utils/database';
 import { useAiData } from '../hooks/useAiData';
-import { ParsedProduct, CompareItem } from '../types/models';
-import { RouteProp, NavigationProp } from '@react-navigation/native';
+import { fetchImageBase64 } from '../utils/pdfService';
+import { APP_CONSTANTS } from '../config/constants';
+import { ParsedProduct, CompareItem } from '../types/models';import { RouteProp, NavigationProp } from '@react-navigation/native';
 
 interface RouteParams {
   sku?: string;
@@ -25,6 +26,21 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
   const [showCompare, setShowCompare] = useState(false);
 
   const [logoRefreshKey] = useState(() => Date.now().toString());
+  const [pdfCache, setPdfCache] = useState<{ prodBase64: string; logoBase64: string }>({ prodBase64: '', logoBase64: '' });
+
+  useEffect(() => {
+    let cancelled = false;
+    setPdfCache({ prodBase64: '', logoBase64: '' });
+    if (modalProd) {
+      const marcaSlug = (modalProd.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+      const logoUrl = `${APP_CONSTANTS.LOGO_BASE_BRANDS_2025}${marcaSlug}.jpg?v=${logoRefreshKey}`;
+      const imgUrl = modalProd.imagenOriginal || modalProd.imagen || '';
+      Promise.all([fetchImageBase64(imgUrl), fetchImageBase64(logoUrl)]).then(([prodBase64, logoBase64]) => {
+        if (!cancelled) setPdfCache({ prodBase64, logoBase64 });
+      });
+    }
+    return () => { cancelled = true; };
+  }, [modalProd, logoRefreshKey]);
 
   const handleOpenProduct = useCallback((prod: ParsedProduct) => {
     setAiData(null);
@@ -85,7 +101,7 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
         onOpenProduct={handleOpenProduct}
         aiData={aiData}
         loadingAi={loadingAi}
-        pdfCache={{}}
+        pdfCache={pdfCache}
         logoRefreshKey={logoRefreshKey}
         onCompare={(items: CompareItem[]) => {
           setCompareItems(items);
