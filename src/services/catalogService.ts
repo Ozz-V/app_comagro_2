@@ -44,6 +44,7 @@ async function getAccessToken(): Promise<string> {
 export async function syncCatalog(
   sinceTimestamp: string | null,
   manifest: Record<string, string>,
+  onBatchSynced?: () => void | Promise<void>,
 ): Promise<SyncResult> {
   const accessToken = await getAccessToken();
 
@@ -75,6 +76,7 @@ export async function syncCatalog(
       totalSynced += rows.length;
       hasMore = rows.length >= limit;
       offset += limit;
+      if (onBatchSynced) await onBatchSynced();
     } else {
       hasMore = false;
     }
