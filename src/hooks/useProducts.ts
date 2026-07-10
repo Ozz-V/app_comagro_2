@@ -68,7 +68,9 @@ export function useProducts() {
       // Lanzar actualización en segundo plano
       if (!cacheVigente && isOnline) {
         setBgActualiz(true);
-        sincronizarFondo(fechaCache);
+        setTimeout(() => {
+          sincronizarFondo(fechaCache);
+        }, 1500);
       }
     } catch (err: unknown) {
       setError('Error iniciando base de datos');
