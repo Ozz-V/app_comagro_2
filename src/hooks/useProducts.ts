@@ -81,7 +81,7 @@ export function useProducts() {
         if (isMounted.current) setBgActualiz(true);
         syncTimer.current = setTimeout(() => {
           sincronizarFondo(fechaCache);
-        }, 1500);
+        }, 150);
       }
     } catch (err: unknown) {
       if (isMounted.current) setError('Error iniciando base de datos');
@@ -95,7 +95,14 @@ export function useProducts() {
 
   async function sincronizarFondo(fechaCache: string | null) {
     try {
-      const result = await syncCatalog(fechaCache, manifest);
+      const result = await syncCatalog(fechaCache, manifest, async () => {
+        if (!isMounted.current) return;
+        const m = await getUniqueBrands();
+        if (isMounted.current) {
+          setMarcas(m);
+          setDbVersion(v => v + 1);
+        }
+      });
 
       if (result.logoRefreshKey && isMounted.current) {
         setLogoRefreshKey(result.logoRefreshKey);
