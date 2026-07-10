@@ -55,7 +55,7 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
           .eq('id', user.id)
           .single();
 
-        if (prof && prof.full_name && prof.full_name !== 'EMPTY') {
+        if (prof && prof.full_name && prof.full_name.trim() !== '') {
           setProfName(prof.full_name);
           setChatHistory([{
             role: 'assistant',

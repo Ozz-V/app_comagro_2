@@ -95,8 +95,8 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
       const { data } = await supabase.from('profiles').select('id, full_name, telefono').eq('id', user.id).single();
       if (!isMounted.current) return;
       
-      if (!data || !data.full_name || data.full_name === 'EMPTY' || !data.telefono || data.telefono === '+595') {
-        setProfName(data?.full_name && data.full_name !== 'EMPTY' ? data.full_name : '');
+      if (!data || !data.full_name || data.full_name.trim() === '' || !data.telefono || data.telefono === '' || data.telefono === '+595') {
+        setProfName(data?.full_name && data.full_name.trim() !== '' ? data.full_name : '');
         setProfPhoneInit(data?.telefono && data.telefono !== '+595' ? data.telefono : '');
         setShowProfileModal(true);
       } else {

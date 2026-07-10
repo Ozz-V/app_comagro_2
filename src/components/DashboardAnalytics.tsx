@@ -183,7 +183,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       if (!isOnline) return;
       const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url, email, telefono').order('full_name');
       if (data && !error) {
-        const valid = data.filter(u => u.full_name && u.full_name !== 'EMPTY');
+        const valid = data.filter(u => u.full_name && u.full_name.trim() !== '');
         if (isMounted.current) setDirectoryUsers(valid);
         await AsyncStorage.setItem('@directory_cache', JSON.stringify(valid));
       }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { initDB, searchProducts, getUniqueBrands, getProductBySku } from '../utils/database';
@@ -50,6 +51,10 @@ export function useProducts() {
         await initDB();
       } catch (e: unknown) {
         console.error('initDB falló críticamente', e);
+        Alert.alert(
+          'Error Crítico de Almacenamiento',
+          'La base de datos local está corrupta o no pudo iniciarse. La aplicación no funcionará correctamente. Intente reiniciar su dispositivo o reinstalar la app.'
+        );
         setError('Error crítico: La base de datos no pudo iniciar. Reinicie la aplicación.');
         setCargando(false);
         setRefreshing(false);

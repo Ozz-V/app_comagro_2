@@ -89,7 +89,7 @@ export default function ConfigScreen({ navigation }: { navigation: any }) {
         const data = JSON.parse(cached);
         if (data.id) setUserId(data.id);
         setUserEmail(data.email || '');
-        setFullName(data.full_name && data.full_name !== 'EMPTY' ? data.full_name : '');
+        setFullName(data.full_name && data.full_name.trim() !== '' ? data.full_name : '');
         if (data.telefono && data.telefono !== '+595') {
           if (data.telefono.includes(' ')) {
             const parts = data.telefono.split(' ');
@@ -142,7 +142,7 @@ export default function ConfigScreen({ navigation }: { navigation: any }) {
         }
         
         AsyncStorage.setItem('@user_profile_cache', JSON.stringify(data));
-        setFullName(data.full_name && data.full_name !== 'EMPTY' ? data.full_name : '');
+        setFullName(data.full_name && data.full_name.trim() !== '' ? data.full_name : '');
         if (data.telefono && data.telefono !== '+595') {
           if (data.telefono.includes(' ')) {
             const parts = data.telefono.split(' ');
