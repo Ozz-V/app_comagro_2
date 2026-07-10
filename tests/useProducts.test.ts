@@ -43,7 +43,7 @@ describe('useProducts hook', () => {
     (initDB as jest.Mock).mockRejectedValue(new Error('Corrupt DB'));
     const { result } = await renderHook(() => useProducts());
     await waitTick();
-    expect(result.current.error).toContain('Error crítico');
+    expect(result.current.error).toContain('La base de datos local está corrupta');
   });
 
   it('syncs in background if cache is expired and online', async () => {
