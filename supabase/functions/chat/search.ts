@@ -69,7 +69,7 @@ export async function getEmbedding(text: string, geminiKey: string, supaAdmin: a
 export async function vectorSearch(supabase: any, queryEmbedding: number[]): Promise<{ products: any[]; knowledge: any[] }> {
   try {
     const [vRes, kRes] = await Promise.all([
-      supabase.rpc('buscar_productos_ia', { query_embedding: queryEmbedding, match_threshold: 0.15, match_count: 8 }),
+      supabase.rpc('buscar_productos_ia', { query_embedding: queryEmbedding, match_threshold: 0.15, match_count: 2 }),
       supabase.rpc('buscar_conocimiento_ia', { query_embedding: queryEmbedding, match_threshold: 0.15, match_count: 2 })
     ]);
     return { products: vRes.data || [], knowledge: kRes.data || [] };
