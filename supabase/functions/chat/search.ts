@@ -4,7 +4,7 @@ export async function extractIntent(chatHistoryText: string, geminiKey: string):
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: "Eres el motor de búsqueda interno. Tu trabajo es leer el historial de chat y deducir EXACTAMENTE qué productos distintos está buscando el usuario AHORA. Responde ÚNICAMENTE con un array JSON de strings, donde cada string es una frase de búsqueda corta (2 a 5 palabras) por cada producto distinto. Ejemplo: si el usuario pide 'medidor laser, motor de 2hp y desmalezadora', respondes: [\"medidor laser\", \"motor 2hp\", \"desmalezadora\"]. Si es un solo producto, devuelve un array de 1 elemento." }] },
+        systemInstruction: { parts: [{ text: "Eres el motor de búsqueda interno. Tu trabajo es leer el historial de chat y deducir EXACTAMENTE qué productos distintos está buscando el usuario en su ÚLTIMO mensaje. Usa el historial solo para dar contexto (por ejemplo si dice 'dame el de 2hp', te refieres a 'motor de 2hp' si antes hablaban de motores). NO repitas productos que el usuario pidió en mensajes pasados y que ya fueron respondidos. Responde ÚNICAMENTE con un array JSON de strings, donde cada string es una frase de búsqueda corta (2 a 5 palabras). Ejemplo: si el último mensaje dice 'tambien necesito un cortacesped', respondes: [\"cortacesped\"]. Si es un solo producto, devuelve un array de 1 elemento." }] },
         contents: [{ role: 'user', parts: [{ text: chatHistoryText }] }],
         generationConfig: { maxOutputTokens: 150, temperature: 0.1, responseMimeType: "application/json" }
       })
