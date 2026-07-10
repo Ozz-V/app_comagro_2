@@ -132,7 +132,7 @@ serve(async (req) => {
       finalContext.forEach((item, index) => {
         dbContextText += `${index + 1}. SKU: ${item.sku} | Descripción: ${item.sales_pitch || 'Sin descripción'}\n`;
       });
-      dbContextText += `\nREGLA DE SUGERENCIA Y ALTERNATIVAS: NUNCA dejes al usuario sin opciones. Si la lista no tiene el producto exacto que pidió (ej. pide motobomba 5HP y solo hay motores o bombas de 4HP/10HP), ofrécele OBLIGATORIAMENTE los productos de esta lista como alternativas viables explicándole la diferencia. NUNCA ocultes los productos que trajo la base de datos, SIEMPRE sugiere usando la etiqueta [SKU: XXX].`;
+      dbContextText += `\nREGLA DE SUGERENCIA Y ALTERNATIVAS: NUNCA dejes al usuario sin opciones. Si la lista no tiene el producto exacto que pidió, ofrécele OBLIGATORIAMENTE los productos de esta lista como alternativas viables explicándole la diferencia. RECUERDA: menciona las opciones en texto y pon TODAS las etiquetas [SKU: XXX] juntas al final de tu respuesta, sin intercalar.`;
     }
 
     let aiPrompt = `Eres el asesor técnico de Comagro. Responde amable, muy corto y natural. Manten una conversación fluida.

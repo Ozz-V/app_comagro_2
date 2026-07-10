@@ -273,15 +273,23 @@ const AiProductCard = ({ sku, skusContext, navigation }: { sku: string; skusCont
   useEffect(() => {
     let isMounted = true;
     import('../utils/database').then(async ({ getProductBySku, fetchMissingProductFromCloud }) => {
-      let p = await getProductBySku(sku);
-      if (!p && isMounted) {
-        // No está en local, lo buscamos en la nube "on-the-fly"
-        p = await fetchMissingProductFromCloud(sku);
+      try {
+        let p = await getProductBySku(sku);
+        if (!p && isMounted) {
+          // No está en local, lo buscamos en la nube "on-the-fly"
+          p = await fetchMissingProductFromCloud(sku);
+        }
+        if (isMounted) {
+          if (p) setProduct(p);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn('Error loading product card for sku', sku, err);
+        if (isMounted) setLoading(false);
       }
-      if (isMounted) {
-        if (p) setProduct(p);
-        setLoading(false);
-      }
+    }).catch(err => {
+      console.warn('Error importing database', err);
+      if (isMounted) setLoading(false);
     });
     return () => { isMounted = false; };
   }, [sku]);
