@@ -42,3 +42,15 @@ El chatbot (`chat/index.ts`) usa un flujo híbrido ultra-optimizado:
 - **No romper el motor de Chat:** Mantener la respuesta por debajo de los 3 segundos. Respetar la salida de etiquetas `[SKU: XXX]`.
 - **Límites de Tokens:** El Extractor de Intenciones debe usar `maxOutputTokens: 150` para permitir "pensar" sin colapsos.
 - **React Native:** Las modificaciones visuales de la App deben ajustarse al estilo de React Native (Flexbox) sin requerir librerías externas pesadas si no es estrictamente necesario.
+
+## Plan de cobertura de tests
+Baseline actual: ~12%. Objetivo: subir el threshold ~10 puntos por sprint/mes,
+priorizando logica de negocio (services, hooks) sobre UI (screens/components).
+Proximo objetivo: 25% cubriendo `catalogService.ts` y `database.ts`.
+
+## Como cambiar el esquema de la base de datos
+1. `supabase migration new <nombre>` crea un archivo SQL nuevo en `supabase/migrations/`.
+2. Escribi el cambio (ALTER TABLE, politica RLS, etc.) en ese archivo.
+3. Probalo local: `supabase db reset` (aplica todas las migraciones desde cero).
+4. `supabase db push` para aplicar en produccion.
+5. Nunca editar tablas o politicas desde el dashboard de Supabase directamente.

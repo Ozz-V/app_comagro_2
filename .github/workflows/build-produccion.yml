@@ -76,8 +76,7 @@ jobs:
             echo "keyAlias=$KEY_ALIAS"
             echo "keyPassword=$KEY_PASSWORD"
           } > android/keystore.properties
-          echo "keystore.properties creado:"
-          cat android/keystore.properties
+          echo "keystore.properties creado (contenido oculto por seguridad)"
 
           # 3. Escribir signing.gradle (sin heredoc - YAML safe)
           {
