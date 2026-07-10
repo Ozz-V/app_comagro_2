@@ -47,10 +47,14 @@ describe('useProducts hook', () => {
   });
 
   it('syncs in background if cache is expired and online', async () => {
+    jest.useFakeTimers();
     await AsyncStorage.setItem('comagro_productos_fecha_v3', '1000');
     const { result } = await renderHook(() => useProducts());
-    await waitTick();
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
     expect(syncCatalog).toHaveBeenCalled();
+    jest.useRealTimers();
   });
 
   it('fetchCatalog updates product list', async () => {
