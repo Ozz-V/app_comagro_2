@@ -1,19 +1,22 @@
-export async function extractIntent(chatHistoryText: string, geminiKey: string): Promise<string | null> {
+export async function extractIntent(chatHistoryText: string, geminiKey: string): Promise<string[] | null> {
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: "Eres el motor de búsqueda interno. Tu trabajo es leer el historial de chat y deducir EXACTAMENTE qué producto está buscando el usuario AHORA. Responde ÚNICAMENTE con una frase corta (2 a 5 palabras) con el producto, la marca o la especificación. Ejemplo: si venían hablando de desbrozadoras y el usuario dice 'tienen marca Daewoo?', tú respondes: 'desbrozadora daewoo'. Si dice 'y de 5hp?', respondes: 'desbrozadora 5hp'. Responde SOLO con los términos de búsqueda." }] },
+        systemInstruction: { parts: [{ text: "Eres el motor de búsqueda interno. Tu trabajo es leer el historial de chat y deducir EXACTAMENTE qué productos distintos está buscando el usuario AHORA. Responde ÚNICAMENTE con un array JSON de strings, donde cada string es una frase de búsqueda corta (2 a 5 palabras) por cada producto distinto. Ejemplo: si el usuario pide 'medidor laser, motor de 2hp y desmalezadora', respondes: [\"medidor laser\", \"motor 2hp\", \"desmalezadora\"]. Si es un solo producto, devuelve un array de 1 elemento." }] },
         contents: [{ role: 'user', parts: [{ text: chatHistoryText }] }],
-        generationConfig: { maxOutputTokens: 150, temperature: 0.1 }
+        generationConfig: { maxOutputTokens: 150, temperature: 0.1, responseMimeType: "application/json" }
       })
     });
     if (res.ok) {
       const data = await res.json();
       if (data.candidates?.[0]?.content?.parts) {
-        const q = data.candidates[0].content.parts[0].text.trim();
-        if (q && q !== '') return q;
+        const text = data.candidates[0].content.parts[0].text.trim();
+        try {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (err) {}
       }
     }
   } catch (e) {

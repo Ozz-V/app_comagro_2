@@ -89,17 +89,23 @@ serve(async (req) => {
     let cacheHit = false;
 
     if (exactContext.length === 0) {
-      const intent = await extractIntent(chatHistoryText, geminiKey);
-      if (intent) searchQuery = intent;
+      const intents = await extractIntent(chatHistoryText, geminiKey);
+      let queries = [lastMessage];
+      if (intents && intents.length > 0) queries = intents;
 
-      const embResult = await getEmbedding(searchQuery, geminiKey, supaAdmin);
-      cacheHit = embResult.cacheHit;
+      const embedPromises = queries.map(q => getEmbedding(q, geminiKey, supaAdmin));
+      const embedResults = await Promise.all(embedPromises);
 
-      if (embResult.embedding) {
-        const vResult = await vectorSearch(supabase, embResult.embedding);
-        vectorData = vResult.products;
-        knowledgeData = vResult.knowledge;
-      }
+      const vectorPromises = embedResults
+        .filter(r => r.embedding)
+        .map(r => vectorSearch(supabase, r.embedding!));
+      
+      const vResults = await Promise.all(vectorPromises);
+
+      vResults.forEach(v => {
+        vectorData.push(...v.products);
+        knowledgeData.push(...v.knowledge);
+      });
     }
 
     const configDataRes = await configPromise;
