@@ -168,12 +168,6 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, specs_json, search_text, sales_pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [sku, marca, subcategoria, imagen, imagenOriginal, specsJson, searchText, salesPitch]
       );
-
-      // Yield al hilo principal para evitar congelamiento de la interfaz (Anti-Jank)
-      count++;
-      if (count % 50 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 0));
-      }
     }
   });
 }
