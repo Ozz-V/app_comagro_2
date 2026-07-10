@@ -69,11 +69,11 @@ describe('Database utility', () => {
       expect(brands).toEqual(['BRANDA', 'BRANDB']);
     });
 
-    it('searches products with fts', async () => {
+    it('searches products with text query', async () => {
       mockDb.getAllAsync.mockResolvedValueOnce([{ sku: '123', specs_json: '[]' }]);
       const res = await searchProducts('Todas', 'Todas', 'test query');
       expect(res).toHaveLength(1);
-      expect(mockDb.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('MATCH'), expect.any(Array));
+      expect(mockDb.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('LIKE'), expect.any(Array));
     });
 
     it('searches products with regular filters', async () => {
