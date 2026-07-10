@@ -16,7 +16,6 @@ import { COLORS, FONTS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAiData } from '../hooks/useAiData';
-import { useAiData } from '../hooks/useAiData';
 import { fetchImageBase64 } from '../utils/pdfService';
 import { APP_CONSTANTS } from '../config/constants';
 import { ParsedProduct, CompareItem } from '../types/models';
