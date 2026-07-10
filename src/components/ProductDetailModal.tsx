@@ -178,9 +178,11 @@ export default function ProductDetailModal({
         const marcaSlug = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
         const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg`;
         
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
-        finalProdB64 = (await Promise.race([fetchImageBase64(modalProd?.imagen || ''), timeoutPromise]).catch(() => '')) as string;
-        finalLogoB64 = (await Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => '')) as string;
+        const timeoutPromise = () => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
+        [finalProdB64, finalLogoB64] = await Promise.all([
+          Promise.race([fetchImageBase64(modalProd?.imagen || ''), timeoutPromise()]).catch(() => '') as Promise<string>,
+          Promise.race([fetchImageBase64(logoUrl), timeoutPromise()]).catch(() => '') as Promise<string>,
+        ]);
       }
       
       const htmlContent = generarHtmlFicha(specs, finalProdB64, finalLogoB64, modalProd);
