@@ -46,27 +46,10 @@ export async function initDB(): Promise<SQLite.SQLiteDatabase> {
     CREATE INDEX IF NOT EXISTS idx_productos_marca ON productos(marca COLLATE NOCASE);
     CREATE INDEX IF NOT EXISTS idx_productos_subcategoria ON productos(subcategoria COLLATE NOCASE);
 
-    CREATE VIRTUAL TABLE IF NOT EXISTS productos_fts USING fts5(
-      sku, search_text, sales_pitch,
-      content='productos', content_rowid='rowid'
-    );
-
-    CREATE TRIGGER IF NOT EXISTS productos_ai AFTER INSERT ON productos BEGIN
-      INSERT INTO productos_fts(rowid, sku, search_text, sales_pitch) 
-      VALUES (new.rowid, new.sku, new.search_text, new.sales_pitch);
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS productos_ad AFTER DELETE ON productos BEGIN
-      INSERT INTO productos_fts(productos_fts, rowid, sku, search_text, sales_pitch) 
-      VALUES ('delete', old.rowid, old.sku, old.search_text, old.sales_pitch);
-    END;
-
-    CREATE TRIGGER IF NOT EXISTS productos_au AFTER UPDATE ON productos BEGIN
-      INSERT INTO productos_fts(productos_fts, rowid, sku, search_text, sales_pitch) 
-      VALUES ('delete', old.rowid, old.sku, old.search_text, old.sales_pitch);
-      INSERT INTO productos_fts(rowid, sku, search_text, sales_pitch) 
-      VALUES (new.rowid, new.sku, new.search_text, new.sales_pitch);
-    END;
+    DROP TABLE IF EXISTS productos_fts;
+    DROP TRIGGER IF EXISTS productos_ai;
+    DROP TRIGGER IF EXISTS productos_ad;
+    DROP TRIGGER IF EXISTS productos_au;
   `);
 
   // Verificar esquema para migraciones incrementales
@@ -105,12 +88,7 @@ export async function initDB(): Promise<SQLite.SQLiteDatabase> {
     }
   }
 
-  // Reconstruir FTS5 por si hubo migraciones incrementales
-  try {
-    await db.execAsync("INSERT INTO productos_fts(productos_fts) VALUES('rebuild');");
-  } catch (e) {
-    console.log('Error rebuilding FTS', e);
-  }
+
 
   return db;
 }
@@ -173,53 +151,33 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
 export async function searchProducts(marcaFiltro: string, subcatFiltro: string, textoBusqueda: string): Promise<ParsedProduct[]> {
   const db = await getDB();
 
-  let query = '';
+  let query = 'SELECT * FROM productos WHERE 1=1';
   const params: string[] = [];
-  let useFts = false;
-  const matchClauses: string[] = [];
-
-  if (textoBusqueda && textoBusqueda.trim().length > 0) {
-    useFts = true;
-    const terminos = textoBusqueda.trim().replace(/["']/g, '').split(' ').filter(t => t.length > 0);
-    if (terminos.length > 0) {
-      // Búsqueda por prefijo para FTS5
-      matchClauses.push(terminos.map(t => `"${t}"*`).join(' AND '));
-    }
+  if (subcatFiltro === '__productos__') {
+    query += " AND NOT (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
+  } else if (subcatFiltro === '__acc__') {
+    query += " AND (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
   }
 
-  if (subcatFiltro === '__acc__') {
-    useFts = true;
-    matchClauses.push('(accesorio OR repuesto OR pieza OR kit)');
-  }
-
-  if (useFts) {
-    query = 'SELECT p.* FROM productos p JOIN productos_fts f ON p.rowid = f.rowid WHERE 1=1';
-    if (matchClauses.length > 0) {
-      query += ' AND productos_fts MATCH ?';
-      params.push(matchClauses.map(c => `(${c})`).join(' AND '));
-    }
-    if (subcatFiltro === '__productos__') {
-      query += " AND NOT (productos_fts MATCH '(accesorio OR repuesto OR pieza OR kit)')";
-    }
-  } else {
-    query = 'SELECT * FROM productos WHERE 1=1';
-    if (subcatFiltro === '__productos__') {
-      query += " AND NOT (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
+  if (textoBusqueda && textoBusqueda.length > 2) {
+    const terms = textoBusqueda.split(' ').filter(x => x.length > 1);
+    for (const term of terms) {
+      query += " AND (search_text LIKE ? OR sales_pitch LIKE ?)";
+      params.push(`%${term}%`, `%${term}%`);
     }
   }
 
   if (marcaFiltro && marcaFiltro !== 'Todas' && marcaFiltro !== '') {
-    // COLLATE NOCASE index takes care of case-insensitivity
-    query += (useFts ? ' AND p.marca = ?' : ' AND marca = ?');
+    query += ' AND marca = ?';
     params.push(marcaFiltro);
   }
 
   if (subcatFiltro && subcatFiltro !== 'Todas' && subcatFiltro !== '__acc__' && subcatFiltro !== '__productos__') {
-    query += (useFts ? ' AND p.subcategoria LIKE ?' : ' AND subcategoria LIKE ?');
+    query += ' AND subcategoria LIKE ?';
     params.push(`%${subcatFiltro}%`);
   }
 
-  query += (useFts ? ' ORDER BY p.subcategoria ASC, p.sku ASC LIMIT 500' : ' ORDER BY subcategoria ASC, sku ASC LIMIT 500');
+  query += ' ORDER BY subcategoria ASC, sku ASC LIMIT 500';
 
   const results = await db.getAllAsync<ProductRow>(query, params);
 
