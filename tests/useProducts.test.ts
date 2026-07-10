@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react-native';
 import { useProducts } from '../src/hooks/useProducts';
 import { useOfflineSync } from '../src/contexts/OfflineSyncContext';
 import { initDB, searchProducts, getUniqueBrands, getProductBySku } from '../src/utils/database';
