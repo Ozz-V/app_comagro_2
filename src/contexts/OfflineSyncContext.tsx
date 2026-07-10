@@ -6,6 +6,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase, EDGE_URL } from '../supabase';
 import { initDB, insertProductsBatch } from '../utils/database';
+import { ensureCatalogSynced } from '../services/catalogService';
 
 export interface OfflineGroups {
   catalogos: boolean;
@@ -77,6 +78,8 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
   const [syncAlert, setSyncAlert] = useState<SyncAlert | null>(null);
 
   const cancelFlag = useRef(false);
+  const manifestRef = useRef(manifest);
+  manifestRef.current = manifest;
 
   useEffect(() => {
     // Escuchar el estado de red globalmente
@@ -91,6 +94,47 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
       unsubscribe();
     };
   }, []);
+
+  // ─── AUTO-SYNC DEL CATÁLOGO ──────────────────────────────────────────────
+  // Este es el disparador "de verdad" de la descarga del catálogo: arranca
+  // solo, apenas hay sesión iniciada y conexión, SIN que el usuario tenga
+  // que entrar nunca a la pantalla de "Todos los productos". Como este
+  // Provider envuelve toda la app (ver App.tsx) y no se desmonta al
+  // navegar entre pantallas, la sincronización sigue corriendo en segundo
+  // plano pase lo que pase mientras la app siga abierta.
+  //
+  // ensureCatalogSynced() ya se encarga de no duplicar: si ya hay una
+  // sincronización en curso (arrancada acá o desde useProducts), no
+  // arranca otra.
+  useEffect(() => {
+    if (!isOnline) return;
+
+    let cancelado = false;
+
+    async function intentarAutoSync() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || cancelado) return;
+        await ensureCatalogSynced(manifestRef.current);
+      } catch (e) {
+        console.log('[OfflineSync] auto-sync de catálogo falló', e);
+      }
+    }
+
+    intentarAutoSync();
+
+    // También reintentar cada vez que cambia el estado de auth (por si el
+    // login termina DESPUÉS de que este efecto corrió la primera vez).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) intentarAutoSync();
+    });
+
+    return () => {
+      cancelado = true;
+      subscription.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
 
   async function loadManifest() {
     try {
