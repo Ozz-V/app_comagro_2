@@ -17,7 +17,16 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    let { messages } = await req.json();
+    const body = await req.json();
+    if (body.ping) {
+      const geminiKey = Deno.env.get('GEMINI_API_KEY');
+      if (!geminiKey) {
+        return new Response(JSON.stringify({ status: 'error', message: 'Missing API Key' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 });
+      }
+      return new Response(JSON.stringify({ status: 'ok' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    let { messages } = body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       throw new Error('Messages array is required');
     }

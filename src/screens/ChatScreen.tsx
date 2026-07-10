@@ -47,18 +47,23 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
   async function fetchInitData() {
     setApiStatus('connecting');
     try {
-      // 1. Remote Config — leído con el token del usuario autenticado
-      const { data: config, error: configError } = await supabase
-        .from('app_config')
-        .select('ai_prompt')
-        .eq('id', 'global')
-        .maybeSingle();
-
-      if (!configError) {
+      // 1. Verificar estado REAL de la IA enviando comando ping a la Edge Function
+      const { data: pingData, error: pingError } = await supabase.functions.invoke('chat', {
+        body: { ping: true }
+      });
+      
+      if (!pingError && pingData?.status === 'ok') {
         setApiStatus('online');
       } else {
         setApiStatus('offline');
       }
+
+      // 2. Remote Config — leído con el token del usuario autenticado
+      const { data: config } = await supabase
+        .from('app_config')
+        .select('ai_prompt')
+        .eq('id', 'global')
+        .maybeSingle();
 
       if (config) setRemoteConfig(config);
 
