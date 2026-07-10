@@ -16,6 +16,8 @@ import { COLORS, FONTS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAiData } from '../hooks/useAiData';
+import { useAiData } from '../hooks/useAiData';
+import { fetchImageBase64 } from '../utils/pdfService';
 import { APP_CONSTANTS } from '../config/constants';
 import { ParsedProduct, CompareItem } from '../types/models';
 import { NavigationProp, RouteProp } from '@react-navigation/native';
@@ -66,8 +68,22 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
   const [showCompareGrid, setShowCompareGrid] = useState(false);
   const [fromProductViewer, setFromProductViewer] = useState(false);
 
-  // PDF Cache State - static initialized as empty to avoid unused setter warning
-  const pdfCache = { prodBase64: '', logoBase64: '' };
+  // PDF caché
+  const [pdfCache, setPdfCache] = useState<{ prodBase64: string; logoBase64: string }>({ prodBase64: '', logoBase64: '' });
+
+  useEffect(() => {
+    let cancelled = false;
+    setPdfCache({ prodBase64: '', logoBase64: '' });
+    if (modalProd) {
+      const marcaSlug = (modalProd.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+      const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg?v=${logoRefreshKey}`;
+      const imgUrl = modalProd.imagenOriginal || modalProd.imagen || '';
+      Promise.all([fetchImageBase64(imgUrl), fetchImageBase64(logoUrl)]).then(([prodBase64, logoBase64]) => {
+        if (!cancelled) setPdfCache({ prodBase64, logoBase64 });
+      });
+    }
+    return () => { cancelled = true; };
+  }, [modalProd, logoRefreshKey]);
 
   const { width } = useWindowDimensions();
   const numCols = width >= 600 ? 3 : 2;
