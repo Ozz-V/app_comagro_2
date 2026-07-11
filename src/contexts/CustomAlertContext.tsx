@@ -37,21 +37,21 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
   const [alertConfig, setAlertConfig] = useState<AlertConfig | null>(null);
   const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
   
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(-50)).current;
+  const fadeAnimRef = useRef(new Animated.Value(0));
+  const slideAnimRef = useRef(new Animated.Value(-50));
 
   // Manejador del Toast
   useEffect(() => {
     if (toastConfig) {
       Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
-        Animated.timing(slideAnim, { toValue: 50, duration: 250, easing: Easing.out(Easing.ease), useNativeDriver: true })
+        Animated.timing(fadeAnimRef.current, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.timing(slideAnimRef.current, { toValue: 50, duration: 250, easing: Easing.out(Easing.ease), useNativeDriver: true })
       ]).start();
 
       const timer = setTimeout(() => {
         Animated.parallel([
-          Animated.timing(fadeAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
-          Animated.timing(slideAnim, { toValue: -50, duration: 250, easing: Easing.in(Easing.ease), useNativeDriver: true })
+          Animated.timing(fadeAnimRef.current, { toValue: 0, duration: 250, useNativeDriver: true }),
+          Animated.timing(slideAnimRef.current, { toValue: -50, duration: 250, easing: Easing.in(Easing.ease), useNativeDriver: true })
         ]).start(() => setToastConfig(null));
       }, 2500);
 
@@ -77,7 +77,7 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
       
       {/* GLOBAL TOAST */}
       {toastConfig && (
-        <Animated.View style={[styles.toastContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View style={[styles.toastContainer, { opacity: fadeAnimRef.current, transform: [{ translateY: slideAnimRef.current }] }]}>
           <Text style={styles.toastText}>{toastConfig.message}</Text>
         </Animated.View>
       )}
