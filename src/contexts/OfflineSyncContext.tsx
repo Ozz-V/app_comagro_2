@@ -78,7 +78,6 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
 
   const cancelFlag = useRef(false);
   const manifestRef = useRef(manifest);
-  const loadManifestRef = useRef<() => Promise<void>>();
 
   // Inicializar loadManifest primero para evitar "accessed before it is declared"
   const loadManifest = async () => {
@@ -88,8 +87,6 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
     } catch (e) {}
     finally { setManifestReady(true); }
   };
-
-  loadManifestRef.current = loadManifest;
 
   // Actualizar manifestRef cuando cambia manifest
   useEffect(() => {
@@ -102,9 +99,7 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
       setIsOnline(!!state.isConnected && state.isInternetReachable !== false);
     });
 
-    if (loadManifestRef.current) {
-      loadManifestRef.current();
-    }
+    loadManifest();
     ensureDirExists();
 
     return () => {
