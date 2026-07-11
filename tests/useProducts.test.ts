@@ -51,7 +51,7 @@ describe('useProducts hook', () => {
     (initDB as jest.Mock).mockRejectedValue(new Error('Corrupt DB'));
     const { result } = await renderHook(() => useProducts());
     await waitTick();
-    expect(result.current.error).toContain('La base de datos local está corrupta');
+    expect(result.current.error).toContain('No se pudo iniciar el catálogo local');
   });
 
   it('syncs catalog immediately during initialization when online', async () => {
