@@ -23,11 +23,73 @@ let _db: SQLite.SQLiteDatabase | null = null;
 async function getDB(): Promise<SQLite.SQLiteDatabase> {
   if (!_db) {
     _db = await SQLite.openDatabaseAsync(DB_NAME);
+    // WAL (Write-Ahead Logging) es mucho más resistente que el modo rollback
+    // por defecto ante cierres forzosos / cortes de batería / que el sistema
+    // mate el proceso a mitad de una escritura: los cambios se anexan a un
+    // archivo -wal aparte y solo se "commitean" a la base principal cuando
+    // corresponde, así que un corte a mitad de camino no deja la base
+    // principal en un estado a medio escribir.
+    await _db.execAsync('PRAGMA journal_mode = WAL;');
+    await _db.execAsync('PRAGMA synchronous = NORMAL;');
   }
   return _db;
 }
 
+/**
+ * Si la base local quedó corrupta (poco frecuente, pero puede pasar por
+ * cierres forzosos, quedarse sin espacio, o fallas de storage del equipo),
+ * en vez de dejar la app inutilizable, la borramos y la recreamos desde
+ * cero. Como esto es solo un CACHE del catálogo (se puede volver a
+ * descargar de Supabase), perder este archivo no pierde datos del usuario
+ * — el próximo sync lo repuebla solo.
+ */
+async function resetCorruptDatabase(): Promise<void> {
+  try {
+    if (_db) {
+      try { await _db.closeAsync(); } catch { /* ya puede estar cerrada/rota */ }
+    }
+  } finally {
+    _db = null;
+  }
+  try {
+    await SQLite.deleteDatabaseAsync(DB_NAME);
+  } catch (e: unknown) {
+    // Si ni siquiera se puede borrar el archivo, no hay mucho más para
+    // intentar automáticamente — se deja que el llamador decida qué mostrar.
+    console.log('No se pudo borrar la base corrupta', e);
+  }
+}
+
+const CORRUPTION_SIGNATURES = [
+  'not a database',
+  'malformed',
+  'disk image is malformed',
+  'database disk image',
+  'file is encrypted or is not a database',
+];
+
+function pareceCorrupcion(e: unknown): boolean {
+  const msg = String((e as { message?: string })?.message || e).toLowerCase();
+  return CORRUPTION_SIGNATURES.some((sig) => msg.includes(sig));
+}
+
 export async function initDB(): Promise<SQLite.SQLiteDatabase> {
+  try {
+    return await initDBInternal();
+  } catch (e: unknown) {
+    if (!pareceCorrupcion(e)) throw e; // Error no relacionado a corrupción: no tiene sentido borrar el caché, que se propague tal cual
+
+    // Reintento automático: si la base está corrupta, la borramos y
+    // arrancamos de cero UNA vez. Si esto también falla, ahí sí se lo
+    // dejamos ver al usuario — pero esto cubre el caso común de corrupción
+    // por cierre forzoso sin que el usuario tenga que hacer nada.
+    console.log('initDB detectó base corrupta, reparando automáticamente', String(e));
+    await resetCorruptDatabase();
+    return await initDBInternal();
+  }
+}
+
+async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
   const db = await getDB();
 
   // Crear la tabla base si no existe (la base será la versión actual completa)
