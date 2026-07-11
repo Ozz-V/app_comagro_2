@@ -54,13 +54,12 @@ describe('useProducts hook', () => {
     expect(result.current.error).toContain('La base de datos local está corrupta');
   });
 
-  it('syncs in background if cache is expired and online', async () => {
-    jest.useFakeTimers();
+  it('syncs catalog immediately during initialization when online', async () => {
     await AsyncStorage.setItem('comagro_productos_fecha_v3', '1000');
     const { result } = await renderHook(() => useProducts());
     await waitTick();
+    // ensureCatalogSynced is called immediately in initialization, not after a delay
     expect(ensureCatalogSynced).toHaveBeenCalled();
-    jest.useRealTimers();
   });
 
   it('fetchCatalog updates product list', async () => {
