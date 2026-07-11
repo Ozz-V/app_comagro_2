@@ -40,7 +40,7 @@ export function useProducts() {
         return;
       }
 
-      // Mostramos lo que YA esté en SQLite de entrada. Si el auto-sync del
+      // Mostramos lo que YA est�� en SQLite de entrada. Si el auto-sync del
       // arranque de la app (OfflineSyncContext) ya venía corriendo o ya
       // terminó, acá aparece de una — no hace falta esperar nada.
       const m = await getUniqueBrands();
@@ -98,7 +98,10 @@ export function useProducts() {
 
     return () => {
       isMounted.current = false;
-      unsubscribe();
+
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
   }, [cargarLogoRefreshKey, inicializar]);
 
