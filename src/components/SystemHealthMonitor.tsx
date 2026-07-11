@@ -105,17 +105,15 @@ export default function SystemHealthMonitor() {
 
   async function checkAITokens() {
     try {
-      const { data, error } = await supabase
-        .from('productos_ai_data')
-        .select('created_at')
-        .not('sales_pitch', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1);
-        
-      if (error) throw new Error('Error DB');
-      
-      const lastGenerated = data && data.length > 0 && data[0].created_at ? new Date(data[0].created_at).toLocaleDateString() : 'Desconocido';
-      setAiHealth({ service: 'Asistente IA', status: 'ok', lastPing: new Date().toLocaleTimeString(), details: `Último generado: ${lastGenerated}` });
+      // Ping real y gratuito: llama a la función chat con { ping: true },
+      // que del lado del servidor consulta el endpoint de metadata de
+      // Gemini (no generateContent), así que NO gasta tokens de IA — solo
+      // confirma que la API de Google responde y que la key es válida.
+      const { data, error } = await supabase.functions.invoke('chat', { body: { ping: true } });
+      if (error || !data || data.status !== 'ok') {
+        throw new Error(data?.message || 'No responde');
+      }
+      setAiHealth({ service: 'Asistente IA', status: 'ok', lastPing: new Date().toLocaleTimeString(), details: 'Gemini responde correctamente' });
     } catch (e: any) {
       setAiHealth({ service: 'Asistente IA', status: 'error', lastPing: new Date().toLocaleTimeString(), details: 'Desconectado' });
     }
