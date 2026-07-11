@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } from 'react-native';
-import Reanimated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import LottieView from 'lottie-react-native';
 import { COLORS } from '../theme';
 
@@ -35,10 +34,14 @@ export function useCustomAlert() {
 
 export function CustomAlertProvider({ children }: { children: React.ReactNode }) {
   const [alertConfig, setAlertConfig] = useState<AlertConfig | null>(null);
+  const [isAlertVisible, setIsAlertVisible] = useState(false);
   const [toastConfig, setToastConfig] = useState<ToastConfig | null>(null);
   
   const fadeAnimRef = useRef(new Animated.Value(0));
   const slideAnimRef = useRef(new Animated.Value(-50));
+  const alertOpacityRef = useRef(new Animated.Value(0));
+  const alertScaleRef = useRef(new Animated.Value(0.96));
+  const pendingAlertActionRef = useRef<(() => void) | null>(null);
 
   // Manejador del Toast
   useEffect(() => {
@@ -59,13 +62,58 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
     }
   }, [toastConfig]);
 
-  const showAlert = (title: string, message: string, buttons: AlertButton[] = [{ text: 'OK', onPress: () => closeAlert() }]) => {
-    setAlertConfig({ title, message, buttons });
-  };
+  const runPendingAlertAction = useCallback(() => {
+    const pendingAction = pendingAlertActionRef.current;
+    pendingAlertActionRef.current = null;
+    if (pendingAction) pendingAction();
+  }, []);
 
-  const closeAlert = () => {
-    setAlertConfig(null);
-  };
+  const closeAlert = useCallback((afterClose?: () => void) => {
+    pendingAlertActionRef.current = afterClose || null;
+
+    Animated.parallel([
+      Animated.timing(alertOpacityRef.current, {
+        toValue: 0,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(alertScaleRef.current, {
+        toValue: 0.98,
+        duration: 120,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setIsAlertVisible(false);
+      setAlertConfig(null);
+      runPendingAlertAction();
+    });
+  }, [runPendingAlertAction]);
+
+  const showAlert = useCallback((title: string, message: string, buttons: AlertButton[] = [{ text: 'OK' }]) => {
+    pendingAlertActionRef.current = null;
+    alertOpacityRef.current.setValue(0);
+    alertScaleRef.current.setValue(0.96);
+    setAlertConfig({ title, message, buttons });
+    setIsAlertVisible(true);
+
+    requestAnimationFrame(() => {
+      Animated.parallel([
+        Animated.timing(alertOpacityRef.current, {
+          toValue: 1,
+          duration: 160,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(alertScaleRef.current, {
+          toValue: 1,
+          duration: 160,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  }, []);
 
   const showToast = (message: string) => {
     setToastConfig({ message });
@@ -91,14 +139,14 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
       {/* GLOBAL ALERT MODAL */}
       <Modal
         transparent={true}
-        visible={!!alertConfig}
+        visible={isAlertVisible}
         animationType="none"
         statusBarTranslucent
         navigationBarTranslucent
-        onRequestClose={closeAlert}
+        onRequestClose={() => closeAlert()}
       >
-        <Reanimated.View style={styles.modalOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
-          <View style={styles.alertBox}>
+        <Animated.View style={[styles.modalOverlay, { opacity: alertOpacityRef.current }]}>
+          <Animated.View style={[styles.alertBox, { transform: [{ scale: alertScaleRef.current }] }]}>
             <LottieView
               source={require('../../assets/iso.json')}
               autoPlay
@@ -115,11 +163,14 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
                 return (
                   <TouchableOpacity
                     key={index}
-                    style={[styles.button, isCancel ? styles.buttonCancel : styles.buttonPrimary, alertConfig.buttons?.length === 1 && { flex: 1 }]}
+                    style={[
+                      styles.button,
+                      isCancel ? styles.buttonCancel : styles.buttonPrimary,
+                      alertConfig.buttons?.length === 1 && { flex: 1 }
+                    ]}
                     activeOpacity={0.7}
                     onPress={() => {
-                      closeAlert();
-                      if (btn.onPress) btn.onPress();
+                      closeAlert(btn.onPress);
                     }}
                   >
                     <Text style={[styles.buttonText, isCancel && styles.buttonTextCancel]}>
@@ -129,8 +180,8 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
                 );
               })}
             </View>
-          </View>
-        </Reanimated.View>
+          </Animated.View>
+        </Animated.View>
       </Modal>
     </CustomAlertContext.Provider>
   );
