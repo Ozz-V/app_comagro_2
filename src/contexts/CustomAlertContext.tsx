@@ -77,7 +77,13 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
       
       {/* GLOBAL TOAST */}
       {toastConfig && (
-        <Animated.View style={[styles.toastContainer, { opacity: fadeAnimRef.current, transform: [{ translateY: slideAnimRef.current }] }]}>
+        <Animated.View style={[
+          styles.toastContainer,
+          {
+            opacity: fadeAnimRef.current,
+            transform: [{ translateY: slideAnimRef.current }]
+          }
+        ]}>
           <Text style={styles.toastText}>{toastConfig.message}</Text>
         </Animated.View>
       )}

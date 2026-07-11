@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { AppState, Alert } from 'react-native';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -50,7 +50,6 @@ export function useOfflineSync(): OfflineSyncContextProps {
 }
 
 const OFFLINE_DIR = FileSystem.documentDirectory + 'offline_cache/';
-const CACHE_KEY_PRODUCTS = '@productos_cache';
 const CACHE_TIME_KEY = '@productos_cache_time';
 const MANIFEST_KEY = '@offline_manifest';
 
@@ -79,7 +78,23 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
 
   const cancelFlag = useRef(false);
   const manifestRef = useRef(manifest);
-  manifestRef.current = manifest;
+  const loadManifestRef = useRef<() => Promise<void>>();
+
+  // Inicializar loadManifest primero para evitar "accessed before it is declared"
+  const loadManifest = async () => {
+    try {
+      const raw = await AsyncStorage.getItem(MANIFEST_KEY);
+      if (raw) setManifest(JSON.parse(raw));
+    } catch (e) {}
+    finally { setManifestReady(true); }
+  };
+
+  loadManifestRef.current = loadManifest;
+
+  // Actualizar manifestRef cuando cambia manifest
+  useEffect(() => {
+    manifestRef.current = manifest;
+  }, [manifest]);
 
   useEffect(() => {
     // Escuchar el estado de red globalmente
@@ -87,7 +102,9 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
       setIsOnline(!!state.isConnected && state.isInternetReachable !== false);
     });
 
-    loadManifest();
+    if (loadManifestRef.current) {
+      loadManifestRef.current();
+    }
     ensureDirExists();
 
     return () => {
@@ -135,14 +152,6 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline]);
-
-  async function loadManifest() {
-    try {
-      const raw = await AsyncStorage.getItem(MANIFEST_KEY);
-      if (raw) setManifest(JSON.parse(raw));
-    } catch (e) {}
-    finally { setManifestReady(true); }
-  }
 
   async function saveManifest(newManifest: Record<string, string>) {
     try {
