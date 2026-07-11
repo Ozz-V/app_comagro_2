@@ -33,8 +33,12 @@ export function useProducts() {
       try {
         await initDB();
       } catch (e: unknown) {
-        console.error('initDB falló críticamente', e);
-        setError('La base de datos local está corrupta o no pudo iniciarse. La aplicación no funcionará correctamente. Intente reiniciar su dispositivo o reinstalar la app.');
+        // Si initDB() llega hasta acá es porque YA intentó reparar la base
+        // sola (borrar y recrear) y aun así falló — algo más serio pasa
+        // (ej. sin espacio de almacenamiento, o permisos del sistema de
+        // archivos), y ahí sí es correcto avisarle al usuario.
+        console.error('initDB falló incluso tras intentar reparar la base local', e);
+        setError('No se pudo iniciar el catálogo local. Verifique que tenga espacio de almacenamiento libre y vuelva a intentar. Si persiste, reinicie su dispositivo.');
         setCargando(false);
         setRefreshing(false);
         return;
