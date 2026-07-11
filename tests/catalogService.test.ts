@@ -23,6 +23,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 jest.mock('../src/utils/database', () => ({
   insertProductsBatch: jest.fn().mockResolvedValue(undefined),
+  pruneStaleProducts: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe('fetchAiPitch', () => {
