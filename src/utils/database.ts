@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Sentry from '@sentry/react-native';
 import { supabase, EDGE_URL } from '../supabase';
 import { Product, ParsedProduct } from '../types';
 
@@ -77,15 +78,25 @@ export async function initDB(): Promise<SQLite.SQLiteDatabase> {
   try {
     return await initDBInternal();
   } catch (e: unknown) {
-    if (!pareceCorrupcion(e)) throw e; // Error no relacionado a corrupción: no tiene sentido borrar el caché, que se propague tal cual
+    if (!pareceCorrupcion(e)) {
+      Sentry.captureException(e, { tags: { context: 'initDB_non_corruption_error' } });
+      throw e; // Error no relacionado a corrupción: no tiene sentido borrar el caché, que se propague tal cual
+    }
 
     // Reintento automático: si la base está corrupta, la borramos y
     // arrancamos de cero UNA vez. Si esto también falla, ahí sí se lo
     // dejamos ver al usuario — pero esto cubre el caso común de corrupción
     // por cierre forzoso sin que el usuario tenga que hacer nada.
     console.log('initDB detectó base corrupta, reparando automáticamente', String(e));
+    Sentry.captureMessage('initDB: base local corrupta, auto-reparando', { level: 'warning', extra: { originalError: String(e) } });
     await resetCorruptDatabase();
-    return await initDBInternal();
+    try {
+      return await initDBInternal();
+    } catch (e2: unknown) {
+      // La auto-reparación también falló: esto sí es serio y hay que verlo en Sentry.
+      Sentry.captureException(e2, { tags: { context: 'initDB_repair_failed' } });
+      throw e2;
+    }
   }
 }
 
