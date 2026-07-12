@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Sentry from '@sentry/react-native';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { initDB, searchProducts, getUniqueBrands, getProductBySku } from '../utils/database';
 import { ensureCatalogSynced, subscribeToCatalogUpdates, isCatalogSyncing } from '../services/catalogService';
@@ -38,6 +39,7 @@ export function useProducts() {
         // (ej. sin espacio de almacenamiento, o permisos del sistema de
         // archivos), y ahí sí es correcto avisarle al usuario.
         console.error('initDB falló incluso tras intentar reparar la base local', e);
+        Sentry.captureException(e, { tags: { context: 'initDB_fatal' } });
         setError('No se pudo iniciar el catálogo local. Verifique que tenga espacio de almacenamiento libre y vuelva a intentar. Si persiste, reinicie su dispositivo.');
         setCargando(false);
         setRefreshing(false);
@@ -64,7 +66,10 @@ export function useProducts() {
               setLogoRefreshKey(result.logoRefreshKey);
             }
           })
-          .catch((e) => console.log('Fallo sincronización de catálogo', e));
+          .catch((e) => {
+            console.log('Fallo sincronización de catálogo', e);
+            Sentry.captureException(e, { tags: { context: 'ensureCatalogSynced_background' } });
+          });
       }
     } catch (err: unknown) {
       if (isMounted.current) setError('Error iniciando base de datos');
@@ -159,6 +164,7 @@ export function useProducts() {
       if (isMounted.current) setMarcas(m);
     } catch (e: unknown) {
       console.log('Error en onRefresh', e);
+      Sentry.captureException(e, { tags: { context: 'onRefresh' } });
     } finally {
       if (isMounted.current) {
         setRefreshing(false);
