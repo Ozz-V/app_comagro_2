@@ -70,27 +70,12 @@ CREATE TABLE IF NOT EXISTS public.event_shifts (
 
 ALTER TABLE public.event_shifts ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE IF NOT EXISTS public.event_stats (
-  id uuid,
-  name text,
-  slug text,
-  type text,
-  date date,
-  time time without time zone,
-  location text,
-  status text,
-  max_capacity integer,
-  created_at timestamp with time zone,
-  total_registered bigint,
-  total_attended bigint,
-  total_preregistro bigint,
-  total_confirmado bigint,
-  total_ausente bigint,
-  attendance_rate numeric,
-  spots_remaining bigint
-);
-
-ALTER TABLE public.event_stats ENABLE ROW LEVEL SECURITY;
+-- NOTA: "event_stats" se removió de este snapshot. En producción existe como
+-- VISTA (creada manualmente en el dashboard, nunca capturada en una migración),
+-- no como tabla. Por eso "ALTER TABLE ... ENABLE ROW LEVEL SECURITY" fallaba
+-- con SQLSTATE 42809 ("This operation is not supported for views") cada vez
+-- que Supabase replicaba este snapshot en un preview branch, bloqueando el
+-- check "Supabase Preview" en cada push. No se usa en ningún lado de la app.
 
 CREATE TABLE IF NOT EXISTS public.events (
   id uuid NOT NULL,
