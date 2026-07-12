@@ -105,10 +105,26 @@ serve(async (req) => {
     let knowledgeData: any[] = [];
     let cacheHit = false;
 
-    if (exactContext.length === 0) {
+    // Antes esto se saltaba ENTERO si exactContext tenía algo (bug: un match exacto de
+    // UN producto bloqueaba la búsqueda semántica de TODOS los demás productos pedidos
+    // en el mismo mensaje). Ahora solo lo saltamos si ya cubrimos todos los ítems que
+    // el usuario pidió (heurística simple: cantidad de exact matches >= cantidad de
+    // "términos de producto" detectados por potentialSkus). En la duda, igual buscamos.
+    if (exactContext.length < Math.max(potentialSkus.length, 1)) {
       const intents = await extractIntent(chatHistoryText, geminiKey);
       let queries = [lastMessage];
       if (intents && intents.length > 0) queries = intents;
+
+      // Fallback: si el extractor de intents devolvió un solo ítem pero el mensaje
+      // tiene conectores típicos de pedido múltiple ("y", ",", "también"), lo
+      // separamos nosotros mismos para no depender 100% del modelo chico.
+      if (queries.length === 1 && /\by\b|,|también/i.test(lastMessage)) {
+        const naiveSplit = lastMessage
+          .split(/\by\b|,|también/i)
+          .map((s: string) => s.trim())
+          .filter((s: string) => s.length > 2);
+        if (naiveSplit.length > 1) queries = naiveSplit;
+      }
 
       const embedPromises = queries.map(q => getEmbedding(q, geminiKey, supaAdmin));
       const embedResults = await Promise.all(embedPromises);
