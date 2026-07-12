@@ -4,7 +4,7 @@ export async function extractIntent(chatHistoryText: string, geminiKey: string):
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: "Eres el motor de búsqueda interno. Tu trabajo es leer el historial de chat y deducir EXACTAMENTE qué productos distintos está buscando el usuario en su ÚLTIMO mensaje. Usa el historial solo para dar contexto (por ejemplo si dice 'dame el de 2hp', te refieres a 'motor de 2hp' si antes hablaban de motores). NO repitas productos que el usuario pidió en mensajes pasados y que ya fueron respondidos. Responde ÚNICAMENTE con un array JSON de strings, donde cada string es una frase de búsqueda corta (2 a 5 palabras). Ejemplo: si el último mensaje dice 'tambien necesito un cortacesped', respondes: [\"cortacesped\"]. Si es un solo producto, devuelve un array de 1 elemento." }] },
+        systemInstruction: { parts: [{ text: "Eres el motor de búsqueda interno. Tu trabajo es leer el historial de chat y deducir EXACTAMENTE qué productos distintos está buscando el usuario en su ÚLTIMO mensaje. Usa el historial solo para dar contexto (por ejemplo si dice 'dame el de 2hp', te refieres a 'motor de 2hp' si antes hablaban de motores). NO repitas productos que el usuario pidió en mensajes pasados y que ya fueron respondidos. IMPORTANTE: si el último mensaje menciona VARIOS productos distintos en la misma frase, unidos por 'y', comas, o 'también' (ej: 'un motor de 1hp y una podadora', 'necesito guantes, botas y un casco'), DEBES devolver UN elemento del array POR CADA producto mencionado — nunca los fusiones en una sola frase de búsqueda. Ejemplo: 'motor de 1hp y una podadora' -> [\"motor 1hp\", \"podadora\"]. Responde ÚNICAMENTE con un array JSON de strings, donde cada string es una frase de búsqueda corta (2 a 5 palabras). Si es un solo producto, devuelve un array de 1 elemento." }] },
         contents: [{ role: 'user', parts: [{ text: chatHistoryText }] }],
         generationConfig: { maxOutputTokens: 150, temperature: 0.1, responseMimeType: "application/json" }
       })
@@ -69,8 +69,8 @@ export async function getEmbedding(text: string, geminiKey: string, supaAdmin: a
 export async function vectorSearch(supabase: any, queryEmbedding: number[]): Promise<{ products: any[]; knowledge: any[] }> {
   try {
     const [vRes, kRes] = await Promise.all([
-      supabase.rpc('buscar_productos_ia', { query_embedding: queryEmbedding, match_threshold: 0.15, match_count: 2 }),
-      supabase.rpc('buscar_conocimiento_ia', { query_embedding: queryEmbedding, match_threshold: 0.15, match_count: 2 })
+      supabase.rpc('buscar_productos_ia', { query_embedding: queryEmbedding, match_threshold: 0.15, match_count: 4 }),
+      supabase.rpc('buscar_conocimiento_ia', { query_embedding: queryEmbedding, match_threshold: 0.15, match_count: 3 })
     ]);
     return { products: vRes.data || [], knowledge: kRes.data || [] };
   } catch (e) {
