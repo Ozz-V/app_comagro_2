@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 
 interface Props {
   children: ReactNode;
@@ -23,6 +24,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
+    // Se suma a Sentry sin sacar el console.error: si Sentry no está
+    // configurado (sin DSN), Sentry.init lo deja como no-op y esto no rompe nada.
+    Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
   }
 
   private handleRestart = () => {
