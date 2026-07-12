@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS public.registrations (
 
 ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Autenticados leen ai_knowledge" ON public.ai_company_knowledge;
 CREATE POLICY "Autenticados leen ai_knowledge" ON public.ai_company_knowledge
   AS PERMISSIVE
   FOR SELECT
@@ -158,6 +159,7 @@ CREATE POLICY "Autenticados leen ai_knowledge" ON public.ai_company_knowledge
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Usuarios autenticados pueden ver catálogos" ON public.catalogos;
 CREATE POLICY "Usuarios autenticados pueden ver catálogos" ON public.catalogos
   AS PERMISSIVE
   FOR SELECT
@@ -165,6 +167,7 @@ CREATE POLICY "Usuarios autenticados pueden ver catálogos" ON public.catalogos
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Usuario lee solo su propio chat_metrics" ON public.chat_user_metrics;
 CREATE POLICY "Usuario lee solo su propio chat_metrics" ON public.chat_user_metrics
   AS PERMISSIVE
   FOR SELECT
@@ -172,6 +175,7 @@ CREATE POLICY "Usuario lee solo su propio chat_metrics" ON public.chat_user_metr
   USING (auth.uid()::text = user_id)
 ;
 
+DROP POLICY IF EXISTS "insert_own_analytics" ON public.producto_analytics;
 CREATE POLICY "insert_own_analytics" ON public.producto_analytics
   AS PERMISSIVE
   FOR INSERT
@@ -179,6 +183,7 @@ CREATE POLICY "insert_own_analytics" ON public.producto_analytics
   WITH CHECK (user_email = (auth.jwt() ->> 'email'))
 ;
 
+DROP POLICY IF EXISTS "select_analytics" ON public.producto_analytics;
 CREATE POLICY "select_analytics" ON public.producto_analytics
   AS PERMISSIVE
   FOR SELECT
@@ -186,6 +191,7 @@ CREATE POLICY "select_analytics" ON public.producto_analytics
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Lectura publica eventos" ON public.events;
 CREATE POLICY "Lectura publica eventos" ON public.events
   AS PERMISSIVE
   FOR SELECT
@@ -193,6 +199,7 @@ CREATE POLICY "Lectura publica eventos" ON public.events
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Lectura publica inscripciones" ON public.registrations;
 CREATE POLICY "Lectura publica inscripciones" ON public.registrations
   AS PERMISSIVE
   FOR SELECT
@@ -200,6 +207,7 @@ CREATE POLICY "Lectura publica inscripciones" ON public.registrations
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Insercion publica inscripciones" ON public.registrations;
 CREATE POLICY "Insercion publica inscripciones" ON public.registrations
   AS PERMISSIVE
   FOR INSERT
@@ -207,6 +215,7 @@ CREATE POLICY "Insercion publica inscripciones" ON public.registrations
   WITH CHECK (true)
 ;
 
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
 CREATE POLICY "Users can insert their own profile" ON public.profiles
   AS PERMISSIVE
   FOR INSERT
@@ -214,6 +223,7 @@ CREATE POLICY "Users can insert their own profile" ON public.profiles
   WITH CHECK ((auth.uid() = id))
 ;
 
+DROP POLICY IF EXISTS "Autenticados pueden leer AI" ON public.productos_ai_data;
 CREATE POLICY "Autenticados pueden leer AI" ON public.productos_ai_data
   AS PERMISSIVE
   FOR SELECT
@@ -221,6 +231,7 @@ CREATE POLICY "Autenticados pueden leer AI" ON public.productos_ai_data
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Autenticados pueden gestionar admins" ON public.event_admins;
 CREATE POLICY "Autenticados pueden gestionar admins" ON public.event_admins
   AS PERMISSIVE
   FOR ALL
@@ -229,6 +240,7 @@ CREATE POLICY "Autenticados pueden gestionar admins" ON public.event_admins
   WITH CHECK (true)
 ;
 
+DROP POLICY IF EXISTS "Autenticados leen turnos" ON public.event_shifts;
 CREATE POLICY "Autenticados leen turnos" ON public.event_shifts
   AS PERMISSIVE
   FOR SELECT
@@ -236,6 +248,7 @@ CREATE POLICY "Autenticados leen turnos" ON public.event_shifts
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Autenticados insertan turnos" ON public.event_shifts;
 CREATE POLICY "Autenticados insertan turnos" ON public.event_shifts
   AS PERMISSIVE
   FOR INSERT
@@ -243,6 +256,7 @@ CREATE POLICY "Autenticados insertan turnos" ON public.event_shifts
   WITH CHECK (true)
 ;
 
+DROP POLICY IF EXISTS "Autenticados actualizan turnos" ON public.event_shifts;
 CREATE POLICY "Autenticados actualizan turnos" ON public.event_shifts
   AS PERMISSIVE
   FOR UPDATE
@@ -250,6 +264,7 @@ CREATE POLICY "Autenticados actualizan turnos" ON public.event_shifts
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Autenticados borran turnos" ON public.event_shifts;
 CREATE POLICY "Autenticados borran turnos" ON public.event_shifts
   AS PERMISSIVE
   FOR DELETE
@@ -257,6 +272,7 @@ CREATE POLICY "Autenticados borran turnos" ON public.event_shifts
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Autenticados gestionan presupuestos" ON public.event_budget_items;
 CREATE POLICY "Autenticados gestionan presupuestos" ON public.event_budget_items
   AS PERMISSIVE
   FOR ALL
@@ -265,6 +281,7 @@ CREATE POLICY "Autenticados gestionan presupuestos" ON public.event_budget_items
   WITH CHECK (true)
 ;
 
+DROP POLICY IF EXISTS "Solo lectura productos_ai_data" ON public.productos_ai_data;
 CREATE POLICY "Solo lectura productos_ai_data" ON public.productos_ai_data
   AS PERMISSIVE
   FOR SELECT
@@ -272,6 +289,7 @@ CREATE POLICY "Solo lectura productos_ai_data" ON public.productos_ai_data
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Solo lectura events" ON public.events;
 CREATE POLICY "Solo lectura events" ON public.events
   AS PERMISSIVE
   FOR SELECT
@@ -279,6 +297,7 @@ CREATE POLICY "Solo lectura events" ON public.events
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Solo lectura event_admins" ON public.event_admins;
 CREATE POLICY "Solo lectura event_admins" ON public.event_admins
   AS PERMISSIVE
   FOR SELECT
@@ -286,6 +305,7 @@ CREATE POLICY "Solo lectura event_admins" ON public.event_admins
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Autenticados ven perfiles" ON public.profiles;
 CREATE POLICY "Autenticados ven perfiles" ON public.profiles
   AS PERMISSIVE
   FOR SELECT
@@ -293,6 +313,7 @@ CREATE POLICY "Autenticados ven perfiles" ON public.profiles
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Dueño edita su perfil" ON public.profiles;
 CREATE POLICY "Dueño edita su perfil" ON public.profiles
   AS PERMISSIVE
   FOR ALL
@@ -301,6 +322,7 @@ CREATE POLICY "Dueño edita su perfil" ON public.profiles
   WITH CHECK ((auth.uid() = id))
 ;
 
+DROP POLICY IF EXISTS "Allow authenticated users" ON public.event_budget_items;
 CREATE POLICY "Allow authenticated users" ON public.event_budget_items
   AS PERMISSIVE
   FOR ALL
@@ -309,6 +331,7 @@ CREATE POLICY "Allow authenticated users" ON public.event_budget_items
   WITH CHECK (true)
 ;
 
+DROP POLICY IF EXISTS "Staff can read registrations" ON public.registrations;
 CREATE POLICY "Staff can read registrations" ON public.registrations
   AS PERMISSIVE
   FOR SELECT
@@ -316,6 +339,7 @@ CREATE POLICY "Staff can read registrations" ON public.registrations
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Staff can update registrations" ON public.registrations;
 CREATE POLICY "Staff can update registrations" ON public.registrations
   AS PERMISSIVE
   FOR UPDATE
@@ -323,6 +347,7 @@ CREATE POLICY "Staff can update registrations" ON public.registrations
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Admin can delete registrations" ON public.registrations;
 CREATE POLICY "Admin can delete registrations" ON public.registrations
   AS PERMISSIVE
   FOR DELETE
@@ -330,6 +355,7 @@ CREATE POLICY "Admin can delete registrations" ON public.registrations
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Staff manage events" ON public.events;
 CREATE POLICY "Staff manage events" ON public.events
   AS PERMISSIVE
   FOR ALL
@@ -337,6 +363,7 @@ CREATE POLICY "Staff manage events" ON public.events
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Admin manage versions" ON public.version_apk;
 CREATE POLICY "Admin manage versions" ON public.version_apk
   AS PERMISSIVE
   FOR ALL
@@ -344,6 +371,7 @@ CREATE POLICY "Admin manage versions" ON public.version_apk
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Only staff sees admins" ON public.event_admins;
 CREATE POLICY "Only staff sees admins" ON public.event_admins
   AS PERMISSIVE
   FOR SELECT
@@ -351,6 +379,7 @@ CREATE POLICY "Only staff sees admins" ON public.event_admins
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Profiles are readable by staff" ON public.profiles;
 CREATE POLICY "Profiles are readable by staff" ON public.profiles
   AS PERMISSIVE
   FOR SELECT
@@ -358,6 +387,7 @@ CREATE POLICY "Profiles are readable by staff" ON public.profiles
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Users update only own profile" ON public.profiles;
 CREATE POLICY "Users update only own profile" ON public.profiles
   AS PERMISSIVE
   FOR UPDATE
@@ -365,6 +395,7 @@ CREATE POLICY "Users update only own profile" ON public.profiles
   USING ((auth.uid() = id))
 ;
 
+DROP POLICY IF EXISTS "Autenticados actualizan inscripciones" ON public.registrations;
 CREATE POLICY "Autenticados actualizan inscripciones" ON public.registrations
   AS PERMISSIVE
   FOR UPDATE
@@ -372,6 +403,7 @@ CREATE POLICY "Autenticados actualizan inscripciones" ON public.registrations
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Autenticados borran inscripciones" ON public.registrations;
 CREATE POLICY "Autenticados borran inscripciones" ON public.registrations
   AS PERMISSIVE
   FOR DELETE
@@ -379,6 +411,7 @@ CREATE POLICY "Autenticados borran inscripciones" ON public.registrations
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Autenticados gestionan eventos" ON public.events;
 CREATE POLICY "Autenticados gestionan eventos" ON public.events
   AS PERMISSIVE
   FOR ALL
@@ -387,6 +420,7 @@ CREATE POLICY "Autenticados gestionan eventos" ON public.events
   WITH CHECK (true)
 ;
 
+DROP POLICY IF EXISTS "Lectura publica version" ON public.version_apk;
 CREATE POLICY "Lectura publica version" ON public.version_apk
   AS PERMISSIVE
   FOR SELECT
@@ -394,6 +428,7 @@ CREATE POLICY "Lectura publica version" ON public.version_apk
   USING (true)
 ;
 
+DROP POLICY IF EXISTS "Autenticados gestionan version" ON public.version_apk;
 CREATE POLICY "Autenticados gestionan version" ON public.version_apk
   AS PERMISSIVE
   FOR ALL
