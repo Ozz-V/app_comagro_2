@@ -28,8 +28,18 @@ import * as Linking from 'expo-linking';
 import LottieView from 'lottie-react-native';
 import * as Device from 'expo-device';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Sentry from '@sentry/react-native';
 
 SplashScreen.preventAutoHideAsync();
+
+// Si no hay DSN configurado (variable de entorno ausente), Sentry.init
+// deja el SDK en modo no-op — no rompe nada, simplemente no reporta.
+// Ver EXPO_PUBLIC_SENTRY_DSN en .github/workflows/build-produccion.yml.
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  enabled: !!process.env.EXPO_PUBLIC_SENTRY_DSN,
+  tracesSampleRate: 0.2,
+});
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -57,7 +67,9 @@ const navTheme = {
 };
 
 
-export default function AppWrapper() {
+export default Sentry.wrap(AppWrapper);
+
+function AppWrapper() {
   const [isRooted, setIsRooted] = useState(false);
 
   useEffect(() => {
