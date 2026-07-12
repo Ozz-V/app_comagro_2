@@ -23,7 +23,24 @@ serve(async (req) => {
       if (!geminiKey) {
         return new Response(JSON.stringify({ status: 'error', message: 'Missing API Key' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 });
       }
-      return new Response(JSON.stringify({ status: 'ok' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      try {
+        // Chequeo real de conectividad SIN gastar tokens: el endpoint
+        // models.get (GET) solo devuelve metadata del modelo (versión,
+        // límites, etc.) — no pasa por generateContent, así que no
+        // consume cuota de inferencia ni tokens. Google lo documenta
+        // como una llamada de lectura, no facturable.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite?key=${geminiKey}`,
+          { signal: controller.signal },
+        );
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error(`Gemini respondió ${res.status}`);
+        return new Response(JSON.stringify({ status: 'ok' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ status: 'error', message: e.message || 'Gemini no responde' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 });
+      }
     }
 
     let { messages } = body;
@@ -138,6 +155,7 @@ serve(async (req) => {
     let aiPrompt = `Eres el asesor técnico de Comagro. Responde amable, muy corto y natural. Manten una conversación fluida.
 REGLA CRÍTICA 1: NUNCA uses formato Markdown. Cero asteriscos (**), cero guiones (-), cero numerales (#). Responde siempre en texto plano.
 REGLA CRÍTICA 2: MÁXIMO SUGIERE 2 OPCIONES (las mejores). Si tienes más opciones disponibles que omitiste para no saturar, dile al usuario: "Tenemos estas opciones, si necesitas más solo puedes pedírmelo." NUNCA MUESTRES MÁS DE 2.
+REGLA CRÍTICA 2B (PEDIDOS MASIVOS): Si el usuario pide de una sola vez MÁS de 2 productos distintos (una lista larga, muchos SKUs pegados juntos, o algo como "dame 1000 productos"), NO intentes buscarlos ni listarlos todos. Elegí como máximo 2 de los que pidió (los más relevantes) y decile amablemente que solo podés procesar hasta 2 productos por mensaje, y que te pida el resto de a 2 por vez. Fijate en el historial de la conversación: si en un mensaje ANTERIOR vos ya le dijiste esto mismo y en este mensaje el usuario IGUAL insiste pidiendo muchos productos de nuevo, es un uso abusivo del sistema — en ese caso agregá la etiqueta oculta [STRIKE] al final de tu respuesta (además de tu respuesta normal).
 REGLA CRÍTICA 3: Cuando recomiendes productos, NUNCA intercales explicaciones entre medio de los productos. Da tu respuesta corta primero y al final absoluto de tu mensaje, coloca todos los tags de producto juntos, uno debajo del otro. Usa SIEMPRE los SKUs reales de la lista provista.
 Ejemplo de formato: "Tengo estas excelentes opciones. La desmalezadora es ideal y el motor tiene buena potencia:\n[SKU: D-60]\n[SKU: ZT-50]"
 INSTRUCCIÓN CRÍTICA DE APRENDIZAJE: Si el usuario te está enseñando una regla de ventas, dándote un tip o corrigiéndote, DEBES aprenderlo. Agradécele y OBLIGATORIAMENTE añade al final de tu respuesta EXACTAMENTE este texto oculto: [LEARN: (regla clara y resumida)]`;
