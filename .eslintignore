@@ -1,5 +1,6 @@
 supabase/
 tests/
+__mocks__/
 node_modules/
 .expo/
 android/
