@@ -21,19 +21,44 @@ export interface ProductRow {
 // Esto evita errores "database is locked" cuando hay transacciones concurrentes.
 let _db: SQLite.SQLiteDatabase | null = null;
 
+// IMPORTANTE: guardamos la PROMESA de apertura, no solo el resultado ya
+// resuelto. useProducts.ts y OfflineSyncContext.tsx pueden llamar a
+// initDB()/getDB() casi al mismo tiempo al arrancar la app (uno al montar
+// la pantalla, otro al empezar la sync en background). Con el patrón viejo
+// (chequear "if (!_db)" y recién ahí asignar tras el await), dos llamadas
+// simultáneas ven _db como null ANTES de que la primera termine de abrir,
+// y cada una dispara su propio SQLite.openDatabaseAsync() — dos handles
+// nativos pisándose, lo que producía el NullPointerException dentro de
+// NativeDatabase.execAsync que reportó Sentry. Cacheando la promesa, la
+// segunda llamada concurrente espera el mismo openDatabaseAsync() en vez
+// de arrancar el suyo.
+let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+
 async function getDB(): Promise<SQLite.SQLiteDatabase> {
-  if (!_db) {
-    _db = await SQLite.openDatabaseAsync(DB_NAME);
-    // WAL (Write-Ahead Logging) es mucho más resistente que el modo rollback
-    // por defecto ante cierres forzosos / cortes de batería / que el sistema
-    // mate el proceso a mitad de una escritura: los cambios se anexan a un
-    // archivo -wal aparte y solo se "commitean" a la base principal cuando
-    // corresponde, así que un corte a mitad de camino no deja la base
-    // principal en un estado a medio escribir.
-    await _db.execAsync('PRAGMA journal_mode = WAL;');
-    await _db.execAsync('PRAGMA synchronous = NORMAL;');
+  if (_db) return _db;
+
+  if (!_dbPromise) {
+    _dbPromise = (async () => {
+      const db = await SQLite.openDatabaseAsync(DB_NAME);
+      // WAL (Write-Ahead Logging) es mucho más resistente que el modo rollback
+      // por defecto ante cierres forzosos / cortes de batería / que el sistema
+      // mate el proceso a mitad de una escritura: los cambios se anexan a un
+      // archivo -wal aparte y solo se "commitean" a la base principal cuando
+      // corresponde, así que un corte a mitad de camino no deja la base
+      // principal en un estado a medio escribir.
+      await db.execAsync('PRAGMA journal_mode = WAL;');
+      await db.execAsync('PRAGMA synchronous = NORMAL;');
+      _db = db;
+      return db;
+    })().catch((e) => {
+      // Si falló la apertura, no dejamos la promesa cacheada colgada:
+      // el próximo llamador debe poder reintentar desde cero.
+      _dbPromise = null;
+      throw e;
+    });
   }
-  return _db;
+
+  return _dbPromise;
 }
 
 /**
@@ -51,6 +76,7 @@ async function resetCorruptDatabase(): Promise<void> {
     }
   } finally {
     _db = null;
+    _dbPromise = null;
   }
   try {
     await SQLite.deleteDatabaseAsync(DB_NAME);
