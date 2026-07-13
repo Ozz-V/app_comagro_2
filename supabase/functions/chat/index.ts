@@ -208,8 +208,6 @@ REGLA DE PEDIDOS MASIVOS (SIEMPRE APLICA): Si el usuario pide de una sola vez M�
     reply = cleanReply;
     if (learnedRule) saveLearnedRule(learnedRule, geminiKey, supaAdmin);
 
-    // Blindaje anti-alucinación: borra cualquier [SKU: XXX] que el modelo haya
-    // inventado y que no esté en la lista real de productos de este turno.
     const validSkus = new Set(finalContext.map((i: any) => i.sku));
     const { cleanReply: skuSafeReply, hallucinated } = stripHallucinatedSkus(reply, validSkus);
     reply = skuSafeReply;
@@ -229,13 +227,6 @@ REGLA DE PEDIDOS MASIVOS (SIEMPRE APLICA): Si el usuario pide de una sola vez M�
     await supaAdmin.from('chat_user_metrics').upsert({ ...metrics });
 
     // ── Structured Log ──
-    // search_queries + found_skus son clave para diagnosticar casos como
-    // "el producto existe pero el bot dijo que no hay": con esto se puede
-    // ver en los logs de Supabase si el problema fue que la búsqueda no
-    // encontró el SKU (found_skus vacío) o si lo encontró pero el modelo
-    // igual respondió mal (found_skus tiene el SKU, pero la respuesta dice
-    // que no hay stock) — son dos bugs completamente distintos y antes no
-    // había forma de distinguirlos sin adivinar.
     console.log(JSON.stringify({
       event: "chat_complete",
       user_id,

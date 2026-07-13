@@ -1,6 +1,10 @@
 import * as Notifications from 'expo-notifications';
 
-jest.mock('expo-device', () => ({ isDevice: true }));
+let mockIsDevice = true;
+jest.mock('expo-device', () => ({
+  get isDevice() { return mockIsDevice; },
+  set isDevice(val: boolean) { mockIsDevice = val; }
+}));
 jest.mock('expo-constants', () => ({
   default: { expoConfig: { extra: { eas: { projectId: 'test-project-id' } } }, easConfig: {} },
 }));

@@ -59,6 +59,52 @@ describe('syncCatalog', () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    jest.clearAllMocks();
+  });
+
+  it('refreshes session if getSession returns null', async () => {
+    const { syncCatalog } = require('../src/services/catalogService');
+    const { supabase } = require('../src/supabase');
+    
+    // Simulate no initial session, but refresh succeeds
+    supabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } });
+    supabase.auth.refreshSession.mockResolvedValueOnce({ data: { session: { access_token: 'refreshed-token' } } });
+    
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ data: [], nextOffset: null })
+    });
+
+    await syncCatalog(null, {});
+    expect(supabase.auth.refreshSession).toHaveBeenCalled();
+  });
+
+  it('can subscribe to catalog updates', () => {
+    const { subscribeToCatalogUpdates } = require('../src/services/catalogService');
+    const listener = jest.fn();
+    const unsubscribe = subscribeToCatalogUpdates(listener);
+    expect(typeof unsubscribe).toBe('function');
+    unsubscribe();
+  });
+
+  it('reports isCatalogSyncing correctly', async () => {
+    const { isCatalogSyncing, ensureCatalogSynced } = require('../src/services/catalogService');
+    
+    // Initial state
+    expect(isCatalogSyncing()).toBe(false);
+    
+    // Start a sync
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ data: [], nextOffset: null })
+    });
+    
+    const promise = ensureCatalogSynced({}, { skipVigenciaCheck: true });
+    
+    // We expect it to eventually reset to false when finished
+    
+    await promise;
+    expect(isCatalogSyncing()).toBe(false);
   });
 
   it('fetches and paginates correctly', async () => {

@@ -15,7 +15,13 @@ jest.mock('expo-sqlite', () => {
 });
 
 jest.mock('../src/supabase', () => ({ supabase: {}, EDGE_URL: 'mock' }));
-jest.mock('react-native', () => ({ AppState: { addEventListener: jest.fn() } }));
+jest.mock('react-native', () => {
+  const rn = jest.requireActual('react-native');
+  return { ...rn, AppState: { addEventListener: jest.fn() } };
+});
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
 
 describe('Database utility', () => {
   let mockDb: any;
@@ -93,6 +99,48 @@ describe('Database utility', () => {
     it('returns null if product not found by sku', async () => {
       mockDb.getFirstAsync.mockResolvedValueOnce(null);
       const res = await getProductBySku('999');
+      expect(res).toBeNull();
+    });
+
+    it('gets all products', async () => {
+      mockDb.getAllAsync.mockResolvedValueOnce([{ sku: '111', marca: 'A', specs_json: '[]' }]);
+      const { getAllProducts } = require('../src/utils/database');
+      const res = await getAllProducts();
+      expect(res).toHaveLength(1);
+      expect(res[0].modelo).toBe('111');
+      expect(mockDb.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('SELECT * FROM productos'));
+    });
+
+    it('fetches missing product from cloud and inserts it', async () => {
+      const mockSession = { data: { session: { access_token: 'fake' } } };
+      const { supabase } = require('../src/supabase');
+      supabase.auth = { getSession: jest.fn().mockResolvedValue(mockSession) };
+      supabase.from = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            single: jest.fn().mockResolvedValue({ data: { sales_pitch: 'AI pitch' } })
+          })
+        })
+      });
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue([{ sku: 'missing123', marca: 'brand' }])
+      });
+
+      mockDb.getFirstAsync.mockResolvedValueOnce({ sku: 'missing123', specs_json: '[]' }); // For the getProductBySku call at the end
+
+      const { fetchMissingProductFromCloud } = require('../src/utils/database');
+      const res = await fetchMissingProductFromCloud('missing123');
+      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('sku=missing123'), expect.any(Object));
+      expect(res).not.toBeNull();
+      expect(res?.modelo).toBe('missing123');
+    });
+
+    it('returns null if fetchMissingProductFromCloud fails fetch', async () => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: false });
+      const { fetchMissingProductFromCloud } = require('../src/utils/database');
+      const res = await fetchMissingProductFromCloud('bad_sku');
       expect(res).toBeNull();
     });
   });

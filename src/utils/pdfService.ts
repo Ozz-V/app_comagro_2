@@ -209,11 +209,15 @@ export async function generateAndSharePdf(modalProd: ParsedProduct, pdfCache: Re
     const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg?v=${logoRefreshKey}`;
     const imgUrl = modalProd?.imagenOriginal || modalProd?.imagen || ''; // use string, no implicit any
     
-    const timeoutPromise = () => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000));
+    let timeoutId: NodeJS.Timeout;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('timeout')), 10000);
+    });
+
     [finalProdB64, finalLogoB64] = await Promise.all([
-      Promise.race([fetchImageBase64(imgUrl), timeoutPromise()]).catch(() => '') as Promise<string>,
-      Promise.race([fetchImageBase64(logoUrl), timeoutPromise()]).catch(() => '') as Promise<string>,
-    ]);
+      Promise.race([fetchImageBase64(imgUrl), timeoutPromise]).catch(() => ''),
+      Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => ''),
+    ]).finally(() => clearTimeout(timeoutId));
   }
   
   const htmlContent = generarHtmlFicha(specs, finalProdB64, finalLogoB64, modalProd);

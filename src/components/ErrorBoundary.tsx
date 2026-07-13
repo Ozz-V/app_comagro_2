@@ -18,14 +18,11 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   public static getDerivedStateFromError(error: Error): State {
-    // Update state so the next render will show the fallback UI.
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
-    // Se suma a Sentry sin sacar el console.error: si Sentry no está
-    // configurado (sin DSN), Sentry.init lo deja como no-op y esto no rompe nada.
     Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
   }
 
