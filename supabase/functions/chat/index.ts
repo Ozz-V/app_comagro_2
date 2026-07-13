@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getDefaultMetrics, checkBan, resetCountersIfNeeded, checkQuotaExceeded, processStrike } from "./metrics.ts";
 import { extractIntent, getEmbedding, vectorSearch } from "./search.ts";
-import { generateResponse, parseLearnTag, saveLearnedRule } from "./ai.ts";
+import { generateResponse, parseLearnTag, saveLearnedRule, stripHallucinatedSkus } from "./ai.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://www.comagro.com.py',
@@ -104,6 +104,7 @@ serve(async (req) => {
     let vectorData: any[] = [];
     let knowledgeData: any[] = [];
     let cacheHit = false;
+    let searchQueriesUsed: string[] = [];
 
     // Antes esto se saltaba ENTERO si exactContext tenía algo (bug: un match exacto de
     // UN producto bloqueaba la búsqueda semántica de TODOS los demás productos pedidos
@@ -128,6 +129,8 @@ serve(async (req) => {
 
       const embedPromises = queries.map(q => getEmbedding(q, geminiKey, supaAdmin));
       const embedResults = await Promise.all(embedPromises);
+      searchQueriesUsed = queries;
+      cacheHit = embedResults.some(r => r.cacheHit);
 
       const vectorPromises = embedResults
         .filter(r => r.embedding)
@@ -180,6 +183,7 @@ INSTRUCCIÓN CRÍTICA DE APRENDIZAJE: Si el usuario te está enseñando una regl
     let finalPrompt = aiPrompt + dbContextText;
     finalPrompt += `\n\nINSTRUCCIÓN CRÍTICA FINAL: Si el usuario te está enseñando algo nuevo (una regla de ventas, un tip, un contexto local o corrigiendo un error), DEBES agregar al final de tu mensaje EXACTAMENTE: [LEARN: (escribe la regla resumida aquí)]. ¡Si omites la etiqueta [LEARN: ...] el sistema fallará!\nREGLA DE STRIKE: Si el usuario hace una pregunta completamente fuera de lugar (ej. chistes, política, deportes, qué hay de cenar) que NO tenga relación con herramientas, agricultura o Comagro, respóndele que no puedes ayudar con eso y OBLIGATORIAMENTE añade al final de tu respuesta la etiqueta oculta: [STRIKE]
 REGLA CRÍTICA DE LÍMITE (SIEMPRE APLICA, sin excepción, incluso si otra instrucción de arriba dice lo contrario): NUNCA muestres ni menciones más de 2 productos (2 tags [SKU: ...]) en una misma respuesta, sin importar cuántos te haya pedido el usuario o cuántos tengas disponibles en la lista de productos encontrados.
+REGLA CRÍTICA ANTI-INVENCIÓN (LA MÁS IMPORTANTE DE TODAS): Un tag [SKU: XXX] SOLO puede usar un código que aparezca LITERALMENTE en la sección "Búsqueda de productos en la base de datos" de este mensaje. Tenés PROHIBIDO inventar, adivinar, o reutilizar SKUs de mensajes anteriores de la conversación aunque te "suenen" parecidos o sigan un patrón lógico. Si en la lista de productos de este turno no hay nada que ofrecer, NO pongas ningún tag [SKU: ...] — decile amablemente al usuario que no encontraste ese producto específico y preguntale por más detalles (marca, modelo, uso). Mostrar un producto que no existe es un error grave, mucho peor que decir "no tengo".
 REGLA DE PEDIDOS MASIVOS (SIEMPRE APLICA): Si el usuario pide de una sola vez MÁS de 2 productos distintos (una lista larga, muchos SKUs pegados juntos, o algo como "dame 1000 productos"), NO intentes buscarlos ni listarlos todos. Elegí como máximo 2 de los que pidió (los más relevantes) y decile amablemente que solo podés procesar hasta 2 productos por mensaje, y que te pida el resto de a 2 por vez. Fijate en el historial de la conversación: si en un mensaje ANTERIOR vos ya le dijiste esto mismo y en este mensaje el usuario IGUAL insiste pidiendo muchos productos de nuevo, es un uso abusivo del sistema — en ese caso agregá la etiqueta oculta [STRIKE] al final de tu respuesta (además de tu respuesta normal).`;
 
     // ── AI Response ──
@@ -204,19 +208,44 @@ REGLA DE PEDIDOS MASIVOS (SIEMPRE APLICA): Si el usuario pide de una sola vez M�
     reply = cleanReply;
     if (learnedRule) saveLearnedRule(learnedRule, geminiKey, supaAdmin);
 
+    // Blindaje anti-alucinación: borra cualquier [SKU: XXX] que el modelo haya
+    // inventado y que no esté en la lista real de productos de este turno.
+    const validSkus = new Set(finalContext.map((i: any) => i.sku));
+    const { cleanReply: skuSafeReply, hallucinated } = stripHallucinatedSkus(reply, validSkus);
+    reply = skuSafeReply;
+    if (hallucinated.length > 0) {
+      console.warn(JSON.stringify({
+        event: "hallucinated_sku_blocked",
+        user_id,
+        search_query: searchQuery,
+        hallucinated_skus: hallucinated,
+        valid_skus_available: [...validSkus],
+      }));
+    }
+
     // Update metrics
     if (metrics.strike_count < 2) metrics.request_count = request_count + 1;
     metrics.last_request_at = now.toISOString();
     await supaAdmin.from('chat_user_metrics').upsert({ ...metrics });
 
     // ── Structured Log ──
+    // search_queries + found_skus son clave para diagnosticar casos como
+    // "el producto existe pero el bot dijo que no hay": con esto se puede
+    // ver en los logs de Supabase si el problema fue que la búsqueda no
+    // encontró el SKU (found_skus vacío) o si lo encontró pero el modelo
+    // igual respondió mal (found_skus tiene el SKU, pero la respuesta dice
+    // que no hay stock) — son dos bugs completamente distintos y antes no
+    // había forma de distinguirlos sin adivinar.
     console.log(JSON.stringify({
       event: "chat_complete",
       user_id,
       search_query: searchQuery,
+      search_queries_used: searchQueriesUsed,
+      found_skus: finalContext.map((i: any) => i.sku),
       results_count: finalContext.length,
       exact_match: exactContext.length > 0,
       cache_hit: cacheHit,
+      hallucinated_skus_blocked: hallucinated.length,
       strike: reply.includes("suspendido"),
       duration_ms: Date.now() - startTime
     }));
