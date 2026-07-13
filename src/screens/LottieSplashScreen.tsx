@@ -16,13 +16,28 @@ interface Props {
 }
 
 export default function LottieSplashScreen({ onFinish, updateState, updateNotes, downloadProgress, onAccept, onDecline, onInstall }: Props) {
-  const [fadeAnim] = React.useState(() => new Animated.Value(1));
+  // Arranca en 0 (invisible) y hace fade-in apenas se monta. Antes arrancaba
+  // directo en 1 (visible), por eso el Lottie "aparecía de golpe" encima del
+  // ícono nativo de Android en vez de mezclarse con él — con este cambio el
+  // salto se disimula con un cruce suave de opacidad.
+  const [fadeAnim] = React.useState(() => new Animated.Value(0));
   const [progressAnim] = React.useState(() => new Animated.Value(0));
   const appVersion = Constants.expoConfig?.version || '1.0.0';
 
   useEffect(() => {
     // Cuando este componente se monta, ocultamos el splash nativo del OS para que sea un cambio fluido.
     SplashScreen.hideAsync().catch(() => {});
+
+    // Fade-in rápido: en vez de reemplazar el ícono nativo de un frame al
+    // otro, el Lottie se desvanece hacia adentro. 180ms es lo bastante
+    // rápido para no sentirse "lento", pero alcanza para que el ojo no
+    // perciba el cambio como un corte seco.
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Animar la barra de progreso
