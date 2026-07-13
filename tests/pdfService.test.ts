@@ -21,16 +21,14 @@ jest.mock('expo-file-system/legacy', () => ({
 
 describe('pdfService', () => {
   const mockProduct: ParsedProduct = {
-    sku: '123',
-    modelo: 'Bomba',
-    marca: 'Amana',
-    categorias: ['Bombas'],
-    descripcion: 'Description',
-    specs: [['Power', '2hp'], ['Voltage', '220v']],
-    precio: 0,
-    search_vector: '',
-    knowledge_match: '',
-  };
+      modelo: 'Bomba',
+      marca: 'Amana',
+      subcategoria: 'Bombas',
+      imagen: '',
+      imagenOriginal: '',
+      specs: [['Power', '2hp'], ['Voltage', '220v']],
+      sales_pitch: 'Description',
+    };
 
   afterEach(() => {
     jest.clearAllMocks();
