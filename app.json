@@ -8,11 +8,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "owner": "ozzstriker",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -52,7 +47,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/adaptive-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 250,
           "resizeMode": "contain",
           "backgroundColor": "#FFFFFF"
         }
