@@ -23,7 +23,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.comagro.catalogo",
-      "versionCode": 39,
+      "versionCode": 38,
       "permissions": [
         "REQUEST_INSTALL_PACKAGES"
       ],
@@ -48,6 +48,15 @@
     "scheme": "comagrocatalogo",
     "plugins": [
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/adaptive-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ],
       [
         "expo-web-browser",
         {}
