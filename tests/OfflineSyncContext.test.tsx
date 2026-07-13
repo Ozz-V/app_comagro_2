@@ -21,6 +21,11 @@ jest.mock('@react-native-community/netinfo', () => ({
   addEventListener: jest.fn(() => jest.fn()),
 }));
 
+jest.mock('expo-image-manipulator', () => ({
+  manipulateAsync: jest.fn(),
+  SaveFormat: { JPEG: 'jpeg', PNG: 'png' },
+}));
+
 jest.mock('../src/supabase', () => ({
   supabase: {
     auth: {
