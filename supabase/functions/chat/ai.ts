@@ -43,6 +43,52 @@ export function parseLearnTag(reply: string): { cleanReply: string; learnedRule:
   };
 }
 
+// El modelo (gemini-3.1-flash-lite, barato y rápido, pero no 100% obediente)
+// a veces INVENTA códigos de producto con pinta real cuando no encuentra
+// nada bueno para ofrecer — suele copiar el patrón de los SKUs de ejemplo
+// del prompt ("D-60", "ZT-50") o de SKUs reales que vio antes en la misma
+// conversación. Esto es peor que decir "no tenemos": le muestra al cliente
+// una ficha de producto que no existe. Como no podemos garantizar al 100%
+// que el modelo obedezca la instrucción de "no inventes", lo validamos acá:
+// cualquier [SKU: XXX] que no esté en la lista real de productos que le
+// pasamos como contexto ESTE turno, se borra sin excepción.
+export function stripHallucinatedSkus(
+  reply: string,
+  validSkus: Set<string>
+): { cleanReply: string; hallucinated: string[] } {
+  const tagPattern = /\[SKU:\s*([^\]]+)\]/gi;
+  const found = [...reply.matchAll(tagPattern)].map(m => m[1].trim());
+  if (found.length === 0) return { cleanReply: reply, hallucinated: [] };
+
+  const hallucinated = found.filter(sku => !validSkus.has(sku));
+  const validKept = found.length - hallucinated.length;
+
+  if (hallucinated.length === 0) return { cleanReply: reply, hallucinated: [] };
+
+  // Si TODOS los SKUs que mostraba eran inventados, la respuesta entera
+  // parte de una premisa falsa ("tengo estas opciones..." de productos que
+  // no existen) — no alcanza con borrar los tags, hay que reemplazar el
+  // mensaje completo por algo honesto.
+  if (validKept === 0) {
+    return {
+      cleanReply: 'No encontré ese producto específico en nuestro catálogo por el momento. ¿Podrías darme más detalles (marca, modelo o uso) para buscar alternativas?',
+      hallucinated,
+    };
+  }
+
+  // Si hubo una mezcla (algunos reales, algunos inventados), solo borramos
+  // los tags falsos y dejamos los reales — el texto puede quedar un poco
+  // menos prolijo, pero nunca se muestra una ficha de producto fantasma.
+  let cleanReply = reply;
+  for (const sku of hallucinated) {
+    const escaped = sku.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cleanReply = cleanReply.replace(new RegExp(`\\[SKU:\\s*${escaped}\\s*\\]\\n?`, 'gi'), '');
+  }
+  cleanReply = cleanReply.trim();
+
+  return { cleanReply, hallucinated };
+}
+
 // Patrones sospechosos de prompt injection (multi-idioma)
 const INJECTION_PATTERNS = [
   /ignora\s+(tus\s+)?instrucciones/i,
