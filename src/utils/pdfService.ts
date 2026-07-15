@@ -1,6 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Image as ExpoImage } from 'expo-image';
 import { ParsedProduct } from '../types/models';
 
 // ── Constantes de página (px a 96dpi, A4 portrait = 297mm ≈ 1122px) ─────
@@ -186,6 +187,20 @@ export async function fetchImageBase64(url: string): Promise<string> {
       const base64 = await FileSystem.readAsStringAsync(url, { encoding: FileSystem.EncodingType.Base64 });
       return `data:image/jpeg;base64,${base64}`;
     }
+
+    // 1) Intentar recuperar de la caché nativa de expo-image (Glide/SDWebImage) para soporte OFFLINE
+    try {
+      const cachedPath = await ExpoImage.getCachePathAsync(url);
+      if (cachedPath) {
+        const safePath = cachedPath.startsWith('file://') ? cachedPath : `file://${cachedPath}`;
+        const base64 = await FileSystem.readAsStringAsync(safePath, { encoding: FileSystem.EncodingType.Base64 });
+        return `data:image/jpeg;base64,${base64}`;
+      }
+    } catch (cacheError) {
+      // Ignorar error de caché y caer al fallback de red
+    }
+
+    // 2) Fallback si no está en caché: fetch clásico (requiere red)
     const res = await fetch(url);
     const blob = await res.blob();
     return await new Promise<string>((resolve) => {
