@@ -1,0 +1,90 @@
+{
+  "expo": {
+    "newArchEnabled": false,
+    "name": "Comagro",
+    "slug": "comagro-catalogo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "owner": "ozzstriker",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "jsEngine": "hermes",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.comagro.catalogo",
+      "versionCode": 44,
+      "permissions": [
+        "REQUEST_INSTALL_PACKAGES"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "itylpvuzflqlmmqvdhbz.supabase.co",
+              "pathPrefix": "/auth/v1/verify"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "scheme": "comagrocatalogo",
+    "plugins": [
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/adaptive-icon.png",
+          "imageWidth": 250,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ],
+      [
+        "expo-web-browser",
+        {}
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La app necesita acceso a tus fotos para tu foto de perfil."
+        }
+      ],
+      [
+        "expo-network-security-config",
+        {
+          "networkSecurityConfig": "./assets/configs/network_security_config.xml",
+          "enable": true
+        }
+      ],
+      "expo-secure-store",
+      "expo-sqlite",
+      "@sentry/react-native",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "ndkVersion": "26.1.10909125"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6fa77523-574c-4f78-a150-fae0f2a8a141"
+      }
+    }
+  }
+}

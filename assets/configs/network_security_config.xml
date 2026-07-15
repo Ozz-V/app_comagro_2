@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config>
+        <domain includeSubdomains="false">itylpvuzflqlmmqvdhbz.supabase.co</domain>
+        <pin-set expiration="2027-06-18">
+            <!-- PRIMARIO: Intermedio Google Trust Services WE1 -->
+            <pin digest="SHA-256">kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</pin>
+            <!-- BACKUP: Raíz Google Trust Services GTS Root R4 -->
+            <pin digest="SHA-256">mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>

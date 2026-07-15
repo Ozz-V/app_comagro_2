@@ -1,0 +1,8 @@
+supabase/
+tests/
+__mocks__/
+node_modules/
+.expo/
+android/
+ios/
+src/models/database.types.ts
