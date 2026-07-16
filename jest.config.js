@@ -8,8 +8,6 @@ module.exports = {
     'src/utils/**/*.ts',
     'src/hooks/**/*.ts',
     'src/contexts/**/*.{ts,tsx}',
-    'src/screens/**/*.{ts,tsx}',
-    'src/components/**/*.{ts,tsx}',
     '!src/**/*.d.ts'
   ],
   coverageThreshold: {

@@ -12,6 +12,12 @@ jest.mock('expo-sharing', () => ({
   shareAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock('expo-image', () => ({
+  Image: {
+    getCachePathAsync: jest.fn().mockResolvedValue(null),
+  },
+}));
+
 jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///mock/cache/',
   getInfoAsync: jest.fn(),
