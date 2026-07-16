@@ -17,7 +17,7 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 import OfflineSyncModal from '../components/OfflineSyncModal';
 import UpdateModal from '../components/UpdateModal';
 
-export default function ConfigScreen({ navigation }: { navigation: any }) {
+export default function ConfigScreen({ navigation }: { navigation: { navigate: (s: string, p?: unknown) => void; reset: (state: unknown) => void; goBack: () => void; [key: string]: unknown } }) {
   const appVersion = Constants.expoConfig?.version || '1.0.0';
   const versionCode = Constants.expoConfig?.android?.versionCode || 1;
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -33,7 +33,7 @@ export default function ConfigScreen({ navigation }: { navigation: any }) {
 
   const { showAlert, showToast } = useCustomAlert();
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateModalData, setUpdateModalData] = useState<any>(null);
+  const [updateModalData, setUpdateModalData] = useState<Record<string, unknown> | null>(null);
 
   const { isSyncing, isPaused, progress, startSync, syncAlert, setSyncAlert } = useOfflineSync();
   const [showOfflineModal, setShowOfflineModal] = useState(false);
@@ -133,30 +133,31 @@ export default function ConfigScreen({ navigation }: { navigation: any }) {
 
       const { data } = await supabase.from('profiles').select('id, full_name, telefono, avatar_url, email').eq('id', user.id).single();
       if (data && !pendingProfileObj) {
-        (data as any).email = user.email; 
+        const profileData = data as { email?: string; avatar_local?: string; avatar_url?: string | null; full_name?: string; telefono?: string; id?: string };
+        profileData.email = user.email; 
         
-        if (data.avatar_url && data.avatar_url.startsWith('http')) {
+        if (profileData.avatar_url && profileData.avatar_url.startsWith('http')) {
            try {
              const localUri = FileSystem.documentDirectory + `avatar_cache_${Date.now()}.jpg`;
-             await FileSystem.downloadAsync(data.avatar_url, localUri);
-             (data as any).avatar_local = localUri;
+             await FileSystem.downloadAsync(profileData.avatar_url, localUri);
+             profileData.avatar_local = localUri;
            } catch(e) {}
         }
         
-        AsyncStorage.setItem('@user_profile_cache', JSON.stringify(data));
-        setFullName(data.full_name && data.full_name.trim() !== '' ? data.full_name : '');
-        if (data.telefono && data.telefono !== '+595') {
-          if (data.telefono.includes(' ')) {
-            const parts = data.telefono.split(' ');
+        AsyncStorage.setItem('@user_profile_cache', JSON.stringify(profileData));
+        setFullName(profileData.full_name && profileData.full_name.trim() !== '' ? profileData.full_name : '');
+        if (profileData.telefono && profileData.telefono !== '+595') {
+          if (profileData.telefono.includes(' ')) {
+            const parts = profileData.telefono.split(' ');
             setPhoneCode(parts[0]);
             setPhone(parts.slice(1).join(' '));
           } else {
-            setPhone(data.telefono);
+            setPhone(profileData.telefono);
           }
         }
         const hasPendingAvatar = await AsyncStorage.getItem('@pending_avatar');
         if (!hasPendingAvatar) {
-          setAvatarUrl((data as any).avatar_local || data.avatar_url || null);
+          setAvatarUrl(profileData.avatar_local || profileData.avatar_url || null);
         }
       }
     } catch (e) {}
@@ -208,7 +209,7 @@ export default function ConfigScreen({ navigation }: { navigation: any }) {
         uri: localUri,
         name: fileName,
         type: 'image/jpeg',
-      } as any);
+      } as unknown as Blob);
       const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, formData, { upsert: true });
       if (uploadError) {
          saveProfile(undefined, localUri);
