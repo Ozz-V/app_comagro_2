@@ -12,12 +12,29 @@ import SvgIcon from '../components/SvgIcon';
 import PdfViewerModal from '../components/PdfViewerModal';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 
+interface Ficha {
+  name: string;
+  fullName: string;
+  size: number;
+  path: string;
+}
+
+interface ListItem {
+  type: 'label' | 'item' | 'file';
+  key: string;
+  cat?: string;
+  path?: string;
+  name?: string;
+  label?: string;
+  size?: number;
+}
+
 const LOGO = { uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png' };
 const BUCKET = 'Fichas';
 const CATEGORIAS = ['BOMBAS DE AGUA', 'SOLDADORES', 'GENERADORES', 'MOTORES ELECTRICOS', 'COMPRESORES'];
 
-export default function FichasScreen({ navigation }: { navigation: any }) {
-  const [allFiles, setAllFiles]       = useState<Record<string, any[]>>({});
+export default function FichasScreen({ navigation }: { navigation: { navigate: (s: string, p?: unknown) => void; goBack: () => void; [key: string]: unknown } }) {
+  const [allFiles, setAllFiles]       = useState<Record<string, Ficha[]>>({});
   const [catActual, setCatActual]     = useState('TODAS');
   const [busqueda, setBusqueda]       = useState('');
   const [cargando, setCargando]       = useState(true);
@@ -66,7 +83,7 @@ export default function FichasScreen({ navigation }: { navigation: any }) {
         setCargando(false);
         tieneCache = true;
       }
-    } catch (_: any) {}
+    } catch (_: unknown) {}
 
     // 2. Actualizar desde red en silencio
     try {
@@ -78,13 +95,13 @@ export default function FichasScreen({ navigation }: { navigation: any }) {
         CATEGORIAS.map(cat => fetchCategoria(cat, token))
       );
 
-      const mapa: Record<string, any[]> = {};
+      const mapa: Record<string, Ficha[]> = {};
       CATEGORIAS.forEach((cat, i) => { mapa[cat] = resultados[i]; });
       setAllFiles(mapa);
       await AsyncStorage.setItem('@fichas_cache', JSON.stringify(mapa));
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (!tieneCache) {
-        setError(e.message || 'Error de conexión');
+        setError((e as Error)?.message || 'Error de conexión');
       }
     } finally {
       setCargando(false);
@@ -92,7 +109,7 @@ export default function FichasScreen({ navigation }: { navigation: any }) {
     }
   }
 
-  async function fetchCategoria(cat: string, token: string) {
+  async function fetchCategoria(cat: string, token: string): Promise<Ficha[]> {
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${BUCKET}`, {
       method: 'POST',
       headers: {
@@ -105,8 +122,8 @@ export default function FichasScreen({ navigation }: { navigation: any }) {
     if (!res.ok) throw new Error(`Error cargando ${cat}`);
     const files = await res.json();
     return (files || [])
-      .filter((f: any) => f.name && f.name.toLowerCase().endsWith('.pdf'))
-      .map((f: any) => ({
+      .filter((f: { name: string }) => f.name && f.name.toLowerCase().endsWith('.pdf'))
+      .map((f: { name: string; metadata?: { size: number } }) => ({
         name:     f.name.replace(/\.pdf$/i, ''),
         fullName: f.name,
         size:     f.metadata?.size || 0,
@@ -136,19 +153,19 @@ export default function FichasScreen({ navigation }: { navigation: any }) {
               return;
             }
           }
-        } catch (_: any) {}
+        } catch (_: unknown) {}
       }
 
       // Online: obtener URL firmada con timeout de 4 segundos
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
       const fetchPromise = supabase.storage.from(BUCKET).createSignedUrl(path, 300);
       
-      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
+      const { data, error } = (await Promise.race([fetchPromise, timeoutPromise])) as { data?: { signedUrl: string }, error?: unknown };
       if (error || !data) throw new Error('No se pudo generar el enlace');
       
       setPdfModal({ visible: true, url: data.signedUrl, title: nombre || path });
-    } catch (e: any) {
-      if (e.message === 'timeout') {
+    } catch (e: unknown) {
+      if ((e as Error).message === 'timeout') {
         alert('Sin conexión. Descarga la ficha para usarla offline.');
       }
       // Otros errores se ignoran silenciosamente
@@ -167,7 +184,7 @@ export default function FichasScreen({ navigation }: { navigation: any }) {
   const listaFiltrada = React.useMemo(() => {
     const cats = catActual === 'TODAS' ? CATEGORIAS : [catActual];
     const q = busqueda.toLowerCase().trim();
-    const items: any[] = [];
+    const items: ListItem[] = [];
     cats.forEach(cat => {
       const files = allFiles[cat] || [];
       const filtrados = q ? files.filter(f => f.name.toLowerCase().includes(q)) : files;
@@ -179,17 +196,16 @@ export default function FichasScreen({ navigation }: { navigation: any }) {
     return items;
   }, [allFiles, catActual, busqueda]);
 
-  function renderItem({ item }: { item: any }) {
+  function renderItem({ item }: { item: ListItem }) {
     if (item.type === 'label') {
       return <Text style={styles.catLabel}>{item.cat}</Text>;
     }
-    const cargandoEste = abriendo === item.path;
-    const descargado = !!(manifest && manifest[item.path]);
+    const descargado = !!(manifest && item.path && manifest[item.path]);
     const offlineDisabled = !descargado && !isOnline;
     return (
       <TouchableOpacity
         style={[styles.fileItem, offlineDisabled && { opacity: 0.45 }]}
-        onPress={() => (descargado || isOnline) ? abrirFicha(item.path, item.name) : null}
+        onPress={() => (descargado || isOnline) && item.path ? abrirFicha(item.path, item.name || '') : null}
         disabled={!!abriendo || offlineDisabled}
         activeOpacity={0.7}
       >
@@ -201,8 +217,8 @@ export default function FichasScreen({ navigation }: { navigation: any }) {
           ? <Text style={{ fontSize: 11, color: COLORS.green, fontFamily: FONTS.body, marginLeft: 4 }}>✓</Text>
           : (!isOnline ? null : <SvgIcon name="cloud" size={14} color={COLORS.navy} />)
         }
-        {!descargado && item.size ? <Text style={[styles.fileSize, {marginLeft: 6}]}>{fmtSize(item.size)}</Text> : null}
-        {cargandoEste
+        {!descargado && item.size ? <Text style={[styles.fileSize, {marginLeft: 6}]}>{Math.round(item.size / 1024)} KB</Text> : null}
+        {abriendo === item.path
           ? <ActivityIndicator size="small" color={COLORS.navy} />
           : null
         }
