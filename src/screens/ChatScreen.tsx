@@ -11,17 +11,17 @@ import { supabase, EDGE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function ChatScreen({ navigation }: { navigation: any }) {
+export default function ChatScreen({ navigation }: { navigation: { goBack: () => void; navigate: (s: string) => void; [key: string]: unknown } }) {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
-  const [remoteConfig, setRemoteConfig] = useState<any>(null);
+  const [remoteConfig, setRemoteConfig] = useState<Record<string, unknown> | null>(null);
   const [profName, setProfName] = useState('');
   const [apiStatus, setApiStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
   const dotOpacity = useRef(new Animated.Value(1)).current;
   const insets = useSafeAreaInsets();
 
-  const flatListRef = useRef<FlatList<any>>(null);
+  const flatListRef = useRef<FlatList<{ role: string; content: string }>>(null);
   const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -129,8 +129,8 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
       } else {
         throw new Error('Respuesta vacía de la Edge Function');
       }
-    } catch (err: any) {
-      lastError = err.message;
+    } catch (err: unknown) {
+      lastError = (err as Error)?.message || String(err);
     }
 
     if (!success) {
@@ -266,8 +266,8 @@ export default function ChatScreen({ navigation }: { navigation: any }) {
   );
 }
 
-const AiProductCard = ({ sku, skusContext, navigation }: { sku: string; skusContext: string[]; navigation: any }) => {
-  const [product, setProduct] = useState<any>(null);
+const AiProductCard = ({ sku, skusContext, navigation }: { sku: string; skusContext: string[]; navigation: { navigate: (s: string, p?: unknown) => void; [key: string]: unknown } }) => {
+  const [product, setProduct] = useState<{ marca?: string; modelo?: string; imagen?: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

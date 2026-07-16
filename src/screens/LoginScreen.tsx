@@ -86,7 +86,7 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (error) {
-      const msg = (error as any)?.message || 'No fue posible enviar el código. Intentá de nuevo.';
+      const msg = (error as Error)?.message || 'No fue posible enviar el código. Intentá de nuevo.';
       Sentry.captureMessage(`OTP error: ${msg}`, 'error');
       setStatus({ msg: msg, color: 'red' });
       return;
