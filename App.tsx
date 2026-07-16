@@ -22,6 +22,7 @@ import {
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './src/queryClient';
 import { supabase, SUPABASE_STORAGE_KEY } from './src/supabase';
+import type { Session } from '@supabase/supabase-js';
 import { useAuthStore } from './src/store/useAuthStore';
 import { COLORS } from './src/theme';
 import * as Linking from 'expo-linking';
@@ -133,18 +134,26 @@ function App() {
   const { showAlert } = useCustomAlert();
 
   useEffect(() => {
-    const defaultErrorHandler = (global as any).ErrorUtils?.getGlobalHandler?.();
-    if ((global as any).ErrorUtils) {
-      (global as any).ErrorUtils.setGlobalHandler((error: any, isFatal: boolean) => {
+    type ErrorHandler = (error: unknown, isFatal: boolean) => void;
+    interface GlobalWithErrorUtils {
+      ErrorUtils?: {
+        getGlobalHandler?: () => ErrorHandler;
+        setGlobalHandler: (handler: ErrorHandler) => void;
+      };
+    }
+    const globalWithEU = global as unknown as GlobalWithErrorUtils;
+    const defaultErrorHandler = globalWithEU.ErrorUtils?.getGlobalHandler?.();
+    if (globalWithEU.ErrorUtils) {
+      globalWithEU.ErrorUtils.setGlobalHandler((error: unknown, isFatal: boolean) => {
         showAlert(
           'Fallo del Sistema',
-          `Ocurrió un error inesperado${isFatal ? ' fatal' : ''}.\n\nDetalle: ${error?.message || 'Desconocido'}\n\nEl sistema bloqueó el cierre forzoso, pero recomendamos reiniciar la app.`
+          `Ocurrió un error inesperado${isFatal ? ' fatal' : ''}.\n\nDetalle: ${(error as Error)?.message || 'Desconocido'}\n\nEl sistema bloqueó el cierre forzoso, pero recomendamos reiniciar la app.`
         );
       });
     }
     return () => {
-      if ((global as any).ErrorUtils && defaultErrorHandler) {
-        (global as any).ErrorUtils.setGlobalHandler(defaultErrorHandler);
+      if (globalWithEU.ErrorUtils && defaultErrorHandler) {
+        globalWithEU.ErrorUtils.setGlobalHandler(defaultErrorHandler);
       }
     };
   }, [showAlert]);
@@ -219,11 +228,14 @@ function App() {
     });
 
     // Escucha cambios de sesión en tiempo real
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, sess: any) => {
-      if (sess) {
-        setAuth(sess);
-        registerAndSaveToken(sess.user.id);
-        checkProfile(sess.user.id);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, sess: unknown) => {
+      const session = sess as Session | null;
+      if (session) {
+        setAuth(session);
+        if (session.user) {
+          registerAndSaveToken(session.user.id);
+          checkProfile(session.user.id);
+        }
       } else {
         clearAuth();
         setProfileComplete(true);
@@ -241,7 +253,7 @@ function App() {
     const subProfile = DeviceEventEmitter.addListener('PROFILE_COMPLETED', () => {
       setProfileComplete(true);
     });
-    const subOta = DeviceEventEmitter.addListener('TRIGGER_OTA_UPDATE', (payload: any) => {
+    const subOta = DeviceEventEmitter.addListener('TRIGGER_OTA_UPDATE', (payload: { directDownload?: boolean } | undefined) => {
       setShowLottie(true);
       checkUpdate(payload?.directDownload);
     });
@@ -266,7 +278,7 @@ function App() {
                 animation: 'slide_from_right', 
                 contentStyle: { backgroundColor: '#FFFFFF' } 
               }}
-              {...({ detachInactiveScreens: false } as any)}
+              {...( { detachInactiveScreens: false } as unknown as React.ComponentProps<typeof Stack.Navigator> )}
             >
               {!autenticado ? (
                 <Stack.Screen name="Login" component={LoginScreen} />
