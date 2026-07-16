@@ -14,7 +14,8 @@
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "supabase"
+    "babel.config.js",
+    "metro.config.js",
+    "jest.config.js"
   ]
 }

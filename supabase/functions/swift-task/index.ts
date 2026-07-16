@@ -49,8 +49,14 @@ Deno.serve(async (req) => {
       })
     }
 
-    if (!user.email?.toLowerCase().endsWith('@comagro.com.py')) {
-      return new Response(JSON.stringify({ error: 'Acceso denegado' }), {
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Acceso denegado. Rol de admin requerido.' }), {
         status: 403,
         headers: CORS_HEADERS,
       })

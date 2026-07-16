@@ -15,6 +15,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      - name: Deno Lint & Type Check (Edge Functions)
+        run: |
+          cd supabase/functions
+          deno lint
+          deno check **/*.ts
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -24,13 +35,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Type Check (TypeScript)
+      - name: TypeScript Check (UI & Logic)
         run: npx tsc --noEmit
 
-      - name: Lint (ESLint)
+      - name: Run ESLint (Strict)
         env:
           ESLINT_USE_FLAT_CONFIG: "false"
-        run: npx eslint .
+        run: npx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 0
 
-      - name: Run tests with coverage
-        run: npx jest --coverage
+      - name: Run Tests with Coverage
+        run: npx jest --coverage --passWithNoTests
