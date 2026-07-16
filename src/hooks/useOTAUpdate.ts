@@ -6,6 +6,8 @@ import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import NetInfo from '@react-native-community/netinfo';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
+import ReactNativeBlobUtil from 'react-native-blob-util';
+import * as IntentLauncher from 'expo-intent-launcher';
 
 export function useOTAUpdate() {
   const { showAlert } = useCustomAlert();
@@ -133,7 +135,7 @@ export function useOTAUpdate() {
         const hasMd5 = !!md5;
 
         if (hasSha256) {
-          const ReactNativeBlobUtil = require('react-native-blob-util').default;
+
           const nativePath = result.uri.startsWith('file://') ? result.uri.replace('file://', '') : result.uri;
           let calculatedSha256;
           try {
@@ -185,7 +187,7 @@ export function useOTAUpdate() {
         contentUri = `content://${pkg}.FileSystemFileProvider/expo_files/comagro_update.apk`;
       }
 
-      await require('expo-intent-launcher').startActivityAsync('android.intent.action.VIEW', {
+      await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
         data: contentUri,
         flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
         type: 'application/vnd.android.package-archive',

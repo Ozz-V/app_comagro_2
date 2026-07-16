@@ -4,6 +4,7 @@ import LottieView from 'lottie-react-native';
 import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Image as ExpoImage } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase, SUPABASE_URL } from '../supabase';
@@ -295,9 +296,8 @@ export default function ConfigScreen({ navigation }: { navigation: any }) {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Limpiar', onPress: async () => {
         try {
-          const { Image } = require('expo-image');
-          await Image.clearDiskCache();
-          await Image.clearMemoryCache();
+          await ExpoImage.clearDiskCache();
+          await ExpoImage.clearMemoryCache();
           showToast('Caché liberada correctamente.');
         } catch (e) {
           showToast('Error al limpiar caché.');

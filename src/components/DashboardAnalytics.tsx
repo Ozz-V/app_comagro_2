@@ -15,6 +15,7 @@ import DirectoryModal from './DirectoryModal';
 import UserProfileModal from './UserProfileModal';
 import { APP_CONSTANTS } from '../config/constants';
 import { AnalyticsRankItem } from '../types';
+import { getAllProducts } from '../utils/database';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 const CACHE_KEY = 'comagro_productos_v3';
@@ -243,7 +244,6 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
 
   async function loadImages() {
     try {
-      const { getAllProducts } = require('../utils/database');
       const rows = await getAllProducts();
       const m: Record<string, string> = {};
       rows.forEach((r: any) => {

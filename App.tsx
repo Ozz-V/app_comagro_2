@@ -1,11 +1,11 @@
 // Build Trigger: Restauración versión estable 30-Abril
 import React, { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, DeviceEventEmitter } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { OfflineSyncProvider } from './src/contexts/OfflineSyncContext';
-import { CustomAlertProvider } from './src/contexts/CustomAlertContext';
+import { CustomAlertProvider, useCustomAlert } from './src/contexts/CustomAlertContext';
 import { useOTAUpdate } from './src/hooks/useOTAUpdate';
 import {
   useFonts,
@@ -130,7 +130,7 @@ function App() {
     Barlow_600SemiBold,
   });
 
-  const { showAlert } = require('./src/contexts/CustomAlertContext').useCustomAlert();
+  const { showAlert } = useCustomAlert();
 
   useEffect(() => {
     const defaultErrorHandler = (global as any).ErrorUtils?.getGlobalHandler?.();
@@ -237,7 +237,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const { DeviceEventEmitter } = require('react-native');
+
     const subProfile = DeviceEventEmitter.addListener('PROFILE_COMPLETED', () => {
       setProfileComplete(true);
     });
