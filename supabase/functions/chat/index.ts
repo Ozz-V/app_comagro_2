@@ -39,7 +39,7 @@ serve(async (req) => {
         if (!res.ok) throw new Error(`Gemini respondió ${res.status}`);
         return new Response(JSON.stringify({ status: 'ok' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       } catch (e) {
-        return new Response(JSON.stringify({ status: 'error', message: e.message || 'Gemini no responde' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 });
+        return new Response(JSON.stringify({ status: 'error', message: (e as Error).message || 'Gemini no responde' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 });
       }
     }
 
@@ -94,7 +94,7 @@ serve(async (req) => {
 
     const words = lastMessage.split(/[\s,¿?¡!]+/);
     const potentialSkus = words.filter((w: string) => w.length > 3 && /[0-9]/.test(w)).slice(0, 3);
-    const exactSearchPromises = potentialSkus.map(pSku => {
+    const exactSearchPromises = potentialSkus.map((pSku: string) => {
       const cleanSku = pSku.replace(/[^a-zA-Z0-9/-]/g, '');
       if (cleanSku.length > 2) {
         return supaAdmin.from('productos_ai_data').select('sku, sales_pitch').or(`sku.ilike.%${cleanSku}%,sales_pitch.ilike.%${cleanSku}%`).limit(4);
@@ -140,7 +140,7 @@ serve(async (req) => {
           .split(/\by\b|,|también/i)
           .map((s: string) => s.trim())
           .filter((s: string) => s.length > 2);
-        if (naiveSplit.length > 1) queryGroups = naiveSplit.map(q => [q]);
+        if (naiveSplit.length > 1) queryGroups = naiveSplit.map((q: string) => [q]);
       }
 
       // Un embedding por grupo, generado con el primer sinónimo limpio (g[1]) si existe,
@@ -301,7 +301,7 @@ REGLA DE PEDIDOS MASIVOS (SIEMPRE APLICA): Si el usuario pide de una sola vez M�
     });
 
   } catch (error) {
-    console.error(JSON.stringify({ event: "chat_error", error: error.message, duration_ms: Date.now() - startTime }));
+    console.error(JSON.stringify({ event: "chat_error", error: (error as Error).message, duration_ms: Date.now() - startTime }));
     return new Response(JSON.stringify({ error: 'Ocurrió un error al procesar tu consulta. Intentá de nuevo.' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,

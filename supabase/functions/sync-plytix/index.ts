@@ -38,10 +38,10 @@ serve(async (req) => {
       text = await res.text();
     } catch (err) {
       console.warn('Fallback: Plytix feed inaccesible', err);
-      return new Response(JSON.stringify({ error: 'Feed de Plytix inaccesible temporalmente', fallback: true, details: err.message }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'Feed de Plytix inaccesible temporalmente', fallback: true, details: (err as Error).message }), { status: 502, headers: { 'Content-Type': 'application/json' } });
     }
     // deno-lint-ignore no-explicit-any
-    const plytixData: any[] = [];
+    let plytixData: any[] = [];
     
     try {
       const parsed = JSON.parse(text);
@@ -86,7 +86,7 @@ serve(async (req) => {
 
     // 4. Tomar un lote (batch) de máximo 10 productos para evitar Timeouts
     const batch = missingProducts.slice(0, 10);
-    const processedSkus = [];
+    const processedSkus: string[] = [];
     const errors = [];
 
     // 5. Procesar cada producto del lote
@@ -166,8 +166,8 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
          processedSkus.push(sku);
 
        } catch (err) {
-         console.error(`Error procesando SKU ${sku}:`, err.message);
-         errors.push({ sku, error: err.message });
+         console.error(`Error procesando SKU ${sku}:`, (err as Error).message);
+         errors.push({ sku, error: (err as Error).message });
        }
     }
 
@@ -208,6 +208,6 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: (error as Error).message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 });
