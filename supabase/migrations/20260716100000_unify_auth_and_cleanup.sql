@@ -15,7 +15,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 2. Migrate existing event_admins to profiles.role = 'admin' safely
 UPDATE profiles
 SET role = 'admin'
-WHERE email IN (SELECT admin_email FROM event_admins)
+WHERE email IN (SELECT email FROM event_admins)
   AND role IS DISTINCT FROM 'admin';
 
 -- 3. Consolidate Policies for events, registrations, budgets, shifts to use is_admin()
