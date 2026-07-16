@@ -23,8 +23,8 @@ jobs:
       - name: Deno Lint & Type Check (Edge Functions)
         run: |
           cd supabase/functions
-          deno lint
-          deno check **/*.ts
+          deno lint --config deno.json
+          deno check --config deno.json **/*.ts
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
