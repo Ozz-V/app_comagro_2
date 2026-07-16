@@ -13,10 +13,14 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 2. Migrate existing event_admins to profiles.role = 'admin' safely
+ALTER TABLE public.profiles DISABLE TRIGGER trg_prevent_role_self_escalation;
+
 UPDATE profiles
 SET role = 'admin'
 WHERE email IN (SELECT email FROM event_admins)
   AND role IS DISTINCT FROM 'admin';
+
+ALTER TABLE public.profiles ENABLE TRIGGER trg_prevent_role_self_escalation;
 
 -- 3. Consolidate Policies for events, registrations, budgets, shifts to use is_admin()
 -- First, drop duplicate or insecure policies (like 'Staff manage events', 'Autenticados gestionan eventos')
