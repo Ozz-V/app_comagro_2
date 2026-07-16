@@ -5,6 +5,9 @@ import SvgIcon from './SvgIcon';
 import { COLORS, FONTS } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
+
+
 interface FilterHeaderProps {
   filtroMarca: string;
   busqueda: string;
@@ -33,7 +36,7 @@ export default function FilterHeader({
     <View style={[styles.topbar, { paddingTop: insets.top || 14 }]}>
       <View style={styles.topbarHeader}>
         <LottieView
-          source={require('../../assets/iso.json')}
+          source={ANIMATION_ISO}
           autoPlay
           loop={true}
           style={styles.logoAnimado}

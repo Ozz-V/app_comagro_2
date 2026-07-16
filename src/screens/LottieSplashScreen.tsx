@@ -5,6 +5,9 @@ import { COLORS } from '../theme';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
+
+
 interface Props {
   onFinish: () => void;
   updateState: string;
@@ -72,7 +75,7 @@ export default function LottieSplashScreen({ onFinish, updateState, updateNotes,
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <LottieView
-        source={require('../../assets/iso.json')}
+        source={ANIMATION_ISO}
         autoPlay
         loop={true}
         style={styles.lottie}

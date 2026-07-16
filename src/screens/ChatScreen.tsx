@@ -11,6 +11,9 @@ import { supabase, EDGE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
+
+
 export default function ChatScreen({ navigation }: { navigation: { goBack: () => void; navigate: (s: string) => void; [key: string]: unknown } }) {
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
@@ -178,7 +181,7 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
           </TouchableOpacity>
           <View style={styles.avatarContainer}>
             <LottieView
-              source={require('../../assets/iso.json')}
+              source={ANIMATION_ISO}
               autoPlay
               loop
               style={styles.avatarLottie}

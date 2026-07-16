@@ -9,6 +9,9 @@ import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import * as Sentry from '@sentry/react-native';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
+
+
 export default function LoginScreen() {
   const [email, setEmail]   = useState('');
   const [code, setCode]     = useState('');
@@ -159,7 +162,7 @@ export default function LoginScreen() {
       >
         {/* Logo Animado Lottie */}
         <LottieView
-          source={require('../../assets/iso.json')}
+          source={ANIMATION_ISO}
           autoPlay
           loop={true}
           style={{ width: 160, height: 160, marginBottom: 10 }}

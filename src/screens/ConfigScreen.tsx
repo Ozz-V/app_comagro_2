@@ -17,6 +17,9 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 import OfflineSyncModal from '../components/OfflineSyncModal';
 import UpdateModal from '../components/UpdateModal';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
+
+
 export default function ConfigScreen({ navigation }: { navigation: { navigate: (s: string, p?: unknown) => void; reset: (state: unknown) => void; goBack: () => void; [key: string]: unknown } }) {
   const appVersion = Constants.expoConfig?.version || '1.0.0';
   const versionCode = Constants.expoConfig?.android?.versionCode || 1;
@@ -390,7 +393,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
         <SystemHealthMonitor />
 
         <View style={st.versionCard}>
-          <LottieView source={require('../../assets/iso.json')} autoPlay loop style={{ width: 60, height: 60 }} resizeMode="contain" />
+          <LottieView source={ANIMATION_ISO} autoPlay loop style={{ width: 60, height: 60 }} resizeMode="contain" />
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: FONTS.heading, fontSize: 20, fontWeight: '700', color: COLORS.navy }}>Comagro App</Text>
             <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, marginTop: 4 }}>v{appVersion} (build {versionCode})</Text>
