@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const PLYTIX_URL = 'https://pim.plytix.com/channels/69b2c94b558d8c2b27901090/feed'
 
 const CORS_HEADERS = {
@@ -26,7 +28,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+    // Dynamic import removed in favor of static import at the top
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
