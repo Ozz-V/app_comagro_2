@@ -1,5 +1,6 @@
 export async function generateResponse(
   finalPrompt: string,
+  // deno-lint-ignore no-explicit-any
   geminiHistory: any[],
   geminiKey: string
 ): Promise<string> {
@@ -79,7 +80,7 @@ export function stripHallucinatedSkus(
   // Si hubo una mezcla (algunos reales, algunos inventados), solo borramos
   // los tags falsos y dejamos los reales — el texto puede quedar un poco
   // menos prolijo, pero nunca se muestra una ficha de producto fantasma.
-  let cleanReply = reply;
+  const cleanReply = reply;
   for (const sku of hallucinated) {
     const escaped = sku.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     cleanReply = cleanReply.replace(new RegExp(`\\[SKU:\\s*${escaped}\\s*\\]\\n?`, 'gi'), '');
@@ -106,6 +107,7 @@ const INJECTION_PATTERNS = [
 
 const MAX_RULE_LENGTH = 500;
 
+// deno-lint-ignore no-explicit-any
 export function saveLearnedRule(learnedRule: string, geminiKey: string, supaAdmin: any): void {
   // ── Validación de seguridad ────────────────────────────────────────────────
   if (learnedRule.length > MAX_RULE_LENGTH) {

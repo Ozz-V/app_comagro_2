@@ -17,9 +17,10 @@ export async function extractIntent(chatHistoryText: string, geminiKey: string):
           const parsed = JSON.parse(text);
           if (Array.isArray(parsed) && parsed.length > 0) {
             // Normaliza: si el modelo devolvió strings sueltos en vez de sub-arrays, los envolvemos igual
+            // deno-lint-ignore no-explicit-any
             return parsed.map((g: any) => (Array.isArray(g) ? g.filter(Boolean) : [String(g)]));
           }
-        } catch (err) {}
+        } catch (_err) { /* ignore parse error */ }
       }
     }
   } catch (e) {
@@ -28,6 +29,7 @@ export async function extractIntent(chatHistoryText: string, geminiKey: string):
   return null;
 }
 
+// deno-lint-ignore no-explicit-any
 export async function getEmbedding(text: string, geminiKey: string, supaAdmin: any): Promise<{ embedding: number[] | null; cacheHit: boolean }> {
   const cacheKey = text.toLowerCase().trim();
 
@@ -69,6 +71,7 @@ export async function getEmbedding(text: string, geminiKey: string, supaAdmin: a
   return { embedding: null, cacheHit: false };
 }
 
+// deno-lint-ignore no-explicit-any
 export async function vectorSearch(supabase: any, queryEmbedding: number[]): Promise<{ products: any[]; knowledge: any[] }> {
   try {
     const [vRes, kRes] = await Promise.all([
@@ -94,6 +97,7 @@ const STOPWORDS = new Set([
   'y', 'o', 'en', 'con', 'sin', 'para', 'por', 'que', 'al', 'su', 'sus'
 ]);
 
+// deno-lint-ignore no-explicit-any
 export async function keywordSearch(supabase: any, phrases: string[]): Promise<any[]> {
   try {
     // IMPORTANTE: no buscamos cada frase completa y pegada ("motobomba a combustion").

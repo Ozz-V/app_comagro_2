@@ -72,6 +72,7 @@ Deno.serve(async (req) => {
     const limit = limitParam ? parseInt(limitParam) : null
     const offset = offsetParam ? parseInt(offsetParam) : null
 
+    // deno-lint-ignore no-explicit-any
     let finalData: any[] = []
 
     // 1. Intentar leer de la caché de Supabase (Fase 2.2)
@@ -115,6 +116,7 @@ Deno.serve(async (req) => {
         })
       }
 
+      // deno-lint-ignore no-explicit-any
       let parsedData: any[] = []
       try {
         const parsed = JSON.parse(text)

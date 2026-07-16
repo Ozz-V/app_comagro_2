@@ -43,7 +43,7 @@ serve(async (req) => {
       }
     }
 
-    let { messages } = body;
+    const { messages } = body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       throw new Error('Messages array is required');
     }
@@ -79,13 +79,13 @@ serve(async (req) => {
 
     // ── Metrics & Bans ──
     const { data: userMetrics } = await supaAdmin.from('chat_user_metrics').select('*').eq('user_id', user_id).single();
-    let metrics = userMetrics || getDefaultMetrics(user_id);
+    const metrics = userMetrics || getDefaultMetrics(user_id);
     const now = new Date();
 
     const banMsg = checkBan(metrics, now);
     if (banMsg) return new Response(JSON.stringify({ reply: banMsg }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    let request_count = resetCountersIfNeeded(metrics, now);
+    const request_count = resetCountersIfNeeded(metrics, now);
     const quotaMsg = checkQuotaExceeded(request_count, metrics.max_requests ?? 10);
     if (quotaMsg) return new Response(JSON.stringify({ reply: quotaMsg }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
@@ -103,16 +103,21 @@ serve(async (req) => {
     }).filter(Boolean);
 
     // ── Search Pipeline ──
-    let searchQuery = lastMessage;
+    const searchQuery = lastMessage;
     const recentMessages = messages.slice(-4);
+    // deno-lint-ignore no-explicit-any
     const chatHistoryText = recentMessages.map((m: any) => `${m.role}: ${m.content}`).join('\n');
 
     const exactSearchResponses = await Promise.all(exactSearchPromises);
-    let exactContext: any[] = [];
+    // deno-lint-ignore no-explicit-any
+    const exactContext: any[] = [];
+    // deno-lint-ignore no-explicit-any
     exactSearchResponses.forEach((res: any) => { if (res?.data) exactContext.push(...res.data); });
 
-    let vectorData: any[] = [];
-    let knowledgeData: any[] = [];
+    // deno-lint-ignore no-explicit-any
+    const vectorData: any[] = [];
+    // deno-lint-ignore no-explicit-any
+    const knowledgeData: any[] = [];
     let cacheHit = false;
     let searchQueriesUsed: string[] = [];
 
@@ -180,7 +185,7 @@ serve(async (req) => {
     const configDataRes = await configPromise;
 
     // ── Assemble Context ──
-    let combinedContext = [...exactContext, ...vectorData];
+    const combinedContext = [...exactContext, ...vectorData];
     const seenSkus = new Set();
     const finalContext = combinedContext.filter(item => {
       if (seenSkus.has(item.sku)) return false;
@@ -192,6 +197,7 @@ serve(async (req) => {
     if (knowledgeData.length > 0) {
       dbContextText += `\n\n=== REGLAS DE LA EMPRESA (MEMORIA CORPORATIVA) ===\n`;
       dbContextText += `Aplica OBLIGATORIAMENTE estos consejos previos de nuestros expertos:\n`;
+      // deno-lint-ignore no-explicit-any
       knowledgeData.forEach((k: any) => { dbContextText += `- ${k.rule}\n`; });
       dbContextText += `=================================================\n`;
     }
@@ -224,6 +230,7 @@ REGLA CRÍTICA ANTI-INVENCIÓN: Un tag [SKU: XXX] SOLO puede usar un código que
 REGLA DE PEDIDOS MASIVOS (SIEMPRE APLICA): Si el usuario pide de una sola vez MÁS de 4 productos distintos (una lista larga, muchos SKUs pegados juntos, o algo como "dame 10 productos"), NO intentes buscarlos ni listarlos todos. Elegí como máximo 4 de los que pidió (los más relevantes) y decile amablemente, ANTES de mostrar los SKUs, que por mensaje solo puedes sugerir hasta cuatro productos, y que con gusto puedes buscarle el resto en su siguiente consulta. Fijate en el historial de la conversación: si en un mensaje ANTERIOR vos ya le dijiste esto mismo y en este mensaje el usuario IGUAL insiste pidiendo muchos productos de nuevo, es un uso abusivo del sistema — en ese caso agregá la etiqueta oculta [STRIKE] al final de tu respuesta (además de tu respuesta normal).`;
 
     // ── AI Response ──
+    // deno-lint-ignore no-explicit-any
     const geminiHistory = messages.map((msg: any, index: number) => {
       let content = msg.content;
       // Protect against Prompt Injection
@@ -247,6 +254,7 @@ REGLA DE PEDIDOS MASIVOS (SIEMPRE APLICA): Si el usuario pide de una sola vez M�
 
     // Blindaje anti-alucinación: borra cualquier [SKU: XXX] que el modelo haya
     // inventado y que no esté en la lista real de productos de este turno.
+    // deno-lint-ignore no-explicit-any
     const validSkus = new Set(finalContext.map((i: any) => i.sku));
     const { cleanReply: skuSafeReply, hallucinated } = stripHallucinatedSkus(reply, validSkus);
     reply = skuSafeReply;
@@ -278,6 +286,7 @@ REGLA DE PEDIDOS MASIVOS (SIEMPRE APLICA): Si el usuario pide de una sola vez M�
       user_id,
       search_query: searchQuery,
       search_queries_used: searchQueriesUsed,
+      // deno-lint-ignore no-explicit-any
       found_skus: finalContext.map((i: any) => i.sku),
       results_count: finalContext.length,
       exact_match: exactContext.length > 0,

@@ -40,7 +40,8 @@ serve(async (req) => {
       console.warn('Fallback: Plytix feed inaccesible', err);
       return new Response(JSON.stringify({ error: 'Feed de Plytix inaccesible temporalmente', fallback: true, details: err.message }), { status: 502, headers: { 'Content-Type': 'application/json' } });
     }
-    let plytixData: any[] = [];
+    // deno-lint-ignore no-explicit-any
+    const plytixData: any[] = [];
     
     try {
       const parsed = JSON.parse(text);
@@ -60,7 +61,7 @@ serve(async (req) => {
     }
 
     // 2. Obtener todos los SKUs que YA existen en la base de datos (con paginación para más de 1000)
-    let dbProducts = [];
+    const dbProducts = [];
     let page = 0;
     while(true) {
         const { data, error: dbError } = await supaAdmin.from('productos_ai_data').select('sku').range(page*1000, (page+1)*1000 - 1);
@@ -86,7 +87,7 @@ serve(async (req) => {
     // 4. Tomar un lote (batch) de máximo 10 productos para evitar Timeouts
     const batch = missingProducts.slice(0, 10);
     const processedSkus = [];
-    let errors = [];
+    const errors = [];
 
     // 5. Procesar cada producto del lote
     for (const p of batch) {
@@ -115,7 +116,7 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
             throw new Error(`Error en Gemini Generate: ${generateRes.status}`);
          }
          const generateData = await generateRes.json();
-         let salesPitch = generateData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Producto técnico de alta calidad.';
+         const salesPitch = generateData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Producto técnico de alta calidad.';
 
          // b) Generar los Embeddings (Vectores) para la búsqueda semántica usando las especificaciones reales
          const nombreProd = p['Nombre del Producto'] || p['Brand'] || sku;
@@ -143,7 +144,7 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
 
          // c) Formatear especificaciones de manera limpia para el bot
          const ignoreKeys = ['imagen', 'manual', 'marcación pim', 'material antiguo', 'despiece', 'denominador estandar', 'volumen', 'peso neto', 'thumbnail', 'ficha tecnica', 'ficha', 'video', 'gama', 'brand logo'];
-         let specsList = [];
+         const specsList = [];
          for (const [key, val] of Object.entries(p)) {
              const kLower = key.toLowerCase();
              if (ignoreKeys.some(ik => kLower.includes(ik))) continue;

@@ -48,7 +48,7 @@ serve(async (req) => {
             }
             // Pequeño throttle para evitar limites de la API gratuita
             await new Promise(r => setTimeout(r, 200)); 
-        } catch(e) {}
+        } catch(_e) { /* ignore error */ }
     }
 
     return new Response(JSON.stringify({ done: false, processed, nextPage: page + 1 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
