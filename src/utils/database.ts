@@ -113,6 +113,7 @@ export async function initDB(): Promise<SQLite.SQLiteDatabase> {
     // arrancamos de cero UNA vez. Si esto también falla, ahí sí se lo
     // dejamos ver al usuario — pero esto cubre el caso común de corrupción
     // por cierre forzoso sin que el usuario tenga que hacer nada.
+    // eslint-disable-next-line no-console
     console.log('initDB detectó base corrupta, reparando automáticamente', String(e));
     Sentry.captureMessage('initDB: base local corrupta, auto-reparando', { level: 'warning', extra: { originalError: String(e) } });
     await resetCorruptDatabase();

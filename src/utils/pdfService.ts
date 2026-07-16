@@ -205,7 +205,7 @@ export async function fetchImageBase64(url: string): Promise<string> {
         const base64 = await FileSystem.readAsStringAsync(safePath, { encoding: FileSystem.EncodingType.Base64 });
         return `data:image/jpeg;base64,${base64}`;
       }
-    } catch (cacheError) {
+    } catch {
       // Ignorar error de caché y caer al fallback de red
     }
 

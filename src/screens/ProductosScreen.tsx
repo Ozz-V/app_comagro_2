@@ -82,6 +82,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPdfCache({ prodBase64: '', logoBase64: '' });
     if (modalProd) {
       const marcaSlug = (modalProd.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();

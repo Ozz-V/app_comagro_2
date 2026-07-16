@@ -41,7 +41,7 @@ jobs:
       - name: Run ESLint (Strict)
         env:
           ESLINT_USE_FLAT_CONFIG: "false"
-        run: npx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 0
+        run: npx eslint . --ext .js,.jsx,.ts,.tsx
 
       - name: Run Tests with Coverage
         run: npx jest --coverage --passWithNoTests

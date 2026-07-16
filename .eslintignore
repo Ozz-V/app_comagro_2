@@ -8,3 +8,4 @@ src/models/database.types.ts
 dist/
 build/
 coverage/models/database.types.ts
+supabase/

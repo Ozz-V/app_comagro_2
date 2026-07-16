@@ -4,12 +4,13 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 Notifications.setNotificationHandler({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
-  } as any),
+    shouldShowBanner: false,
+    shouldShowList: false,
+  }),
 });
 
 export async function registerForPushNotificationsAsync() {
