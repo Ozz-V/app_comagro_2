@@ -24,13 +24,26 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
       - name: Type Check (TypeScript)
         run: npx tsc --noEmit
 
       - name: Lint (ESLint)
         env:
           ESLINT_USE_FLAT_CONFIG: "false"
-        run: npx eslint .
+        run: npx eslint . --max-warnings 0
+
+      - name: Lint Edge Functions (Deno)
+        run: deno lint
+        working-directory: supabase/functions
+
+      - name: Type Check Edge Functions (Deno)
+        run: deno check */index.ts
+        working-directory: supabase/functions
 
       - name: Run tests with coverage
         run: npx jest --coverage
