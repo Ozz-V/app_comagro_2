@@ -58,8 +58,20 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     });
 
-    // Auth (Bypassed for test environment)
-    const user_id = 'test_user_id';
+    // Identificar al usuario real a partir del JWT que llega en el header
+    // Authorization (el mismo que ya usamos para armar el cliente `supabase`
+    // de arriba). Antes esto estaba hardcodeado a 'test_user_id', lo que
+    // hacía que TODOS los usuarios de la app compartieran una sola fila de
+    // cuotas/baneos en chat_user_metrics — un usuario abusivo baneaba el
+    // chat para toda la empresa.
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'No autorizado. Iniciá sesión de nuevo e intentá otra vez.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const user_id = user.id;
 
     const supaAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
@@ -287,5 +299,3 @@ REGLA DE PEDIDOS MASIVOS (SIEMPRE APLICA): Si el usuario pide de una sola vez M�
     });
   }
 });
-
-
