@@ -323,7 +323,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       const pDate = getPeriodDate(period);
       const ppDate = getPrevPeriodDate(period);
 
-      let q = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').order('created_at', { ascending: false }).limit(10000);
+      let q = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').order('created_at', { ascending: false }).limit(500);
       if (pDate) q = q.gte('created_at', pDate);
       const { data: cur, error: curError } = await q;
       if (curError) throw new Error(curError.message);
@@ -331,7 +331,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
 
       let prev: any[] = [];
       if (pDate && ppDate) {
-        const { data: p, error: pError } = await supabase.from('producto_analytics').select('action,user_email').gte('created_at', ppDate).lt('created_at', pDate).limit(10000);
+        const { data: p, error: pError } = await supabase.from('producto_analytics').select('action,user_email').gte('created_at', ppDate).lt('created_at', pDate).limit(500);
         if (pError) throw new Error(pError.message);
         prev = p || [];
       }

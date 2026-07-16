@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const PLYTIX_URL = 'https://pim.plytix.com/channels/69b2c94b558d8c2b27901090/feed';
+const PLYTIX_URL = Deno.env.get('PLYTIX_CHANNEL_URL') ?? 'https://pim.plytix.com/channels/69b2c94b558d8c2b27901090/feed';
 
 Deno.serve(async (req: Request) => {
   try {
@@ -8,15 +8,16 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
 
-    // Health check (6.3)
-    const url = new URL(req.url);
-    if (req.method === 'GET' && url.pathname.endsWith('/health')) {
-      return new Response(JSON.stringify({ status: 'ok', service: 'sync-plytix', timestamp: new Date().toISOString() }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    }
-
+    // Auth check first (for ALL requests including health)
     const secret = req.headers.get('x-sync-secret');
     if (!secret || secret !== Deno.env.get('SYNC_SECRET')) {
       return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // Health check
+    const url = new URL(req.url);
+    if (req.method === 'GET' && url.pathname.endsWith('/health')) {
+      return new Response(JSON.stringify({ status: 'ok', service: 'sync-plytix', timestamp: new Date().toISOString() }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
     if (!supabaseUrl || !supabaseServiceKey || !geminiKey) {

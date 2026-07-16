@@ -38,7 +38,7 @@ CREATE POLICY "Admins can manage events" ON public.events
 
 CREATE POLICY "Anyone can read events" ON public.events
   FOR SELECT
-  TO authenticated, anon
+  TO authenticated
   USING (true);
 
 -- 4. Clean up Schema Junk (obsolete API keys)
@@ -56,5 +56,5 @@ CREATE POLICY "Admins can manage app config" ON public.app_config
 
 CREATE POLICY "Anyone can read app config" ON public.app_config
   FOR SELECT
-  TO authenticated, anon
+  TO authenticated
   USING (true);

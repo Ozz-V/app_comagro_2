@@ -53,7 +53,9 @@ export default function CompleteProfileScreen() {
         }
         setAvatarUrl(data.avatar_url || null);
       }
-    } catch (e: any) {}
+    } catch (_e: unknown) {
+      // Profile load failed silently — user sees empty form and can fill it in manually
+    }
   }
 
   async function pickPhoto() {

@@ -7,8 +7,7 @@ import {
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
-
-const LOGO = { uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png' };
+import * as Sentry from '@sentry/react-native';
 
 export default function LoginScreen() {
   const [email, setEmail]   = useState('');
@@ -74,12 +73,12 @@ export default function LoginScreen() {
       const response = await supabase.auth.signInWithOtp({
         email: correo,
         options: {
-          shouldCreateUser: true, // Permitir que usuarios nuevos reciban el PIN al instante
+          shouldCreateUser: false,
         },
       });
       error = response.error;
-    } catch (e: any) {
-      console.error('signInWithOtp failed:', e);
+    } catch (e: unknown) {
+      Sentry.captureException(e);
       error = e;
     }
 
@@ -88,7 +87,7 @@ export default function LoginScreen() {
 
     if (error) {
       const msg = (error as any)?.message || 'No fue posible enviar el código. Intentá de nuevo.';
-      console.error('OTP error:', msg);
+      Sentry.captureMessage(`OTP error: ${msg}`, 'error');
       setStatus({ msg: msg, color: 'red' });
       return;
     }

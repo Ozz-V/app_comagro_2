@@ -85,7 +85,9 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
     try {
       const raw = await AsyncStorage.getItem(MANIFEST_KEY);
       if (raw) setManifest(JSON.parse(raw));
-    } catch (e) {}
+    } catch (_e) {
+      // Manifest not found or corrupt — start fresh
+    }
     finally { setManifestReady(true); }
   };
 
@@ -153,7 +155,9 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
     try {
       setManifest(newManifest);
       await AsyncStorage.setItem(MANIFEST_KEY, JSON.stringify(newManifest));
-    } catch (e) {}
+    } catch (_e) {
+      // AsyncStorage write failed — manifest will be stale until next successful save
+    }
   }
 
   // Comienza o reanuda la descarga

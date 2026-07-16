@@ -67,7 +67,6 @@ export function useProducts() {
             }
           })
           .catch((e) => {
-            Sentry.captureException(e);
             Sentry.captureException(e, { tags: { context: 'ensureCatalogSynced_background' } });
           });
       }
@@ -133,7 +132,6 @@ export function useProducts() {
       if (mySeq !== searchSeq.current) return;
       setMarcas(m);
     } catch (e: unknown) {
-      console.log('Error buscando en DB', String(e));
     }
   }, []);
 

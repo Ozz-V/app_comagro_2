@@ -34,3 +34,4 @@ supabase/.temp/
 _dev_scripts_and_docs/
 coverage/
 jest_error.txt
+runs.json

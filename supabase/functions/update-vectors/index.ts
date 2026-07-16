@@ -2,16 +2,18 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(async (req: Request) => {
   try {
+    // Auth check first — before reading any sensitive env vars or creating clients
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const updateSecret = Deno.env.get('UPDATE_VECTORS_SECRET') ?? '';
+    if (!updateSecret || authHeader !== `Bearer ${updateSecret}`) {
+      return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
 
     const supaAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-    const authHeader = req.headers.get('Authorization') ?? '';
-    if (authHeader !== `Bearer ${supabaseServiceKey}`) {
-      return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
-    }
 
     const body = await req.json();
     const page = body.page || 0;
@@ -46,8 +48,10 @@ Deno.serve(async (req: Request) => {
                 processed++;
             }
             // Pequeño throttle para evitar limites de la API gratuita
-            await new Promise(r => setTimeout(r, 200)); 
-        } catch(_e) { /* ignore error */ }
+            await new Promise(r => setTimeout(r, 200));
+        } catch (err: unknown) {
+          console.error(`[update-vectors] Error procesando SKU ${p.sku}:`, (err as Error).message);
+        }
     }
 
     return new Response(JSON.stringify({ done: false, processed, nextPage: page + 1 }), { status: 200, headers: { 'Content-Type': 'application/json' } });

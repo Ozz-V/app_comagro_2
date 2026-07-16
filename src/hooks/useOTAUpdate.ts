@@ -191,7 +191,6 @@ export function useOTAUpdate() {
         type: 'application/vnd.android.package-archive',
       });
     } catch (err: unknown) {
-      console.log('[OTA] Error instalando:', (err as Error)?.message, err);
       throw err;
     }
   }

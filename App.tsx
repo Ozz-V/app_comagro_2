@@ -136,7 +136,6 @@ function App() {
     const defaultErrorHandler = (global as any).ErrorUtils?.getGlobalHandler?.();
     if ((global as any).ErrorUtils) {
       (global as any).ErrorUtils.setGlobalHandler((error: any, isFatal: boolean) => {
-        console.log('Error Global (Crash):', error);
         showAlert(
           'Fallo del Sistema',
           `Ocurrió un error inesperado${isFatal ? ' fatal' : ''}.\n\nDetalle: ${error?.message || 'Desconocido'}\n\nEl sistema bloqueó el cierre forzoso, pero recomendamos reiniciar la app.`
@@ -158,7 +157,7 @@ function App() {
           await supabase.from('profiles').upsert({ id: userId, expo_push_token: token }, { onConflict: 'id' });
         }
       } catch(e) {
-        console.log('Error registerAndSaveToken', e);
+        Sentry.captureException(e, { tags: { context: 'registerAndSaveToken' } });
       }
     }
 
@@ -267,7 +266,7 @@ function App() {
                 animation: 'slide_from_right', 
                 contentStyle: { backgroundColor: '#FFFFFF' } 
               }}
-              // @ts-ignore
+              {/* @ts-ignore: detachInactiveScreens is a valid React Navigation prop but missing from @types */}
               detachInactiveScreens={false}
             >
               {!autenticado ? (

@@ -47,7 +47,9 @@ export default function FichasScreen({ navigation }: { navigation: any }) {
         } else {
           setError('No hay fichas guardadas. Conéctese a internet para descargar.');
         }
-      } catch (e: any) {}
+      } catch (_e: unknown) {
+        // Cache read failed — user will see the error state set above
+      }
       setCargando(false);
       setRefreshing(false);
       return;
