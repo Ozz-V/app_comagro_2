@@ -23,7 +23,3 @@ enabled = true
 verify_jwt = true
 entrypoint = "./functions/swift-task/index.ts"
 
-[functions.update-vectors]
-enabled = true
-verify_jwt = false
-entrypoint = "./functions/update-vectors/index.ts"

@@ -116,7 +116,8 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
             throw new Error(`Error en Gemini Generate: ${generateRes.status}`);
          }
          const generateData = await generateRes.json();
-         const salesPitch = generateData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Producto técnico de alta calidad.';
+         let salesPitch = generateData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Producto técnico de alta calidad.';
+         salesPitch = salesPitch.replace(/\*\*/g, '');
 
          // b) Generar los Embeddings (Vectores) para la búsqueda semántica usando las especificaciones reales
          const nombreProd = p['Nombre del Producto'] || p['Brand'] || sku;
