@@ -46,21 +46,30 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
     specPad    = pad2;
   }
 
+  const escapeHtml = (unsafe: string) => {
+    return (unsafe || '').toString()
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
   let rowsHtml = '';
   if (doubleCols) {
     for (let i = 0; i < numSpecs; i += 2) {
       const a = specs[i], b = specs[i + 1] || null;
       const bg = (Math.floor(i / 2)) % 2 === 0 ? '#ffffff' : '#f2f5fb';
       rowsHtml += `<tr style="background:${bg}">
-        <td class="sn">${a[0]}</td><td class="sv">${a[1]}</td>
-        ${b ? `<td class="sn sep">${b[0]}</td><td class="sv">${b[1]}</td>` : `<td class="sep"></td><td></td>`}
+        <td class="sn">${escapeHtml(a[0])}</td><td class="sv">${escapeHtml(a[1])}</td>
+        ${b ? `<td class="sn sep">${escapeHtml(b[0])}</td><td class="sv">${escapeHtml(b[1])}</td>` : `<td class="sep"></td><td></td>`}
       </tr>`;
     }
   } else {
     for (let i = 0; i < numSpecs; i++) {
       const bg = i % 2 === 0 ? '#ffffff' : '#f2f5fb';
       rowsHtml += `<tr style="background:${bg}">
-        <td class="sn">${specs[i][0]}</td><td class="sv">${specs[i][1]}</td>
+        <td class="sn">${escapeHtml(specs[i][0])}</td><td class="sv">${escapeHtml(specs[i][1])}</td>
       </tr>`;
     }
   }
