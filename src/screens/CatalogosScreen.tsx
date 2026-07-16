@@ -12,6 +12,9 @@ import PdfViewerModal from '../components/PdfViewerModal';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { APP_CONSTANTS } from '../config/constants';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
+
+
 const LOGO        = { uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png' };
 const BUCKET      = 'catalogos';
 const LOGO_BASE   = APP_CONSTANTS.LOGO_BASE_PNG;
@@ -219,7 +222,7 @@ export default function CatalogosScreen({ navigation }: { navigation: { navigate
       {/* Topbar */}
       <View style={styles.topbar}>
         <LottieView
-          source={require('../../assets/iso.json')}
+          source={ANIMATION_ISO}
           autoPlay
           loop={true}
           style={styles.logoAnimado}

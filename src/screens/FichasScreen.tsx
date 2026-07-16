@@ -12,6 +12,9 @@ import SvgIcon from '../components/SvgIcon';
 import PdfViewerModal from '../components/PdfViewerModal';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
+
+
 interface Ficha {
   name: string;
   fullName: string;
@@ -234,7 +237,7 @@ export default function FichasScreen({ navigation }: { navigation: { navigate: (
       <View style={styles.topbar}>
         <View style={styles.topbarHeader}>
           <LottieView
-            source={require('../../assets/iso.json')}
+            source={ANIMATION_ISO}
             autoPlay
             loop={true}
             style={styles.logoAnimado}

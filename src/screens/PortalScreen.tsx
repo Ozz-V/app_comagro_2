@@ -9,6 +9,9 @@ import CalculadoraModal from '../components/CalculadoraModal';
 import ProfileCompleteModal from '../components/ProfileCompleteModal';
 import { ParsedProduct } from '../types/models';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
+
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
@@ -133,7 +136,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
 
       <View style={styles.topbar}>
         <LottieView
-          source={require('../../assets/iso.json')}
+          source={ANIMATION_ISO}
           autoPlay
           loop={true}
           style={styles.logoAnimado}

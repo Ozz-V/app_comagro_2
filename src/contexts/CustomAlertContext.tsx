@@ -3,6 +3,9 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Easing } fro
 import LottieView from 'lottie-react-native';
 import { COLORS } from '../theme';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
+
+
 interface AlertButton {
   text: string;
   onPress?: () => void;
@@ -148,7 +151,7 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
         <Animated.View style={[styles.modalOverlay, { opacity: alertOpacityRef.current }]}>
           <Animated.View style={[styles.alertBox, { transform: [{ scale: alertScaleRef.current }] }]}>
             <LottieView
-              source={require('../../assets/iso.json')}
+              source={ANIMATION_ISO}
               autoPlay
               loop={true}
               style={styles.lottieIcon}
