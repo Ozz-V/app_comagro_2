@@ -3,7 +3,7 @@ import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 
-function ProductCard({ item, cardW, isSelected, onPress, onLongPress }: { item: any; cardW: number; isSelected?: boolean; onPress?: () => void; onLongPress?: () => void }) {
+function ProductCard({ item, cardW, isSelected, onPress, onLongPress }: { item: import('../types').ParsedProduct; cardW: number; isSelected?: boolean; onPress?: () => void; onLongPress?: () => void }) {
   return (
     <TouchableOpacity
       style={[styles.card, { width: cardW }, isSelected && { borderColor: COLORS.navy, borderWidth: 2 }]}

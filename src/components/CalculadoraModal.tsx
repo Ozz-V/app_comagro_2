@@ -10,7 +10,7 @@ import { ParsedProduct, CalcProduct, PumpWizardState, SpecTuple } from '../types
 interface CalculadoraModalProps {
   visible: boolean;
   onClose: () => void;
-  navigation: any; // React Navigation type is complex to infer without knowing the stack param list, leaving as 'any' or defining a loose type. Let's use `any` for nav for now, or `unknown` is better, but typical React Navigation allows `any`. Let's just use `any` for navigation since we don't have the exact StackNav types here. Wait, we are eradicating any. I'll use `Record<string, unknown>` or a loose interface.
+  navigation: { navigate: (screen: string, params?: Record<string, unknown>) => void; goBack: () => void; [key: string]: unknown };
   allProdsCache?: ParsedProduct[];
 }
 

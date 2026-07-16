@@ -18,8 +18,8 @@ jest.mock('expo-file-system/legacy', () => ({
   getInfoAsync: jest.fn(),
   getContentUriAsync: jest.fn(),
 }));
-jest.mock('react-native-blob-util', () => ({ default: { fs: { hash: jest.fn() } } }), { virtual: true });
-jest.mock('expo-intent-launcher', () => ({ startActivityAsync: jest.fn().mockResolvedValue(undefined) }), { virtual: true });
+jest.mock('react-native-blob-util', () => ({ __esModule: true, default: { fs: { hash: jest.fn() } } }), { virtual: true });
+jest.mock('expo-intent-launcher', () => ({ __esModule: true, startActivityAsync: jest.fn().mockResolvedValue(undefined) }), { virtual: true });
 
 function buildSupabaseChain(result: { data: any; error: any }) {
   const single = jest.fn().mockResolvedValue(result);
@@ -162,7 +162,7 @@ describe('useOTAUpdate hook', () => {
       downloadAsync: jest.fn().mockResolvedValue({ uri: 'file:///docs/comagro_update.apk', status: 200, headers: { 'content-type': 'application/vnd.android.package-archive' } }),
     });
     const ReactNativeBlobUtil = require('react-native-blob-util').default;
-    ReactNativeBlobUtil.fs.hash.mockResolvedValue('ABC123');
+    ReactNativeBlobUtil.fs.hash.mockResolvedValue('abc123');
     (FileSystem.getContentUriAsync as jest.Mock).mockResolvedValue('content://fake/uri');
 
     const { result } = await renderHook(() => useOTAUpdate());
