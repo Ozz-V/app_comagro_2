@@ -266,8 +266,7 @@ function App() {
                 animation: 'slide_from_right', 
                 contentStyle: { backgroundColor: '#FFFFFF' } 
               }}
-              {/* @ts-ignore: detachInactiveScreens is a valid React Navigation prop but missing from @types */}
-              detachInactiveScreens={false}
+              {...({ detachInactiveScreens: false } as any)}
             >
               {!autenticado ? (
                 <Stack.Screen name="Login" component={LoginScreen} />
