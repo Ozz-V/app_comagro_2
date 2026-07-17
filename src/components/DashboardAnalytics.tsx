@@ -160,6 +160,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
   const [myData, setMyData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [] });
   const [globalData, setGlobalData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [showUserModal, setShowUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Record<string, unknown> | null>(null);
@@ -261,6 +262,7 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
   async function loadData() {
     if (!isMounted.current) return;
     setLoading(true);
+    let currentIsAdmin = isAdmin;
     try {
       const cachedMyData = await AsyncStorage.getItem(`@analytics_my_${period}`);
       const cachedGlobalData = await AsyncStorage.getItem(`@analytics_global_${period}`);
@@ -276,6 +278,13 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
+      
+      if (user && isMounted.current) {
+         const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+         currentIsAdmin = profile?.role === 'admin';
+         setIsAdmin(currentIsAdmin);
+      }
+      
       const qStr = await AsyncStorage.getItem('@analytics_queue');
       
       if (qStr && user) {
@@ -321,23 +330,12 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       if (!user) return;
 
       const pDate = getPeriodDate(period);
-      const ppDate = getPrevPeriodDate(period);
 
-      let q = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').order('created_at', { ascending: false }).limit(500);
-      if (pDate) q = q.gte('created_at', pDate);
-      const { data: cur, error: curError } = await q;
-      if (curError) throw new Error(curError.message);
-      const all = cur || [];
-
-      let prev: any[] = [];
-      if (pDate && ppDate) {
-        const { data: p, error: pError } = await supabase.from('producto_analytics').select('action,user_email').gte('created_at', ppDate).lt('created_at', pDate).limit(500);
-        if (pError) throw new Error(pError.message);
-        prev = p || [];
-      }
-
-      const my = all.filter(d => d.user_email === user.email);
-      const myPrev = prev.filter(d => d.user_email === user.email);
+      // Cargar mis datos explícitamente (sin depender de un límite global)
+      let qMy = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').eq('user_email', user.email).order('created_at', { ascending: false }).limit(2000);
+      if (pDate) qMy = qMy.gte('created_at', pDate);
+      const { data: myCur } = await qMy;
+      const my = myCur || [];
 
       const process = (items: any[], limit: number): DashboardData => {
         const views = items.filter(d => d.action === 'view');
@@ -353,33 +351,40 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
       if (isMounted.current) setMyData(finalMyData);
       AsyncStorage.setItem(`@analytics_my_all`, JSON.stringify(finalMyData));
 
-      if (period === 'all' && isOnline) {
-        const { data: rpcData } = await supabase.rpc('get_analytics_summary');
-        if (rpcData) {
-          const gdRpc: DashboardData = {
-            views: rpcData.total_views || 0,
-            shares: rpcData.total_shares || 0,
-            topV: rpcData.top_viewed || [],
-            topSh: rpcData.top_shared || [],
-            brands: (rpcData.top_brands || []).map((b: any) => ({ marca: b.marca, count: b.count })),
-            users: (rpcData.top_users || []).map((u: any) => ({ user_email: u.modelo, count: u.count, modelo: u.modelo }))
-          };
-          if (isMounted.current) setGlobalData(gdRpc);
-          AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gdRpc));
+      // Solo cargar globales si es admin
+      if (currentIsAdmin) {
+        let qAll = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').order('created_at', { ascending: false }).limit(2000);
+        if (pDate) qAll = qAll.gte('created_at', pDate);
+        const { data: allData } = await qAll;
+        const all = allData || [];
+
+        if (period === 'all' && isOnline) {
+          const { data: rpcData } = await supabase.rpc('get_analytics_summary');
+          if (rpcData) {
+            const gdRpc: DashboardData = {
+              views: rpcData.total_views || 0,
+              shares: rpcData.total_shares || 0,
+              topV: rpcData.top_viewed || [],
+              topSh: rpcData.top_shared || [],
+              brands: (rpcData.top_brands || []).map((b: any) => ({ marca: b.marca, count: b.count })),
+              users: (rpcData.top_users || []).map((u: any) => ({ user_email: u.modelo, count: u.count, modelo: u.modelo }))
+            };
+            if (isMounted.current) setGlobalData(gdRpc);
+            AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gdRpc));
+          } else {
+            const gd = process(all, 10);
+            gd.brands = countByKey(all, i => i.marca, 8);
+            gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
+            if (isMounted.current) setGlobalData(gd);
+            AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gd));
+          }
         } else {
-          // Fallback
           const gd = process(all, 10);
           gd.brands = countByKey(all, i => i.marca, 8);
           gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
           if (isMounted.current) setGlobalData(gd);
-          AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gd));
+          AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
         }
-      } else {
-        const gd = process(all, 10);
-        gd.brands = countByKey(all, i => i.marca, 8);
-        gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
-        if (isMounted.current) setGlobalData(gd);
-        AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
       }
     } catch (e: unknown) {
       Sentry.captureException(e);
@@ -474,21 +479,27 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
     }
   }
 
-  const data = tab === 'mine' ? myData : globalData;
+  const data = tab === 'mine' || !isAdmin ? myData : globalData;
 
   return (
     <View>
-      <View style={s.tabs}>
-        <TouchableOpacity style={[s.tabBtn, tab === 'mine' && s.tabActive]} onPress={() => setTab('mine')}>
-          <Text style={[s.tabText, tab === 'mine' && s.tabTextActive]}>Mi actividad</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.tabBtn, tab === 'general' && s.tabActive]} onPress={() => setTab('general')}>
-          <Text style={[s.tabText, tab === 'general' && s.tabTextActive]}>General</Text>
-        </TouchableOpacity>
-      </View>
+      {isAdmin ? (
+        <View style={s.tabs}>
+          <TouchableOpacity style={[s.tabBtn, tab === 'mine' && s.tabActive]} onPress={() => setTab('mine')}>
+            <Text style={[s.tabText, tab === 'mine' && s.tabTextActive]}>Mi actividad</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.tabBtn, tab === 'general' && s.tabActive]} onPress={() => setTab('general')}>
+            <Text style={[s.tabText, tab === 'general' && s.tabTextActive]}>General (Empresa)</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={s.personalHeader}>
+          <Text style={s.personalTitle}>Mis Estadísticas Personales</Text>
+        </View>
+      )}
 
       <View style={s.periodRow}>
-        {tab === 'general' && (
+        {tab === 'general' && isAdmin && (
           <TouchableOpacity onPress={generatePdfReport} style={[s.periodBtn, s.generateReportBtn, { opacity: loading ? 0.5 : 1 }]} disabled={loading}>
             <SvgIcon name="upload" size={14} color={COLORS.white} />
             <Text style={s.generateReportText}>Reporte</Text>
@@ -508,13 +519,13 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
           <RankSection title="Productos más vistos" items={data.topV} color={COLORS.navy} imageMap={imageMap} iconName="ojo" navigation={navigation} defaultExpanded={true} />
           <RankSection title="Productos más compartidos" items={data.topSh} color={COLORS.green} imageMap={imageMap} iconName="upload" navigation={navigation} defaultExpanded={false} />
 
-          {tab === 'general' && data.brands && data.brands.length > 0 && (
+          {tab === 'general' && isAdmin && data.brands && data.brands.length > 0 && (
             <CollapsibleSection title="Marcas más consultadas" color={COLORS.navy} iconName="chart" defaultExpanded={false}>
               {data.brands.map((b: AnalyticsRankItem, i: number) => <BrandBar key={i} marca={b.marca || ''} count={b.count} maxCount={data.brands?.[0]?.count || 1} />)}
             </CollapsibleSection>
           )}
 
-          {tab === 'general' && data.users && data.users.length > 0 && (
+          {tab === 'general' && isAdmin && data.users && data.users.length > 0 && (
             <CollapsibleSection title="Usuarios más activos" color={COLORS.navy} iconName="usuarios" defaultExpanded={false}>
               {data.users.map((u: any, i: number) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={data.users?.[0]?.count || 1} onUserClick={handleUserClick} />)}
               
@@ -550,6 +561,8 @@ const s = StyleSheet.create({
   tabActive: { backgroundColor: COLORS.white, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
   tabText: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4 },
   tabTextActive: { fontFamily: FONTS.bodySemi, color: COLORS.navy, fontWeight: '700' },
+  personalHeader: { backgroundColor: '#F0F4F8', borderRadius: 10, padding: 12, marginBottom: 12, alignItems: 'center' },
+  personalTitle: { fontFamily: FONTS.heading, fontSize: 16, color: COLORS.navy, fontWeight: '700' },
   periodRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 6 },
   periodBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 16, backgroundColor: '#F0F4F8' },
   periodActive: { backgroundColor: COLORS.navy },
