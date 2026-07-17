@@ -20,6 +20,7 @@ export interface ProductRow {
 // Singleton: una sola conexión compartida por todas las funciones.
 // Esto evita errores "database is locked" cuando hay transacciones concurrentes.
 let _db: SQLite.SQLiteDatabase | null = null;
+export let ftsAvailable = false;
 
 // IMPORTANTE: guardamos la PROMESA de apertura, no solo el resultado ya
 // resuelto. useProducts.ts y OfflineSyncContext.tsx pueden llamar a
@@ -146,10 +147,6 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
     CREATE INDEX IF NOT EXISTS idx_productos_marca ON productos(marca COLLATE NOCASE);
     CREATE INDEX IF NOT EXISTS idx_productos_subcategoria ON productos(subcategoria COLLATE NOCASE);
 
-    DROP TABLE IF EXISTS productos_fts;
-    DROP TRIGGER IF EXISTS productos_ai;
-    DROP TRIGGER IF EXISTS productos_ad;
-    DROP TRIGGER IF EXISTS productos_au;
   `);
 
   // Verificar esquema para migraciones incrementales
@@ -164,6 +161,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
       await db.execAsync('DROP TABLE IF EXISTS productos;');
       await db.execAsync('DROP TABLE IF EXISTS productos_fts;');
       try { await AsyncStorage.removeItem('comagro_productos_fecha_v3'); } catch {}
+      try { await AsyncStorage.removeItem('comagro_fts_migrated_v1'); } catch {}
       // Volver a crear tras el drop
       await db.execAsync(`
         CREATE TABLE IF NOT EXISTS productos (
@@ -188,7 +186,45 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
     }
   }
 
+  // ─── Índice FTS5 para búsqueda de texto ──────────────────────────────
+  try {
+    await db.execAsync(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS productos_fts USING fts5(
+        search_text,
+        sales_pitch,
+        content='productos',
+        content_rowid='rowid',
+        tokenize='unicode61 remove_diacritics 2'
+      );
 
+      CREATE TRIGGER IF NOT EXISTS productos_ai AFTER INSERT ON productos BEGIN
+        INSERT INTO productos_fts(rowid, search_text, sales_pitch)
+        VALUES (new.rowid, new.search_text, new.sales_pitch);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS productos_ad AFTER DELETE ON productos BEGIN
+        INSERT INTO productos_fts(productos_fts, rowid, search_text, sales_pitch)
+        VALUES ('delete', old.rowid, old.search_text, old.sales_pitch);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS productos_au AFTER UPDATE ON productos BEGIN
+        INSERT INTO productos_fts(productos_fts, rowid, search_text, sales_pitch)
+        VALUES ('delete', old.rowid, old.search_text, old.sales_pitch);
+        INSERT INTO productos_fts(rowid, search_text, sales_pitch)
+        VALUES (new.rowid, new.search_text, new.sales_pitch);
+      END;
+    `);
+
+    const ftsMigratedKey = 'comagro_fts_migrated_v1';
+    if (!(await AsyncStorage.getItem(ftsMigratedKey))) {
+      await db.execAsync(`INSERT INTO productos_fts(productos_fts) VALUES('rebuild');`);
+      await AsyncStorage.setItem(ftsMigratedKey, '1');
+    }
+    ftsAvailable = true;
+  } catch (e) {
+    ftsAvailable = false;
+    Sentry.captureMessage('FTS5 no disponible, usando fallback LIKE', { level: 'warning', extra: { error: String(e) } });
+  }
 
   return db;
 }
@@ -286,42 +322,48 @@ export async function pruneStaleProducts(validSkus: string[]): Promise<void> {
 export async function searchProducts(marcaFiltro: string, subcatFiltro: string, textoBusqueda: string): Promise<ParsedProduct[]> {
   const db = await getDB();
 
-  let query = 'SELECT * FROM productos WHERE 1=1';
-  const params: string[] = [];
-  if (subcatFiltro === '__productos__') {
-    query += " AND NOT (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
-  } else if (subcatFiltro === '__acc__') {
-    query += " AND (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
-  }
+  const trimmed = (textoBusqueda || '').trim();
+  const terms = trimmed.length > 2 ? trimmed.split(/\s+/).filter(x => x.length > 1) : [];
 
-  if (textoBusqueda && textoBusqueda.length > 2) {
-    const terms = textoBusqueda.split(' ').filter(x => x.length > 1);
+  const params: string[] = [];
+  let query: string;
+
+  if (terms.length > 0 && ftsAvailable) {
+    // Prefix-match por término, unidos con espacio (AND implícito en FTS5)
+    const ftsQuery = terms.map(t => `"${t.replace(/"/g, '""')}*"`).join(' ');
+    query = `SELECT p.* FROM productos_fts JOIN productos p ON p.rowid = productos_fts.rowid WHERE productos_fts MATCH ?`;
+    params.push(ftsQuery);
+  } else {
+    query = 'SELECT p.* FROM productos p WHERE 1=1';
     for (const term of terms) {
-      query += " AND (search_text LIKE ? OR sales_pitch LIKE ?)";
+      query += ' AND (p.search_text LIKE ? OR p.sales_pitch LIKE ?)';
       params.push(`%${term}%`, `%${term}%`);
     }
   }
 
+  if (subcatFiltro === '__productos__') {
+    query += " AND NOT (p.search_text LIKE '%accesorio%' OR p.search_text LIKE '%repuesto%' OR p.search_text LIKE '%pieza%' OR p.search_text LIKE '%kit%')";
+  } else if (subcatFiltro === '__acc__') {
+    query += " AND (p.search_text LIKE '%accesorio%' OR p.search_text LIKE '%repuesto%' OR p.search_text LIKE '%pieza%' OR p.search_text LIKE '%kit%')";
+  }
+
   if (marcaFiltro && marcaFiltro !== 'Todas' && marcaFiltro !== '') {
-    query += ' AND marca = ?';
+    query += ' AND p.marca = ?';
     params.push(marcaFiltro);
   }
 
   if (subcatFiltro && subcatFiltro !== 'Todas' && subcatFiltro !== '__acc__' && subcatFiltro !== '__productos__') {
-    query += ' AND subcategoria LIKE ?';
+    query += ' AND p.subcategoria LIKE ?';
     params.push(`%${subcatFiltro}%`);
   }
 
-  query += ' ORDER BY subcategoria ASC, sku ASC LIMIT 500';
+  query += ' ORDER BY p.subcategoria ASC, p.sku ASC LIMIT 500';
 
   const results = await db.getAllAsync<ProductRow>(query, params);
 
   return results.map(r => ({
-    modelo: r.sku,
-    marca: r.marca,
-    subcategoria: r.subcategoria,
-    imagen: r.imagen,
-    imagenOriginal: r.imagenOriginal,
+    modelo: r.sku, marca: r.marca, subcategoria: r.subcategoria,
+    imagen: r.imagen, imagenOriginal: r.imagenOriginal,
     specs: r.specs_json ? JSON.parse(r.specs_json) : [],
     sales_pitch: r.sales_pitch || ''
   }));

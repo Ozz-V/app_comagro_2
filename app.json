@@ -70,7 +70,7 @@
         }
       ],
       "expo-secure-store",
-      "expo-sqlite",
+      ["expo-sqlite", { "enableFTS": true }],
       "@sentry/react-native",
       [
         "expo-build-properties",
