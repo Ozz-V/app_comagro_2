@@ -159,8 +159,8 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
         return false; // Dejar que vuelva al home
       };
       
-      BackHandler.addEventListener('hardwareBackPress', handleBackPress);
-      return () => BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+      const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => subscription.remove();
     }, [filtroMarca, busqueda, setFiltroMarca, setFiltroSubcategoria, setBusqueda])
   );
 
