@@ -323,7 +323,7 @@ export async function searchProducts(marcaFiltro: string, subcatFiltro: string, 
   const db = await getDB();
 
   const trimmed = (textoBusqueda || '').trim();
-  const terms = trimmed.length > 2 ? trimmed.split(/\s+/).filter(x => x.length > 1) : [];
+  const terms = trimmed.length > 0 ? trimmed.split(/\s+/) : [];
 
   const params: string[] = [];
   let query: string;
