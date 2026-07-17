@@ -330,7 +330,7 @@ export async function searchProducts(marcaFiltro: string, subcatFiltro: string, 
 
   if (terms.length > 0 && ftsAvailable) {
     // Prefix-match por término, unidos con espacio (AND implícito en FTS5)
-    const ftsQuery = terms.map(t => `"${t.replace(/"/g, '""')}*"`).join(' ');
+    const ftsQuery = terms.map(t => `"${t.replace(/"/g, '""')}"*`).join(' ');
     query = `SELECT p.* FROM productos_fts JOIN productos p ON p.rowid = productos_fts.rowid WHERE productos_fts MATCH ?`;
     params.push(ftsQuery);
   } else {
