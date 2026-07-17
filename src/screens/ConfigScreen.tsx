@@ -32,6 +32,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
   const [phone, setPhone] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
   const { showAlert, showToast } = useCustomAlert();
@@ -134,10 +135,11 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
          uploadPhoto(pendingAvatar);
       }
 
-      const { data } = await supabase.from('profiles').select('id, full_name, telefono, avatar_url, email').eq('id', user.id).single();
+      const { data } = await supabase.from('profiles').select('id, full_name, telefono, avatar_url, email, role').eq('id', user.id).single();
       if (data && !pendingProfileObj) {
-        const profileData = data as { email?: string; avatar_local?: string; avatar_url?: string | null; full_name?: string; telefono?: string; id?: string };
-        profileData.email = user.email; 
+        const profileData = data as { email?: string; avatar_local?: string; avatar_url?: string | null; full_name?: string; telefono?: string; id?: string; role?: string };
+        profileData.email = user.email;
+        setIsAdmin(profileData.role === 'admin');
         
         if (profileData.avatar_url && profileData.avatar_url.startsWith('http')) {
            try {
@@ -390,7 +392,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
 
         <DashboardAnalytics navigation={navigation} />
 
-        <SystemHealthMonitor />
+        {isAdmin && <SystemHealthMonitor />}
 
         <View style={st.versionCard}>
           <LottieView source={ANIMATION_ISO} autoPlay loop style={{ width: 60, height: 60 }} resizeMode="contain" />

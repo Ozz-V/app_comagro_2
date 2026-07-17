@@ -519,6 +519,10 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
           <RankSection title="Productos más vistos" items={data.topV} color={COLORS.navy} imageMap={imageMap} iconName="ojo" navigation={navigation} defaultExpanded={true} />
           <RankSection title="Productos más compartidos" items={data.topSh} color={COLORS.green} imageMap={imageMap} iconName="upload" navigation={navigation} defaultExpanded={false} />
 
+          <TouchableOpacity style={s.directoryBtn} onPress={() => setShowDirectoryModal(true)}>
+            <Text style={s.directoryBtnText}>Ver directorio completo de usuarios</Text>
+          </TouchableOpacity>
+
           {tab === 'general' && isAdmin && data.brands && data.brands.length > 0 && (
             <CollapsibleSection title="Marcas más consultadas" color={COLORS.navy} iconName="chart" defaultExpanded={false}>
               {data.brands.map((b: AnalyticsRankItem, i: number) => <BrandBar key={i} marca={b.marca || ''} count={b.count} maxCount={data.brands?.[0]?.count || 1} />)}
@@ -528,10 +532,6 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
           {tab === 'general' && isAdmin && data.users && data.users.length > 0 && (
             <CollapsibleSection title="Usuarios más activos" color={COLORS.navy} iconName="usuarios" defaultExpanded={false}>
               {data.users.map((u: any, i: number) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={data.users?.[0]?.count || 1} onUserClick={handleUserClick} />)}
-              
-              <TouchableOpacity style={s.directoryBtn} onPress={() => setShowDirectoryModal(true)}>
-                <Text style={s.directoryBtnText}>Ver directorio completo de usuarios</Text>
-              </TouchableOpacity>
             </CollapsibleSection>
           )}
         </>

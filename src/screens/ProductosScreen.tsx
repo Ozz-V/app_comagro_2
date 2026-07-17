@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, SafeAreaView, StatusBar,
-  ActivityIndicator, useWindowDimensions, RefreshControl
+  ActivityIndicator, useWindowDimensions, RefreshControl, BackHandler
 } from 'react-native';
 import { Image } from 'expo-image';
 
@@ -19,7 +19,7 @@ import { useAiData } from '../hooks/useAiData';
 import { fetchImageBase64 } from '../utils/pdfService';
 import { APP_CONSTANTS } from '../config/constants';
 import { ParsedProduct, CompareItem } from '../types/models';
-import { NavigationProp, RouteProp } from '@react-navigation/native';
+import { NavigationProp, RouteProp, useFocusEffect } from '@react-navigation/native';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 
@@ -142,6 +142,27 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
       });
     }
   }, [route?.params?.compareSkus, route?.params?.fromProductViewer, getProductBySkuSafe, navigation]);
+
+  // Manejar el botón "Atrás" de hardware
+  useFocusEffect(
+    useCallback(() => {
+      const handleBackPress = () => {
+        const isFiltered = filtroMarca || busqueda;
+        if (isFiltered) {
+          setFiltroMarca('');
+          setFiltroSubcategoria('');
+          setBusqueda('');
+          setIsComparing(false);
+          setCompareItems([]);
+          return true; // Prevenir volver al home, solo limpiar filtros
+        }
+        return false; // Dejar que vuelva al home
+      };
+      
+      const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => subscription.remove();
+    }, [filtroMarca, busqueda, setFiltroMarca, setFiltroSubcategoria, setBusqueda])
+  );
 
   // Renders de listas
   const renderMarcaBtn = useCallback(({ item: marca }: { item: string }) => {
