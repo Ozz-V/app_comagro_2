@@ -12,6 +12,9 @@ import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 import DashboardAnalytics from '../components/DashboardAnalytics';
 import SystemHealthMonitor from '../components/SystemHealthMonitor';
+import DirectoryModal from '../components/DirectoryModal';
+import UserProfileModal from '../components/UserProfileModal';
+import * as Sentry from '@sentry/react-native';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import OfflineSyncModal from '../components/OfflineSyncModal';
@@ -83,6 +86,86 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
       return;
     }
     startSync(offlineGroups);
+  }
+
+  const [showDirectoryModal, setShowDirectoryModal] = useState(false);
+  const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
+  const [loadingDirectory, setLoadingDirectory] = useState(false);
+  
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [loadingUser, setLoadingUser] = useState(false);
+
+  const isMounted = React.useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
+  useEffect(() => { fetchDirectoryBackground(); }, []);
+
+  async function fetchDirectoryBackground() {
+    try {
+      const cachedDir = await AsyncStorage.getItem('@directory_cache');
+      if (cachedDir && isMounted.current) setDirectoryUsers(JSON.parse(cachedDir));
+      if (!isOnline && isMounted.current) return;
+      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url, email, telefono').order('full_name');
+      if (data && !error) {
+        const valid = data.filter(u => u.full_name && u.full_name.trim() !== '');
+        if (isMounted.current) setDirectoryUsers(valid);
+        await AsyncStorage.setItem('@directory_cache', JSON.stringify(valid));
+      }
+    } catch(e: any) {
+      Sentry.captureException(e);
+    }
+  }
+
+  async function handleUserClick(email: string) {
+    if (!isMounted.current) return;
+    setShowUserModal(true);
+    setLoadingUser(true);
+    const cachedProfile = directoryUsers.find(u => u.email === email);
+    setSelectedUser({ 
+      email, 
+      full_name: cachedProfile?.full_name || '', 
+      telefono: cachedProfile?.telefono || '', 
+      avatar_url: cachedProfile?.avatar_url || null, 
+      stats: { views: 0, shares: 0 } 
+    });
+    
+    if (!isOnline && isMounted.current) {
+      setLoadingUser(false);
+      return;
+    }
+    
+    try {
+      const { data: profile, error: errProfile } = await supabase.from('profiles').select('id, full_name, avatar_url, telefono, email').eq('email', email).single();
+      const { data: analyticsData, error: errAnalytics } = await supabase.from('producto_analytics').select('action').eq('user_email', email);
+      
+      if (errProfile || errAnalytics) throw new Error('Network fail');
+      
+      let v = 0, sh = 0;
+      if (analyticsData) {
+        analyticsData.forEach(r => {
+          if (r.action === 'view') v++;
+          if (r.action === 'share_pdf' || r.action === 'share_image') sh++;
+        });
+      }
+
+      if (isMounted.current) {
+        setSelectedUser({
+          email,
+          full_name: profile?.full_name || '',
+          telefono: profile?.telefono || '',
+          avatar_url: profile?.avatar_url || null,
+          stats: { views: v, shares: sh }
+        });
+      }
+    } catch(e: any) {
+      Sentry.captureException(e);
+    } finally {
+      if (isMounted.current) setLoadingUser(false);
+    }
   }
 
   useEffect(() => { loadProfile(); }, []);
@@ -390,7 +473,14 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
           )}
         </View>
 
-        <DashboardAnalytics navigation={navigation} />
+        <DashboardAnalytics navigation={navigation} onUserClick={handleUserClick} />
+
+        <TouchableOpacity style={st.dirHeader} onPress={() => setShowDirectoryModal(true)} activeOpacity={0.7}>
+          <View style={st.dirHeaderLeft}>
+            <SvgIcon name="usuarios" size={18} color={COLORS.navy} />
+            <Text style={st.dirTitle}>Directorio de Contactos</Text>
+          </View>
+        </TouchableOpacity>
 
         {isAdmin && <SystemHealthMonitor />}
 
@@ -518,11 +608,29 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
         </View>
       </Modal>
 
+      <DirectoryModal
+        visible={showDirectoryModal}
+        onClose={() => setShowDirectoryModal(false)}
+        loadingDirectory={loadingDirectory}
+        directoryUsers={directoryUsers}
+        onUserClick={handleUserClick}
+      />
+
+      <UserProfileModal
+        visible={showUserModal}
+        onClose={() => setShowUserModal(false)}
+        loadingUser={loadingUser}
+        selectedUser={selectedUser}
+      />
+
     </SafeAreaView>
   );
 }
 
 const st = StyleSheet.create({
+  dirHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#fff', borderRadius: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, marginBottom: 20 },
+  dirHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
+  dirTitle: { marginLeft: 12, fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy },
   safe: { flex: 1, backgroundColor: COLORS.white },
   topbar: { paddingHorizontal: 20, paddingBottom: 14, paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.white },
   topTitle: { fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: COLORS.navy },
