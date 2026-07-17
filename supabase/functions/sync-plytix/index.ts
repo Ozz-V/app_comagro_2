@@ -14,9 +14,16 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
 
-    // Auth check for plytix endpoints
-    const secret = req.headers.get('x-sync-secret');
-    if (!secret || secret !== Deno.env.get('SYNC_SECRET')) {
+    // Auth check: comparación constant-time para evitar ataques de timing
+    const secret = req.headers.get('x-sync-secret') ?? '';
+    const expected = Deno.env.get('SYNC_SECRET') ?? '';
+    // Comparamos byte a byte con XOR para que el tiempo sea siempre igual sin importar el valor
+    let mismatch = secret.length !== expected.length ? 1 : 0;
+    const len = Math.max(secret.length, expected.length);
+    for (let i = 0; i < len; i++) {
+      mismatch |= (secret.charCodeAt(i) || 0) ^ (expected.charCodeAt(i) || 0);
+    }
+    if (mismatch !== 0) {
       return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 

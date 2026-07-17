@@ -24,6 +24,7 @@ ios/
 __pycache__/
 *.bak
 *.log
+log.txt
 supabase/.temp/
 
 # Build artifacts
@@ -36,3 +37,8 @@ coverage/
 jest_error.txt
 runs.json
 deno.lock
+
+# ESLint output files (generated localmente, no deben ir al repo)
+eslint_out.json
+eslint_out.txt
+eslint_report.json
