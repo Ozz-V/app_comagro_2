@@ -357,7 +357,7 @@ export async function searchProducts(marcaFiltro: string, subcatFiltro: string, 
     params.push(`%${subcatFiltro}%`);
   }
 
-  query += ' ORDER BY p.subcategoria ASC, p.sku ASC LIMIT 500';
+  query += " ORDER BY CASE WHEN p.search_text LIKE '%accesorio%' OR p.search_text LIKE '%repuesto%' OR p.search_text LIKE '%pieza%' OR p.search_text LIKE '%kit%' THEN 1 ELSE 0 END ASC, p.subcategoria ASC, p.sku ASC LIMIT 500";
 
   const results = await db.getAllAsync<ProductRow>(query, params);
 
