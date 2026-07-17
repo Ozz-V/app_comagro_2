@@ -22,7 +22,7 @@ jobs:
     env:
       CANDIDATE_TAG: ${{ inputs.candidate_tag }}
       RELEASE_NOTES_INPUT: ${{ inputs.release_notes }}
-      SUPABASE_URL: https://itylpvuzflqlmmqvdhbz.supabase.co
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:

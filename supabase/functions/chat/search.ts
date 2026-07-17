@@ -4,7 +4,7 @@ export async function extractIntent(chatHistoryText: string, geminiKey: string):
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: "Eres el motor de búsqueda interno. Tu trabajo es leer el historial de chat y deducir EXACTAMENTE qué productos está buscando el usuario en su ÚLTIMO mensaje. ¡OJO CON EL HISTORIAL! Usa el historial solo para entender el contexto, pero NO MEZCLES características de los productos anteriores con el nuevo pedido. Si antes pidió una 'bomba' y ahora pide un 'motor', busca SOLO 'motor'. IMPORTANTE: devuelve un GRUPO (array) de 3 a 5 frases de búsqueda cortas (2 a 4 palabras) que incluyan variantes, sinónimos y variaciones morfológicas (ej. nafta -> naftero, gasolina; motor -> motor trifasico, motor monofasico). Responde ÚNICAMENTE con un array JSON de arrays de strings. Ejemplo: [[\"motor 100 hp\",\"motor trifasico 100 hp\",\"motor electrico 100 hp\"]]." }] },
+        systemInstruction: { parts: [{ text: "Eres el motor de búsqueda interno. Tu trabajo es leer el historial de chat y deducir EXACTAMENTE qué productos está buscando el usuario en su ÚLTIMO mensaje. ¡OJO CON EL HISTORIAL! Usa el historial solo para entender el contexto, pero NO MEZCLES características de los productos anteriores con el nuevo pedido. Si antes pidió una 'bomba' y ahora pide un 'motor', busca SOLO 'motor'. REGLA DE ORO: Si el usuario escribe en PLURAL (ej. \"paneles solares\", \"bombas\"), DEBES incluir obligatoriamente la versión en SINGULAR (\"panel solar\", \"bomba\") como una de las frases, porque la base de datos suele estar en singular. IMPORTANTE: devuelve un GRUPO (array) de 3 a 5 frases de búsqueda cortas (2 a 4 palabras) que incluyan variantes y sinónimos. Responde ÚNICAMENTE con un array JSON de arrays de strings. Ejemplo: [[\"panel solar\",\"paneles solares\",\"energia solar\"]]." }] },
         contents: [{ role: 'user', parts: [{ text: chatHistoryText }] }],
         generationConfig: { maxOutputTokens: 300, temperature: 0.2, responseMimeType: "application/json" }
       })
@@ -115,7 +115,7 @@ export async function keywordSearch(supabase: any, phrases: string[]): Promise<a
         .toLowerCase()
         .split(/\s+/)
         .forEach(w => {
-          const clean = w.replace(/[^a-záéíóúñ0-9]/gi, '');
+          const clean = w.replace(/[^a-záéíóúñ0-9.\/-]/gi, '');
           if (clean.length > 1 && !STOPWORDS.has(clean)) words.add(clean);
         });
         

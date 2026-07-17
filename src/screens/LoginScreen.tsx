@@ -15,10 +15,9 @@ const ANIMATION_ISO = require('../../assets/iso.json');
 export default function LoginScreen() {
   const [email, setEmail]   = useState('');
   const [code, setCode]     = useState('');
-  const [step, setStep]     = useState(1); // 1 = correo, 2 = código OTP, 3 = PIN super user
+  const [step, setStep]     = useState(1); // 1 = correo, 2 = código OTP
   const [status, setStatus] = useState<{ msg: string; color: string }>({ msg: '', color: COLORS.navy });
   const [loading, setLoading] = useState(false);
-  const [isSuperUser, setIsSuperUser] = useState(false);
 
   const isMounted = React.useRef(true);
   React.useEffect(() => {
@@ -43,32 +42,6 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
-    setStatus({ msg: 'Verificando acceso…', color: COLORS.navy });
-
-    // Verificar si es super usuario (tiene PIN fijo)
-    try {
-      const { data: superData } = await supabase
-        .from('super_users')
-        .select('email')
-        .eq('email', correo)
-        .maybeSingle();
-
-      if (superData) {
-        // Es super user → pedir PIN fijo
-        if (!isMounted.current) return;
-        setIsSuperUser(true);
-        setStep(3);
-        setLoading(false);
-        setStatus({ msg: 'Ingresá tu PIN de acceso.', color: COLORS.green });
-        return;
-      }
-    } catch (e) {
-      // Si la tabla no existe o falla, seguir con OTP normal
-      // Error al verificar super_users — se continúa con OTP normal
-    }
-
-    // No es super user → flujo OTP normal
-    setIsSuperUser(false);
     setStatus({ msg: 'Enviando código…', color: COLORS.navy });
 
     let error = null;
@@ -103,53 +76,35 @@ export default function LoginScreen() {
   }
 
   async function verificar() {
-    if (!code || code.length < 4) {
-      setStatus({ msg: isSuperUser ? 'Ingresá tu PIN.' : 'Ingresá el código de 6 dígitos.', color: 'red' });
+    if (!code || code.length < 6) {
+      setStatus({ msg: 'Ingresá el código de 6 dígitos.', color: 'red' });
       return;
     }
 
     setLoading(true);
     setStatus({ msg: 'Verificando…', color: COLORS.navy });
 
-    if (isSuperUser) {
-      // Super user → login con contraseña (el PIN es la contraseña en Supabase Auth)
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password: code.trim(),
-      });
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: code.trim(),
+      type: 'email'
+    });
 
-      if (!isMounted.current) return;
-      setLoading(false);
+    if (!isMounted.current) return;
+    setLoading(false);
 
-      if (error) {
-        setStatus({ msg: 'PIN incorrecto.', color: 'red' });
-      }
-      // Si no hay error, onAuthStateChange en App.js se encarga de la navegación
-    } else {
-      // Usuario normal → verificar OTP
-      const { error } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: code.trim(),
-        type: 'email'
-      });
-
-      if (!isMounted.current) return;
-      setLoading(false);
-
-      if (error) {
-        setStatus({ msg: 'Código incorrecto o expirado.', color: 'red' });
-      }
+    if (error) {
+      setStatus({ msg: 'Código incorrecto o expirado.', color: 'red' });
     }
+    // Si no hay error, onAuthStateChange en App.tsx se encarga de la navegación
   }
 
   // Texto descriptivo según el paso
   const descTexto = step === 1
     ? <>Escribí tu correo <Text style={styles.bold}>@comagro.com.py</Text> y te enviaremos un código de acceso.</>
-    : step === 3
-      ? <>Ingresá el PIN de acceso para <Text style={styles.bold}>{email}</Text></>
-      : <>Ingresá el código numérico de 6 dígitos que enviamos a <Text style={styles.bold}>{email}</Text></>;
+    : <>Ingresá el código numérico de 6 dígitos que enviamos a <Text style={styles.bold}>{email}</Text></>;
 
-  const botonTexto = step === 1 ? 'Continuar' : (isSuperUser ? 'Ingresar con PIN' : 'Verificar e Ingresar');
+  const botonTexto = step === 1 ? 'Continuar' : 'Verificar e Ingresar';
 
   return (
     <KeyboardAvoidingView
@@ -195,13 +150,13 @@ export default function LoginScreen() {
           ) : (
             <TextInput
               style={styles.inputCode}
-              placeholder={isSuperUser ? '••••' : '000000'}
+              placeholder="000000"
               placeholderTextColor={COLORS.gray4}
               value={code}
               onChangeText={setCode}
               keyboardType="number-pad"
-              maxLength={isSuperUser ? 10 : 6}
-              secureTextEntry={isSuperUser}
+              maxLength={6}
+              secureTextEntry={false}
               editable={!loading}
               textAlign="center"
             />
@@ -219,8 +174,8 @@ export default function LoginScreen() {
             }
           </TouchableOpacity>
 
-          {(step === 2 || step === 3) && !loading && (
-            <TouchableOpacity onPress={() => { setStep(1); setCode(''); setIsSuperUser(false); setStatus({msg:'', color: COLORS.navy}); }} style={{marginTop: 14}}>
+          {step === 2 && !loading && (
+            <TouchableOpacity onPress={() => { setStep(1); setCode(''); setStatus({msg:'', color: COLORS.navy}); }} style={{marginTop: 14}}>
               <Text style={{textAlign: 'center', color: COLORS.navy, textDecorationLine: 'underline', fontSize: 13, fontFamily: FONTS.body}}>
                 Usar otro correo
               </Text>

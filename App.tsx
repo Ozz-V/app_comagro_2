@@ -173,6 +173,8 @@ function App() {
     async function checkProfile(userId: string) {
       try {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+
+        // 1. Intentar desde caché local primero (funciona offline)
         const cached = await AsyncStorage.getItem('@user_profile_cache');
         if (cached) {
           const data = JSON.parse(cached);
@@ -181,8 +183,19 @@ function App() {
             return;
           }
         }
-        const { data } = await supabase.from('profiles').select('full_name, telefono').eq('id', userId).single();
+
+        // 2. Si no hay caché, consultar Supabase
+        const { data, error } = await supabase.from('profiles').select('full_name, telefono').eq('id', userId).single();
+
+        // Si hay error de red (offline), no bloquear acceso — dejar pasar
+        if (error) {
+          setProfileComplete(true);
+          return;
+        }
+
         if (data && data.full_name && data.full_name.trim() !== '' && data.telefono && data.telefono.trim() !== '') {
+          // IMPORTANTE: guardar en caché para que funcione offline la próxima vez
+          await AsyncStorage.setItem('@user_profile_cache', JSON.stringify(data));
           setProfileComplete(true);
         } else {
           setProfileComplete(false);
@@ -193,10 +206,17 @@ function App() {
       }
     }
 
-    // Carga sesión inicial
-    supabase.auth.getSession().then(async ({ data, error }) => {
+    // Carga sesión inicial con timeout de 3s para evitar que cuelgue con "falso internet"
+    const SESSION_TIMEOUT_MS = 3000;
+    const sessionPromise = supabase.auth.getSession();
+    const timeoutPromise = new Promise<{ data: { session: null }; error: Error }>((resolve) =>
+      setTimeout(() => resolve({ data: { session: null }, error: new Error('session_timeout') }), SESSION_TIMEOUT_MS)
+    );
+
+    (Promise.race([sessionPromise, timeoutPromise]) as Promise<{ data: { session: import('@supabase/supabase-js').Session | null }; error: Error | null }>)
+      .then(async ({ data, error }) => {
       if (error) {
-        // Fallback: Modo offline. Supabase falló al renovar (ej. sin red).
+        // Fallback: Modo offline o timeout. Supabase falló al renovar (ej. sin red).
         // Intentamos rescatar la última sesión de SecureStore.
         try {
           const cached = await SecureStore.getItemAsync(SUPABASE_STORAGE_KEY);

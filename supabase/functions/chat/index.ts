@@ -186,8 +186,21 @@ Deno.serve(async (req: Request) => {
     // ── Assemble Context ──
     const combinedContext = [...exactContext, ...vectorData];
     const seenSkus = new Set();
+
+    // HARD FILTER PARA MOTORES: Si pide "motor" a secas sin contexto de agua,
+    // ocultarle al LLM cualquier producto que sea sumergible.
+    const isMotorQuery = /\bmotor(es)?\b/i.test(lastMessage);
+    const hasWaterContext = /\b(agua|pozo|bomba|bombeo|sumergible)\b/i.test(lastMessage);
+    const blockSubmersible = isMotorQuery && !hasWaterContext;
+
+    // HARD FILTER PARA REPUESTOS: Si pide una máquina principal y no menciona repuestos, ocultarlos.
+    const isRepuestoQuery = /\b(repuest|accesori|pieza|parte|impulsor|filtro|bujia|carburador|cable|aceite)\b/i.test(lastMessage);
+    const blockRepuestos = !isRepuestoQuery;
+
     const finalContext = combinedContext.filter(item => {
       if (seenSkus.has(item.sku)) return false;
+      if (blockSubmersible && item.sales_pitch?.toLowerCase().includes('sumergible')) return false;
+      if (blockRepuestos && item.sales_pitch?.toLowerCase().includes('repuesto')) return false;
       seenSkus.add(item.sku);
       return true;
     }).slice(0, 40);
@@ -220,7 +233,7 @@ INSTRUCCIÓN CRÍTICA DE APRENDIZAJE: Si el usuario te enseña una regla, DEBES 
 
     let finalPrompt = aiPrompt + dbContextText;
     finalPrompt += `\n\nINSTRUCCIÓN SOBRE ALTERNATIVAS (MUY IMPORTANTE): Si el usuario pide un producto con una especificación exacta (ej. "motor 300 hp" o "bomba a nafta") y en la lista de productos encontrados NO hay uno exactamente igual, DEBES OFRECER la alternativa más cercana que tengamos en esa misma categoría (ej. "No tengo de 300 HP, pero te ofrezco este de 200 HP", o "No me queda a nafta, pero tengo esta opción a diésel o eléctrica"). NUNCA digas "Tenemos estas opciones" sin poner los tags [SKU: XXX] al final. Si decides no ofrecer nada, di "No tengo" y NO digas "tenemos estas opciones".
-REGLA CRÍTICA SOBRE REPUESTOS Y MOTORES: Bujías, filtros y carburadores son repuestos. ¡LOS MOTORES COMPLETOS (eléctricos, a combustión, sumergibles) SON MÁQUINAS PRINCIPALES! Si el usuario pide un "motor" a secas, prioriza ofrecerle motores eléctricos DE SUPERFICIE normales. TIENES TOTALMENTE PROHIBIDO ofrecer "motores sumergibles" (ni siquiera como alternativas) si el usuario NO menciona pozos, agua, bombeo, o lo pide explícitamente. IMPORTANTE: si pide OTRA máquina específica (ej. "cortacésped"), PROHIBIDO ofrecerle un motor suelto; ofrécele la máquina entera.
+REGLA CRÍTICA SOBRE MÁQUINAS Y REPUESTOS: Si el usuario pide comprar una máquina principal (ej. "bomba", "motor", "cortacésped", "panel solar"), TIENES TOTALMENTE PROHIBIDO ofrecer REPUESTOS, ACCESORIOS o partes sueltas (como impulsores, bujías, conectores, repuestos para bomba, etc.). Ofrécele ÚNICAMENTE la máquina completa.
 REGLA DE DEDUCCIÓN AGRÍCOLA: Si el cliente escribe palabras separadas con errores tipográficos (ej. "moto bomba"), asume su significado real en el contexto agrícola ("motobomba" = bomba de agua).
 REGLA DE VARIEDAD Y NO REPETICIÓN: Si el usuario pide "más opciones", no repitas los productos que ya le mostraste; intenta ofrecerle productos variados de la lista (diferente potencia, marca o precio) para darle amplitud. SIN EMBARGO, si el usuario te pide comparar o te hace preguntas sobre productos que YA le sugeriste, SÍ puedes (y debes) volver a mencionarlos con sus respectivos tags [SKU: XXX].
 REGLA DE DISTRIBUCIÓN EQUITATIVA: Si el usuario pide VARIOS tipos de productos distintos en un mismo mensaje (ej. pide un motor, una bomba y un soldador), DEBES sugerir EXACTAMENTE UN (1) producto por cada tipo solicitado para abarcar todo su pedido. No acapares tu límite de 4 sugerencias ofreciendo múltiples opciones de un solo tipo mientras dejas los otros tipos sin responder.
