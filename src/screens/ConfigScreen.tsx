@@ -42,7 +42,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateModalData, setUpdateModalData] = useState<Record<string, unknown> | null>(null);
 
-  const { isSyncing, isPaused, progress, startSync, syncAlert, setSyncAlert } = useOfflineSync();
+  const { isSyncing, isPaused, progress, startSync, syncAlert, setSyncAlert, isOnline } = useOfflineSync();
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [offlineGroups, setOfflineGroups] = useState({ catalogos: true, fichas: true, productos: true });
   const [showNoInternetModal, setShowNoInternetModal] = useState(false);
