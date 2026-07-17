@@ -151,7 +151,7 @@ function UserBar({ email, count, maxCount, onUserClick }: { email: string, count
   );
 }
 
-export default function DashboardAnalytics({ navigation }: { navigation: any }) {
+export default function DashboardAnalytics({ navigation, onUserClick }: { navigation: any, onUserClick?: (email: string) => void }) {
   const [tab, setTab] = useState('mine');
   const [period, setPeriod] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -162,13 +162,6 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
   const [globalData, setGlobalData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<Record<string, unknown> | null>(null);
-  const [loadingUser, setLoadingUser] = useState(false);
-
-  const [showDirectoryModal, setShowDirectoryModal] = useState(false);
-  const [directoryUsers, setDirectoryUsers] = useState<Record<string, unknown>[]>([]);
-  const [loadingDirectory, setLoadingDirectory] = useState(false);
 
   const isMounted = React.useRef(true);
   useEffect(() => {
@@ -176,72 +169,9 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
     return () => { isMounted.current = false; };
   }, []);
 
-  useEffect(() => { loadImages(); fetchDirectoryBackground(); }, []);
+  useEffect(() => { loadImages(); }, []);
   useEffect(() => { loadData(); }, [period, isOnline]);
 
-  async function fetchDirectoryBackground() {
-    try {
-      const cachedDir = await AsyncStorage.getItem('@directory_cache');
-      if (cachedDir && isMounted.current) setDirectoryUsers(JSON.parse(cachedDir));
-      if (!isOnline) return;
-      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url, email, telefono').order('full_name');
-      if (data && !error) {
-        const valid = data.filter(u => u.full_name && u.full_name.trim() !== '');
-        if (isMounted.current) setDirectoryUsers(valid);
-        await AsyncStorage.setItem('@directory_cache', JSON.stringify(valid));
-      }
-    } catch(e: unknown) {
-      Sentry.captureException(e);
-    }
-  }
-
-  async function handleUserClick(email: string) {
-    if (!isMounted.current) return;
-    setShowUserModal(true);
-    setLoadingUser(true);
-    const cachedProfile = directoryUsers.find(u => u.email === email);
-    setSelectedUser({ 
-      email, 
-      full_name: cachedProfile?.full_name || '', 
-      telefono: cachedProfile?.telefono || '', 
-      avatar_url: cachedProfile?.avatar_url || null, 
-      stats: { views: 0, shares: 0 } 
-    });
-    
-    if (!isOnline) {
-      setLoadingUser(false);
-      return;
-    }
-    
-    try {
-      const { data: profile, error: errProfile } = await supabase.from('profiles').select('id, full_name, avatar_url, telefono, email').eq('email', email).single();
-      const { data: analyticsData, error: errAnalytics } = await supabase.from('producto_analytics').select('action').eq('user_email', email);
-      
-      if (errProfile || errAnalytics) throw new Error('Network fail');
-      
-      let v = 0, sh = 0;
-      if (analyticsData) {
-        analyticsData.forEach(r => {
-          if (r.action === 'view') v++;
-          if (r.action === 'share_pdf' || r.action === 'share_image') sh++;
-        });
-      }
-
-      if (isMounted.current) {
-        setSelectedUser({
-          email,
-          full_name: profile?.full_name || '',
-          telefono: profile?.telefono || '',
-          avatar_url: profile?.avatar_url || null,
-          stats: { views: v, shares: sh }
-        });
-      }
-    } catch(e: unknown) {
-      Sentry.captureException(e);
-    } finally {
-      if (isMounted.current) setLoadingUser(false);
-    }
-  }
 
   async function loadImages() {
     try {
@@ -519,9 +449,6 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
           <RankSection title="Productos más vistos" items={data.topV} color={COLORS.navy} imageMap={imageMap} iconName="ojo" navigation={navigation} defaultExpanded={true} />
           <RankSection title="Productos más compartidos" items={data.topSh} color={COLORS.green} imageMap={imageMap} iconName="upload" navigation={navigation} defaultExpanded={false} />
 
-          <TouchableOpacity style={s.directoryBtn} onPress={() => setShowDirectoryModal(true)}>
-            <Text style={s.directoryBtnText}>Ver directorio completo de usuarios</Text>
-          </TouchableOpacity>
 
           {tab === 'general' && isAdmin && data.brands && data.brands.length > 0 && (
             <CollapsibleSection title="Marcas más consultadas" color={COLORS.navy} iconName="chart" defaultExpanded={false}>
@@ -531,26 +458,12 @@ export default function DashboardAnalytics({ navigation }: { navigation: any }) 
 
           {tab === 'general' && isAdmin && data.users && data.users.length > 0 && (
             <CollapsibleSection title="Usuarios más activos" color={COLORS.navy} iconName="usuarios" defaultExpanded={false}>
-              {data.users.map((u: any, i: number) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={data.users?.[0]?.count || 1} onUserClick={handleUserClick} />)}
+              {data.users.map((u: any, i: number) => <UserBar key={i} email={u.user_email} count={u.count} maxCount={data.users?.[0]?.count || 1} onUserClick={onUserClick} />)}
             </CollapsibleSection>
           )}
         </>
       )}
 
-      <DirectoryModal
-        visible={showDirectoryModal}
-        onClose={() => setShowDirectoryModal(false)}
-        loadingDirectory={loadingDirectory}
-        directoryUsers={directoryUsers}
-        onUserClick={handleUserClick}
-      />
-
-      <UserProfileModal
-        visible={showUserModal}
-        onClose={() => setShowUserModal(false)}
-        loadingUser={loadingUser}
-        selectedUser={selectedUser}
-      />
     </View>
   );
 }
@@ -592,7 +505,5 @@ const s = StyleSheet.create({
   progressBarFill: { height: 6, borderRadius: 3 },
   brandProgressBarTrack: { flex: 1, height: 8, backgroundColor: '#E8ECF0', borderRadius: 4, marginHorizontal: 8 },
   brandProgressBarFill: { height: 8, backgroundColor: COLORS.navy, borderRadius: 4 },
-  userProgressBarFill: { height: 8, backgroundColor: COLORS.celeste, borderRadius: 4 },
-  directoryBtn: { marginTop: 15, padding: 12, backgroundColor: '#F0F4F8', borderRadius: 8, alignItems: 'center' },
-  directoryBtnText: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy }
+  userProgressBarFill: { height: 8, backgroundColor: COLORS.celeste, borderRadius: 4 }
 });
