@@ -3,7 +3,7 @@
     "newArchEnabled": false,
     "name": "Comagro",
     "slug": "comagro-catalogo",
-    "version": "1.0.57",
+    "version": "1.0.58",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,7 +18,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.comagro.catalogo",
-      "versionCode": 57,
+      "versionCode": 58,
       "permissions": [
         "REQUEST_INSTALL_PACKAGES"
       ],
