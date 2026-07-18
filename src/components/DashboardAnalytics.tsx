@@ -138,8 +138,8 @@ function UserBar({ email, count, maxCount, onUserClick }: { email: string, count
   );
 }
 
-export default function DashboardAnalytics({ navigation, onUserClick }: { navigation: any, onUserClick?: (email: string) => void }) {
-  const [tab, setTab] = useState('mine');
+export default function DashboardAnalytics({ navigation, onUserClick, onTabChange }: { navigation: any, onUserClick?: (email: string) => void, onTabChange?: (tab: 'mine' | 'general') => void }) {
+  const [tab, setTab] = useState<'mine' | 'general'>('mine');
   const [period, setPeriod] = useState('all');
   const [loading, setLoading] = useState(true);
   const { showToast } = useCustomAlert();
@@ -149,6 +149,9 @@ export default function DashboardAnalytics({ navigation, onUserClick }: { naviga
   const [globalData, setGlobalData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
   const [isAdmin, setIsAdmin] = useState(false);
 
+  useEffect(() => {
+    onTabChange?.(tab);
+  }, [tab, onTabChange]);
 
   const isMounted = React.useRef(true);
   useEffect(() => {
