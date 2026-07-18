@@ -10,6 +10,7 @@ import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
+import CollapsibleSection from './CollapsibleSection';
 import StatCard from './StatCard';
 import DirectoryModal from './DirectoryModal';
 import UserProfileModal from './UserProfileModal';
@@ -94,21 +95,7 @@ function RankItem({ item, maxCount, color, imageMap, navigation }: { item: Analy
   );
 }
 
-function CollapsibleSection({ title, color, iconName, defaultExpanded = false, children }: { title: string, color: string, iconName: string, defaultExpanded?: boolean, children: React.ReactNode }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  return (
-    <View style={s.section}>
-      <TouchableOpacity style={s.sectionTitleRow} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
-        <View style={s.sectionTitleLeft}>
-           <SvgIcon name={iconName} size={16} color={color} />
-           <Text style={s.sectionTitleText}>{title}</Text>
-        </View>
-        <Text style={s.sectionArrowIcon}>{expanded ? '▲' : '▼'}</Text>
-      </TouchableOpacity>
-      {expanded && children}
-    </View>
-  );
-}
+
 
 function RankSection({ title, items, color, imageMap, iconName, navigation, defaultExpanded = false }: { title: string, items: AnalyticsRankItem[], color: string, imageMap: Record<string, string>, iconName: string, navigation: any, defaultExpanded?: boolean }) {
   if (!items || items.length === 0) return (
