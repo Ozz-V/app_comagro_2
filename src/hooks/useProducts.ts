@@ -149,8 +149,13 @@ export function useProducts() {
       return;
     }
     setRefreshing(true);
-    setBgActualiz(true);
     try {
+      // No prendemos bgActualiz acá: el spinner nativo de "deslizar para
+      // actualizar" (refreshing) ya le muestra al usuario que algo está
+      // pasando. El banner azul de arriba queda reservado para cuando el
+      // catálogo se sincroniza SOLO en segundo plano, sin que el usuario
+      // esté mirando el spinner nativo — así no aparecen dos círculos
+      // girando a la vez.
       // skipVigenciaCheck: true → pull-to-refresh manual siempre consulta
       // ahora mismo, pero sigue siendo delta (solo lo nuevo) si ya existe
       // un timestamp de sync previo.
@@ -166,7 +171,6 @@ export function useProducts() {
     } finally {
       if (isMounted.current) {
         setRefreshing(false);
-        setBgActualiz(false);
       }
     }
   }
