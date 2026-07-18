@@ -206,6 +206,29 @@ function App() {
       }
     }
 
+    // Intenta rescatar la última sesión válida desde SecureStore (funciona
+    // 100% offline, sin red). Devuelve true si logró restaurar sesión.
+    // Se usa tanto en la carga inicial como en onAuthStateChange, porque
+    // AMBOS caminos pueden recibir "session: null" por una falla de red al
+    // renovar el token, no solo por un cierre de sesión real.
+    async function rescueSessionFromCache(): Promise<boolean> {
+      try {
+        const cached = await SecureStore.getItemAsync(SUPABASE_STORAGE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          // supabase-js guarda la sesión entera en la raíz del JSON
+          if (parsed && parsed.user) {
+            setAuth(parsed);
+            checkProfile(parsed.user.id);
+            return true;
+          }
+        }
+      } catch (e) {
+        Sentry.captureException(e);
+      }
+      return false;
+    }
+
     // Carga sesión inicial con timeout de 3s para evitar que cuelgue con "falso internet"
     const SESSION_TIMEOUT_MS = 3000;
     const sessionPromise = supabase.auth.getSession();
@@ -217,21 +240,8 @@ function App() {
       .then(async ({ data, error }) => {
       if (error) {
         // Fallback: Modo offline o timeout. Supabase falló al renovar (ej. sin red).
-        // Intentamos rescatar la última sesión de SecureStore.
-        try {
-          const cached = await SecureStore.getItemAsync(SUPABASE_STORAGE_KEY);
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            // supabase-js guarda la sesión entera en la raíz del JSON
-            if (parsed && parsed.user) {
-              setAuth(parsed);
-              checkProfile(parsed.user.id);
-              return; // Salimos sin limpiar la sesión
-            }
-          }
-        } catch (e) {
-          Sentry.captureException(e);
-        }
+        const rescued = await rescueSessionFromCache();
+        if (rescued) return; // Salimos sin limpiar la sesión
         // Si no hay caché válido, limpiamos
         clearAuth();
         setProfileComplete(true);
@@ -256,10 +266,25 @@ function App() {
           registerAndSaveToken(session.user.id);
           checkProfile(session.user.id);
         }
-      } else {
+      } else if (event === 'SIGNED_OUT') {
+        // Único caso de cierre de sesión real y explícito (logout manual,
+        // o el refresh token fue revocado del lado del servidor). Acá SÍ
+        // hay que limpiar.
         clearAuth();
         setProfileComplete(true);
         queryClient.clear();
+      } else {
+        // Cualquier otro evento con session: null (típicamente
+        // INITIAL_SESSION) puede deberse a que el SDK intentó renovar el
+        // token en segundo plano y falló por falta de red — no a que la
+        // sesión sea inválida de verdad. Antes de desloguear al usuario,
+        // intentamos rescatar la última sesión conocida de SecureStore.
+        rescueSessionFromCache().then((rescued) => {
+          if (rescued) return;
+          clearAuth();
+          setProfileComplete(true);
+          queryClient.clear();
+        });
       }
     });
 
