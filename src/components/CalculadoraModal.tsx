@@ -1,10 +1,11 @@
 import * as Sentry from '@sentry/react-native';
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
 import { getProductsBySubcategory } from '../utils/database';
+import { isCatalogSyncing, subscribeToCatalogUpdates } from '../services/catalogService';
 import { ParsedProduct, CalcProduct, PumpWizardState, SpecTuple } from '../types';
 
 interface CalculadoraModalProps {
@@ -21,6 +22,10 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
   const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ step: 0, type: '', appType: '', waterType: '', params: {} });
   const [calcResult, setCalcResult] = useState<CalcProduct[] | null>(null);
   const [hasCalculated, setHasCalculated] = useState(false);
+  // true cuando calculamos, dio 0 resultados, Y el catálogo todavía se
+  // está bajando en segundo plano — para no mostrarle al usuario "no hay
+  // equipos" cuando en realidad es que todavía no terminó de llegar.
+  const [waitingForCatalog, setWaitingForCatalog] = useState(false);
 
   useEffect(() => {
     if (!visible) {
@@ -29,6 +34,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
       setCalcInput('');
       setCalcInput2('');
       setCalcMode('');
+      setWaitingForCatalog(false);
       setPumpWizard({ step: 0, type: '', appType: '', waterType: '', params: {} });
     }
   }, [visible]);
@@ -144,7 +150,27 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
       Sentry.captureException(e);
     }
     setCalcResult(filtered);
+    // Si dio 0 resultados justo mientras el catálogo se está bajando
+    // todavía en segundo plano, no es que "no haya equipos" — es que
+    // faltan datos por llegar. Lo marcamos para avisarle al usuario en
+    // vez de mostrarle un vacío que parece un error.
+    setWaitingForCatalog(filtered.length === 0 && isCatalogSyncing());
   }
+
+  // Mientras el modal esté abierto y estemos esperando al catálogo, nos
+  // enganchamos a las notificaciones de sincronización y reintentamos el
+  // mismo cálculo solo, apenas termine — sin que el usuario tenga que
+  // tocar nada de nuevo.
+  useEffect(() => {
+    if (!visible || !waitingForCatalog) return;
+    const unsubscribe = subscribeToCatalogUpdates(() => {
+      if (!isCatalogSyncing()) {
+        handleCalculate();
+      }
+    });
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, waitingForCatalog]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -333,6 +359,23 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                     </View>
                   )}
                   </View>
+
+                {calcResult && calcResult.length === 0 && (
+                  <View style={styles.suggestedContainer}>
+                    {waitingForCatalog ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <ActivityIndicator size="small" color={COLORS.navy} />
+                        <Text style={styles.estimationText}>
+                          Estamos terminando de descargar el catálogo. El resultado va a aparecer solo en un momento…
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.estimationText}>
+                        No encontramos equipos que coincidan con ese valor. Probá con otro número.
+                      </Text>
+                    )}
+                  </View>
+                )}
 
                 {calcResult && calcResult.length > 0 && (
                   <View style={styles.suggestedContainer}>
