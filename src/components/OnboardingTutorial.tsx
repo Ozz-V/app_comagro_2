@@ -69,7 +69,7 @@ export default function OnboardingTutorial({ visible, onClose }: OnboardingTutor
             showsHorizontalScrollIndicator={false}
             bounces={false}
             onMomentumScrollEnd={(e) => {
-              const idx = Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH);
+              const idx = Math.round(e.nativeEvent.contentOffset.x / width);
               setCurrentIndex(idx);
             }}
             renderItem={({ item }) => (
@@ -111,27 +111,24 @@ export default function OnboardingTutorial({ visible, onClose }: OnboardingTutor
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: COLORS.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalCard: {
-    width: CARD_WIDTH,
+    width: width,
+    height: height,
     backgroundColor: COLORS.white,
-    borderRadius: 16,
-    paddingTop: 30,
-    paddingBottom: 20,
+    paddingTop: 80,
+    paddingBottom: 40,
     alignItems: 'center',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    justifyContent: 'center',
   },
   slide: {
-    width: CARD_WIDTH,
+    width: width,
     alignItems: 'center',
-    paddingHorizontal: 24,
+    justifyContent: 'center',
+    paddingHorizontal: 30,
   },
   iconCircle: {
     width: 80,

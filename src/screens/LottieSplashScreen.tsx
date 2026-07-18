@@ -135,8 +135,8 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   lottie: {
-    width: 250,
-    height: 250,
+    width: 175,
+    height: 175,
   },
   bottom: {
     position: 'absolute',

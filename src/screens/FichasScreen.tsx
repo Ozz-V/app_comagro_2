@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, Image, SafeAreaView, StatusBar, ActivityIndicator,
-  RefreshControl, Platform,
+  RefreshControl, Platform, BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import LottieView from 'lottie-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from '../supabase';
@@ -46,6 +47,21 @@ export default function FichasScreen({ navigation }: { navigation: { navigate: (
   const [abriendo, setAbriendo]       = useState<string | null>(null);
   const [pdfModal, setPdfModal]       = useState<{ visible: boolean; url: string | null; title: string | null }>({ visible: false, url: null, title: null });
   const { manifest, manifestReady, isOnline } = useOfflineSync();
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (catActual !== 'TODAS') {
+          setCatActual('TODAS');
+          setBusqueda('');
+          return true; // prevent default behavior
+        }
+        return false;
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [catActual])
+  );
 
   useEffect(() => { cargarTodo(); }, []);
 
