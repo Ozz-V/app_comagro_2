@@ -629,9 +629,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
 }
 
 const st = StyleSheet.create({
-  dirHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#fff', borderRadius: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, marginBottom: 20 },
-  dirHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
-  dirTitle: { marginLeft: 12, fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy },
+  
   safe: { flex: 1, backgroundColor: COLORS.white },
   topbar: { paddingHorizontal: 20, paddingBottom: 14, paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.white },
   topTitle: { fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: COLORS.navy },
