@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import { supabase } from '../supabase';
-import SvgIcon from './SvgIcon';
+import CollapsibleSection from './CollapsibleSection';
 
 interface HealthStatus {
   service: string;
@@ -27,12 +27,12 @@ const AnimatedWaveform = ({ status, color }: { status: string, color: string }) 
           ])
         );
       };
-      
+
       const loop1 = createAnimation(anim1, 0);
       const loop2 = createAnimation(anim2, 150);
       const loop3 = createAnimation(anim3, 75);
       const loop4 = createAnimation(anim4, 225);
-      
+
       loop1.start();
       loop2.start();
       loop3.start();
@@ -72,7 +72,6 @@ export default function SystemHealthMonitor() {
   const [plytixHealth, setPlytixHealth] = useState<HealthStatus>({ service: 'Plytix Sync', status: 'loading', lastPing: null });
   const [aiHealth, setAiHealth] = useState<HealthStatus>({ service: 'Asistente IA', status: 'loading', lastPing: null });
   const [isRefreshing, setIsRefreshing] = useState(true);
-  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     checkHealth();
@@ -105,10 +104,6 @@ export default function SystemHealthMonitor() {
 
   async function checkAITokens() {
     try {
-      // Ping real y gratuito: llama a la función chat con { ping: true },
-      // que del lado del servidor consulta el endpoint de metadata de
-      // Gemini (no generateContent), así que NO gasta tokens de IA — solo
-      // confirma que la API de Google responde y que la key es válida.
       const { data, error } = await supabase.functions.invoke('chat', { body: { ping: true } });
       if (error || !data || data.status !== 'ok') {
         throw new Error(data?.message || 'No responde');
@@ -120,57 +115,39 @@ export default function SystemHealthMonitor() {
   }
 
   return (
-    <View style={s.container}>
-      <TouchableOpacity style={s.header} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
-        <View style={s.headerLeft}>
-          <SvgIcon name="server" size={18} color={COLORS.navy} />
-          <Text style={s.title}>Estado de Servidores</Text>
+    <CollapsibleSection
+      title="Estado de Servidores"
+      iconName="server"
+      rightIndicator={isRefreshing ? <ActivityIndicator size="small" color={COLORS.gray4} style={{ marginRight: 8 }} /> : null}
+    >
+      <View style={s.row}>
+        <AnimatedWaveform status={plytixHealth.status} color="#1c9f4b" />
+        <View style={s.info}>
+          <Text style={s.serviceName}>{plytixHealth.service}</Text>
+          <Text style={s.subText}>Último ping: {plytixHealth.lastPing || '...'}</Text>
+          {plytixHealth.details && <Text style={s.errorText}>{plytixHealth.details}</Text>}
         </View>
-        <View style={s.headerRight}>
-          {isRefreshing && <ActivityIndicator size="small" color={COLORS.gray4} style={{ marginRight: 8 }} />}
-          <Text style={s.arrow}>{expanded ? '▲' : '▼'}</Text>
+      </View>
+
+      <View style={s.divider} />
+
+      <View style={s.row}>
+        <AnimatedWaveform status={aiHealth.status} color="#2196F3" />
+        <View style={s.info}>
+          <Text style={s.serviceName}>{aiHealth.service}</Text>
+          <Text style={s.subText}>Último ping: {aiHealth.lastPing || '...'}</Text>
+          {aiHealth.details && <Text style={s.detailText}>{aiHealth.details}</Text>}
         </View>
+      </View>
+
+      <TouchableOpacity style={s.refreshBtn} onPress={checkHealth}>
+        <Text style={s.refreshTxt}>Actualizar Estado</Text>
       </TouchableOpacity>
-      
-      {expanded && (
-        <View style={s.card}>
-          <View style={s.row}>
-            <AnimatedWaveform status={plytixHealth.status} color="#1c9f4b" />
-            <View style={s.info}>
-              <Text style={s.serviceName}>{plytixHealth.service}</Text>
-              <Text style={s.subText}>Último ping: {plytixHealth.lastPing || '...'}</Text>
-              {plytixHealth.details && <Text style={s.errorText}>{plytixHealth.details}</Text>}
-            </View>
-          </View>
-          
-          <View style={s.divider} />
-          
-          <View style={s.row}>
-            <AnimatedWaveform status={aiHealth.status} color="#2196F3" />
-            <View style={s.info}>
-              <Text style={s.serviceName}>{aiHealth.service}</Text>
-              <Text style={s.subText}>Último ping: {aiHealth.lastPing || '...'}</Text>
-              {aiHealth.details && <Text style={s.detailText}>{aiHealth.details}</Text>}
-            </View>
-          </View>
-          
-          <TouchableOpacity style={s.refreshBtn} onPress={checkHealth}>
-            <Text style={s.refreshTxt}>Actualizar Estado</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+    </CollapsibleSection>
   );
 }
 
 const s = StyleSheet.create({
-  container: { marginVertical: 16, backgroundColor: COLORS.white, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.border, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerLeft: { flexDirection: 'row', alignItems: 'center' },
-  headerRight: { flexDirection: 'row', alignItems: 'center' },
-  title: { fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, marginLeft: 8 },
-  arrow: { fontSize: 12, color: COLORS.gray3, marginLeft: 4 },
-  card: { marginTop: 12 },
   row: { flexDirection: 'row', alignItems: 'center', marginVertical: 8 },
   waveformContainer: { flexDirection: 'row', alignItems: 'flex-end', height: 18, width: 24, justifyContent: 'space-between', marginRight: 12, paddingBottom: 2 },
   waveformBar: { width: 4, borderRadius: 2 },
