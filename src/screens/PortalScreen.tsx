@@ -7,6 +7,7 @@ import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 import CalculadoraModal from '../components/CalculadoraModal';
 import ProfileCompleteModal from '../components/ProfileCompleteModal';
+import OnboardingTutorial from '../components/OnboardingTutorial';
 import { ParsedProduct } from '../types/models';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
@@ -15,6 +16,7 @@ const ANIMATION_ISO = require('../../assets/iso.json');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [allProdsCache, setAllProdsCache] = useState<ParsedProduct[]>([]);
   
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -104,6 +106,8 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         setShowProfileModal(true);
       } else {
         setProfName(data.full_name);
+        const tutorialSeen = await AsyncStorage.getItem('@tutorial_seen');
+        if (!tutorialSeen) setShowTutorial(true);
       }
     } catch {}
   }
@@ -206,9 +210,22 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
 
       <ProfileCompleteModal 
         visible={showProfileModal} 
-        onSuccess={(name: string) => { setProfName(name); setShowProfileModal(false); }} 
+        onSuccess={async (name: string) => { 
+          setProfName(name); 
+          setShowProfileModal(false); 
+          const tutorialSeen = await AsyncStorage.getItem('@tutorial_seen');
+          if (!tutorialSeen) setShowTutorial(true);
+        }} 
         initialName={profName}
         initialPhone={profPhoneInit}
+      />
+
+      <OnboardingTutorial 
+        visible={showTutorial} 
+        onClose={async () => {
+          setShowTutorial(false);
+          await AsyncStorage.setItem('@tutorial_seen', '1');
+        }}
       />
 
     </SafeAreaView>

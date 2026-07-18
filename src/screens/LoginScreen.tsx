@@ -120,7 +120,7 @@ export default function LoginScreen() {
           source={ANIMATION_ISO}
           autoPlay
           loop={true}
-          style={{ width: 160, height: 160, marginBottom: 10 }}
+          style={{ width: 175, height: 175, marginBottom: 10 }}
           resizeMode="contain"
         />
 

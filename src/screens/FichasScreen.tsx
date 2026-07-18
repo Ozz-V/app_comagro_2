@@ -23,7 +23,7 @@ interface Ficha {
 }
 
 interface ListItem {
-  type: 'label' | 'item' | 'file';
+  type: 'folder' | 'label' | 'item' | 'file';
   key: string;
   cat?: string;
   path?: string;
@@ -34,10 +34,10 @@ interface ListItem {
 
 const LOGO = { uri: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png' };
 const BUCKET = 'Fichas';
-const CATEGORIAS = ['BOMBAS DE AGUA', 'SOLDADORES', 'GENERADORES', 'MOTORES ELECTRICOS', 'COMPRESORES'];
 
 export default function FichasScreen({ navigation }: { navigation: { navigate: (s: string, p?: unknown) => void; goBack: () => void; [key: string]: unknown } }) {
   const [allFiles, setAllFiles]       = useState<Record<string, Ficha[]>>({});
+  const [categorias, setCategorias]   = useState<string[]>([]);
   const [catActual, setCatActual]     = useState('TODAS');
   const [busqueda, setBusqueda]       = useState('');
   const [cargando, setCargando]       = useState(true);
@@ -61,9 +61,11 @@ export default function FichasScreen({ navigation }: { navigation: { navigate: (
   async function cargarTodo(forzar: boolean = false) {
     if (!isOnline && !forzar) {
       try {
-        const saved = await AsyncStorage.getItem('@fichas_cache');
-        if (saved) {
-          setAllFiles(JSON.parse(saved));
+        const savedFiles = await AsyncStorage.getItem('@fichas_cache');
+        const savedCats = await AsyncStorage.getItem('@fichas_categorias_cache');
+        if (savedFiles && savedCats) {
+          setAllFiles(JSON.parse(savedFiles));
+          setCategorias(JSON.parse(savedCats));
         } else {
           setError('No hay fichas guardadas. Conéctese a internet para descargar.');
         }
@@ -80,9 +82,11 @@ export default function FichasScreen({ navigation }: { navigation: { navigate: (
     // 1. Mostrar caché primero (instantáneo)
     let tieneCache = false;
     try {
-      const raw = await AsyncStorage.getItem('@fichas_cache');
-      if (raw) {
-        setAllFiles(JSON.parse(raw));
+      const rawFiles = await AsyncStorage.getItem('@fichas_cache');
+      const rawCats = await AsyncStorage.getItem('@fichas_categorias_cache');
+      if (rawFiles && rawCats) {
+        setAllFiles(JSON.parse(rawFiles));
+        setCategorias(JSON.parse(rawCats));
         setCargando(false);
         tieneCache = true;
       }
@@ -94,12 +98,28 @@ export default function FichasScreen({ navigation }: { navigation: { navigate: (
       const token = session?.access_token;
       if (!token) return; // sin sesión, quedamos con caché
 
+      const rootRes = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${BUCKET}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'apikey': SUPABASE_KEY },
+        body: JSON.stringify({ prefix: '', limit: 100, offset: 0 }),
+      });
+      if (!rootRes.ok) throw new Error('Error listando carpetas');
+      const rootList = await rootRes.json();
+      
+      const dynamicCategories = (rootList || [])
+        .filter((i: any) => !i.id && !i.metadata)
+        .map((i: any) => i.name)
+        .filter((n: string) => n && n !== '.emptyFolderPlaceholder');
+      
+      setCategorias(dynamicCategories);
+      await AsyncStorage.setItem('@fichas_categorias_cache', JSON.stringify(dynamicCategories));
+
       const resultados = await Promise.all(
-        CATEGORIAS.map(cat => fetchCategoria(cat, token))
+        dynamicCategories.map((cat: string) => fetchCategoria(cat, token))
       );
 
       const mapa: Record<string, Ficha[]> = {};
-      CATEGORIAS.forEach((cat, i) => { mapa[cat] = resultados[i]; });
+      dynamicCategories.forEach((cat: string, i: number) => { mapa[cat] = resultados[i]; });
       setAllFiles(mapa);
       await AsyncStorage.setItem('@fichas_cache', JSON.stringify(mapa));
     } catch (e: unknown) {
@@ -185,9 +205,17 @@ export default function FichasScreen({ navigation }: { navigation: { navigate: (
 
   // Lista de items a mostrar según filtros
   const listaFiltrada = React.useMemo(() => {
-    const cats = catActual === 'TODAS' ? CATEGORIAS : [catActual];
     const q = busqueda.toLowerCase().trim();
     const items: ListItem[] = [];
+
+    if (catActual === 'TODAS' && !q) {
+      categorias.forEach(cat => {
+        items.push({ type: 'folder', key: `folder-${cat}`, cat });
+      });
+      return items;
+    }
+
+    const cats = catActual === 'TODAS' ? categorias : [catActual];
     cats.forEach(cat => {
       const files = allFiles[cat] || [];
       const filtrados = q ? files.filter(f => f.name.toLowerCase().includes(q)) : files;
@@ -197,9 +225,17 @@ export default function FichasScreen({ navigation }: { navigation: { navigate: (
       filtrados.forEach(f => items.push({ type: 'file', key: f.path, ...f }));
     });
     return items;
-  }, [allFiles, catActual, busqueda]);
+  }, [allFiles, catActual, busqueda, categorias]);
 
   function renderItem({ item }: { item: ListItem }) {
+    if (item.type === 'folder') {
+      return (
+        <TouchableOpacity style={styles.folderBtn} onPress={() => { setCatActual(item.cat!); setBusqueda(''); }} activeOpacity={0.8}>
+          <Text style={styles.folderBtnText}>{item.cat}</Text>
+          <Text style={{ fontSize: 24, color: COLORS.gray4, marginTop: -4 }}>›</Text>
+        </TouchableOpacity>
+      );
+    }
     if (item.type === 'label') {
       return <Text style={styles.catLabel}>{item.cat}</Text>;
     }
@@ -243,7 +279,7 @@ export default function FichasScreen({ navigation }: { navigation: { navigate: (
             style={styles.logoAnimado}
             resizeMode="contain"
           />
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => catActual !== 'TODAS' ? (setCatActual('TODAS'), setBusqueda('')) : navigation.goBack()}>
             <Text style={styles.btnVolver}>‹ Volver</Text>
           </TouchableOpacity>
         </View>
@@ -259,21 +295,6 @@ export default function FichasScreen({ navigation }: { navigation: { navigate: (
         </View>
       </View>
       <View style={styles.topBorder} />
-
-      {/* Filtros de categoría */}
-      <View style={styles.cats}>
-        {['TODAS', ...CATEGORIAS].map(cat => (
-          <TouchableOpacity
-            key={cat}
-            style={[styles.catBtn, catActual === cat && styles.catBtnActive]}
-            onPress={() => { setCatActual(cat); setBusqueda(''); }}
-          >
-            <Text style={[styles.catBtnText, catActual === cat && styles.catBtnTextActive]}>
-              {cat === 'TODAS' ? 'Todas' : cat === 'MOTORES ELECTRICOS' ? 'Mot. Eléctricos' : cat.charAt(0) + cat.slice(1).toLowerCase()}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
 
       {/* Aviso de reconexión si no hay red */}
       {!isOnline && !cargando ? (
@@ -369,37 +390,31 @@ const styles = StyleSheet.create({
     color: COLORS.green,
   },
 
-  // Categorías
-  cats: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 12,
-    gap: 8,
-    justifyContent: 'center',
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  catBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: COLORS.inputBorder,
-    backgroundColor: COLORS.white,
-  },
-  catBtnActive: {
-    backgroundColor: COLORS.navy,
-    borderColor: COLORS.navy,
-  },
-  catBtnText: {
-    fontFamily: FONTS.bodySemi,
-    fontSize: 12,
-    color: COLORS.gray4,
-  },
-  catBtnTextActive: { color: COLORS.white },
-
   // Lista
-  list: { paddingHorizontal: 16, paddingBottom: 100 },
+  list: { paddingHorizontal: 16, paddingBottom: 100, paddingTop: 16 },
+
+  folderBtn: { 
+    backgroundColor: COLORS.white, 
+    padding: 20, 
+    borderRadius: 12, 
+    marginBottom: 12, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    elevation: 2, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 1 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 3, 
+    borderWidth: 1, 
+    borderColor: '#E8ECF0' 
+  },
+  folderBtnText: { 
+    fontFamily: FONTS.heading, 
+    fontSize: 16, 
+    color: COLORS.navy, 
+    fontWeight: '700' 
+  },
 
   catLabel: {
     fontFamily: FONTS.bodySemi,
