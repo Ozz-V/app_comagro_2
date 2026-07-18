@@ -49,7 +49,7 @@ export default function LoginScreen() {
       const response = await supabase.auth.signInWithOtp({
         email: correo,
         options: {
-          shouldCreateUser: false,
+          shouldCreateUser: true,
         },
       });
       error = response.error;
