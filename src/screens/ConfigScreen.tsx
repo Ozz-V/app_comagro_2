@@ -12,6 +12,7 @@ import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 import DashboardAnalytics from '../components/DashboardAnalytics';
 import SystemHealthMonitor from '../components/SystemHealthMonitor';
+import CollapsibleSection from '../components/CollapsibleSection';
 import DirectoryModal from '../components/DirectoryModal';
 import UserProfileModal from '../components/UserProfileModal';
 import * as Sentry from '@sentry/react-native';
@@ -36,6 +37,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [analyticsTab, setAnalyticsTab] = useState<'mine' | 'general'>('mine');
   const [isEditing, setIsEditing] = useState(false);
 
   const { showAlert, showToast } = useCustomAlert();
@@ -473,16 +475,15 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
           )}
         </View>
 
-        <DashboardAnalytics navigation={navigation} onUserClick={handleUserClick} />
+        <DashboardAnalytics navigation={navigation} onUserClick={handleUserClick} onTabChange={setAnalyticsTab} />
 
-        <TouchableOpacity style={st.dirHeader} onPress={() => setShowDirectoryModal(true)} activeOpacity={0.7}>
-          <View style={st.dirHeaderLeft}>
-            <SvgIcon name="usuarios" size={18} color={COLORS.navy} />
-            <Text style={st.dirTitle}>Directorio de Contactos</Text>
-          </View>
-        </TouchableOpacity>
+        <CollapsibleSection
+          title="Directorio de Contactos"
+          iconName="usuarios"
+          onPress={() => setShowDirectoryModal(true)}
+        />
 
-        {isAdmin && <SystemHealthMonitor />}
+        {isAdmin && analyticsTab === 'general' && <SystemHealthMonitor />}
 
         <View style={st.versionCard}>
           <LottieView source={ANIMATION_ISO} autoPlay loop style={{ width: 60, height: 60 }} resizeMode="contain" />
