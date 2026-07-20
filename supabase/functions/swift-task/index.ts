@@ -57,8 +57,8 @@ Deno.serve(async (req) => {
       .eq('id', user.id)
       .single()
 
-    if (profile?.role !== 'admin') {
-      return new Response(JSON.stringify({ error: 'Acceso denegado. Rol de admin requerido.' }), {
+    if (profile?.role !== 'admin' && profile?.role !== 'staff') {
+      return new Response(JSON.stringify({ error: 'Acceso denegado. Rol de admin o staff requerido.' }), {
         status: 403,
         headers: CORS_HEADERS,
       })
