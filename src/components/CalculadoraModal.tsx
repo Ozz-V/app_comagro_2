@@ -6,6 +6,7 @@ import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
 import { getProductsBySubcategory } from '../utils/database';
 import { isCatalogSyncing, subscribeToCatalogUpdates } from '../services/catalogService';
+import { estimateGenerador, estimateMotor, estimateBomba, TipoBomba } from '../utils/CapacityEstimator';
 import { ParsedProduct, CalcProduct, PumpWizardState, SpecTuple } from '../types';
 
 interface CalculadoraModalProps {
@@ -327,37 +328,12 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                 <View style={styles.resultContainer}>
                   <View style={styles.estimationBox}>
                     <Text style={styles.estimationTitle}>Estimación rápida:</Text>
-                  {calcMode === 'gen' && (
-                    <View>
-                      {parseFloat(calcInput) < 2 ? <Text style={styles.estimationText}>3 Luces · 1 TV · 1 Notebook · 1 WiFi</Text> :
-                       parseFloat(calcInput) < 4 ? <Text style={styles.estimationText}>1 Heladera pequeña · 5 Luces · 1 TV · 1 WiFi</Text> :
-                       parseFloat(calcInput) < 6 ? <Text style={styles.estimationText}>1 Aire (12.000 BTU) · 1 Heladera · 8 Luces · 2 TV</Text> :
-                       parseFloat(calcInput) <= 10 ? <Text style={styles.estimationText}>2 Aires (12.000 BTU) · 1 Heladera · Toda la casa · 3 TV</Text> :
-                       parseFloat(calcInput) <= 50 ? <Text style={styles.estimationText}>Locales comerciales medianos, oficinas con varios aires acondicionados, servidores y cámaras frigoríficas.</Text> :
-                       parseFloat(calcInput) <= 250 ? <Text style={styles.estimationText}>Uso Industrial Liviano: Fábricas pequeñas, supermercados completos, estaciones de servicio, edificios residenciales enteros.</Text> :
-                       parseFloat(calcInput) <= 1000 ? <Text style={styles.estimationText}>Uso Industrial Pesado: Centros comerciales, hospitales, grandes fábricas, frigoríficos industriales.</Text> :
-                       <Text style={styles.estimationText}>Gran Escala: Industrias electrointensivas, minería, respaldo para barrios enteros o centros de datos masivos.</Text>}
-                    </View>
-                  )}
-                  {calcMode === 'motor' && (
-                    <View>
-                      {parseFloat(calcInput) <= 1 ? <Text style={styles.estimationText}>Hormigoneras chicas, cortadoras de fiambre, portones eléctricos residenciales, ventiladores grandes.</Text> :
-                       parseFloat(calcInput) <= 3 ? <Text style={styles.estimationText}>Compresores medianos, sierras circulares, tornos pequeños, cintas transportadoras livianas.</Text> :
-                       parseFloat(calcInput) <= 10 ? <Text style={styles.estimationText}>Amasadoras industriales, elevadores de autos, extractores pesados, trituradoras medianas, bombas centrífugas grandes.</Text> :
-                       parseFloat(calcInput) <= 50 ? <Text style={styles.estimationText}>Maquinaria industrial de planta, cintas transportadoras largas, molinos, prensas hidráulicas pesadas.</Text> :
-                       parseFloat(calcInput) <= 200 ? <Text style={styles.estimationText}>Industria pesada, grandes compresores de planta, trituradoras de piedra, maquinaria minera liviana.</Text> :
-                       <Text style={styles.estimationText}>Uso Extremo: Industria naviera, minería pesada, bombas de acueductos, grandes molinos industriales.</Text>}
-                    </View>
-                  )}
-                  {calcMode === 'bomba' && (
-                    <View>
-                      {parseFloat(calcInput) <= 1 ? <Text style={styles.estimationText}>Uso doméstico: Llenado de tanques (hasta 15m), riego de jardines chicos, circulación de agua, pozos poco profundos.</Text> :
-                       parseFloat(calcInput) <= 3 ? <Text style={styles.estimationText}>Uso comercial/Residencial: Edificios de 3-5 pisos, riego por aspersión mediano, llenado de piscinas rápido.</Text> :
-                       parseFloat(calcInput) <= 10 ? <Text style={styles.estimationText}>Uso agrícola/Edificios: Riego agrícola por goteo/aspersión, edificios altos (más de 10 pisos), sistemas contra incendios pequeños.</Text> :
-                       parseFloat(calcInput) <= 50 ? <Text style={styles.estimationText}>Uso Industrial: Torres de refrigeración, sistemas contra incendios industriales, extracción de pozos artesianos profundos.</Text> :
-                       <Text style={styles.estimationText}>Uso Gran Escala: Plantas de tratamiento de agua, acueductos, riego agrícola masivo, drenaje de minas.</Text>}
-                    </View>
-                  )}
+                    <Text style={styles.estimationText}>
+                      {calcMode === 'gen' ? estimateGenerador(parseFloat(calcInput)) :
+                       calcMode === 'motor' ? estimateMotor(parseFloat(calcInput)) :
+                       calcMode === 'bomba' ? estimateBomba(parseFloat(calcInput), (pumpWizard.type as TipoBomba) || 'hogar') :
+                       ''}
+                    </Text>
                   </View>
 
                 {calcResult && calcResult.length === 0 && (
