@@ -248,33 +248,11 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
         const { data: allData } = await qAll;
         const all = allData || [];
 
-        if (period === 'all' && isOnline) {
-          const { data: rpcData } = await supabase.rpc('get_analytics_summary');
-          if (rpcData) {
-            const gdRpc: DashboardData = {
-              views: rpcData.total_views || 0,
-              shares: rpcData.total_shares || 0,
-              topV: rpcData.top_viewed || [],
-              topSh: rpcData.top_shared || [],
-              brands: (rpcData.top_brands || []).map((b: any) => ({ marca: b.marca, count: b.count })),
-              users: (rpcData.top_users || []).map((u: any) => ({ user_email: u.modelo, count: u.count, modelo: u.modelo }))
-            };
-            if (isMounted.current) setGlobalData(gdRpc);
-            AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gdRpc));
-          } else {
-            const gd = process(all, 10);
-            gd.brands = countByKey(all, i => i.marca, 8);
-            gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
-            if (isMounted.current) setGlobalData(gd);
-            AsyncStorage.setItem(`@analytics_global_all`, JSON.stringify(gd));
-          }
-        } else {
-          const gd = process(all, 10);
-          gd.brands = countByKey(all, i => i.marca, 8);
-          gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
-          if (isMounted.current) setGlobalData(gd);
-          AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
-        }
+        const gd = process(all, 10);
+        gd.brands = countByKey(all, i => i.marca, 8);
+        gd.users = countByKey(all.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
+        if (isMounted.current) setGlobalData(gd);
+        AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
       }
     } catch (e: unknown) {
       Sentry.captureException(e);

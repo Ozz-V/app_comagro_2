@@ -14,14 +14,23 @@ export async function syncAnalyticsQueue() {
     const queue = JSON.parse(qStr);
     if (!queue || queue.length === 0) return;
     
-    // Obtenemos la sesión en lugar de getUser() para que sea más rápido y no falle al arranque.
+    // Obtenemos la sesion en lugar de getUser() para que sea mas rapido y no falle al arranque.
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return; 
+    if (!session?.user?.email) return; 
 
-    // Enviamos a Supabase
-    const { error } = await supabase.from('producto_analytics').insert(queue);
+    // Filtramos la cola para eliminar elementos corruptos o que no coincidan con el email actual
+    const validQueue = queue.filter((item: any) => item.user_email === session.user.email && item.user_email !== 'anon@comagro.com.py');
     
-    // Si se insertó con éxito, limpiamos la cola
+    // Si despus de filtrar no queda nada vlido, igual limpiamos la cola porque estaba envenenada
+    if (validQueue.length === 0) {
+      await AsyncStorage.removeItem('@analytics_queue');
+      return;
+    }
+
+    // Enviamos solo los elementos vlidos a Supabase
+    const { error } = await supabase.from('producto_analytics').insert(validQueue);
+    
+    // Si se insert con Ǹxito, limpiamos la cola
     if (!error) {
       await AsyncStorage.removeItem('@analytics_queue');
     }

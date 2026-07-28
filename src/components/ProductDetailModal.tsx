@@ -107,7 +107,19 @@ export default function ProductDetailModal({
   async function logProductAction(action: string) {
     if (!modalProd) return;
     try {
-      const email = (await supabase.auth.getUser()).data?.user?.email || 'anon@comagro.com.py';
+      let email = (await supabase.auth.getUser()).data?.user?.email;
+      if (!email) {
+        const cached = await AsyncStorage.getItem('@user_profile_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          email = parsed.email;
+        }
+      }
+      
+      if (!email || email === 'anon@comagro.com.py') {
+         return; // Evita envenenar la cola si no hay un email válido
+      }
+
       const q = await AsyncStorage.getItem('@analytics_queue');
       const queue = q ? JSON.parse(q) : [];
       queue.push({
@@ -118,7 +130,9 @@ export default function ProductDetailModal({
         user_email: email
       });
       await AsyncStorage.setItem('@analytics_queue', JSON.stringify(queue));
-    } catch(e: any) {}
+    } catch (err) {
+      console.log('Error logging analytics', err);
+    }
   }
 
   useEffect(() => {
