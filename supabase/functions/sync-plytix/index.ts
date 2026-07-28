@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
 Aquí tienes las especificaciones en bruto de un producto:
 ${productContext}
 
-Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párrafos para este producto. Resalta sus usos principales y características clave. Usa un tono vendedor pero profesional. No uses Markdown, solo texto plano. NO incluyas el código SKU en el texto. Empieza directamente con la descripción.`;
+Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 párrafo para este producto (máximo 5 a 6 líneas). Resalta sus usos principales y características clave. Usa un tono vendedor pero profesional. No uses Markdown, solo texto plano. NO incluyas el código SKU en el texto. Empieza directamente con la descripción.`;
 
          const generateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`, {
             method: 'POST',
