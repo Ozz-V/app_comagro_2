@@ -25,12 +25,15 @@ export interface AiDataResult {
 // ─── Helpers internos ─────────────────────────────────────────────────────────
 
 /** Obtiene el access token de la sesión activa (con fallback a refresh). */
-async function getAccessToken(): Promise<string> {
+async function getAccessToken(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.access_token) return session.access_token;
 
-  const { data: refreshed } = await supabase.auth.refreshSession();
-  return refreshed?.session?.access_token ?? '';
+  const { data: refreshed, error } = await supabase.auth.refreshSession();
+  if (error || !refreshed?.session?.access_token) {
+    return null;
+  }
+  return refreshed.session.access_token;
 }
 
 // ─── Catálogo de Productos ────────────────────────────────────────────────────
@@ -51,6 +54,9 @@ export async function syncCatalog(
   onBatchSynced?: () => void | Promise<void>,
 ): Promise<SyncResult> {
   const accessToken = await getAccessToken();
+  if (!accessToken) {
+    return { totalSynced: 0, logoRefreshKey: null };
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
