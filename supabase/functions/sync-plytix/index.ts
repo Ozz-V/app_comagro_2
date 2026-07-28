@@ -79,18 +79,19 @@ Deno.serve(async (req: Request) => {
       }));
 
     if (upsertQueueData.length > 0) {
-      // Lo dividimos en lotes de 500 y los enviamos TODOS AL MISMO TIEMPO (concurrentemente)
-      // Esto evita que el límite de tiempo de 5 segundos de pg_net corte la ejecución a la mitad
-      const chunkSize = 500;
-      const promises = [];
-      for (let i = 0; i < upsertQueueData.length; i += chunkSize) {
-        const chunk = upsertQueueData.slice(i, i + chunkSize);
-        promises.push(supaAdmin.from('plytix_queue').upsert(chunk, { onConflict: 'sku' }));
-      }
+      // PARA EVITAR TIMEOUTS: Buscamos qué SKUs ya existen para no actualizar los mismos 3000 a cada rato
+      const { data: existingData } = await supaAdmin.from('plytix_queue').select('sku');
+      const existingSkus = new Set((existingData || []).map(row => row.sku));
       
-      const results = await Promise.all(promises);
-      for (const res of results) {
-         if (res.error) console.error("Error ingesting chunk into plytix_queue:", res.error);
+      // Filtramos para enviar SOLO los que no están en la tabla
+      const itemsToInsert = upsertQueueData.filter(item => !existingSkus.has(item.sku));
+      
+      if (itemsToInsert.length > 0) {
+        const chunkSize = 1000;
+        for (let i = 0; i < itemsToInsert.length; i += chunkSize) {
+          const chunk = itemsToInsert.slice(i, i + chunkSize);
+          await supaAdmin.from('plytix_queue').upsert(chunk, { onConflict: 'sku' });
+        }
       }
     }
 
