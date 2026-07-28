@@ -67,38 +67,48 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'Feed vacío o inválido' }), { status: 400 });
     }
 
-    // 2. Obtener todos los SKUs que YA existen en la base de datos (con paginación para más de 1000)
-    const dbProducts = [];
-    let page = 0;
-    while(true) {
-        const { data, error: dbError } = await supaAdmin.from('productos_ai_data').select('sku').range(page*1000, (page+1)*1000 - 1);
-        if (dbError) throw dbError;
-        if (!data || data.length === 0) break;
-        dbProducts.push(...data);
-        if (data.length < 1000) break;
-        page++;
+    // PASO A: INGESTA INSTANTANEA
+    // Guardamos absolutamente todo el feed en la tabla de cola `plytix_queue`
+    const upsertQueueData = plytixData
+      .filter(p => p.SKU && String(p.SKU).trim() !== '' && String(p.SKU).trim().toUpperCase() !== 'UNDEFINED' && String(p.SKU).trim().toUpperCase() !== 'NULL')
+      .map(p => ({
+        sku: String(p.SKU).trim().toUpperCase(),
+        raw_data: p,
+        status: 'pending',
+        updated_at: new Date().toISOString()
+      }));
+
+    if (upsertQueueData.length > 0) {
+      const { error: upsertErr } = await supaAdmin.from('plytix_queue').upsert(upsertQueueData, { onConflict: 'sku' });
+      if (upsertErr) {
+        console.error("Error ingesting into plytix_queue:", upsertErr);
+      }
     }
 
-    const existingSkus = new Set(dbProducts.map(p => String(p.sku).toUpperCase().trim()));
+    // PASO B: PROCESAMIENTO SEGURO
+    // Tomamos un lote (batch) de máximo 10 productos que estén 'pending'
+    const { data: queueItems, error: qErr } = await supaAdmin
+      .from('plytix_queue')
+      .select('*')
+      .eq('status', 'pending')
+      .order('updated_at', { ascending: true })
+      .limit(10);
 
-    // 3. Filtrar los que faltan
-    const missingProducts = plytixData.filter(p => {
-       if (!p.SKU) return false;
-       return !existingSkus.has(String(p.SKU).toUpperCase().trim());
-    });
-
-    if (missingProducts.length === 0) {
-       return new Response(JSON.stringify({ message: 'Todo está sincronizado. No hay productos nuevos.', processed: 0 }), { status: 200 });
+    if (qErr) {
+        throw new Error(`Error leyendo la cola: ${qErr.message}`);
     }
 
-    // 4. Tomar un lote (batch) de máximo 10 productos para evitar Timeouts
-    const batch = missingProducts.slice(0, 10);
+    if (!queueItems || queueItems.length === 0) {
+       return new Response(JSON.stringify({ message: 'Todo está sincronizado. No hay productos pendientes en la cola.', processed: 0 }), { status: 200 });
+    }
+
     const processedSkus: string[] = [];
     const errors = [];
 
-    // 5. Procesar cada producto del lote
-    for (const p of batch) {
-       const sku = String(p.SKU).trim();
+    // Procesar cada producto del lote
+    for (const item of queueItems) {
+       const sku = item.sku;
+       const p = item.raw_data;
        try {
          // a) Generar el Sales Pitch con IA
          const productContext = JSON.stringify(p, null, 2);
@@ -161,21 +171,26 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
          }
          const cleanSpecsText = specsList.length > 0 ? `\n\n**Especificaciones Técnicas:**\n${specsList.join('\n')}` : '';
 
-         // d) Guardar en la base de datos Supabase
-         const { error: insertError } = await supaAdmin.from('productos_ai_data').insert({
+         // d) Guardar en la base de datos Supabase (usando upsert para soportar modificaciones)
+         const { error: insertError } = await supaAdmin.from('productos_ai_data').upsert({
             sku: sku,
             sales_pitch: `${salesPitch}${cleanSpecsText}`,
             embedding: embeddingVector,
             created_at: new Date().toISOString()
-         });
+         }, { onConflict: 'sku' });
 
          if (insertError) throw insertError;
+         
+         // e) Marcar como completado en la cola
+         await supaAdmin.from('plytix_queue').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('sku', sku);
          
          processedSkus.push(sku);
 
        } catch (err) {
          console.error(`Error procesando SKU ${sku}:`, (err as Error).message);
          errors.push({ sku, error: (err as Error).message });
+         // Opcional: Marcar como error en la cola para no bloquear
+         await supaAdmin.from('plytix_queue').update({ status: 'error', updated_at: new Date().toISOString() }).eq('sku', sku);
        }
     }
 
@@ -187,8 +202,8 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
           const pushMessages = profiles.map(prof => ({
             to: prof.expo_push_token,
             sound: 'default',
-            title: '¡Nuevo Producto Disponible!',
-            body: `Se ha añadido ${processedSkus.length} nuevo(s) producto(s) al catálogo, incluyendo SKU: ${processedSkus[0]}. ¡Revisalo!`,
+            title: '¡Nuevo Producto o Actualización!',
+            body: `Se han procesado ${processedSkus.length} producto(s) en el catálogo, incluyendo SKU: ${processedSkus[0]}. ¡Revisalo!`,
             data: { skus: processedSkus },
           }));
           
@@ -207,11 +222,14 @@ Escribe una descripción comercial y técnica (sales pitch) de máximo 2 párraf
       }
     }
 
+    // Contar cuántos quedan pendientes en la cola total
+    const { count: remainingCount } = await supaAdmin.from('plytix_queue').select('*', { count: 'exact', head: true }).eq('status', 'pending');
+
     return new Response(JSON.stringify({ 
         message: 'Lote procesado exitosamente', 
         processed_count: processedSkus.length, 
         processed_skus: processedSkus,
-        remaining_in_plytix: missingProducts.length - processedSkus.length,
+        remaining_in_queue: remainingCount || 0,
         errors 
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
