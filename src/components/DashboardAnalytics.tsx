@@ -8,6 +8,7 @@ import * as Sharing from 'expo-sharing';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { supabase } from '../supabase';
+import { syncAnalyticsQueue } from '../utils/analyticsSync';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
 import CollapsibleSection from './CollapsibleSection';
@@ -205,38 +206,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
          setIsAdmin(currentIsAdmin);
       }
       
-      const qStr = await AsyncStorage.getItem('@analytics_queue');
-      
-      if (qStr && user) {
-         const queue = JSON.parse(qStr);
-         const mergeQueue = (data: DashboardData | null, isGlobal: boolean): DashboardData | null => {
-            if (!data) return data;
-            const res = { ...data };
-            res.topV = [...(res.topV || [])];
-            res.topSh = [...(res.topSh || [])];
-            res.topSe = [...(res.topSe || [])];
-            
-            queue.forEach((item: any) => {
-               if (!isGlobal && item.user_email !== user.email) return;
-               
-               const addTop = (list: AnalyticsRankItem[], it: any) => {
-                  const ex = list.find(x => (x.sku || x.modelo) === (it.sku || it.modelo));
-                  if (ex) ex.count = (ex.count || 0) + 1;
-                  else list.push({ ...it, count: 1 });
-               };
-               
-               if (item.action === 'view') { res.views++; addTop(res.topV, item); }
-               else if (item.action.startsWith('share')) { res.shares++; addTop(res.topSh, item); }
-            });
-            
-            res.topV.sort((a,b) => b.count - a.count);
-            res.topSh.sort((a,b) => b.count - a.count);
-            return res;
-         };
-         
-         if (parsedMyData && isMounted.current) setMyData(mergeQueue(parsedMyData, false) as DashboardData);
-         if (parsedGlobalData && isMounted.current) setGlobalData(mergeQueue(parsedGlobalData, true) as DashboardData);
-      }
+      await syncAnalyticsQueue();
     } catch (_: unknown) {}
 
     if (!isOnline) {

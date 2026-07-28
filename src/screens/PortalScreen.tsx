@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, Scro
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
+import { syncAnalyticsQueue } from '../utils/analyticsSync';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 import CalculadoraModal from '../components/CalculadoraModal';
@@ -108,23 +109,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         setProfName(data.full_name);
         const tutorialSeen = await AsyncStorage.getItem('@tutorial_seen');
         if (!tutorialSeen) setShowTutorial(true);
-      }
-    } catch {}
-  }
-
-  async function syncAnalyticsQueue() {
-    try {
-      const q = await AsyncStorage.getItem('@analytics_queue');
-      if (!q) return;
-      const queue = JSON.parse(q);
-      if (queue.length === 0) return;
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return; 
-
-      const { error } = await supabase.from('producto_analytics').insert(queue);
-      if (!error) {
-        await AsyncStorage.removeItem('@analytics_queue');
       }
     } catch {}
   }

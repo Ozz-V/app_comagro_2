@@ -8,6 +8,7 @@ import { Image as ExpoImage } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase, SUPABASE_URL } from '../supabase';
+import { syncAnalyticsQueue } from '../utils/analyticsSync';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 import DashboardAnalytics from '../components/DashboardAnalytics';
@@ -141,6 +142,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
     }
     
     try {
+      await syncAnalyticsQueue();
       const { data: profile, error: errProfile } = await supabase.from('profiles').select('id, full_name, avatar_url, telefono, email').eq('email', email).single();
       const { data: analyticsData, error: errAnalytics } = await supabase.from('producto_analytics').select('action').eq('user_email', email);
       
