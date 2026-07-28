@@ -79,14 +79,18 @@ Deno.serve(async (req: Request) => {
       }));
 
     if (upsertQueueData.length > 0) {
-      // Lo dividimos en lotes de 500 para evitar que Supabase rechace el request por ser muy pesado
+      // Lo dividimos en lotes de 500 y los enviamos TODOS AL MISMO TIEMPO (concurrentemente)
+      // Esto evita que el límite de tiempo de 5 segundos de pg_net corte la ejecución a la mitad
       const chunkSize = 500;
+      const promises = [];
       for (let i = 0; i < upsertQueueData.length; i += chunkSize) {
         const chunk = upsertQueueData.slice(i, i + chunkSize);
-        const { error: upsertErr } = await supaAdmin.from('plytix_queue').upsert(chunk, { onConflict: 'sku' });
-        if (upsertErr) {
-          console.error("Error ingesting chunk into plytix_queue:", upsertErr);
-        }
+        promises.push(supaAdmin.from('plytix_queue').upsert(chunk, { onConflict: 'sku' }));
+      }
+      
+      const results = await Promise.all(promises);
+      for (const res of results) {
+         if (res.error) console.error("Error ingesting chunk into plytix_queue:", res.error);
       }
     }
 
