@@ -11,7 +11,7 @@ const SLIDES = [
   {
     id: 'welcome',
     title: '¡Bienvenido!',
-    desc: 'Conocé rápidamente lo que la aplicación de Comagro S.A. te ofrece.',
+    desc: 'Conocé rápidamente todo lo que\nla aplicación Comagro S.A. te ofrece.',
     icon: '',
     isWelcome: true
   },
