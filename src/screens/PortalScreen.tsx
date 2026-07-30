@@ -18,6 +18,7 @@ const ANIMATION_ISO = require('../../assets/iso.json');
 export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [isCheckingProfile, setIsCheckingProfile] = useState(true);
   const [allProdsCache, setAllProdsCache] = useState<ParsedProduct[]>([]);
   
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -110,7 +111,9 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         const tutorialSeen = await AsyncStorage.getItem('@tutorial_seen');
         if (!tutorialSeen) setShowTutorial(true);
       }
-    } catch {}
+    } catch {} finally {
+      if (isMounted.current) setIsCheckingProfile(false);
+    }
   }
 
   useEffect(() => {
@@ -133,11 +136,12 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
       </View>
       <View style={styles.topBorder} />
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={{ alignItems: 'center', marginBottom: 30 }}>
-          <Text style={{ fontFamily: FONTS.heading, fontSize: 26, fontWeight: '700', color: COLORS.navy, textAlign: 'center', marginBottom: 4 }}>Herramienta de Ventas</Text>
-          <Text style={{ fontFamily: FONTS.body, fontSize: 16, color: COLORS.gray4, textAlign: 'center' }}>Comagro S.A.</Text>
-        </View>
+      {(!isCheckingProfile && !showTutorial && !showProfileModal) ? (
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={{ alignItems: 'center', marginBottom: 30 }}>
+            <Text style={{ fontFamily: FONTS.heading, fontSize: 26, fontWeight: '700', color: COLORS.navy, textAlign: 'center', marginBottom: 4 }}>Herramienta de Ventas</Text>
+            <Text style={{ fontFamily: FONTS.body, fontSize: 16, color: COLORS.gray4, textAlign: 'center' }}>Comagro S.A.</Text>
+          </View>
 
         <TouchableOpacity style={styles.gridCardFull} activeOpacity={0.8} onPress={() => navigation.navigate('Productos')}>
           <View style={styles.gridIconFull}>
@@ -184,6 +188,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      ) : null}
 
       <CalculadoraModal 
         visible={showCalcModal} 
