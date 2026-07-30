@@ -54,7 +54,7 @@ export default function LottieSplashScreen({ onFinish, updateState, updateNotes,
       }).start(() => {
         onFinish();
       });
-    }, 3000);
+    }, 1000);
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps

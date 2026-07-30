@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, Dimensions, FlatList } from 'react-native';
+import LottieView from 'lottie-react-native';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
 
@@ -7,6 +8,13 @@ const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.85;
 
 const SLIDES = [
+  {
+    id: 'welcome',
+    title: '¡Bienvenido!',
+    desc: 'Conocé rápidamente lo que la aplicación de Comagro S.A. te ofrece.',
+    icon: '',
+    isWelcome: true
+  },
   {
     id: '1',
     title: 'Todos los productos',
@@ -74,9 +82,21 @@ export default function OnboardingTutorial({ visible, onClose }: OnboardingTutor
             }}
             renderItem={({ item }) => (
               <View style={styles.slide}>
-                <View style={styles.iconCircle}>
-                  <SvgIcon name={item.icon} size={40} color={COLORS.navy} />
-                </View>
+                {item.isWelcome ? (
+                  <View style={styles.welcomeLogoContainer}>
+                    <LottieView
+                      source={require('../../assets/iso.json')}
+                      autoPlay
+                      loop={true}
+                      style={{ width: 140, height: 140 }}
+                      resizeMode="contain"
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.iconCircle}>
+                    <SvgIcon name={item.icon} size={40} color={COLORS.navy} />
+                  </View>
+                )}
                 <Text style={styles.title}>{item.title}</Text>
                 <Text style={styles.desc}>{item.desc}</Text>
               </View>
@@ -140,6 +160,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#E8ECF0',
+  },
+  welcomeLogoContainer: {
+    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontFamily: FONTS.heading,
