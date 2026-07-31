@@ -229,33 +229,50 @@ function App() {
       return false;
     }
 
-    // Carga sesión inicial con timeout de 3s para evitar que cuelgue con "falso internet"
-    const SESSION_TIMEOUT_MS = 3000;
-    const sessionPromise = supabase.auth.getSession();
-    const timeoutPromise = new Promise<{ data: { session: null }; error: Error }>((resolve) =>
-      setTimeout(() => resolve({ data: { session: null }, error: new Error('session_timeout') }), SESSION_TIMEOUT_MS)
-    );
+    // Arranque: la caché local (SecureStore) es la ÚNICA fuente de verdad para
+    // decidir si te deja entrar. Nunca se espera a la red para esto — ni con
+    // timeout ni sin él. Si ya tenías sesión guardada, entrás al instante,
+    // tengas internet, mala señal, o nada. La red solo se usa para confirmar
+    // en segundo plano, nunca para decidir el render inicial.
+    async function loadInitialSession() {
+      const rescued = await rescueSessionFromCache();
 
-    (Promise.race([sessionPromise, timeoutPromise]) as Promise<{ data: { session: import('@supabase/supabase-js').Session | null }; error: Error | null }>)
-      .then(async ({ data, error }) => {
-      if (error) {
-        // Fallback: Modo offline o timeout. Supabase falló al renovar (ej. sin red).
-        const rescued = await rescueSessionFromCache();
-        if (rescued) return; // Salimos sin limpiar la sesión
-        // Si no hay caché válido, limpiamos
-        clearAuth();
-        setProfileComplete(true);
-        queryClient.clear();
-      } else if (data.session) {
-        setAuth(data.session);
-        registerAndSaveToken(data.session.user.id);
-        checkProfile(data.session.user.id);
-      } else {
+      if (rescued) {
+        // Ya entraste con lo que había en el caché. Ahora sí, en segundo
+        // plano y sin que nadie espere nada, le pedimos al SDK que intente
+        // confirmar la sesión contra el servidor. Si la confirma, no cambia
+        // nada visible. Si de verdad fue revocada, el propio SDK dispara el
+        // evento SIGNED_OUT del listener de más abajo, y ahí sí se cierra
+        // la sesión — mientras el usuario ya está navegando la app.
+        // Si falla por falta de red, no hacemos nada: seguimos confiando en
+        // el caché hasta que se demuestre lo contrario.
+        supabase.auth.getSession().catch(() => {});
+        return;
+      }
+
+      // Único caso donde de verdad no hay nada local de donde partir:
+      // primera vez que se abre la app, o la sesión ya se había cerrado
+      // explícitamente antes. Ahí sí hace falta preguntarle al servidor,
+      // porque no existe ningún dato guardado del cual arrancar.
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (!error && data.session) {
+          setAuth(data.session);
+          registerAndSaveToken(data.session.user.id);
+          checkProfile(data.session.user.id);
+        } else {
+          clearAuth();
+          setProfileComplete(true);
+          queryClient.clear();
+        }
+      } catch {
         clearAuth();
         setProfileComplete(true);
         queryClient.clear();
       }
-    });
+    }
+
+    loadInitialSession();
 
     // Escucha cambios de sesión en tiempo real
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, sess: unknown) => {
@@ -367,4 +384,3 @@ function App() {
     </SafeAreaProvider>
   );
 }
-
