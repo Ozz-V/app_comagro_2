@@ -8,30 +8,30 @@ export interface UserMetrics {
   ban_count: number;
 }
 
+// Límite por defecto: 20 consultas cada 6 horas.
+// Se puede subir/bajar por usuario editando la columna max_requests en la tabla chat_user_metrics.
 export function getDefaultMetrics(user_id: string): UserMetrics {
-  return { user_id, strike_count: 0, banned_until: null, request_count: 0, last_request_at: null, max_requests: 10, ban_count: 0 };
+  return { user_id, strike_count: 0, banned_until: null, request_count: 0, last_request_at: null, max_requests: 20, ban_count: 0 };
 }
 
 export function checkBan(metrics: UserMetrics, now: Date): string | null {
   if (metrics.banned_until && new Date(metrics.banned_until) > now) {
-    // Antes esto decía "48 horas" fijo aunque el baneo real fuera de 12hs.
-    // Ahora calcula el tiempo restante real, sea cual sea la duración aplicada.
     const hoursLeft = Math.max(1, Math.ceil((new Date(metrics.banned_until).getTime() - now.getTime()) / (1000 * 60 * 60)));
-    return `Debido a infracciones a las normas de uso, tu cuenta está bloqueada temporalmente. Podrás volver a intentarlo en aproximadamente ${hoursLeft} hora(s).`;
+    return `Debido a incumplimientos en el uso de la herramienta, el chat ha sido restringido temporalmente. Podés volver a intentarlo en aproximadamente ${hoursLeft} hora(s).`;
   }
   return null;
 }
 
 export function resetCountersIfNeeded(metrics: UserMetrics, now: Date): number {
   let request_count = metrics.request_count || 0;
-  const max_limit = metrics.max_requests ?? 10;
   const last_request_at = metrics.last_request_at ? new Date(metrics.last_request_at) : null;
 
   if (last_request_at) {
     const hoursSinceLast = (now.getTime() - last_request_at.getTime()) / (1000 * 60 * 60);
-    if (hoursSinceLast >= 24) request_count = 0;
-    else if (request_count < max_limit && hoursSinceLast >= 6) request_count = 0;
-    if (hoursSinceLast >= 12) {
+    // Cuota de mensajes: se renueva cada 6 horas fijo
+    if (hoursSinceLast >= 6) request_count = 0;
+    // Strikes: se resetean cada 24 horas
+    if (hoursSinceLast >= 24) {
       metrics.strike_count = 0;
     }
   }
@@ -40,7 +40,7 @@ export function resetCountersIfNeeded(metrics: UserMetrics, now: Date): number {
 
 export function checkQuotaExceeded(request_count: number, max_requests: number): string | null {
   if (request_count >= max_requests) {
-    return "Has utilizado todos tus cupos de consulta rápida por hoy. Vuelve a consultar en 24 horas.";
+    return "Has utilizado todos tus cupos de consulta por ahora. Volvé a intentarlo en 6 horas.";
   }
   return null;
 }
@@ -53,13 +53,13 @@ export function processStrike(reply: string, metrics: UserMetrics): string {
 
   if (metrics.strike_count >= 2) {
     metrics.ban_count = (metrics.ban_count || 0) + 1;
-    // Primera vez: 12hs. Si reincide después de haber sido baneado antes: 48hs.
-    const banHours = metrics.ban_count >= 2 ? 48 : 12;
+    // Baneo siempre de 24 horas, sin importar cuántas veces reincidió
+    const banHours = 24;
     const banDate = new Date();
     banDate.setHours(banDate.getHours() + banHours);
     metrics.banned_until = banDate.toISOString();
     metrics.strike_count = 0;
-    return `Debido a incumplimiento de normas, tu acceso al chat ha sido suspendido temporalmente. Se volverá a activar en ${banHours} horas.`;
+    return `Debido a incumplimientos en el uso de la herramienta, el chat ha sido restringido temporalmente. Podés volver a utilizarlo en ${banHours} horas.`;
   }
   return reply;
 }
