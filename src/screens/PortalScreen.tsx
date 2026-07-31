@@ -15,10 +15,12 @@ const ANIMATION_ISO = require('../../assets/iso.json');
 
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+const PROFILE_CACHE_KEY = '@profile_status_cache';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
-  const [isCheckingProfile, setIsCheckingProfile] = useState(true);
   const [allProdsCache, setAllProdsCache] = useState<ParsedProduct[]>([]);
   
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -30,6 +32,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     isMounted.current = true;
     return () => { isMounted.current = false; };
   }, []);
+
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -95,31 +98,72 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     }
   }, [showCalcModal, allProdsCache.length]);
 
-  async function checkProfile() {
+  // Decisión INSTANTÁNEA basada en caché local (AsyncStorage = disco local,
+  // no depende de internet). Se ejecuta apenas monta la pantalla, antes de
+  // que el usuario llegue a ver el portal sin el modal — así se mantiene el
+  // efecto de "el modal ya está ahí" sin necesitar la red para nada.
+  async function applyCachedProfileStatus() {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase.from('profiles').select('id, full_name, telefono').eq('id', user.id).single();
-      if (!isMounted.current) return;
-      
-      if (!data || !data.full_name || data.full_name.trim() === '' || !data.telefono || data.telefono === '' || data.telefono === '+595') {
-        setProfName(data?.full_name && data.full_name.trim() !== '' ? data.full_name : '');
-        setProfPhoneInit(data?.telefono && data.telefono !== '+595' ? data.telefono : '');
+      const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
+      if (!cached) return; // primera vez que se abre, sin caché: no hay nada que mostrar todavía
+      const { complete, name, phone } = JSON.parse(cached);
+      if (!complete) {
+        setProfName(name || '');
+        setProfPhoneInit(phone || '');
         setShowProfileModal(true);
       } else {
-        setProfName(data.full_name);
         const tutorialSeen = await AsyncStorage.getItem('@tutorial_seen');
         if (!tutorialSeen) setShowTutorial(true);
       }
-    } catch {} finally {
-      if (isMounted.current) setIsCheckingProfile(false);
+    } catch {}
+  }
+
+  // Verificación REAL contra Supabase, siempre en segundo plano — nunca
+  // bloquea nada de lo que ya se decidió con la caché. Si el backend dice
+  // algo distinto (por ejemplo, se borró el nombre o el teléfono del
+  // usuario), corrige el estado mostrado y actualiza la caché para la
+  // próxima apertura. Si no hay internet o tarda demasiado, simplemente no
+  // hace nada y se sigue confiando en lo que ya se mostró desde la caché.
+  async function checkProfile() {
+    const withTimeout = <T,>(promise: PromiseLike<T>): Promise<T> =>
+      Promise.race([
+        Promise.resolve(promise),
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
+      ]);
+
+    try {
+      const { data: { user } } = await withTimeout(supabase.auth.getUser());
+      if (!user) return;
+      const { data } = await withTimeout(supabase.from('profiles').select('id, full_name, telefono').eq('id', user.id).single());
+      if (!isMounted.current) return;
+
+      const incomplete = !data || !data.full_name || data.full_name.trim() === '' || !data.telefono || data.telefono === '' || data.telefono === '+595';
+
+      if (incomplete) {
+        const name = data?.full_name && data.full_name.trim() !== '' ? data.full_name : '';
+        const phone = data?.telefono && data.telefono !== '+595' ? data.telefono : '';
+        setProfName(name);
+        setProfPhoneInit(phone);
+        setShowProfileModal(true);
+        await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ complete: false, name, phone }));
+      } else {
+        setProfName(data.full_name);
+        await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ complete: true }));
+        const tutorialSeen = await AsyncStorage.getItem('@tutorial_seen');
+        if (!tutorialSeen) setShowTutorial(true);
+      }
+    } catch {
+      // Sin internet o timeout: no tocamos nada, seguimos con lo que ya
+      // se decidió desde la caché local.
     }
   }
 
   useEffect(() => {
+    applyCachedProfileStatus();
     syncAnalyticsQueue();
     checkProfile();
   }, []);
+
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -136,8 +180,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
       </View>
       <View style={styles.topBorder} />
 
-      {(!isCheckingProfile && !showTutorial && !showProfileModal) ? (
-        <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
           <View style={{ alignItems: 'center', marginBottom: 30 }}>
             <Text style={{ fontFamily: FONTS.heading, fontSize: 26, fontWeight: '700', color: COLORS.navy, textAlign: 'center', marginBottom: 4 }}>Herramienta de Ventas</Text>
             <Text style={{ fontFamily: FONTS.body, fontSize: 16, color: COLORS.gray4, textAlign: 'center' }}>Comagro S.A.</Text>
@@ -188,7 +231,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
-      ) : null}
 
       <CalculadoraModal 
         visible={showCalcModal} 
