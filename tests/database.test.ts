@@ -4,7 +4,12 @@ import { initDB, searchProducts, getUniqueBrands, getProductBySku, clearProducts
 jest.mock('expo-sqlite', () => {
   const mockDb = {
     execAsync: jest.fn(),
-    getAllAsync: jest.fn().mockResolvedValue([]),
+    getAllAsync: jest.fn().mockImplementation((query) => {
+      if (typeof query === 'string' && query.includes('PRAGMA table_info')) {
+        return Promise.resolve([{ name: 'sku' }, { name: 'search_text' }, { name: 'sales_pitch' }]);
+      }
+      return Promise.resolve([]);
+    }),
     getFirstAsync: jest.fn().mockResolvedValue(null),
     withTransactionAsync: jest.fn(cb => cb()),
     runAsync: jest.fn(),
@@ -33,19 +38,23 @@ describe('Database utility', () => {
 
   describe('initDB', () => {
     it('creates tables and handles migrations', async () => {
-      mockDb.getAllAsync.mockResolvedValueOnce([
-        { name: 'sku' },
-        { name: 'search_text' },
-        { name: 'sales_pitch' }
-      ]);
+      mockDb.getAllAsync.mockImplementation((query: string) => {
+        if (query.includes('PRAGMA')) return Promise.resolve([
+          { name: 'sku' },
+          { name: 'search_text' },
+          { name: 'sales_pitch' }
+        ]);
+        return Promise.resolve([]);
+      });
       await initDB();
       expect(mockDb.execAsync).toHaveBeenCalled();
     });
 
     it('adds missing columns during migration', async () => {
-      mockDb.getAllAsync.mockResolvedValueOnce([
-        { name: 'sku' } // missing search_text and sales_pitch
-      ]);
+      mockDb.getAllAsync.mockImplementation((query: string) => {
+        if (query.includes('PRAGMA')) return Promise.resolve([{ name: 'sku' }]);
+        return Promise.resolve([]);
+      });
       await initDB();
       expect(mockDb.execAsync).toHaveBeenCalledWith(expect.stringContaining('ALTER TABLE productos ADD COLUMN search_text TEXT;'));
       expect(mockDb.execAsync).toHaveBeenCalledWith(expect.stringContaining('ALTER TABLE productos ADD COLUMN sales_pitch TEXT;'));
@@ -70,20 +79,29 @@ describe('Database utility', () => {
     });
 
     it('gets unique brands', async () => {
-      mockDb.getAllAsync.mockResolvedValueOnce([{ marca: 'BRANDA' }, { marca: 'BRANDB' }]);
+      mockDb.getAllAsync.mockImplementation((query: string) => {
+        if (query.includes('PRAGMA')) return Promise.resolve([{ name: 'sku' }, { name: 'search_text' }, { name: 'sales_pitch' }]);
+        return Promise.resolve([{ marca: 'BRANDA' }, { marca: 'BRANDB' }]);
+      });
       const brands = await getUniqueBrands();
       expect(brands).toEqual(['BRANDA', 'BRANDB']);
     });
 
     it('searches products with text query', async () => {
-      mockDb.getAllAsync.mockResolvedValueOnce([{ sku: '123', specs_json: '[]' }]);
+      mockDb.getAllAsync.mockImplementation((query: string) => {
+        if (query.includes('PRAGMA')) return Promise.resolve([{ name: 'sku' }, { name: 'search_text' }, { name: 'sales_pitch' }]);
+        return Promise.resolve([{ sku: '123', specs_json: '[]' }]);
+      });
       const res = await searchProducts('Todas', 'Todas', 'test query');
       expect(res).toHaveLength(1);
       expect(mockDb.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('MATCH'), expect.any(Array));
     });
 
     it('searches products with regular filters', async () => {
-      mockDb.getAllAsync.mockResolvedValueOnce([{ sku: '123', specs_json: '[]' }]);
+      mockDb.getAllAsync.mockImplementation((query: string) => {
+        if (query.includes('PRAGMA')) return Promise.resolve([{ name: 'sku' }, { name: 'search_text' }, { name: 'sales_pitch' }]);
+        return Promise.resolve([{ sku: '123', specs_json: '[]' }]);
+      });
       const res = await searchProducts('BrandA', 'CatA', '');
       expect(res).toHaveLength(1);
       expect(mockDb.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('marca = ?'), expect.any(Array));
@@ -103,7 +121,10 @@ describe('Database utility', () => {
     });
 
     it('gets all products', async () => {
-      mockDb.getAllAsync.mockResolvedValueOnce([{ sku: '111', marca: 'A', specs_json: '[]' }]);
+      mockDb.getAllAsync.mockImplementation((query: string) => {
+        if (query.includes('PRAGMA')) return Promise.resolve([{ name: 'sku' }, { name: 'search_text' }, { name: 'sales_pitch' }]);
+        return Promise.resolve([{ sku: '111', marca: 'A', specs_json: '[]' }]);
+      });
       const { getAllProducts } = require('../src/utils/database');
       const res = await getAllProducts();
       expect(res).toHaveLength(1);
