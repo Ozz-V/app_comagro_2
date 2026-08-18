@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
@@ -19,17 +19,18 @@ interface CalculadoraModalProps {
 type ExtendedCalcProduct = CalcProduct & {
   score?: number;
   displayValue?: string;
+  isSinAltura?: boolean;
 };
 
 const USOS = [
-  { id: 'vivienda', title: 'Vivienda / uso general', subtitle: 'Agua de red o tanque para una casa, presión de canillas y duchas.' },
-  { id: 'riego', title: 'Riego / agrícola', subtitle: 'Riego por aspersión, goteo, o traslado de agua para riego.' },
-  { id: 'combustion', title: 'Sin electricidad en el lugar', subtitle: 'Motobomba a nafta o diésel para zonas sin red eléctrica.' },
-  { id: 'dosificacion', title: 'Dosificación química', subtitle: 'Cloro, floculantes u otros químicos en dosis controladas.' },
-  { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Bomba sumergible para extraer agua de un pozo o perforación.' },
-  { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Sótanos inundados, pileta, aguas servidas, achique de obra.' },
-  { id: 'piscina', title: 'Piscina', subtitle: 'Recirculación y filtrado de agua de pileta.' },
-  { id: 'presion', title: 'Alta presión / industrial', subtitle: 'Varios pisos de altura, procesos industriales, o caudales grandes.' }
+  { id: 'vivienda', title: 'Vivienda / uso general', subtitle: 'Agua de red o tanque para una casa, presión de canillas y duchas.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBAS ELECTRICAS CON INVERSOR'] },
+  { id: 'riego', title: 'Riego / agrícola', subtitle: 'Riego por aspersión, goteo, o traslado de agua para riego.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBA A COMBUSTIÓN'] },
+  { id: 'combustion', title: 'Sin electricidad en el lugar', subtitle: 'Motobomba a nafta o diésel para zonas sin red eléctrica.', tipos: ['BOMBA A COMBUSTIÓN'], forzarCombustible: true },
+  { id: 'dosificacion', title: 'Dosificación química', subtitle: 'Cloro, floculantes u otros químicos en dosis controladas.', tipos: ['BOMBA DOSIFICADORA'] },
+  { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Bomba sumergible para extraer agua de un pozo o perforación.', tipos: ['ELECTROBOMBA SUMERGIBLE MONOBLOQUE','ELECTROBOMBAS SUMERGIDAS MULTIETAPAS','MOTOBOMBA SUMERGIBLE DE TORNILLO','MOTOBOMBA INYECTORA','BOMBA SUMERGIBLE SOLAR'] },
+  { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Sótanos inundados, pileta, aguas servidas, achique de obra.', tipos: ['BOMBA DE DRENAJE','BOMBA DE ACHIQUE','MOTOBOMBA VIBRATORIA'] },
+  { id: 'piscina', title: 'Piscina', subtitle: 'Recirculación y filtrado de agua de pileta.', tipos: ['BOMBA PARA PISCINA','MOTOBOMBA RECIRCULADORA'] },
+  { id: 'presion', title: 'Alta presión / industrial', subtitle: 'Varios pisos de altura, procesos industriales, o caudales grandes.', tipos: ['BOMBA DE AGUA'], pref: ['MULTIETAPAS','MEGANORM','SPY','BIROTOR','CENTRÍFUGA EJE LIBRE'] }
 ];
 
 export default function CalculadoraModal({ visible, onClose, navigation }: CalculadoraModalProps) {
@@ -39,12 +40,15 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   const [wizardStep, setWizardStep] = useState(1);
   const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
   
-  // Advanced state
   const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0] });
 
   const [calcResult, setCalcResult] = useState<ExtendedCalcProduct[] | null>(null);
   const [hasCalculated, setHasCalculated] = useState(false);
   const [waitingForCatalog, setWaitingForCatalog] = useState(false);
+  
+  // Pre-read stats
+  const [catStats, setCatStats] = useState<{maxQ: number, maxH: number} | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
     if (!visible) {
@@ -57,6 +61,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       setWizardStep(1);
       setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
       setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0] });
+      setCatStats(null);
     }
   }, [visible]);
 
@@ -67,7 +72,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     return parseFloat(m[1].replace(',', '.'));
   }
 
-  // Advanced friction math
   const { hTotal, perdida, lEquiv, lTotal, status } = useMemo(() => {
     if (bombaTab !== 'avanzado') return { hTotal: 0, perdida: 0, lEquiv: 0, lTotal: 0, status: 'ok' };
     const q = parseFloat(adv.caudal) || 0;
@@ -88,6 +92,96 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     
     return { hTotal: hTot, perdida: pFric, lEquiv: lAcc, lTotal: lTot, status };
   }, [adv, bombaTab]);
+
+  // Extract specs accurately
+  function parsePumpSpecs(p: ParsedProduct) {
+     let maxCaudalLpm = 0;
+     let maxAlturaMca = 0;
+     let hpVal = 0;
+     let is380 = false;
+     let is220 = false;
+
+     if (p.specs) {
+       p.specs.forEach((s: SpecTuple) => {
+         const key = String(s[0]).toUpperCase();
+         const valStr = String(s[1]).toUpperCase();
+         
+         if (key.includes('HP') || key.includes('POTENCIA')) {
+            let n = extractNum(s[1]);
+            if (n) {
+               if (valStr.includes('KW')) n = n * 1.34;
+               else if (valStr.includes(' W') || valStr.match(/\d+W/)) n = n * 0.00134;
+               if (n > hpVal) hpVal = n;
+            }
+         }
+         
+         if (key.includes('CAUDAL') || key.includes('FLUJO')) {
+            const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
+            if (nums) {
+               const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+               let valLpm = maxNum;
+               if (valStr.includes('M3/H') || valStr.includes('M³/H')) valLpm = maxNum * 16.6667;
+               if (valStr.includes('L/H')) valLpm = maxNum / 60;
+               if (valLpm > maxCaudalLpm) maxCaudalLpm = valLpm;
+            }
+         }
+
+         if (key.includes('ALTURA') || key.includes('ELEVACIÓN') || key.includes('MCA')) {
+            const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
+            if (nums) {
+               const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+               if (maxNum > maxAlturaMca) maxAlturaMca = maxNum;
+            }
+         }
+         
+         if (key.includes('VOLTAJE') || key.includes('TENSIÓN') || key.includes('ALIMENTACIÓN') || key.includes('FASE')) {
+            if (valStr.includes('380') || valStr.includes('TRIF')) is380 = true;
+            if (valStr.includes('220') || valStr.includes('MONO')) is220 = true;
+         }
+       });
+     }
+     
+     if (!is220 && !is380) {
+        if (hpVal <= 3) is220 = true;
+        else is380 = true;
+     }
+
+     return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380 };
+  }
+
+  // Pre-read stats effect
+  useEffect(() => {
+    if (wizardStep === 2 && calcMode === 'bomba' && pumpWizard.uso) {
+      setStatsLoading(true);
+      const usoConf = USOS.find(u => u.id === pumpWizard.uso);
+      getProductsBySubcategory('BOMBA', true).then(dbProducts => {
+         let mxQ = 0;
+         let mxH = 0;
+         dbProducts.forEach(p => {
+            const sub = String(p.subcategoria).toUpperCase();
+            const nom = String(p.modelo).toUpperCase();
+            if (usoConf && usoConf.tipos.some(t => sub.includes(t) || nom.includes(t))) {
+               const specs = parsePumpSpecs(p as ParsedProduct);
+               if (specs.maxCaudalLpm > mxQ) mxQ = specs.maxCaudalLpm;
+               if (specs.maxAlturaMca > mxH) mxH = specs.maxAlturaMca;
+            }
+         });
+         setCatStats({maxQ: mxQ, maxH: mxH});
+         setStatsLoading(false);
+      }).catch(e => {
+         setStatsLoading(false);
+         console.error(e);
+      });
+    }
+  }, [wizardStep, pumpWizard.uso, calcMode]);
+
+  function getTargetCaudalLpm() {
+    let targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
+    let targetCaudalLpm = targetCaudalInput;
+    if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * 16.6667;
+    if (pumpWizard.unidadCaudal === 'l/h') targetCaudalLpm = targetCaudalInput / 60;
+    return targetCaudalLpm;
+  }
 
   async function handleCalculate() {
     Keyboard.dismiss();
@@ -150,15 +244,12 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
            targetAlturaInput = parseFloat(pumpWizard.altura) || 0;
            reqFase = pumpWizard.fase;
-           targetCaudalLpm = targetCaudalInput;
-           if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * 16.6667;
-           if (pumpWizard.unidadCaudal === 'l/h') targetCaudalLpm = targetCaudalInput / 60;
+           targetCaudalLpm = getTargetCaudalLpm();
         } else {
-           // Modo Avanzado
            targetCaudalInput = parseFloat(adv.caudal) || 0;
-           targetCaudalLpm = targetCaudalInput * 16.6667; // m3/h to lpm
+           targetCaudalLpm = targetCaudalInput * 16.6667;
            targetAlturaInput = hTotal;
-           reqFase = ''; // Sin filtro de fase en avanzado por defecto
+           reqFase = '';
         }
         
         let targetHp = (targetCaudalLpm * targetAlturaInput) / 2736;
@@ -166,126 +257,103 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         
         const dbProducts = await getProductsBySubcategory('BOMBA', true);
         
-        const mapped = dbProducts.map((p: ParsedProduct): ExtendedCalcProduct => {
-           let maxCaudalLpm = 0;
-           let maxAlturaMca = 0;
-           let hpVal = 0;
-           let is380 = false;
-           let is220 = false;
+        let pool = dbProducts;
+        let usoConf = USOS.find(u => u.id === pumpWizard.uso);
+        
+        // Filter by USOS types
+        if (bombaTab === 'guiado' && usoConf) {
+           pool = pool.filter(p => {
+              const sub = String(p.subcategoria).toUpperCase();
+              const nom = String(p.modelo).toUpperCase();
+              return usoConf?.tipos.some(t => sub.includes(t) || nom.includes(t));
+           });
+        }
+        
+        // Strict fuel filter
+        if (bombaTab === 'guiado' && usoConf?.forzarCombustible) {
+           pool = pool.filter(p => {
+             const sub = String(p.subcategoria).toUpperCase();
+             const allSpecs = p.specs ? JSON.stringify(p.specs).toUpperCase() : '';
+             return sub.includes('NAFTA') || sub.includes('DIESEL') || allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('COMBUSTIÓN');
+           });
+        }
 
-           if (p.specs) {
-             p.specs.forEach((s: SpecTuple) => {
-               const key = String(s[0]).toUpperCase();
-               const valStr = String(s[1]).toUpperCase();
-               
-               if (key.includes('HP') || key.includes('POTENCIA')) {
-                  let n = extractNum(s[1]);
-                  if (n) {
-                     if (valStr.includes('KW')) n = n * 1.34;
-                     if (valStr.includes(' W') || valStr.match(/\d+W/)) n = n * 0.00134;
-                     if (n > hpVal) hpVal = n;
-                  }
-               }
-               
-               if (key.includes('CAUDAL') || key.includes('FLUJO')) {
-                  const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
-                  if (nums) {
-                     const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
-                     let valLpm = maxNum;
-                     if (valStr.includes('M3/H') || valStr.includes('M³/H')) valLpm = maxNum * 16.6667;
-                     if (valStr.includes('L/H')) valLpm = maxNum / 60;
-                     if (valLpm > maxCaudalLpm) maxCaudalLpm = valLpm;
-                  }
-               }
-
-               if (key.includes('ALTURA') || key.includes('ELEVACIÓN') || key.includes('MCA')) {
-                  const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
-                  if (nums) {
-                     const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
-                     if (maxNum > maxAlturaMca) maxAlturaMca = maxNum;
-                  }
-               }
-               
-               if (key.includes('VOLTAJE') || key.includes('TENSIÓN') || key.includes('ALIMENTACIÓN') || key.includes('FASE')) {
-                  if (valStr.includes('380') || valStr.includes('TRIF')) is380 = true;
-                  if (valStr.includes('220') || valStr.includes('MONO')) is220 = true;
-               }
-             });
-           }
+        const mapped = pool.map((p: ParsedProduct): ExtendedCalcProduct => {
+           const specs = parsePumpSpecs(p);
            
-           if (!is220 && !is380) {
-              if (hpVal <= 3) is220 = true;
-              else is380 = true;
-           }
-
-           let score = 999999;
-           if (hpVal > 0) {
-               score = Math.abs(hpVal - targetHp); 
-           } else {
-               score = 9999;
-           }
-
-           if (maxCaudalLpm > 0 && maxAlturaMca > 0) {
-              if (maxCaudalLpm >= targetCaudalLpm && maxAlturaMca >= targetAlturaInput) {
-                 score -= 5; 
-              } else {
-                 score += 10; 
-              }
-           }
+           let score = 0;
            
-           if (reqFase === 'sinelec' && (is220 || is380)) score = -1;
-           if (reqFase === '220v' && !is220) score = -1;
-           if (reqFase === '380v' && !is380) score = -1;
+           if (specs.maxCaudalLpm > 0 && targetCaudalLpm > 0) {
+              score += Math.max(0, (specs.maxCaudalLpm - targetCaudalLpm) / targetCaudalLpm);
+           }
+           if (specs.maxAlturaMca > 0 && targetAlturaInput > 0) {
+              score += Math.max(0, (specs.maxAlturaMca - targetAlturaInput) / targetAlturaInput);
+           }
 
-           let displayVal = hpVal > 0 ? `${hpVal.toFixed(1)} HP` : '? HP';
-           if (hpVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR')) {
-              if (maxCaudalLpm > 0 && maxAlturaMca > 0) {
-                 displayVal = `Máx: ${maxCaudalLpm.toFixed(0)}L/m | ${maxAlturaMca.toFixed(0)}mca`;
-              } else if (maxCaudalLpm > 0) {
-                 displayVal = `Máx: ${maxCaudalLpm.toFixed(0)} L/min`;
-              } else if (maxAlturaMca > 0) {
-                 displayVal = `Máx: ${maxAlturaMca.toFixed(0)} m.c.a`;
+           if (reqFase === '220v' && specs.is220) score -= 0.15;
+           if (reqFase === '380v' && specs.is380) score -= 0.15;
+           
+           if (usoConf?.pref && usoConf.pref.some(pr => String(p.modelo).toUpperCase().includes(pr))) {
+              score -= 0.3;
+           }
+
+           let displayVal = specs.hpVal > 0 ? `${specs.hpVal.toFixed(1)} HP` : '? HP';
+           if (specs.hpVal === 0 || String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR')) {
+              if (specs.maxCaudalLpm > 0 && specs.maxAlturaMca > 0) {
+                 displayVal = `Máx: ${specs.maxCaudalLpm.toFixed(0)}L/m | ${specs.maxAlturaMca.toFixed(0)}mca`;
+              } else if (specs.maxCaudalLpm > 0) {
+                 displayVal = `Máx: ${specs.maxCaudalLpm.toFixed(0)} L/min`;
+              } else if (specs.maxAlturaMca > 0) {
+                 displayVal = `Máx: ${specs.maxAlturaMca.toFixed(0)} m.c.a`;
               } else {
                  displayVal = 'Eje Libre / Sin Motor';
               }
            }
 
-           return { ...p, calcVal: hpVal, score, displayValue: displayVal };
+           return { ...p, calcVal: specs.hpVal, score, displayValue: displayVal, isSinAltura: specs.maxAlturaMca === 0, _q: specs.maxCaudalLpm, _h: specs.maxAlturaMca, _is220: specs.is220, _is380: specs.is380 } as any;
         });
 
-        filtered = mapped.filter((p) => {
-            if ((p.score ?? -1) < 0) return false;
-            if (bombaTab === 'guiado') {
-               const sub = String(p.subcategoria).toUpperCase();
-               const uso = pumpWizard.uso;
-               if (uso === 'vivienda' && !sub.includes('AGUA') && !sub.includes('CENTRÍFUGA') && !sub.includes('PRESURIZA') && !sub.includes('PERIFÉRICA')) return false;
-               if (uso === 'pozo' && !sub.includes('SUMERGIBLE') && !sub.includes('PROFUNDO')) return false;
-               if (uso === 'drenaje' && !sub.includes('ACHIQUE') && !sub.includes('DRENAJE') && !sub.includes('SUCIA')) return false;
-               if (uso === 'piscina' && !sub.includes('PISCINA') && !sub.includes('PILETA')) return false;
-               if (uso === 'dosificacion' && !sub.includes('DOSIFICADORA')) return false;
-               if (uso === 'presion' && !sub.includes('MULTIETAPA') && !sub.includes('PRESIÓN')) return false;
-               if (uso === 'combustion') {
-                  let hasFuel = false;
-                  if (sub.includes('COMBUSTIÓN') || sub.includes('NAFTERA') || sub.includes('DIESEL') || sub.includes('GASOLINA') || sub.includes('NAFTA')) hasFuel = true;
-                  if (p.specs) {
-                    const allSpecs = JSON.stringify(p.specs).toUpperCase();
-                    if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('GASOLINA') || allSpecs.includes('COMBUSTIÓN') || allSpecs.includes('CILINDRADA')) hasFuel = true;
-                  }
-                  return hasFuel;
-               }
-            }
-            return true;
-         })
-         .sort((a, b) => (a.score ?? 999) - (b.score ?? 999))
-         .map((p) => {
-            const { score, ...rest } = p;
-            return rest as ExtendedCalcProduct;
-         })
-         .slice(0, 4);
+        // 75% Filter
+        let conAltura = mapped.filter(p => !p.isSinAltura);
+        let sinAltura = mapped.filter(p => p.isSinAltura);
 
-         const hasEjeLibre = filtered.some(p => p.calcVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
+        if (targetCaudalLpm > 0) {
+           let byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm);
+           if (byQ.length < 4) {
+              byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * 0.75);
+           }
+           conAltura = byQ;
+        }
+
+        if (targetAlturaInput > 0) {
+           let byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput);
+           if (byH.length < 3) {
+              byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput * 0.75);
+           }
+           conAltura = byH;
+        }
+        
+        // Fase Filter
+        if (reqFase === 'sinelec') {
+           conAltura = conAltura.filter(p => !(p as any)._is220 && !(p as any)._is380);
+           sinAltura = sinAltura.filter(p => !(p as any)._is220 && !(p as any)._is380);
+        } else if (reqFase === '220v') {
+           conAltura = conAltura.filter(p => (p as any)._is220);
+        } else if (reqFase === '380v') {
+           conAltura = conAltura.filter(p => (p as any)._is380);
+        }
+
+        conAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
+        sinAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
+
+        filtered = [...conAltura, ...sinAltura].slice(0, 5).map(p => {
+           const { _q, _h, _is220, _is380, ...rest } = p as any;
+           return rest;
+        });
+
+        const hasEjeLibre = filtered.some(p => p.calcVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
          
-         if (hasEjeLibre && targetHp > 0) {
+        if (hasEjeLibre && targetHp > 0) {
             const dbMotors = await getProductsBySubcategory('MOTOR', true);
             const bestMotor = dbMotors.map((m: ParsedProduct): ExtendedCalcProduct => {
                let mHp = 0;
@@ -307,7 +375,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                bestMotor.displayValue = bestMotor.calcVal > 0 ? `${bestMotor.calcVal.toFixed(1)} HP` : '? HP';
                filtered.push(bestMotor);
             }
-         }
+        }
       }
     } catch (e: unknown) {
       Sentry.captureException(e);
@@ -348,6 +416,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                 setCalcResult(null);
                 setBombaTab('guiado');
                 setWizardStep(1);
+                setCatStats(null);
               } else {
                 onClose();
               }
@@ -479,8 +548,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       )}
 
                       <TouchableOpacity 
-                        style={[styles.calculateBtn, {marginTop: 10, paddingVertical: 10}, (!adv.caudal || !adv.lRecta || !adv.hGeo || status==='sin-datos') && { backgroundColor: COLORS.gray4 }]} 
-                        disabled={!adv.caudal || !adv.lRecta || !adv.hGeo || status==='sin-datos'}
+                        style={[styles.calculateBtn, {marginTop: 10, paddingVertical: 10}]} 
                         onPress={handleCalculate}
                       >
                         <Text style={styles.calculateBtnText}>Buscar Equipos</Text>
@@ -518,23 +586,44 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         </View>
                       ) : (
                         <View>
-                          <TouchableOpacity style={styles.backBtn} onPress={() => { setWizardStep(1); setHasCalculated(false); setCalcResult(null); }}>
+                          <TouchableOpacity style={styles.backBtn} onPress={() => { setWizardStep(1); setHasCalculated(false); setCalcResult(null); setCatStats(null); }}>
                             <Text style={styles.backBtnText}>← Volver a Uso</Text>
                           </TouchableOpacity>
+
+                          {statsLoading && <ActivityIndicator size="small" color={COLORS.navy} style={{marginBottom: 10}} />}
+                          {catStats && !statsLoading && (
+                             <View style={styles.preReadBox}>
+                               <Text style={styles.preReadText}>💡 En esta categoría disponemos de equipos con caudales hasta <Text style={{fontWeight:'bold'}}>{catStats.maxQ > 100 ? (catStats.maxQ/16.6667).toFixed(1) : catStats.maxQ.toFixed(1)} {catStats.maxQ > 100 ? 'm³/h' : 'L/min'}</Text> y alturas hasta <Text style={{fontWeight:'bold'}}>{catStats.maxH.toFixed(0)} mca</Text>.</Text>
+                             </View>
+                          )}
 
                           <View style={styles.colList}>
                              <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Caudal</Text>
+                                <View style={styles.unitTabs}>
+                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabBtnActive]} onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'l/min'})}>
+                                      <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabTxtActive]}>L/min</Text>
+                                   </TouchableOpacity>
+                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabBtnActive]} onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'm3/h'})}>
+                                      <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabTxtActive]}>m³/h</Text>
+                                   </TouchableOpacity>
+                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabBtnActive]} onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'l/h'})}>
+                                      <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabTxtActive]}>L/h</Text>
+                                   </TouchableOpacity>
+                                </View>
                                 <View style={styles.caudalRow}>
                                   <TextInput style={[styles.textInputSmall, { flex: 1, marginHorizontal: 0, marginRight: 5 }]} keyboardType="numeric" placeholder="Ej: 100" placeholderTextColor={COLORS.gray4} value={pumpWizard.caudal} onChangeText={(t) => setPumpWizard({...pumpWizard, caudal: t})} />
-                                  <TouchableOpacity onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: pumpWizard.unidadCaudal === 'l/min' ? 'm3/h' : 'l/min'})} style={styles.unitBtnSmall}>
-                                     <Text style={styles.unitBtnTextSmall}>{pumpWizard.unidadCaudal}</Text>
-                                  </TouchableOpacity>
                                 </View>
+                                {catStats && getTargetCaudalLpm() > catStats.maxQ && getTargetCaudalLpm() > 0 && (
+                                   <Text style={styles.advWarn}>⚠️ El caudal ingresado supera el máximo de nuestro catálogo ({catStats.maxQ.toFixed(0)} L/min).</Text>
+                                )}
                              </View>
                              <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Altura (mca)</Text>
                                 <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
+                                {catStats && (parseFloat(pumpWizard.altura) || 0) > catStats.maxH && (parseFloat(pumpWizard.altura) || 0) > 0 && (
+                                   <Text style={styles.advWarn}>⚠️ La altura supera el máximo disponible ({catStats.maxH.toFixed(0)} mca).</Text>
+                                )}
                              </View>
                           </View>
 
@@ -555,8 +644,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                           </View>
 
                           <TouchableOpacity 
-                            style={[styles.calculateBtn, {paddingVertical: 10, marginBottom: 5}, (!pumpWizard.caudal || !pumpWizard.altura) && { backgroundColor: COLORS.gray4 }]} 
-                            disabled={!pumpWizard.caudal || !pumpWizard.altura}
+                            style={[styles.calculateBtn, {paddingVertical: 10, marginBottom: 5}, (catStats && (getTargetCaudalLpm() > catStats.maxQ * 1.5 || (parseFloat(pumpWizard.altura)||0) > catStats.maxH * 1.5)) && { backgroundColor: COLORS.gray4 }]} 
+                            disabled={catStats ? (getTargetCaudalLpm() > catStats.maxQ * 1.5 || (parseFloat(pumpWizard.altura)||0) > catStats.maxH * 1.5) : false}
                             onPress={handleCalculate}
                           >
                             <Text style={styles.calculateBtnText}>Ver Recomendaciones</Text>
@@ -918,11 +1007,8 @@ const styles = StyleSheet.create({
   usoListTitle: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: COLORS.gray4,
+    color: COLORS.navy,
     marginBottom: 2
-  },
-  usoTitleActive: {
-    color: COLORS.navy
   },
   usoListSubtitle: {
     fontSize: 11,
@@ -932,6 +1018,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#E6F0F9',
     borderColor: COLORS.navy
   },
+  usoTitleActive: {
+    color: COLORS.navy
+  },
   colList: {
     flexDirection: 'column',
     gap: 10,
@@ -940,21 +1029,35 @@ const styles = StyleSheet.create({
   colListRow: {
     width: '100%'
   },
+  unitTabs: {
+    flexDirection: 'row',
+    marginBottom: 5,
+    gap: 5
+  },
+  unitTabBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    alignItems: 'center',
+    backgroundColor: COLORS.white
+  },
+  unitTabBtnActive: {
+    backgroundColor: COLORS.navy,
+    borderColor: COLORS.navy
+  },
+  unitTabTxt: {
+    fontSize: 11,
+    color: COLORS.gray4,
+    fontWeight: 'bold'
+  },
+  unitTabTxtActive: {
+    color: COLORS.white
+  },
   caudalRow: {
     flexDirection: 'row',
     alignItems: 'center'
-  },
-  unitBtnSmall: {
-    backgroundColor: COLORS.navy,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    justifyContent: 'center'
-  },
-  unitBtnTextSmall: {
-    fontSize: 11,
-    color: COLORS.white,
-    fontWeight: 'bold'
   },
   faseGrid: {
     flexDirection: 'row',
@@ -1020,9 +1123,8 @@ const styles = StyleSheet.create({
   },
   advWarn: {
     fontSize: 11,
-    color: '#e0a93a',
-    textAlign: 'center',
-    marginBottom: 5
+    color: '#D9381E',
+    marginTop: 4
   },
   advResultBox: {
     flexDirection: 'row',
@@ -1045,5 +1147,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.navy,
     fontWeight: 'bold'
+  },
+  preReadBox: {
+    backgroundColor: '#E6F0F9',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.navy,
+    marginBottom: 10
+  },
+  preReadText: {
+    fontSize: 12,
+    color: COLORS.navy
   }
 });
