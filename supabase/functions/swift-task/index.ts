@@ -64,6 +64,11 @@ Deno.serve(async (req) => {
       })
     }
 
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+
     const url = new URL(req.url)
     const skuQuery = url.searchParams.get('sku')
     const sinceHeader = req.headers.get('X-Since')
@@ -77,28 +82,44 @@ Deno.serve(async (req) => {
     // deno-lint-ignore no-explicit-any
     let finalData: any[] = []
 
-    // 1. Intentar leer de la caché de Supabase (Fase 2.2)
-    let query = supabaseClient.from('plytix_cache').select('data, updated_at');
-    
-    // IMPORTANTE: Asegurar orden predecible para que la paginación no salte o repita registros
-    query = query.order('sku', { ascending: true });
+    // 1. Intentar leer de plytix_queue (reemplazo de plytix_cache)
+    const buildBaseQuery = () => {
+      let q = supabaseAdmin.from('plytix_queue').select('raw_data, updated_at');
+      // IMPORTANTE: Asegurar orden predecible para que la paginación no salte o repita registros
+      q = q.order('sku', { ascending: true });
+      if (skuQuery) q = q.eq('sku', skuQuery);
+      if (since) q = q.gt('updated_at', since.toISOString());
+      return q;
+    };
 
-    if (skuQuery) {
-      query = query.eq('sku', skuQuery);
-    }
-    if (since) {
-      query = query.gt('updated_at', since.toISOString());
-    }
+    let dbData: any[] = [];
+    let dbError = null;
+
     if (limit !== null && offset !== null) {
-      query = query.range(offset, offset + limit - 1);
+      const { data, error } = await buildBaseQuery().range(offset, offset + limit - 1);
+      dbData = data || [];
+      dbError = error;
+    } else {
+      // Paginación interna para evadir el límite de 1000 filas de Supabase API
+      let currentOffset = 0;
+      const chunkSize = 1000;
+      while (true) {
+        const { data, error } = await buildBaseQuery().range(currentOffset, currentOffset + chunkSize - 1);
+        if (error) {
+          dbError = error;
+          break;
+        }
+        if (!data || data.length === 0) break;
+        dbData = dbData.concat(data);
+        if (data.length < chunkSize) break;
+        currentOffset += chunkSize;
+      }
     }
-
-    const { data: dbData, error: dbError } = await query;
 
     if (!dbError && dbData && dbData.length > 0) {
-      // Usar datos de caché
+      // Usar datos de la cola
       finalData = dbData.map(row => {
-        const prod = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+        const prod = typeof row.raw_data === 'string' ? JSON.parse(row.raw_data) : row.raw_data;
         prod.updated_at = row.updated_at;
         return prod;
       });

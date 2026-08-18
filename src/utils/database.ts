@@ -230,13 +230,13 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
 }
 
 export async function clearProducts(): Promise<void> {
-  const db = await getDB();
+  const db = await initDB();
   await db.execAsync('DELETE FROM productos;');
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function insertProductsBatch(productosArray: Product[], manifest: Record<string, string> | null, isDelta = false): Promise<void> {
-  const db = await getDB();
+  const db = await initDB();
 
   // NOTA: ya NO se borra la tabla acá. Antes se hacía DELETE FROM productos
   // en la primera página de cada sync "completo", lo que causaba que si el
@@ -301,7 +301,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
  */
 export async function pruneStaleProducts(validSkus: string[]): Promise<void> {
   if (!validSkus.length) return;
-  const db = await getDB();
+  const db = await initDB();
 
   await db.withTransactionAsync(async () => {
     await db.execAsync('CREATE TEMP TABLE IF NOT EXISTS _synced_skus (sku TEXT PRIMARY KEY);');
@@ -320,7 +320,7 @@ export async function pruneStaleProducts(validSkus: string[]): Promise<void> {
 }
 
 export async function searchProducts(marcaFiltro: string, subcatFiltro: string, textoBusqueda: string): Promise<ParsedProduct[]> {
-  const db = await getDB();
+  const db = await initDB();
 
   const trimmed = (textoBusqueda || '').trim();
   const terms = trimmed.length > 0 ? trimmed.split(/\s+/) : [];
@@ -370,13 +370,13 @@ export async function searchProducts(marcaFiltro: string, subcatFiltro: string, 
 }
 
 export async function getUniqueBrands(): Promise<string[]> {
-  const db = await getDB();
+  const db = await initDB();
   const results = await db.getAllAsync<{ marca: string }>('SELECT DISTINCT marca FROM productos ORDER BY marca ASC');
   return results.map(r => r.marca).filter(Boolean);
 }
 
 export async function getProductsBySubcategory(substring: string, excludeAccessories = false): Promise<ParsedProduct[]> {
-  const db = await getDB();
+  const db = await initDB();
   let query = 'SELECT * FROM productos WHERE subcategoria LIKE ?';
   if (excludeAccessories) {
     query += " AND NOT (search_text LIKE '%accesorio%' OR search_text LIKE '%repuesto%' OR search_text LIKE '%pieza%' OR search_text LIKE '%kit%')";
@@ -394,7 +394,7 @@ export async function getProductsBySubcategory(substring: string, excludeAccesso
 }
 
 export async function getProductBySku(sku: string): Promise<ParsedProduct | null> {
-  const db = await getDB();
+  const db = await initDB();
   const result = await db.getFirstAsync<ProductRow>('SELECT * FROM productos WHERE sku = ?', [sku]);
   if (!result) return null;
   return {
@@ -437,7 +437,7 @@ export async function fetchMissingProductFromCloud(sku: string): Promise<ParsedP
 }
 
 export async function getAllProducts(): Promise<ParsedProduct[]> {
-  const db = await getDB();
+  const db = await initDB();
   const results = await db.getAllAsync<ProductRow>('SELECT * FROM productos ORDER BY marca ASC, sku ASC');
   return results.map(r => ({
     modelo: r.sku,

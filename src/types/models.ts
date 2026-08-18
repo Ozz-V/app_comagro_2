@@ -29,11 +29,11 @@ export interface CalcProduct extends ParsedProduct {
 export type CompareItem = ParsedProduct;
 
 export interface PumpWizardState {
-  step: number;
-  type: string;
-  appType: string;
-  waterType: string;
-  params: Record<string, unknown>;
+  uso: string;
+  caudal: string;
+  unidadCaudal: string;
+  altura: string;
+  fase: string;
 }
 
 export interface Profile {

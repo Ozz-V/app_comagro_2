@@ -20,12 +20,10 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
   const [calcMode, setCalcMode] = useState('');
   const [calcInput, setCalcInput] = useState('');
   const [calcInput2, setCalcInput2] = useState('');
-  const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ step: 0, type: '', appType: '', waterType: '', params: {} });
+  const [bombaTab, setBombaTab] = useState<'guiado' | 'avanzado'>('guiado');
+  const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ uso: '', caudal: '', unidadCaudal: 'm3/h', altura: '', fase: '' });
   const [calcResult, setCalcResult] = useState<CalcProduct[] | null>(null);
   const [hasCalculated, setHasCalculated] = useState(false);
-  // true cuando calculamos, dio 0 resultados, Y el catálogo todavía se
-  // está bajando en segundo plano — para no mostrarle al usuario "no hay
-  // equipos" cuando en realidad es que todavía no terminó de llegar.
   const [waitingForCatalog, setWaitingForCatalog] = useState(false);
 
   useEffect(() => {
@@ -36,7 +34,8 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
       setCalcInput2('');
       setCalcMode('');
       setWaitingForCatalog(false);
-      setPumpWizard({ step: 0, type: '', appType: '', waterType: '', params: {} });
+      setBombaTab('guiado');
+      setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'm3/h', altura: '', fase: '' });
     }
   }, [visible]);
 
@@ -48,8 +47,8 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
   }
 
   async function handleCalculate() {
-    if (calcMode === 'bomba' && !pumpWizard.type) {
-      alert("Por favor seleccioná el tipo de bomba.");
+    if (calcMode === 'bomba' && !pumpWizard.uso && bombaTab === 'guiado') {
+      alert("Por favor seleccioná el uso de la bomba.");
       return;
     }
     
@@ -103,65 +102,122 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
         }).filter((p: CalcProduct) => p.calcVal > 0)
         .sort((a: CalcProduct, b: CalcProduct) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
       } else if (calcMode === 'bomba') {
-        const target = parseFloat(calcInput) || 0;
+        const targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
+        const targetAlturaInput = parseFloat(pumpWizard.altura) || 0;
+        const reqFase = pumpWizard.fase;
+        
+        let targetCaudalLpm = targetCaudalInput;
+        if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * 16.6667;
+        if (pumpWizard.unidadCaudal === 'l/h') targetCaudalLpm = targetCaudalInput / 60;
+        
         const dbProducts = await getProductsBySubcategory('BOMBA', true);
-        filtered = dbProducts.map((p: ParsedProduct): CalcProduct => {
+        
+        const mapped = dbProducts.map((p: ParsedProduct): CalcProduct & { score?: number } => {
+           let maxCaudalLpm = 0;
+           let maxAlturaMca = 0;
            let hpVal = 0;
+           let is380 = false;
+           let is220 = false;
+
            if (p.specs) {
              p.specs.forEach((s: SpecTuple) => {
                const key = String(s[0]).toUpperCase();
-               const val = String(s[1]).toUpperCase();
+               const valStr = String(s[1]).toUpperCase();
+               
                if (key.includes('HP') || key.includes('POTENCIA')) {
                   let n = extractNum(s[1]);
                   if (n) {
-                     if (val.includes('KW')) n = n * 1.34;
-                     if (val.includes(' W') || val.match(/\d+W/)) n = n * 0.00134;
+                     if (valStr.includes('KW')) n = n * 1.34;
+                     if (valStr.includes(' W') || valStr.match(/\d+W/)) n = n * 0.00134;
                      if (n > hpVal) hpVal = n;
                   }
                }
+               
+               if (key.includes('CAUDAL') || key.includes('FLUJO')) {
+                  const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
+                  if (nums) {
+                     const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+                     let valLpm = maxNum;
+                     if (valStr.includes('M3/H') || valStr.includes('M³/H')) valLpm = maxNum * 16.6667;
+                     if (valStr.includes('L/H')) valLpm = maxNum / 60;
+                     if (valLpm > maxCaudalLpm) maxCaudalLpm = valLpm;
+                  }
+               }
+
+               if (key.includes('ALTURA') || key.includes('ELEVACIÓN') || key.includes('MCA')) {
+                  const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
+                  if (nums) {
+                     const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+                     if (maxNum > maxAlturaMca) maxAlturaMca = maxNum;
+                  }
+               }
+               
+               if (key.includes('VOLTAJE') || key.includes('TENSIÓN') || key.includes('ALIMENTACIÓN') || key.includes('FASE')) {
+                  if (valStr.includes('380') || valStr.includes('TRIF')) is380 = true;
+                  if (valStr.includes('220') || valStr.includes('MONO')) is220 = true;
+               }
              });
            }
-           return { ...p, calcVal: hpVal };
-         }).filter((p: CalcProduct) => {
+           
+           if (!is220 && !is380) {
+              if (hpVal <= 3) is220 = true;
+              else is380 = true;
+           }
+
+           let score = 999999;
+           if (maxCaudalLpm > 0 && maxAlturaMca > 0) {
+              if (maxCaudalLpm >= targetCaudalLpm && maxAlturaMca >= targetAlturaInput) {
+                 score = (maxCaudalLpm - targetCaudalLpm) + (maxAlturaMca - targetAlturaInput);
+              } else {
+                 score = -1;
+              }
+           } else {
+             if (targetCaudalInput === 0 && targetAlturaInput === 0) {
+                score = 1000;
+             } else {
+                score = -1;
+             }
+           }
+           
+           if (reqFase === '220v' && !is220) score = -1;
+           if (reqFase === '380v' && !is380) score = -1;
+
+           return { ...p, calcVal: hpVal, score };
+        });
+
+        filtered = mapped.filter((p: CalcProduct & { score?: number }) => {
+            if ((p.score ?? -1) < 0) return false;
             const sub = String(p.subcategoria).toUpperCase();
-            if (pumpWizard.type === 'hogar' && !sub.includes('AGUA') && !sub.includes('CENTRÍFUGA') && !sub.includes('PRESURIZA') && !sub.includes('PERIFÉRICA')) return false;
-            if (pumpWizard.type === 'pozo' && !sub.includes('SUMERGIBLE') && !sub.includes('PROFUNDO')) return false;
-            if (pumpWizard.type === 'drenaje' && !sub.includes('ACHIQUE') && !sub.includes('DRENAJE') && !sub.includes('SUCIA')) return false;
-            if (pumpWizard.type === 'piscina' && !sub.includes('PISCINA') && !sub.includes('PILETA')) return false;
-            if (pumpWizard.type === 'combustion') {
+            const uso = pumpWizard.uso;
+            if (uso === 'vivienda' && !sub.includes('AGUA') && !sub.includes('CENTRÍFUGA') && !sub.includes('PRESURIZA') && !sub.includes('PERIFÉRICA')) return false;
+            if (uso === 'pozo' && !sub.includes('SUMERGIBLE') && !sub.includes('PROFUNDO')) return false;
+            if (uso === 'drenaje' && !sub.includes('ACHIQUE') && !sub.includes('DRENAJE') && !sub.includes('SUCIA')) return false;
+            if (uso === 'piscina' && !sub.includes('PISCINA') && !sub.includes('PILETA')) return false;
+            if (uso === 'combustion') {
                let hasFuel = false;
-               if (sub.includes('COMBUSTIÓN') || sub.includes('NAFTERA') || sub.includes('DIESEL') || sub.includes('DIÉSEL') || sub.includes('GASOLINA') || sub.includes('NAFTA')) {
-                   hasFuel = true;
-               }
+               if (sub.includes('COMBUSTIÓN') || sub.includes('NAFTERA') || sub.includes('DIESEL') || sub.includes('GASOLINA') || sub.includes('NAFTA')) hasFuel = true;
                if (p.specs) {
                  const allSpecs = JSON.stringify(p.specs).toUpperCase();
-                 if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('DIÉSEL') || allSpecs.includes('GASOLINA') || allSpecs.includes('COMBUSTIÓN') || allSpecs.includes('CILINDRADA') || allSpecs.includes(' CC') || allSpecs.includes('COMBUSTIBLE')) {
-                     hasFuel = true;
-                 }
+                 if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('GASOLINA') || allSpecs.includes('COMBUSTIÓN') || allSpecs.includes('CILINDRADA')) hasFuel = true;
                }
                return hasFuel;
             }
             return true;
-         }).filter((p: CalcProduct) => p.calcVal > 0)
-         .sort((a: CalcProduct, b: CalcProduct) => {
-            return Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target);
-         }).slice(0, 5);
+         })
+         .sort((a: CalcProduct & { score?: number }, b: CalcProduct & { score?: number }) => (a.score ?? 999) - (b.score ?? 999))
+         .map((p: CalcProduct & { score?: number }) => {
+            const { score, ...rest } = p;
+            return rest as CalcProduct;
+         })
+         .slice(0, 5);
       }
     } catch (e: unknown) {
       Sentry.captureException(e);
     }
     setCalcResult(filtered);
-    // Si dio 0 resultados justo mientras el catálogo se está bajando
-    // todavía en segundo plano, no es que "no haya equipos" — es que
-    // faltan datos por llegar. Lo marcamos para avisarle al usuario en
-    // vez de mostrarle un vacío que parece un error.
     setWaitingForCatalog(filtered.length === 0 && isCatalogSyncing());
   }
 
-  // Mientras el modal esté abierto y estemos esperando al catálogo, nos
-  // enganchamos a las notificaciones de sincronización y reintentamos el
-  // mismo cálculo solo, apenas termine — sin que el usuario tenga que
-  // tocar nada de nuevo.
   useEffect(() => {
     if (!visible || !waitingForCatalog) return;
     const unsubscribe = subscribeToCatalogUpdates(() => {
@@ -170,7 +226,6 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
       }
     });
     return unsubscribe;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, waitingForCatalog]);
 
   return (
@@ -187,7 +242,8 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                 setCalcMode('');
                 setHasCalculated(false);
                 setCalcResult(null);
-                setPumpWizard({ step: 0, type: '', appType: '', waterType: '', params: {} });
+                setBombaTab('guiado');
+                setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'm3/h', altura: '', fase: '' });
               } else {
                 onClose();
               }
@@ -223,7 +279,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                   <Text style={styles.arrowIcon}>›</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => { setCalcMode('bomba'); setHasCalculated(false); setCalcResult(null); setPumpWizard({ step: 1, type: '', appType: '', waterType: '', params: {} }); }} style={styles.optionCard}>
+                <TouchableOpacity onPress={() => { setCalcMode('bomba'); setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'm3/h', altura: '', fase: '' }); }} style={styles.optionCard}>
                   <View style={styles.iconContainer}>
                     <SvgIcon name="bomba" size={28} color={COLORS.navy} />
                   </View>
@@ -237,104 +293,125 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
             </View>
           ) : (
             <View>
+              {calcMode === 'bomba' ? (
+                <View>
+                  <View style={styles.tabContainer}>
+                    <TouchableOpacity 
+                      style={[styles.tabBtn, bombaTab === 'guiado' && styles.tabBtnActive]} 
+                      onPress={() => setBombaTab('guiado')}
+                    >
+                      <Text style={[styles.tabText, bombaTab === 'guiado' && styles.tabTextActive]}>RECOMENDADOR GUIADO</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.tabBtn, bombaTab === 'avanzado' && styles.tabBtnActive]} 
+                      onPress={() => setBombaTab('avanzado')}
+                    >
+                      <Text style={[styles.tabText, bombaTab === 'avanzado' && styles.tabTextActive]}>CÁLCULO AVANZADO</Text>
+                    </TouchableOpacity>
+                  </View>
 
-              <Text style={styles.inputTitle}>
-                {calcMode === 'gen' ? 'Ingresá el valor (1 a 3000 KVA)' : calcMode === 'motor' ? 'Ingresá el valor (1 a 500 HP)' : 'Ingresá la potencia en HP'}
-              </Text>
-              
-              {calcMode === 'bomba' && pumpWizard.step === 1 ? (
-                <View style={styles.pumpOptionsContainer}>
-                  <Text style={styles.pumpSubtitle}>¿Qué tipo de bomba estás buscando?</Text>
-                  <TouchableOpacity onPress={() => setPumpWizard({ step: 2, type: 'hogar', appType: '', waterType: '', params: {} })} style={styles.pumpOptionCard}>
-                    <View style={styles.pumpOptionTextContainer}>
-                      <Text style={styles.pumpOptionTitle}>Superficie / Periférica</Text>
-                      <Text style={styles.pumpOptionSubtitle}>Tanques elevados, presurización, riego</Text>
+                  {bombaTab === 'avanzado' ? (
+                    <View style={styles.avanzadoPlaceholder}>
+                      <Text style={styles.avanzadoText}>Sección en construcción.</Text>
+                      <Text style={styles.avanzadoSub}>Próximamente: Cálculo de fricción de cañerías.</Text>
                     </View>
-                    <Text style={styles.pumpArrowIcon}>›</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setPumpWizard({ step: 2, type: 'pozo', appType: '', waterType: '', params: {} })} style={styles.pumpOptionCard}>
-                    <View style={styles.pumpOptionTextContainer}>
-                      <Text style={styles.pumpOptionTitle}>Sumergible de Pozo</Text>
-                      <Text style={styles.pumpOptionSubtitle}>Pozos profundos artesianos</Text>
+                  ) : (
+                    <View style={styles.guiadoContainer}>
+                      <Text style={styles.inputTitle}>1. ¿Para qué necesita la bomba?</Text>
+                      <View style={styles.usosGrid}>
+                        {['vivienda', 'riego', 'pozo', 'drenaje', 'piscina', 'combustion'].map(uso => (
+                          <TouchableOpacity 
+                            key={uso}
+                            style={[styles.usoCard, pumpWizard.uso === uso && styles.usoCardActive]}
+                            onPress={() => setPumpWizard({...pumpWizard, uso})}
+                          >
+                            <Text style={[styles.usoTitle, pumpWizard.uso === uso && styles.usoTitleActive]}>
+                              {uso === 'vivienda' ? 'Vivienda / Uso Gral' : uso === 'riego' ? 'Riego / Agrícola' : uso === 'pozo' ? 'Pozo Profundo' : uso === 'drenaje' ? 'Achique / Drenaje' : uso === 'piscina' ? 'Piscina' : 'Motobombas'}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      <Text style={styles.inputTitle}>2. Caudal Necesario</Text>
+                      <View style={styles.caudalRow}>
+                        <TextInput
+                          style={[styles.textInput, { flex: 1, marginHorizontal: 0, marginRight: 10 }]}
+                          keyboardType="numeric"
+                          placeholder="Ej: 100"
+                          placeholderTextColor={COLORS.gray4}
+                          value={pumpWizard.caudal}
+                          onChangeText={(t) => setPumpWizard({...pumpWizard, caudal: t})}
+                        />
+                        <View style={styles.unitPickerContainer}>
+                           <TouchableOpacity onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'l/min'})} style={[styles.unitBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitBtnActive]}>
+                              <Text style={[styles.unitBtnText, pumpWizard.unidadCaudal === 'l/min' && styles.unitBtnTextActive]}>l/min</Text>
+                           </TouchableOpacity>
+                           <TouchableOpacity onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'm3/h'})} style={[styles.unitBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitBtnActive]}>
+                              <Text style={[styles.unitBtnText, pumpWizard.unidadCaudal === 'm3/h' && styles.unitBtnTextActive]}>m³/h</Text>
+                           </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      <Text style={styles.inputTitle}>3. Altura Manométrica (m.c.a.)</Text>
+                      <TextInput
+                        style={[styles.textInput, { marginHorizontal: 0, marginBottom: 20 }]}
+                        keyboardType="numeric"
+                        placeholder="Ej: 20"
+                        placeholderTextColor={COLORS.gray4}
+                        value={pumpWizard.altura}
+                        onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})}
+                      />
+
+                      <Text style={styles.inputTitle}>4. Alimentación Eléctrica (Opcional)</Text>
+                      <View style={styles.faseRow}>
+                        <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
+                          <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>Monofásico (220V)</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
+                          <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>Trifásico (380V)</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
+                        <Text style={styles.calculateBtnText}>Ver Recomendaciones</Text>
+                      </TouchableOpacity>
                     </View>
-                    <Text style={styles.pumpArrowIcon}>›</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setPumpWizard({ step: 2, type: 'drenaje', appType: '', waterType: '', params: {} })} style={styles.pumpOptionCard}>
-                    <View style={styles.pumpOptionTextContainer}>
-                      <Text style={styles.pumpOptionTitle}>Drenaje / Achique</Text>
-                      <Text style={styles.pumpOptionSubtitle}>Vaciar piscinas, desagotes, aguas cloacales</Text>
-                    </View>
-                    <Text style={styles.pumpArrowIcon}>›</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setPumpWizard({ step: 2, type: 'piscina', appType: '', waterType: '', params: {} })} style={styles.pumpOptionCard}>
-                    <View style={styles.pumpOptionTextContainer}>
-                      <Text style={styles.pumpOptionTitle}>Bomba de Piscina</Text>
-                      <Text style={styles.pumpOptionSubtitle}>Recirculación para filtros de piscina</Text>
-                    </View>
-                    <Text style={styles.pumpArrowIcon}>›</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setPumpWizard({ step: 2, type: 'combustion', appType: '', waterType: '', params: {} })} style={styles.pumpOptionCard}>
-                    <View style={styles.pumpOptionTextContainer}>
-                      <Text style={styles.pumpOptionTitle}>Motobombas / Combustión</Text>
-                      <Text style={styles.pumpOptionSubtitle}>Bombas a nafta, diésel o gasolina</Text>
-                    </View>
-                    <Text style={styles.pumpArrowIcon}>›</Text>
-                  </TouchableOpacity>
+                  )}
                 </View>
-              ) : (calcMode === 'bomba' && pumpWizard.step === 2) || calcMode !== 'bomba' ? (
-                <View style={styles.inputRow}>
-                  <TouchableOpacity 
-                    style={styles.counterBtn}
-                    onPress={() => {
-                      const current = parseFloat(calcInput) || 0;
-                      if (current > 1) { setCalcInput(String(current - 1)); setHasCalculated(false); }
-                    }}
-                  >
-                    <Text style={styles.counterBtnText}>-</Text>
-                  </TouchableOpacity>
+              ) : (
+                <View>
+                  <Text style={styles.inputTitle}>
+                    {calcMode === 'gen' ? 'Ingresá el valor (1 a 3000 KVA)' : 'Ingresá el valor (1 a 500 HP)'}
+                  </Text>
                   
-                  <TextInput
-                    style={styles.textInput}
-                    keyboardType="numeric"
-                    placeholder="Ej: 2"
-                    placeholderTextColor={COLORS.gray4}
-                    value={calcInput}
-                    onChangeText={(t) => { setCalcInput(t); setHasCalculated(false); }}
-                  />
+                  <View style={styles.inputRow}>
+                    <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; if (current > 1) { setCalcInput(String(current - 1)); setHasCalculated(false); } }}>
+                      <Text style={styles.counterBtnText}>-</Text>
+                    </TouchableOpacity>
+                    <TextInput style={styles.textInput} keyboardType="numeric" placeholder="Ej: 2" placeholderTextColor={COLORS.gray4} value={calcInput} onChangeText={(t) => { setCalcInput(t); setHasCalculated(false); }} />
+                    <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; const max = calcMode === 'gen' ? 3000 : 500; if (current < max) { setCalcInput(String(current + 1)); setHasCalculated(false); } }}>
+                      <Text style={styles.counterBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
 
-                  <TouchableOpacity 
-                    style={styles.counterBtn}
-                    onPress={() => {
-                      const current = parseFloat(calcInput) || 0;
-                      const max = calcMode === 'gen' ? 3000 : 500;
-                      if (current < max) { setCalcInput(String(current + 1)); setHasCalculated(false); }
-                    }}
-                  >
-                    <Text style={styles.counterBtnText}>+</Text>
+                  <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
+                    <Text style={styles.calculateBtnText}>Calcular y Ver Equipos</Text>
                   </TouchableOpacity>
                 </View>
-              ) : null}
-
-              {((calcMode === 'bomba' && pumpWizard.step === 2) || (calcMode !== 'bomba')) && (
-              <TouchableOpacity 
-                style={styles.calculateBtn}
-                onPress={handleCalculate}
-              >
-                <Text style={styles.calculateBtnText}>Calcular y Ver Equipos</Text>
-              </TouchableOpacity>
               )}
 
-              {hasCalculated && (parseFloat(calcInput) > 0 || parseFloat(calcInput2) > 0) && (
+              {hasCalculated && (parseFloat(calcInput) > 0 || calcMode === 'bomba') && (
                 <View style={styles.resultContainer}>
+                  {calcMode !== 'bomba' && (
                   <View style={styles.estimationBox}>
                     <Text style={styles.estimationTitle}>Estimación rápida:</Text>
                     <Text style={styles.estimationText}>
                       {calcMode === 'gen' ? estimateGenerador(parseFloat(calcInput)) :
                        calcMode === 'motor' ? estimateMotor(parseFloat(calcInput)) :
-                       calcMode === 'bomba' ? estimateBomba(parseFloat(calcInput), (pumpWizard.type as TipoBomba) || 'hogar') :
                        ''}
                     </Text>
                   </View>
+                  )}
 
                 {calcResult && calcResult.length === 0 && (
                   <View style={styles.suggestedContainer}>
@@ -472,39 +549,6 @@ const styles = StyleSheet.create({
     color: COLORS.navy,
     marginBottom: 10
   },
-  pumpOptionsContainer: {
-    marginBottom: 20
-  },
-  pumpSubtitle: {
-    fontSize: 16,
-    color: COLORS.navy,
-    marginBottom: 15
-  },
-  pumpOptionCard: {
-    padding: 15,
-    backgroundColor: '#F0F4F8',
-    borderRadius: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  pumpOptionTextContainer: {
-    flex: 1
-  },
-  pumpOptionTitle: {
-    fontWeight: 'bold',
-    color: COLORS.navy
-  },
-  pumpOptionSubtitle: {
-    fontSize: 12,
-    color: COLORS.gray4
-  },
-  pumpArrowIcon: {
-    fontSize: 20,
-    color: COLORS.gray4
-  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -610,5 +654,133 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.green,
     fontWeight: 'bold'
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center'
+  },
+  tabBtnActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.navy
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: COLORS.gray4
+  },
+  tabTextActive: {
+    color: COLORS.navy
+  },
+  guiadoContainer: {
+    paddingBottom: 20
+  },
+  usosGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 20
+  },
+  usoCard: {
+    width: '48%',
+    backgroundColor: '#F8FAFC',
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  usoCardActive: {
+    backgroundColor: '#E6F0F9',
+    borderColor: COLORS.navy
+  },
+  usoTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: COLORS.gray4,
+    textAlign: 'center'
+  },
+  usoTitleActive: {
+    color: COLORS.navy
+  },
+  caudalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  unitPickerContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden'
+  },
+  unitBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  unitBtnActive: {
+    backgroundColor: COLORS.navy
+  },
+  unitBtnText: {
+    fontSize: 14,
+    color: COLORS.gray4,
+    fontWeight: 'bold'
+  },
+  unitBtnTextActive: {
+    color: COLORS.white
+  },
+  faseRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 25
+  },
+  faseBtn: {
+    flex: 1,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    alignItems: 'center'
+  },
+  faseBtnActive: {
+    backgroundColor: COLORS.navy,
+    borderColor: COLORS.navy
+  },
+  faseBtnText: {
+    color: COLORS.gray4,
+    fontWeight: 'bold'
+  },
+  faseBtnTextActive: {
+    color: COLORS.white
+  },
+  avanzadoPlaceholder: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed'
+  },
+  avanzadoText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.navy,
+    marginBottom: 10
+  },
+  avanzadoSub: {
+    fontSize: 13,
+    color: COLORS.gray4,
+    textAlign: 'center'
   }
 });
