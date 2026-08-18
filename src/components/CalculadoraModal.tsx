@@ -325,6 +325,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * 0.75);
            }
            conAltura = byQ;
+           
+           sinAltura = sinAltura.filter(p => (p as any)._q >= targetCaudalLpm * 0.75 || (p as any)._q === 0);
         }
 
         if (targetAlturaInput > 0) {
