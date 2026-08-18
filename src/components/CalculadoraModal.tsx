@@ -176,7 +176,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   }, [wizardStep, pumpWizard.uso, calcMode]);
 
   function getTargetCaudalLpm() {
-    let targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
+    const targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
     let targetCaudalLpm = targetCaudalInput;
     if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * 16.6667;
     if (pumpWizard.unidadCaudal === 'l/h') targetCaudalLpm = targetCaudalInput / 60;
@@ -258,7 +258,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const dbProducts = await getProductsBySubcategory('BOMBA', true);
         
         let pool = dbProducts;
-        let usoConf = USOS.find(u => u.id === pumpWizard.uso);
+        const usoConf = USOS.find(u => u.id === pumpWizard.uso);
         
         // Filter by USOS types
         if (bombaTab === 'guiado' && usoConf) {
