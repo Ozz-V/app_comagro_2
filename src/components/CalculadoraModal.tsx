@@ -1015,7 +1015,8 @@ const styles = StyleSheet.create({
     width: '80%',
     padding: 2,
     textAlign: 'center',
-    fontSize: 11
+    fontSize: 11,
+    color: '#000'
   },
   advWarn: {
     fontSize: 11,
