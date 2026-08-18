@@ -21,6 +21,17 @@ type ExtendedCalcProduct = CalcProduct & {
   displayValue?: string;
 };
 
+const USOS = [
+  { id: 'vivienda', title: 'Vivienda / uso general', subtitle: 'Agua de red o tanque para una casa, presión de canillas y duchas.' },
+  { id: 'riego', title: 'Riego / agrícola', subtitle: 'Riego por aspersión, goteo, o traslado de agua para riego.' },
+  { id: 'combustion', title: 'Sin electricidad en el lugar', subtitle: 'Motobomba a nafta o diésel para zonas sin red eléctrica.' },
+  { id: 'dosificacion', title: 'Dosificación química', subtitle: 'Cloro, floculantes u otros químicos en dosis controladas.' },
+  { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Bomba sumergible para extraer agua de un pozo o perforación.' },
+  { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Sótanos inundados, pileta, aguas servidas, achique de obra.' },
+  { id: 'piscina', title: 'Piscina', subtitle: 'Recirculación y filtrado de agua de pileta.' },
+  { id: 'presion', title: 'Alta presión / industrial', subtitle: 'Varios pisos de altura, procesos industriales, o caudales grandes.' }
+];
+
 export default function CalculadoraModal({ visible, onClose, navigation }: CalculadoraModalProps) {
   const [calcMode, setCalcMode] = useState('');
   const [calcInput, setCalcInput] = useState('');
@@ -251,6 +262,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                if (uso === 'pozo' && !sub.includes('SUMERGIBLE') && !sub.includes('PROFUNDO')) return false;
                if (uso === 'drenaje' && !sub.includes('ACHIQUE') && !sub.includes('DRENAJE') && !sub.includes('SUCIA')) return false;
                if (uso === 'piscina' && !sub.includes('PISCINA') && !sub.includes('PILETA')) return false;
+               if (uso === 'dosificacion' && !sub.includes('DOSIFICADORA')) return false;
+               if (uso === 'presion' && !sub.includes('MULTIETAPA') && !sub.includes('PRESIÓN')) return false;
                if (uso === 'combustion') {
                   let hasFuel = false;
                   if (sub.includes('COMBUSTIÓN') || sub.includes('NAFTERA') || sub.includes('DIESEL') || sub.includes('GASOLINA') || sub.includes('NAFTA')) hasFuel = true;
@@ -322,7 +335,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
         <View style={styles.modalContent}>
@@ -478,15 +491,18 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       {wizardStep === 1 ? (
                         <View>
                           <Text style={styles.inputTitleSmall}>¿Para qué necesita la bomba?</Text>
-                          <View style={styles.usosGrid}>
-                            {['vivienda', 'riego', 'pozo', 'drenaje', 'piscina', 'combustion'].map(uso => (
+                          <View style={styles.usosList}>
+                            {USOS.map(u => (
                               <TouchableOpacity 
-                                key={uso}
-                                style={[styles.usoCard, pumpWizard.uso === uso && styles.usoCardActive]}
-                                onPress={() => setPumpWizard({...pumpWizard, uso})}
+                                key={u.id}
+                                style={[styles.usoListCard, pumpWizard.uso === u.id && styles.usoCardActive]}
+                                onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}
                               >
-                                <Text style={[styles.usoTitle, pumpWizard.uso === uso && styles.usoTitleActive]}>
-                                  {uso === 'vivienda' ? 'Vivienda' : uso === 'riego' ? 'Riego' : uso === 'pozo' ? 'Pozo' : uso === 'drenaje' ? 'Drenaje' : uso === 'piscina' ? 'Piscina' : 'Combustión'}
+                                <Text style={[styles.usoListTitle, pumpWizard.uso === u.id && styles.usoTitleActive]}>
+                                  {u.title}
+                                </Text>
+                                <Text style={styles.usoListSubtitle}>
+                                  {u.subtitle}
                                 </Text>
                               </TouchableOpacity>
                             ))}
@@ -506,8 +522,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                             <Text style={styles.backBtnText}>← Volver a Uso</Text>
                           </TouchableOpacity>
 
-                          <View style={styles.grid2Cols}>
-                             <View style={styles.col}>
+                          <View style={styles.colList}>
+                             <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Caudal</Text>
                                 <View style={styles.caudalRow}>
                                   <TextInput style={[styles.textInputSmall, { flex: 1, marginHorizontal: 0, marginRight: 5 }]} keyboardType="numeric" placeholder="Ej: 100" placeholderTextColor={COLORS.gray4} value={pumpWizard.caudal} onChangeText={(t) => setPumpWizard({...pumpWizard, caudal: t})} />
@@ -516,7 +532,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                                   </TouchableOpacity>
                                 </View>
                              </View>
-                             <View style={styles.col}>
+                             <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Altura (mca)</Text>
                                 <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
                              </View>
@@ -885,34 +901,44 @@ const styles = StyleSheet.create({
   guiadoContainer: {
     paddingBottom: 5
   },
-  usosGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  usosList: {
+    flexDirection: 'column',
+    gap: 6,
     marginBottom: 10
   },
-  usoCard: {
-    width: '31%',
+  usoListCard: {
     backgroundColor: '#F8FAFC',
-    padding: 10,
+    padding: 12,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center'
+  },
+  usoListTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: COLORS.gray4,
+    marginBottom: 2
+  },
+  usoTitleActive: {
+    color: COLORS.navy
+  },
+  usoListSubtitle: {
+    fontSize: 11,
+    color: COLORS.gray4
   },
   usoCardActive: {
     backgroundColor: '#E6F0F9',
     borderColor: COLORS.navy
   },
-  usoTitle: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: COLORS.gray4,
-    textAlign: 'center'
+  colList: {
+    flexDirection: 'column',
+    gap: 10,
+    marginBottom: 10
   },
-  usoTitleActive: {
-    color: COLORS.navy
+  colListRow: {
+    width: '100%'
   },
   caudalRow: {
     flexDirection: 'row',
@@ -976,7 +1002,8 @@ const styles = StyleSheet.create({
   },
   accLabel: {
     fontSize: 9,
-    color: COLORS.gray4,
+    color: COLORS.navy,
+    fontWeight: 'bold',
     marginBottom: 4,
     textAlign: 'center'
   },
