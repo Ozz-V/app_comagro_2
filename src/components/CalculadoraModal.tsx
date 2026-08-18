@@ -43,6 +43,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0] });
 
   const [calcResult, setCalcResult] = useState<ExtendedCalcProduct[] | null>(null);
+  const [motorResult, setMotorResult] = useState<ExtendedCalcProduct[] | null>(null);
   const [hasCalculated, setHasCalculated] = useState(false);
   const [waitingForCatalog, setWaitingForCatalog] = useState(false);
   
@@ -54,6 +55,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     if (!visible) {
       setHasCalculated(false);
       setCalcResult(null);
+      setMotorResult(null);
       setCalcInput('');
       setCalcMode('');
       setWaitingForCatalog(false);
@@ -252,7 +254,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            reqFase = '';
         }
         
-        let targetHp = (targetCaudalLpm * targetAlturaInput) / 2736;
+        let targetHp = (targetCaudalLpm * targetAlturaInput) / 1915.2;
         if (targetHp > 0 && targetHp < 0.5) targetHp = 0.5;
         
         const dbProducts = await getProductsBySubcategory('BOMBA', true);
@@ -352,10 +354,11 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         });
 
         const hasEjeLibre = filtered.some(p => p.calcVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
-         
+        
+        let mResults: ExtendedCalcProduct[] = [];
         if (hasEjeLibre && targetHp > 0) {
             const dbMotors = await getProductsBySubcategory('MOTOR', true);
-            const bestMotor = dbMotors.map((m: ParsedProduct): ExtendedCalcProduct => {
+            const validMotors = dbMotors.map((m: ParsedProduct): ExtendedCalcProduct => {
                let mHp = 0;
                if (m.specs) {
                   m.specs.forEach((s) => {
@@ -368,14 +371,16 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                }
                return { ...m, calcVal: mHp, score: mHp >= targetHp ? mHp - targetHp : 9999 };
             }).filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000)
-            .sort((a, b) => (a.score ?? 999) - (b.score ?? 999))[0];
+            .sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
             
-            if (bestMotor) {
-               bestMotor.marca = 'Sugerencia de motor: ' + bestMotor.marca;
-               bestMotor.displayValue = bestMotor.calcVal > 0 ? `${bestMotor.calcVal.toFixed(1)} HP` : '? HP';
-               filtered.push(bestMotor);
-            }
+            // Get up to 3 motors
+            mResults = validMotors.slice(0, 3).map(m => {
+               m.marca = 'Motor Sugerido: ' + m.marca;
+               m.displayValue = m.calcVal > 0 ? `${m.calcVal.toFixed(1)} HP (Est. ${Math.round(targetHp)} HP req)` : '? HP';
+               return m;
+            });
         }
+        setMotorResult(mResults);
       }
     } catch (e: unknown) {
       Sentry.captureException(e);
@@ -414,6 +419,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                 setCalcMode('');
                 setHasCalculated(false);
                 setCalcResult(null);
+      setMotorResult(null);
                 setBombaTab('guiado');
                 setWizardStep(1);
                 setCatStats(null);
@@ -430,7 +436,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             <View>
               <Text style={styles.subtitle}>Seleccioná un tipo de equipo para hacer un cálculo rápido:</Text>
               <View style={styles.optionsContainer}>
-                <TouchableOpacity onPress={() => { setCalcMode('gen'); setHasCalculated(false); setCalcResult(null); }} style={styles.optionCard}>
+                <TouchableOpacity onPress={() => { setCalcMode('gen'); setHasCalculated(false); setCalcResult(null);
+      setMotorResult(null); }} style={styles.optionCard}>
                   <View style={styles.iconContainer}>
                     <SvgIcon name="gen" size={28} color={COLORS.navy} />
                   </View>
@@ -441,7 +448,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   <Text style={styles.arrowIcon}>›</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => { setCalcMode('motor'); setHasCalculated(false); setCalcResult(null); }} style={styles.optionCard}>
+                <TouchableOpacity onPress={() => { setCalcMode('motor'); setHasCalculated(false); setCalcResult(null);
+      setMotorResult(null); }} style={styles.optionCard}>
                   <View style={styles.iconContainer}>
                     <SvgIcon name="motor" size={28} color={COLORS.navy} />
                   </View>
@@ -452,7 +460,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   <Text style={styles.arrowIcon}>›</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => { setCalcMode('bomba'); setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); setWizardStep(1); }} style={styles.optionCard}>
+                <TouchableOpacity onPress={() => { setCalcMode('bomba'); setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null);
+      setMotorResult(null); setWizardStep(1); }} style={styles.optionCard}>
                   <View style={styles.iconContainer}>
                     <SvgIcon name="bomba" size={28} color={COLORS.navy} />
                   </View>
@@ -471,13 +480,15 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   <View style={styles.tabContainer}>
                     <TouchableOpacity 
                       style={[styles.tabBtn, bombaTab === 'guiado' && styles.tabBtnActive]} 
-                      onPress={() => { setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); }}
+                      onPress={() => { setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null);
+      setMotorResult(null); }}
                     >
                       <Text style={[styles.tabText, bombaTab === 'guiado' && styles.tabTextActive]}>GUIADO</Text>
                     </TouchableOpacity>
                     <TouchableOpacity 
                       style={[styles.tabBtn, bombaTab === 'avanzado' && styles.tabBtnActive]} 
-                      onPress={() => { setBombaTab('avanzado'); setHasCalculated(false); setCalcResult(null); }}
+                      onPress={() => { setBombaTab('avanzado'); setHasCalculated(false); setCalcResult(null);
+      setMotorResult(null); }}
                     >
                       <Text style={[styles.tabText, bombaTab === 'avanzado' && styles.tabTextActive]}>CÁLCULO AVANZADO</Text>
                     </TouchableOpacity>
@@ -586,7 +597,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         </View>
                       ) : (
                         <View>
-                          <TouchableOpacity style={styles.backBtn} onPress={() => { setWizardStep(1); setHasCalculated(false); setCalcResult(null); setCatStats(null); }}>
+                          <TouchableOpacity style={styles.backBtn} onPress={() => { setWizardStep(1); setHasCalculated(false); setCalcResult(null);
+      setMotorResult(null); setCatStats(null); }}>
                             <Text style={styles.backBtnText}>← Volver a Uso</Text>
                           </TouchableOpacity>
 
@@ -717,7 +729,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       keyExtractor={(item, index) => item.modelo + index}
                       renderItem={({ item }) => (
                         <TouchableOpacity 
-                          style={[styles.suggestedCard, item.marca.includes('Sugerencia de motor') && { borderColor: COLORS.green, borderWidth: 2 }]}
+                          style={styles.suggestedCard}
                           onPress={() => {
                               navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: calcResult.map(r => r.modelo) });
                           }}
@@ -731,6 +743,37 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                           <Text style={styles.suggestedModelo} numberOfLines={2}>{item.modelo}</Text>
                           <Text style={styles.suggestedVal}>
                             {item.displayValue || (calcMode === 'gen' ? `${item.calcVal} KVA` : calcMode === 'motor' ? `${item.calcVal} HP` : `${item.calcVal > 0 ? item.calcVal.toFixed(1) : '?'} HP`)}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    />
+                  </View>
+                )}
+
+                {motorResult && motorResult.length > 0 && (
+                  <View style={[styles.suggestedContainer, {marginTop: 5}]}>
+                    <Text style={styles.suggestedTitle}>Motores Sugeridos (Eje Libre):</Text>
+                    <FlatList
+                      data={motorResult}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      keyExtractor={(item, index) => item.modelo + index}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity 
+                          style={[styles.suggestedCard, { borderColor: COLORS.green, borderWidth: 2 }]}
+                          onPress={() => {
+                              navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: motorResult.map(r => r.modelo) });
+                          }}
+                        >
+                          {item.imagen ? (
+                            <Image source={{ uri: item.imagen }} style={styles.suggestedImg} contentFit="contain" />
+                          ) : (
+                            <View style={styles.suggestedImgPlaceholder} />
+                          )}
+                          <Text style={styles.suggestedMarca} numberOfLines={1}>{item.marca}</Text>
+                          <Text style={styles.suggestedModelo} numberOfLines={2}>{item.modelo}</Text>
+                          <Text style={[styles.suggestedVal, {color: COLORS.green}]}>
+                            {item.displayValue || `${item.calcVal} HP`}
                           </Text>
                         </TouchableOpacity>
                       )}
