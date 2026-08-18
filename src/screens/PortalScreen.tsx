@@ -235,7 +235,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
       <CalculadoraModal 
         visible={showCalcModal} 
         onClose={() => setShowCalcModal(false)} 
-        allProdsCache={allProdsCache} 
         navigation={navigation} 
       />
 

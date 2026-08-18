@@ -1,29 +1,37 @@
 import * as Sentry from '@sentry/react-native';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard } from 'react-native';
 import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
 import { getProductsBySubcategory } from '../utils/database';
 import { isCatalogSyncing, subscribeToCatalogUpdates } from '../services/catalogService';
-import { estimateGenerador, estimateMotor, estimateBomba, TipoBomba } from '../utils/CapacityEstimator';
+import { estimateGenerador, estimateMotor } from '../utils/CapacityEstimator';
 import { ParsedProduct, CalcProduct, PumpWizardState, SpecTuple } from '../types';
+import { FRICCION_DIAMS, FIT_HEADERS, FIT_ROWS, interpolateFriction } from '../utils/frictionLogic';
 
 interface CalculadoraModalProps {
   visible: boolean;
   onClose: () => void;
   navigation: { navigate: (screen: string, params?: Record<string, unknown>) => void; goBack: () => void; [key: string]: unknown };
-  allProdsCache?: ParsedProduct[];
 }
 
-export default function CalculadoraModal({ visible, onClose, navigation, allProdsCache }: CalculadoraModalProps) {
+type ExtendedCalcProduct = CalcProduct & {
+  score?: number;
+  displayValue?: string;
+};
+
+export default function CalculadoraModal({ visible, onClose, navigation }: CalculadoraModalProps) {
   const [calcMode, setCalcMode] = useState('');
   const [calcInput, setCalcInput] = useState('');
-  const [calcInput2, setCalcInput2] = useState('');
   const [bombaTab, setBombaTab] = useState<'guiado' | 'avanzado'>('guiado');
   const [wizardStep, setWizardStep] = useState(1);
   const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
-  const [calcResult, setCalcResult] = useState<CalcProduct[] | null>(null);
+  
+  // Advanced state
+  const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0] });
+
+  const [calcResult, setCalcResult] = useState<ExtendedCalcProduct[] | null>(null);
   const [hasCalculated, setHasCalculated] = useState(false);
   const [waitingForCatalog, setWaitingForCatalog] = useState(false);
 
@@ -32,12 +40,12 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
       setHasCalculated(false);
       setCalcResult(null);
       setCalcInput('');
-      setCalcInput2('');
       setCalcMode('');
       setWaitingForCatalog(false);
       setBombaTab('guiado');
       setWizardStep(1);
       setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
+      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0] });
     }
   }, [visible]);
 
@@ -48,10 +56,32 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
     return parseFloat(m[1].replace(',', '.'));
   }
 
+  // Advanced friction math
+  const { hTotal, perdida, lEquiv, lTotal, status } = useMemo(() => {
+    if (bombaTab !== 'avanzado') return { hTotal: 0, perdida: 0, lEquiv: 0, lTotal: 0, status: 'ok' };
+    const q = parseFloat(adv.caudal) || 0;
+    const lRecta = parseFloat(adv.lRecta) || 0;
+    const hGeo = parseFloat(adv.hGeo) || 0;
+    
+    const { value: loss100, status } = interpolateFriction(q, adv.diamIdx);
+    const fitRow = FIT_ROWS[adv.diamIdx + 1];
+    
+    let lAcc = 0;
+    adv.acc.forEach((qty, i) => {
+      lAcc += qty * fitRow[1][i];
+    });
+    
+    const lTot = lRecta + lAcc;
+    const pFric = loss100 !== null ? (lTot * loss100) / 100 : 0;
+    const hTot = hGeo + pFric;
+    
+    return { hTotal: hTot, perdida: pFric, lEquiv: lAcc, lTotal: lTot, status };
+  }, [adv, bombaTab]);
+
   async function handleCalculate() {
     Keyboard.dismiss();
     setHasCalculated(true);
-    let filtered: CalcProduct[] = [];
+    let filtered: ExtendedCalcProduct[] = [];
     try {
       if (calcMode === 'gen') {
         const target = parseFloat(calcInput) || 0;
@@ -65,7 +95,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
             if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('DIÉSEL') || allSpecs.includes('GASOLINA')) hasFuel = true;
           }
           return hasFuel;
-        }).map((p: ParsedProduct): CalcProduct => {
+        }).map((p: ParsedProduct): ExtendedCalcProduct => {
           let val = 0;
           if (p.specs) {
             p.specs.forEach((s: SpecTuple) => {
@@ -77,15 +107,15 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
             });
           }
           return { ...p, calcVal: val };
-        }).filter((p: CalcProduct) => p.calcVal > 0)
-        .sort((a: CalcProduct, b: CalcProduct) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
+        }).filter((p: ExtendedCalcProduct) => p.calcVal > 0)
+        .sort((a: ExtendedCalcProduct, b: ExtendedCalcProduct) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
       } else if (calcMode === 'motor') {
         const target = parseFloat(calcInput) || 0;
         const dbProducts = await getProductsBySubcategory('MOTOR', true);
         filtered = dbProducts.filter((p: ParsedProduct) => {
           const sub = String(p.subcategoria).toUpperCase();
           return sub.includes('ELEC') || sub.includes('ELÉC');
-        }).map((p: ParsedProduct): CalcProduct => {
+        }).map((p: ParsedProduct): ExtendedCalcProduct => {
           let val = 0;
           if (p.specs) {
             p.specs.forEach((s: SpecTuple) => {
@@ -97,26 +127,35 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
             });
           }
           return { ...p, calcVal: val };
-        }).filter((p: CalcProduct) => p.calcVal > 0)
-        .sort((a: CalcProduct, b: CalcProduct) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
+        }).filter((p: ExtendedCalcProduct) => p.calcVal > 0)
+        .sort((a: ExtendedCalcProduct, b: ExtendedCalcProduct) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
       } else if (calcMode === 'bomba') {
-        const targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
-        const targetAlturaInput = parseFloat(pumpWizard.altura) || 0;
-        const reqFase = pumpWizard.fase;
+        let targetCaudalInput = 0;
+        let targetAlturaInput = 0;
+        let reqFase = '';
+        let targetCaudalLpm = 0;
         
-        let targetCaudalLpm = targetCaudalInput;
-        if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * 16.6667;
-        if (pumpWizard.unidadCaudal === 'l/h') targetCaudalLpm = targetCaudalInput / 60;
+        if (bombaTab === 'guiado') {
+           targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
+           targetAlturaInput = parseFloat(pumpWizard.altura) || 0;
+           reqFase = pumpWizard.fase;
+           targetCaudalLpm = targetCaudalInput;
+           if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * 16.6667;
+           if (pumpWizard.unidadCaudal === 'l/h') targetCaudalLpm = targetCaudalInput / 60;
+        } else {
+           // Modo Avanzado
+           targetCaudalInput = parseFloat(adv.caudal) || 0;
+           targetCaudalLpm = targetCaudalInput * 16.6667; // m3/h to lpm
+           targetAlturaInput = hTotal;
+           reqFase = ''; // Sin filtro de fase en avanzado por defecto
+        }
         
-        // FÓRMULA DE FÍSICA PARA ESTIMAR HP: 
-        // HP = (L/min * m.c.a. * gravedad) / 36000 / eficiencia_tipica(0.6) / 0.7457 (hp/kw)
-        // Simplificado: HP ~= (Lpm * Mca) / 2736
         let targetHp = (targetCaudalLpm * targetAlturaInput) / 2736;
         if (targetHp > 0 && targetHp < 0.5) targetHp = 0.5;
         
         const dbProducts = await getProductsBySubcategory('BOMBA', true);
         
-        const mapped = dbProducts.map((p: ParsedProduct): CalcProduct & { score?: number } => {
+        const mapped = dbProducts.map((p: ParsedProduct): ExtendedCalcProduct => {
            let maxCaudalLpm = 0;
            let maxAlturaMca = 0;
            let hpVal = 0;
@@ -170,52 +209,92 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
 
            let score = 999999;
            if (hpVal > 0) {
-               score = Math.abs(hpVal - targetHp); // Ordenar principalmente por HP estimado necesario
+               score = Math.abs(hpVal - targetHp); 
            } else {
-               // Si no tiene HP parseable, es muy difícil recomendarla matemáticamente
                score = 9999;
            }
 
-           // Bonus o penalización si tiene Caudal y Altura explícitos
            if (maxCaudalLpm > 0 && maxAlturaMca > 0) {
               if (maxCaudalLpm >= targetCaudalLpm && maxAlturaMca >= targetAlturaInput) {
-                 score -= 5; // Bonus
+                 score -= 5; 
               } else {
-                 score += 10; // Penalización por quedarse corto
+                 score += 10; 
               }
            }
            
+           if (reqFase === 'sinelec' && (is220 || is380)) score = -1;
            if (reqFase === '220v' && !is220) score = -1;
            if (reqFase === '380v' && !is380) score = -1;
 
-           return { ...p, calcVal: hpVal, score };
+           let displayVal = hpVal > 0 ? `${hpVal.toFixed(1)} HP` : '? HP';
+           if (hpVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR')) {
+              if (maxCaudalLpm > 0 && maxAlturaMca > 0) {
+                 displayVal = `Máx: ${maxCaudalLpm.toFixed(0)}L/m | ${maxAlturaMca.toFixed(0)}mca`;
+              } else if (maxCaudalLpm > 0) {
+                 displayVal = `Máx: ${maxCaudalLpm.toFixed(0)} L/min`;
+              } else if (maxAlturaMca > 0) {
+                 displayVal = `Máx: ${maxAlturaMca.toFixed(0)} m.c.a`;
+              } else {
+                 displayVal = 'Eje Libre / Sin Motor';
+              }
+           }
+
+           return { ...p, calcVal: hpVal, score, displayValue: displayVal };
         });
 
-        filtered = mapped.filter((p: CalcProduct & { score?: number }) => {
+        filtered = mapped.filter((p) => {
             if ((p.score ?? -1) < 0) return false;
-            const sub = String(p.subcategoria).toUpperCase();
-            const uso = pumpWizard.uso;
-            if (uso === 'vivienda' && !sub.includes('AGUA') && !sub.includes('CENTRÍFUGA') && !sub.includes('PRESURIZA') && !sub.includes('PERIFÉRICA')) return false;
-            if (uso === 'pozo' && !sub.includes('SUMERGIBLE') && !sub.includes('PROFUNDO')) return false;
-            if (uso === 'drenaje' && !sub.includes('ACHIQUE') && !sub.includes('DRENAJE') && !sub.includes('SUCIA')) return false;
-            if (uso === 'piscina' && !sub.includes('PISCINA') && !sub.includes('PILETA')) return false;
-            if (uso === 'combustion') {
-               let hasFuel = false;
-               if (sub.includes('COMBUSTIÓN') || sub.includes('NAFTERA') || sub.includes('DIESEL') || sub.includes('GASOLINA') || sub.includes('NAFTA')) hasFuel = true;
-               if (p.specs) {
-                 const allSpecs = JSON.stringify(p.specs).toUpperCase();
-                 if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('GASOLINA') || allSpecs.includes('COMBUSTIÓN') || allSpecs.includes('CILINDRADA')) hasFuel = true;
+            if (bombaTab === 'guiado') {
+               const sub = String(p.subcategoria).toUpperCase();
+               const uso = pumpWizard.uso;
+               if (uso === 'vivienda' && !sub.includes('AGUA') && !sub.includes('CENTRÍFUGA') && !sub.includes('PRESURIZA') && !sub.includes('PERIFÉRICA')) return false;
+               if (uso === 'pozo' && !sub.includes('SUMERGIBLE') && !sub.includes('PROFUNDO')) return false;
+               if (uso === 'drenaje' && !sub.includes('ACHIQUE') && !sub.includes('DRENAJE') && !sub.includes('SUCIA')) return false;
+               if (uso === 'piscina' && !sub.includes('PISCINA') && !sub.includes('PILETA')) return false;
+               if (uso === 'combustion') {
+                  let hasFuel = false;
+                  if (sub.includes('COMBUSTIÓN') || sub.includes('NAFTERA') || sub.includes('DIESEL') || sub.includes('GASOLINA') || sub.includes('NAFTA')) hasFuel = true;
+                  if (p.specs) {
+                    const allSpecs = JSON.stringify(p.specs).toUpperCase();
+                    if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('GASOLINA') || allSpecs.includes('COMBUSTIÓN') || allSpecs.includes('CILINDRADA')) hasFuel = true;
+                  }
+                  return hasFuel;
                }
-               return hasFuel;
             }
             return true;
          })
-         .sort((a: CalcProduct & { score?: number }, b: CalcProduct & { score?: number }) => (a.score ?? 999) - (b.score ?? 999))
-         .map((p: CalcProduct & { score?: number }) => {
+         .sort((a, b) => (a.score ?? 999) - (b.score ?? 999))
+         .map((p) => {
             const { score, ...rest } = p;
-            return rest as CalcProduct;
+            return rest as ExtendedCalcProduct;
          })
-         .slice(0, 5);
+         .slice(0, 4);
+
+         const hasEjeLibre = filtered.some(p => p.calcVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
+         
+         if (hasEjeLibre && targetHp > 0) {
+            const dbMotors = await getProductsBySubcategory('MOTOR', true);
+            const bestMotor = dbMotors.map((m: ParsedProduct): ExtendedCalcProduct => {
+               let mHp = 0;
+               if (m.specs) {
+                  m.specs.forEach((s) => {
+                     const k = String(s[0]).toUpperCase();
+                     if (k.includes('HP') || k.includes('POTENCIA')) {
+                        const n = extractNum(s[1]);
+                        if (n) mHp = n;
+                     }
+                  });
+               }
+               return { ...m, calcVal: mHp, score: mHp >= targetHp ? mHp - targetHp : 9999 };
+            }).filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000)
+            .sort((a, b) => (a.score ?? 999) - (b.score ?? 999))[0];
+            
+            if (bestMotor) {
+               bestMotor.marca = 'Sugerencia de motor: ' + bestMotor.marca;
+               bestMotor.displayValue = bestMotor.calcVal > 0 ? `${bestMotor.calcVal.toFixed(1)} HP` : '? HP';
+               filtered.push(bestMotor);
+            }
+         }
       }
     } catch (e: unknown) {
       Sentry.captureException(e);
@@ -228,11 +307,17 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
     if (!visible || !waitingForCatalog) return;
     const unsubscribe = subscribeToCatalogUpdates(() => {
       if (!isCatalogSyncing()) {
-        handleCalculate();
+        setWaitingForCatalog(false);
       }
     });
     return unsubscribe;
   }, [visible, waitingForCatalog]);
+
+  useEffect(() => {
+    if (visible && calcMode && calcResult && calcResult.length === 0 && !waitingForCatalog) {
+       handleCalculate();
+    }
+  }, [waitingForCatalog]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -250,7 +335,6 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                 setCalcResult(null);
                 setBombaTab('guiado');
                 setWizardStep(1);
-                setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
               } else {
                 onClose();
               }
@@ -286,7 +370,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                   <Text style={styles.arrowIcon}>›</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => { setCalcMode('bomba'); setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); setWizardStep(1); setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' }); }} style={styles.optionCard}>
+                <TouchableOpacity onPress={() => { setCalcMode('bomba'); setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); setWizardStep(1); }} style={styles.optionCard}>
                   <View style={styles.iconContainer}>
                     <SvgIcon name="bomba" size={28} color={COLORS.navy} />
                   </View>
@@ -305,28 +389,95 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                   <View style={styles.tabContainer}>
                     <TouchableOpacity 
                       style={[styles.tabBtn, bombaTab === 'guiado' && styles.tabBtnActive]} 
-                      onPress={() => setBombaTab('guiado')}
+                      onPress={() => { setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); }}
                     >
-                      <Text style={[styles.tabText, bombaTab === 'guiado' && styles.tabTextActive]}>RECOMENDADOR GUIADO</Text>
+                      <Text style={[styles.tabText, bombaTab === 'guiado' && styles.tabTextActive]}>GUIADO</Text>
                     </TouchableOpacity>
                     <TouchableOpacity 
                       style={[styles.tabBtn, bombaTab === 'avanzado' && styles.tabBtnActive]} 
-                      onPress={() => setBombaTab('avanzado')}
+                      onPress={() => { setBombaTab('avanzado'); setHasCalculated(false); setCalcResult(null); }}
                     >
                       <Text style={[styles.tabText, bombaTab === 'avanzado' && styles.tabTextActive]}>CÁLCULO AVANZADO</Text>
                     </TouchableOpacity>
                   </View>
 
                   {bombaTab === 'avanzado' ? (
-                    <View style={styles.avanzadoPlaceholder}>
-                      <Text style={styles.avanzadoText}>Sección en construcción.</Text>
-                      <Text style={styles.avanzadoSub}>Próximamente: Cálculo de fricción de cañerías.</Text>
+                    <View style={styles.avanzadoContainer}>
+                      <View style={styles.grid2Cols}>
+                        <View style={styles.col}>
+                           <Text style={styles.inputTitleSmall}>Caudal (m³/h)</Text>
+                           <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 15" placeholderTextColor={COLORS.gray4} value={adv.caudal} onChangeText={(t) => setAdv({...adv, caudal: t})} />
+                        </View>
+                        <View style={styles.col}>
+                           <Text style={styles.inputTitleSmall}>Diámetro</Text>
+                           <TouchableOpacity style={styles.textInputSmall} onPress={() => {
+                               const next = adv.diamIdx >= FRICCION_DIAMS.length - 1 ? 0 : adv.diamIdx + 1;
+                               setAdv({...adv, diamIdx: next});
+                           }}>
+                              <Text style={{color: COLORS.navy}}>{FRICCION_DIAMS[adv.diamIdx]}</Text>
+                           </TouchableOpacity>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.grid2Cols}>
+                        <View style={styles.col}>
+                           <Text style={styles.inputTitleSmall}>Longitud recta (m)</Text>
+                           <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 200" placeholderTextColor={COLORS.gray4} value={adv.lRecta} onChangeText={(t) => setAdv({...adv, lRecta: t})} />
+                        </View>
+                        <View style={styles.col}>
+                           <Text style={styles.inputTitleSmall}>Desnivel (m)</Text>
+                           <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 1" placeholderTextColor={COLORS.gray4} value={adv.hGeo} onChangeText={(t) => setAdv({...adv, hGeo: t})} />
+                        </View>
+                      </View>
+
+                      <Text style={[styles.inputTitleSmall, { marginTop: 5, marginBottom: 5 }]}>Accesorios (Cantidades)</Text>
+                      <View style={styles.accGrid}>
+                         {FIT_HEADERS.map((h, i) => (
+                           <View key={h} style={styles.accCell}>
+                             <Text style={styles.accLabel}>{h}</Text>
+                             <TextInput 
+                               style={styles.accInput} 
+                               keyboardType="numeric" 
+                               value={adv.acc[i] ? String(adv.acc[i]) : ''} 
+                               onChangeText={(t) => {
+                                 const n = parseInt(t) || 0;
+                                 const newAcc = [...adv.acc];
+                                 newAcc[i] = n;
+                                 setAdv({...adv, acc: newAcc});
+                               }} 
+                             />
+                           </View>
+                         ))}
+                      </View>
+
+                      {status === 'sin-datos' && parseFloat(adv.caudal) > 0 ? (
+                         <Text style={styles.advWarn}>No hay datos de fricción para este caudal y diámetro.</Text>
+                      ) : parseFloat(adv.caudal) > 0 && (
+                         <View style={styles.advResultBox}>
+                            <View style={styles.advResultRow}>
+                               <Text style={styles.advResultLbl}>Altura Total:</Text>
+                               <Text style={styles.advResultVal}>{hTotal.toFixed(2)} mca</Text>
+                            </View>
+                            <View style={styles.advResultRow}>
+                               <Text style={styles.advResultLbl}>Fricción:</Text>
+                               <Text style={styles.advResultLbl}>{perdida.toFixed(2)} mca</Text>
+                            </View>
+                         </View>
+                      )}
+
+                      <TouchableOpacity 
+                        style={[styles.calculateBtn, {marginTop: 10, paddingVertical: 10}, (!adv.caudal || !adv.lRecta || !adv.hGeo || status==='sin-datos') && { backgroundColor: COLORS.gray4 }]} 
+                        disabled={!adv.caudal || !adv.lRecta || !adv.hGeo || status==='sin-datos'}
+                        onPress={handleCalculate}
+                      >
+                        <Text style={styles.calculateBtnText}>Buscar Equipos</Text>
+                      </TouchableOpacity>
                     </View>
                   ) : (
                     <View style={styles.guiadoContainer}>
                       {wizardStep === 1 ? (
                         <View>
-                          <Text style={styles.inputTitle}>1. ¿Para qué necesita la bomba?</Text>
+                          <Text style={styles.inputTitleSmall}>¿Para qué necesita la bomba?</Text>
                           <View style={styles.usosGrid}>
                             {['vivienda', 'riego', 'pozo', 'drenaje', 'piscina', 'combustion'].map(uso => (
                               <TouchableOpacity 
@@ -335,7 +486,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                                 onPress={() => setPumpWizard({...pumpWizard, uso})}
                               >
                                 <Text style={[styles.usoTitle, pumpWizard.uso === uso && styles.usoTitleActive]}>
-                                  {uso === 'vivienda' ? 'Vivienda / Uso Gral' : uso === 'riego' ? 'Riego / Agrícola' : uso === 'pozo' ? 'Pozo Profundo' : uso === 'drenaje' ? 'Achique / Drenaje' : uso === 'piscina' ? 'Piscina' : 'Motobombas'}
+                                  {uso === 'vivienda' ? 'Vivienda' : uso === 'riego' ? 'Riego' : uso === 'pozo' ? 'Pozo' : uso === 'drenaje' ? 'Drenaje' : uso === 'piscina' ? 'Piscina' : 'Combustión'}
                                 </Text>
                               </TouchableOpacity>
                             ))}
@@ -355,48 +506,40 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                             <Text style={styles.backBtnText}>← Volver a Uso</Text>
                           </TouchableOpacity>
 
-                          <Text style={styles.inputTitle}>2. Caudal Necesario</Text>
-                          <View style={styles.caudalRow}>
-                            <TextInput
-                              style={[styles.textInput, { flex: 1, marginHorizontal: 0, marginRight: 10 }]}
-                              keyboardType="numeric"
-                              placeholder="Ej: 100"
-                              placeholderTextColor={COLORS.gray4}
-                              value={pumpWizard.caudal}
-                              onChangeText={(t) => setPumpWizard({...pumpWizard, caudal: t})}
-                            />
-                            <View style={styles.unitPickerContainer}>
-                               <TouchableOpacity onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'l/min'})} style={[styles.unitBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitBtnActive]}>
-                                  <Text style={[styles.unitBtnText, pumpWizard.unidadCaudal === 'l/min' && styles.unitBtnTextActive]}>l/min</Text>
-                               </TouchableOpacity>
-                               <TouchableOpacity onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'm3/h'})} style={[styles.unitBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitBtnActive]}>
-                                  <Text style={[styles.unitBtnText, pumpWizard.unidadCaudal === 'm3/h' && styles.unitBtnTextActive]}>m³/h</Text>
-                               </TouchableOpacity>
-                            </View>
+                          <View style={styles.grid2Cols}>
+                             <View style={styles.col}>
+                                <Text style={styles.inputTitleSmall}>Caudal</Text>
+                                <View style={styles.caudalRow}>
+                                  <TextInput style={[styles.textInputSmall, { flex: 1, marginHorizontal: 0, marginRight: 5 }]} keyboardType="numeric" placeholder="Ej: 100" placeholderTextColor={COLORS.gray4} value={pumpWizard.caudal} onChangeText={(t) => setPumpWizard({...pumpWizard, caudal: t})} />
+                                  <TouchableOpacity onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: pumpWizard.unidadCaudal === 'l/min' ? 'm3/h' : 'l/min'})} style={styles.unitBtnSmall}>
+                                     <Text style={styles.unitBtnTextSmall}>{pumpWizard.unidadCaudal}</Text>
+                                  </TouchableOpacity>
+                                </View>
+                             </View>
+                             <View style={styles.col}>
+                                <Text style={styles.inputTitleSmall}>Altura (mca)</Text>
+                                <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
+                             </View>
                           </View>
 
-                          <Text style={styles.inputTitle}>3. Altura Manométrica (m.c.a.)</Text>
-                          <TextInput
-                            style={[styles.textInput, { marginHorizontal: 0, marginBottom: 20 }]}
-                            keyboardType="numeric"
-                            placeholder="Ej: 20"
-                            placeholderTextColor={COLORS.gray4}
-                            value={pumpWizard.altura}
-                            onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})}
-                          />
-
-                          <Text style={styles.inputTitle}>4. Alimentación Eléctrica (Opcional)</Text>
-                          <View style={styles.faseRow}>
+                          <Text style={styles.inputTitleSmall}>Alimentación Eléctrica (Opcional)</Text>
+                          <View style={styles.faseGrid}>
                             <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
-                              <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>Monofásico (220V)</Text>
+                              <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>220V</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
-                              <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>Trifásico (380V)</Text>
+                              <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>380V</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'nose' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'nose' ? '' : 'nose'})}>
+                              <Text style={[styles.faseBtnText, pumpWizard.fase === 'nose' && styles.faseBtnTextActive]}>No sé</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'sinelec' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'sinelec' ? '' : 'sinelec'})}>
+                              <Text style={[styles.faseBtnText, pumpWizard.fase === 'sinelec' && styles.faseBtnTextActive]}>Sin Motor</Text>
                             </TouchableOpacity>
                           </View>
 
                           <TouchableOpacity 
-                            style={[styles.calculateBtn, (!pumpWizard.caudal || !pumpWizard.altura) && { backgroundColor: COLORS.gray4 }]} 
+                            style={[styles.calculateBtn, {paddingVertical: 10, marginBottom: 5}, (!pumpWizard.caudal || !pumpWizard.altura) && { backgroundColor: COLORS.gray4 }]} 
                             disabled={!pumpWizard.caudal || !pumpWizard.altura}
                             onPress={handleCalculate}
                           >
@@ -409,7 +552,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                 </View>
               ) : (
                 <View>
-                  <Text style={styles.inputTitle}>
+                  <Text style={styles.inputTitleSmall}>
                     {calcMode === 'gen' ? 'Ingresá el valor (1 a 3000 KVA)' : 'Ingresá el valor (1 a 500 HP)'}
                   </Text>
                   
@@ -431,20 +574,13 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
 
               {hasCalculated && (parseFloat(calcInput) > 0 || calcMode === 'bomba') && (
                 <View style={styles.resultContainer}>
-                  {calcMode !== 'bomba' ? (
+                  {calcMode !== 'bomba' && (
                   <View style={styles.estimationBox}>
                     <Text style={styles.estimationTitle}>Estimación rápida:</Text>
                     <Text style={styles.estimationText}>
                       {calcMode === 'gen' ? estimateGenerador(parseFloat(calcInput)) :
                        calcMode === 'motor' ? estimateMotor(parseFloat(calcInput)) :
                        ''}
-                    </Text>
-                  </View>
-                  ) : (
-                  <View style={styles.estimationBox}>
-                    <Text style={styles.estimationTitle}>Tu necesidad:</Text>
-                    <Text style={styles.estimationText}>
-                      Para {pumpWizard.caudal} {pumpWizard.unidadCaudal} a {pumpWizard.altura} m.c.a. necesitas aproximadamente una bomba de {((parseFloat(pumpWizard.unidadCaudal === 'm3/h' ? String(parseFloat(pumpWizard.caudal) * 16.6667) : pumpWizard.caudal) || 0) * (parseFloat(pumpWizard.altura) || 0) / 2736).toFixed(1)} HP de potencia mínima.
                     </Text>
                   </View>
                   )}
@@ -473,10 +609,10 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                       data={calcResult}
                       horizontal
                       showsHorizontalScrollIndicator={false}
-                      keyExtractor={item => item.modelo}
+                      keyExtractor={(item, index) => item.modelo + index}
                       renderItem={({ item }) => (
                         <TouchableOpacity 
-                          style={styles.suggestedCard}
+                          style={[styles.suggestedCard, item.marca.includes('Sugerencia de motor') && { borderColor: COLORS.green, borderWidth: 2 }]}
                           onPress={() => {
                               navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: calcResult.map(r => r.modelo) });
                           }}
@@ -489,7 +625,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                           <Text style={styles.suggestedMarca} numberOfLines={1}>{item.marca}</Text>
                           <Text style={styles.suggestedModelo} numberOfLines={2}>{item.modelo}</Text>
                           <Text style={styles.suggestedVal}>
-                            {calcMode === 'gen' ? `${item.calcVal} KVA` : calcMode === 'motor' ? `${item.calcVal} HP` : `${item.calcVal > 0 ? item.calcVal.toFixed(1) : '?'} HP`}
+                            {item.displayValue || (calcMode === 'gen' ? `${item.calcVal} KVA` : calcMode === 'motor' ? `${item.calcVal} HP` : `${item.calcVal > 0 ? item.calcVal.toFixed(1) : '?'} HP`)}
                           </Text>
                         </TouchableOpacity>
                       )}
@@ -518,89 +654,92 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 24,
-    height: '90%'
+    padding: 20,
+    height: '92%'
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20
+    marginBottom: 10
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.navy
   },
   closeBtn: {
-    fontSize: 24,
-    color: COLORS.gray4
+    fontSize: 22,
+    color: COLORS.gray4,
+    paddingHorizontal: 10
   },
   subtitle: {
     color: COLORS.gray4,
-    marginBottom: 15
+    marginBottom: 10,
+    fontSize: 13
   },
   optionsContainer: {
     flexDirection: 'column',
-    gap: 14,
-    marginBottom: 20
+    gap: 10,
+    marginBottom: 10
   },
   optionCard: {
     flexDirection: 'row',
-    padding: 16,
-    borderRadius: 12,
+    padding: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
     alignItems: 'center',
     backgroundColor: COLORS.white
   },
   iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#F0F4F8',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16
+    marginRight: 12
   },
   optionTextContainer: {
     flex: 1
   },
   optionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: COLORS.navy
   },
   optionSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.gray4,
     marginTop: 2
   },
   arrowIcon: {
-    fontSize: 24,
+    fontSize: 20,
     color: COLORS.gray4
   },
-  inputTitle: {
+  inputTitleSmall: {
     fontWeight: 'bold',
     color: COLORS.navy,
-    marginBottom: 10
+    marginBottom: 5,
+    fontSize: 12
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20
+    marginBottom: 15
   },
   counterBtn: {
     backgroundColor: COLORS.navy,
-    width: 50,
-    height: 50,
+    width: 40,
+    height: 40,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center'
   },
   counterBtnText: {
     color: COLORS.white,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold'
   },
   textInput: {
@@ -608,106 +747,127 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
-    padding: 10,
-    fontSize: 18,
+    padding: 8,
+    fontSize: 16,
     color: '#000',
     backgroundColor: '#F0F4F8',
     marginHorizontal: 10,
     textAlign: 'center'
   },
+  textInputSmall: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    padding: 8,
+    fontSize: 13,
+    color: '#000',
+    backgroundColor: '#F0F4F8',
+    textAlign: 'center'
+  },
+  grid2Cols: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10
+  },
+  col: {
+    flex: 1
+  },
   calculateBtn: {
     backgroundColor: COLORS.green,
-    padding: 15,
+    padding: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 20
+    marginBottom: 5
   },
   calculateBtnText: {
     color: COLORS.white,
     fontWeight: 'bold',
-    fontSize: 16
+    fontSize: 14
   },
   backBtn: {
-    marginBottom: 15,
+    marginBottom: 5,
   },
   backBtnText: {
     color: COLORS.navy,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold'
   },
   resultContainer: {
-    marginBottom: 20
+    marginBottom: 10
   },
   estimationBox: {
     backgroundColor: '#E3FAED',
-    padding: 15,
+    padding: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.green
+    borderColor: COLORS.green,
+    marginBottom: 5
   },
   estimationTitle: {
     fontWeight: 'bold',
     color: COLORS.green,
-    marginBottom: 10
+    marginBottom: 5,
+    fontSize: 12
   },
   estimationText: {
     color: COLORS.navy,
-    fontSize: 14
+    fontSize: 12
   },
   suggestedContainer: {
-    marginTop: 10
+    marginTop: 5
   },
   suggestedTitle: {
     fontWeight: 'bold',
     color: COLORS.navy,
-    marginBottom: 10
+    marginBottom: 5,
+    fontSize: 13
   },
   suggestedCard: {
-    width: 140,
+    width: 120,
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
-    padding: 10,
-    marginRight: 10
+    padding: 8,
+    marginRight: 8
   },
   suggestedImg: {
     width: '100%',
-    height: 80,
-    marginBottom: 10
+    height: 60,
+    marginBottom: 5
   },
   suggestedImgPlaceholder: {
     width: '100%',
-    height: 80,
+    height: 60,
     backgroundColor: '#f0f0f0',
-    marginBottom: 10,
+    marginBottom: 5,
     borderRadius: 4
   },
   suggestedMarca: {
-    fontSize: 10,
+    fontSize: 9,
     color: COLORS.gray4,
     fontWeight: 'bold'
   },
   suggestedModelo: {
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.navy,
     fontWeight: 'bold',
-    marginBottom: 5
+    marginBottom: 2
   },
   suggestedVal: {
-    fontSize: 11,
+    fontSize: 10,
     color: COLORS.green,
     fontWeight: 'bold'
   },
   tabContainer: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border
   },
   tabBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center'
   },
   tabBtnActive: {
@@ -715,7 +875,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.navy
   },
   tabText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: 'bold',
     color: COLORS.gray4
   },
@@ -723,18 +883,18 @@ const styles = StyleSheet.create({
     color: COLORS.navy
   },
   guiadoContainer: {
-    paddingBottom: 20
+    paddingBottom: 5
   },
   usosGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20
+    gap: 8,
+    marginBottom: 10
   },
   usoCard: {
-    width: '48%',
+    width: '31%',
     backgroundColor: '#F8FAFC',
-    padding: 15,
+    padding: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -746,7 +906,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.navy
   },
   usoTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
     color: COLORS.gray4,
     textAlign: 'center'
@@ -756,40 +916,29 @@ const styles = StyleSheet.create({
   },
   caudalRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20
+    alignItems: 'center'
   },
-  unitPickerContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F8FAFC',
+  unitBtnSmall: {
+    backgroundColor: COLORS.navy,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden'
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    justifyContent: 'center'
   },
-  unitBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  unitBtnActive: {
-    backgroundColor: COLORS.navy
-  },
-  unitBtnText: {
-    fontSize: 14,
-    color: COLORS.gray4,
+  unitBtnTextSmall: {
+    fontSize: 11,
+    color: COLORS.white,
     fontWeight: 'bold'
   },
-  unitBtnTextActive: {
-    color: COLORS.white
-  },
-  faseRow: {
+  faseGrid: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 25
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10
   },
   faseBtn: {
-    flex: 1,
-    padding: 12,
+    width: '23%',
+    padding: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
@@ -801,30 +950,72 @@ const styles = StyleSheet.create({
   },
   faseBtnText: {
     color: COLORS.gray4,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    fontSize: 10
   },
   faseBtnTextActive: {
     color: COLORS.white
   },
-  avanzadoPlaceholder: {
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderStyle: 'dashed'
+  avanzadoContainer: {
+    paddingBottom: 5
   },
-  avanzadoText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.navy,
+  accGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: 10
   },
-  avanzadoSub: {
-    fontSize: 13,
+  accCell: {
+    width: '31%',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    padding: 5,
+    alignItems: 'center'
+  },
+  accLabel: {
+    fontSize: 9,
     color: COLORS.gray4,
+    marginBottom: 4,
     textAlign: 'center'
+  },
+  accInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 4,
+    backgroundColor: COLORS.white,
+    width: '80%',
+    padding: 2,
+    textAlign: 'center',
+    fontSize: 11
+  },
+  advWarn: {
+    fontSize: 11,
+    color: '#e0a93a',
+    textAlign: 'center',
+    marginBottom: 5
+  },
+  advResultBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: COLORS.navy,
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 5
+  },
+  advResultRow: {
+    alignItems: 'center'
+  },
+  advResultLbl: {
+    fontSize: 10,
+    color: COLORS.gray4
+  },
+  advResultVal: {
+    fontSize: 13,
+    color: COLORS.navy,
+    fontWeight: 'bold'
   }
 });
