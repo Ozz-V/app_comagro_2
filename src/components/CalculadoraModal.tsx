@@ -121,9 +121,21 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
             if (nums) {
                const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
-               let valLpm = maxNum;
-               if (valStr.includes('M3/H') || valStr.includes('M³/H')) valLpm = maxNum * 16.6667;
-               if (valStr.includes('L/H')) valLpm = maxNum / 60;
+               // La unidad puede venir escrita en el VALOR ("180 L/MIN") o en
+               // el propio nombre de la columna de Plytix ("Caudal (m3/h)"),
+               // según cómo esté cargado cada producto. Miramos los dos
+               // lugares para no asumir L/min por error cuando en realidad
+               // es m3/h o L/h (eso hacía que bombas quedaran mal calculadas
+               // por un factor de hasta 60x).
+               const unitHint = valStr + ' ' + key;
+               let valLpm = maxNum; // default: L/min (o sin unidad detectada)
+               if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M3H')) {
+                  valLpm = (maxNum * 1000) / 60;
+               } else if (unitHint.includes('L/H') || unitHint.includes('LT/H') || unitHint.includes('LTS/H')) {
+                  valLpm = maxNum / 60;
+               } else if (unitHint.includes('L/S')) {
+                  valLpm = maxNum * 60;
+               }
                if (valLpm > maxCaudalLpm) maxCaudalLpm = valLpm;
             }
          }
