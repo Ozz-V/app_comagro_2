@@ -9,9 +9,16 @@ WHERE ctid NOT IN (
   GROUP BY user_id
 );
 
--- 2. Add primary key on user_id
-ALTER TABLE public.chat_user_metrics
-  ADD CONSTRAINT chat_user_metrics_pkey PRIMARY KEY (user_id);
+-- 2. Add primary key on user_id if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'chat_user_metrics_pkey'
+  ) THEN
+    ALTER TABLE public.chat_user_metrics
+      ADD CONSTRAINT chat_user_metrics_pkey PRIMARY KEY (user_id);
+  END IF;
+END $$;
 
 -- 3. Set default max_requests to 20 for all existing rows that have NULL or old default of 10
 UPDATE public.chat_user_metrics

@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard } from 'react-native';
 import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
@@ -21,7 +21,8 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
   const [calcInput, setCalcInput] = useState('');
   const [calcInput2, setCalcInput2] = useState('');
   const [bombaTab, setBombaTab] = useState<'guiado' | 'avanzado'>('guiado');
-  const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ uso: '', caudal: '', unidadCaudal: 'm3/h', altura: '', fase: '' });
+  const [wizardStep, setWizardStep] = useState(1);
+  const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
   const [calcResult, setCalcResult] = useState<CalcProduct[] | null>(null);
   const [hasCalculated, setHasCalculated] = useState(false);
   const [waitingForCatalog, setWaitingForCatalog] = useState(false);
@@ -35,7 +36,8 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
       setCalcMode('');
       setWaitingForCatalog(false);
       setBombaTab('guiado');
-      setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'm3/h', altura: '', fase: '' });
+      setWizardStep(1);
+      setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
     }
   }, [visible]);
 
@@ -47,11 +49,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
   }
 
   async function handleCalculate() {
-    if (calcMode === 'bomba' && !pumpWizard.uso && bombaTab === 'guiado') {
-      alert("Por favor seleccioná el uso de la bomba.");
-      return;
-    }
-    
+    Keyboard.dismiss();
     setHasCalculated(true);
     let filtered: CalcProduct[] = [];
     try {
@@ -110,6 +108,12 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
         if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * 16.6667;
         if (pumpWizard.unidadCaudal === 'l/h') targetCaudalLpm = targetCaudalInput / 60;
         
+        // FÓRMULA DE FÍSICA PARA ESTIMAR HP: 
+        // HP = (L/min * m.c.a. * gravedad) / 36000 / eficiencia_tipica(0.6) / 0.7457 (hp/kw)
+        // Simplificado: HP ~= (Lpm * Mca) / 2736
+        let targetHp = (targetCaudalLpm * targetAlturaInput) / 2736;
+        if (targetHp > 0 && targetHp < 0.5) targetHp = 0.5;
+        
         const dbProducts = await getProductsBySubcategory('BOMBA', true);
         
         const mapped = dbProducts.map((p: ParsedProduct): CalcProduct & { score?: number } => {
@@ -165,18 +169,20 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
            }
 
            let score = 999999;
+           if (hpVal > 0) {
+               score = Math.abs(hpVal - targetHp); // Ordenar principalmente por HP estimado necesario
+           } else {
+               // Si no tiene HP parseable, es muy difícil recomendarla matemáticamente
+               score = 9999;
+           }
+
+           // Bonus o penalización si tiene Caudal y Altura explícitos
            if (maxCaudalLpm > 0 && maxAlturaMca > 0) {
               if (maxCaudalLpm >= targetCaudalLpm && maxAlturaMca >= targetAlturaInput) {
-                 score = (maxCaudalLpm - targetCaudalLpm) + (maxAlturaMca - targetAlturaInput);
+                 score -= 5; // Bonus
               } else {
-                 score = -1;
+                 score += 10; // Penalización por quedarse corto
               }
-           } else {
-             if (targetCaudalInput === 0 && targetAlturaInput === 0) {
-                score = 1000;
-             } else {
-                score = -1;
-             }
            }
            
            if (reqFase === '220v' && !is220) score = -1;
@@ -231,7 +237,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
         <View style={styles.modalContent}>
@@ -243,7 +249,8 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                 setHasCalculated(false);
                 setCalcResult(null);
                 setBombaTab('guiado');
-                setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'm3/h', altura: '', fase: '' });
+                setWizardStep(1);
+                setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
               } else {
                 onClose();
               }
@@ -252,7 +259,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
             </TouchableOpacity>
           </View>
           
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {!calcMode ? (
             <View>
               <Text style={styles.subtitle}>Seleccioná un tipo de equipo para hacer un cálculo rápido:</Text>
@@ -279,7 +286,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                   <Text style={styles.arrowIcon}>›</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => { setCalcMode('bomba'); setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'm3/h', altura: '', fase: '' }); }} style={styles.optionCard}>
+                <TouchableOpacity onPress={() => { setCalcMode('bomba'); setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); setWizardStep(1); setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' }); }} style={styles.optionCard}>
                   <View style={styles.iconContainer}>
                     <SvgIcon name="bomba" size={28} color={COLORS.navy} />
                   </View>
@@ -317,64 +324,86 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                     </View>
                   ) : (
                     <View style={styles.guiadoContainer}>
-                      <Text style={styles.inputTitle}>1. ¿Para qué necesita la bomba?</Text>
-                      <View style={styles.usosGrid}>
-                        {['vivienda', 'riego', 'pozo', 'drenaje', 'piscina', 'combustion'].map(uso => (
+                      {wizardStep === 1 ? (
+                        <View>
+                          <Text style={styles.inputTitle}>1. ¿Para qué necesita la bomba?</Text>
+                          <View style={styles.usosGrid}>
+                            {['vivienda', 'riego', 'pozo', 'drenaje', 'piscina', 'combustion'].map(uso => (
+                              <TouchableOpacity 
+                                key={uso}
+                                style={[styles.usoCard, pumpWizard.uso === uso && styles.usoCardActive]}
+                                onPress={() => setPumpWizard({...pumpWizard, uso})}
+                              >
+                                <Text style={[styles.usoTitle, pumpWizard.uso === uso && styles.usoTitleActive]}>
+                                  {uso === 'vivienda' ? 'Vivienda / Uso Gral' : uso === 'riego' ? 'Riego / Agrícola' : uso === 'pozo' ? 'Pozo Profundo' : uso === 'drenaje' ? 'Achique / Drenaje' : uso === 'piscina' ? 'Piscina' : 'Motobombas'}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                          
                           <TouchableOpacity 
-                            key={uso}
-                            style={[styles.usoCard, pumpWizard.uso === uso && styles.usoCardActive]}
-                            onPress={() => setPumpWizard({...pumpWizard, uso})}
+                            style={[styles.calculateBtn, !pumpWizard.uso && { backgroundColor: COLORS.gray4 }]} 
+                            disabled={!pumpWizard.uso}
+                            onPress={() => setWizardStep(2)}
                           >
-                            <Text style={[styles.usoTitle, pumpWizard.uso === uso && styles.usoTitleActive]}>
-                              {uso === 'vivienda' ? 'Vivienda / Uso Gral' : uso === 'riego' ? 'Riego / Agrícola' : uso === 'pozo' ? 'Pozo Profundo' : uso === 'drenaje' ? 'Achique / Drenaje' : uso === 'piscina' ? 'Piscina' : 'Motobombas'}
-                            </Text>
+                            <Text style={styles.calculateBtnText}>Siguiente →</Text>
                           </TouchableOpacity>
-                        ))}
-                      </View>
-
-                      <Text style={styles.inputTitle}>2. Caudal Necesario</Text>
-                      <View style={styles.caudalRow}>
-                        <TextInput
-                          style={[styles.textInput, { flex: 1, marginHorizontal: 0, marginRight: 10 }]}
-                          keyboardType="numeric"
-                          placeholder="Ej: 100"
-                          placeholderTextColor={COLORS.gray4}
-                          value={pumpWizard.caudal}
-                          onChangeText={(t) => setPumpWizard({...pumpWizard, caudal: t})}
-                        />
-                        <View style={styles.unitPickerContainer}>
-                           <TouchableOpacity onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'l/min'})} style={[styles.unitBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitBtnActive]}>
-                              <Text style={[styles.unitBtnText, pumpWizard.unidadCaudal === 'l/min' && styles.unitBtnTextActive]}>l/min</Text>
-                           </TouchableOpacity>
-                           <TouchableOpacity onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'm3/h'})} style={[styles.unitBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitBtnActive]}>
-                              <Text style={[styles.unitBtnText, pumpWizard.unidadCaudal === 'm3/h' && styles.unitBtnTextActive]}>m³/h</Text>
-                           </TouchableOpacity>
                         </View>
-                      </View>
+                      ) : (
+                        <View>
+                          <TouchableOpacity style={styles.backBtn} onPress={() => { setWizardStep(1); setHasCalculated(false); setCalcResult(null); }}>
+                            <Text style={styles.backBtnText}>← Volver a Uso</Text>
+                          </TouchableOpacity>
 
-                      <Text style={styles.inputTitle}>3. Altura Manométrica (m.c.a.)</Text>
-                      <TextInput
-                        style={[styles.textInput, { marginHorizontal: 0, marginBottom: 20 }]}
-                        keyboardType="numeric"
-                        placeholder="Ej: 20"
-                        placeholderTextColor={COLORS.gray4}
-                        value={pumpWizard.altura}
-                        onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})}
-                      />
+                          <Text style={styles.inputTitle}>2. Caudal Necesario</Text>
+                          <View style={styles.caudalRow}>
+                            <TextInput
+                              style={[styles.textInput, { flex: 1, marginHorizontal: 0, marginRight: 10 }]}
+                              keyboardType="numeric"
+                              placeholder="Ej: 100"
+                              placeholderTextColor={COLORS.gray4}
+                              value={pumpWizard.caudal}
+                              onChangeText={(t) => setPumpWizard({...pumpWizard, caudal: t})}
+                            />
+                            <View style={styles.unitPickerContainer}>
+                               <TouchableOpacity onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'l/min'})} style={[styles.unitBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitBtnActive]}>
+                                  <Text style={[styles.unitBtnText, pumpWizard.unidadCaudal === 'l/min' && styles.unitBtnTextActive]}>l/min</Text>
+                               </TouchableOpacity>
+                               <TouchableOpacity onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'm3/h'})} style={[styles.unitBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitBtnActive]}>
+                                  <Text style={[styles.unitBtnText, pumpWizard.unidadCaudal === 'm3/h' && styles.unitBtnTextActive]}>m³/h</Text>
+                               </TouchableOpacity>
+                            </View>
+                          </View>
 
-                      <Text style={styles.inputTitle}>4. Alimentación Eléctrica (Opcional)</Text>
-                      <View style={styles.faseRow}>
-                        <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
-                          <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>Monofásico (220V)</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
-                          <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>Trifásico (380V)</Text>
-                        </TouchableOpacity>
-                      </View>
+                          <Text style={styles.inputTitle}>3. Altura Manométrica (m.c.a.)</Text>
+                          <TextInput
+                            style={[styles.textInput, { marginHorizontal: 0, marginBottom: 20 }]}
+                            keyboardType="numeric"
+                            placeholder="Ej: 20"
+                            placeholderTextColor={COLORS.gray4}
+                            value={pumpWizard.altura}
+                            onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})}
+                          />
 
-                      <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
-                        <Text style={styles.calculateBtnText}>Ver Recomendaciones</Text>
-                      </TouchableOpacity>
+                          <Text style={styles.inputTitle}>4. Alimentación Eléctrica (Opcional)</Text>
+                          <View style={styles.faseRow}>
+                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
+                              <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>Monofásico (220V)</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
+                              <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>Trifásico (380V)</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <TouchableOpacity 
+                            style={[styles.calculateBtn, (!pumpWizard.caudal || !pumpWizard.altura) && { backgroundColor: COLORS.gray4 }]} 
+                            disabled={!pumpWizard.caudal || !pumpWizard.altura}
+                            onPress={handleCalculate}
+                          >
+                            <Text style={styles.calculateBtnText}>Ver Recomendaciones</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                   )}
                 </View>
@@ -402,13 +431,20 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
 
               {hasCalculated && (parseFloat(calcInput) > 0 || calcMode === 'bomba') && (
                 <View style={styles.resultContainer}>
-                  {calcMode !== 'bomba' && (
+                  {calcMode !== 'bomba' ? (
                   <View style={styles.estimationBox}>
                     <Text style={styles.estimationTitle}>Estimación rápida:</Text>
                     <Text style={styles.estimationText}>
                       {calcMode === 'gen' ? estimateGenerador(parseFloat(calcInput)) :
                        calcMode === 'motor' ? estimateMotor(parseFloat(calcInput)) :
                        ''}
+                    </Text>
+                  </View>
+                  ) : (
+                  <View style={styles.estimationBox}>
+                    <Text style={styles.estimationTitle}>Tu necesidad:</Text>
+                    <Text style={styles.estimationText}>
+                      Para {pumpWizard.caudal} {pumpWizard.unidadCaudal} a {pumpWizard.altura} m.c.a. necesitas aproximadamente una bomba de {((parseFloat(pumpWizard.unidadCaudal === 'm3/h' ? String(parseFloat(pumpWizard.caudal) * 16.6667) : pumpWizard.caudal) || 0) * (parseFloat(pumpWizard.altura) || 0) / 2736).toFixed(1)} HP de potencia mínima.
                     </Text>
                   </View>
                   )}
@@ -424,7 +460,7 @@ export default function CalculadoraModal({ visible, onClose, navigation, allProd
                       </View>
                     ) : (
                       <Text style={styles.estimationText}>
-                        No encontramos equipos que coincidan con ese valor. Probá con otro número.
+                        No encontramos equipos que coincidan con ese requerimiento en la categoría seleccionada.
                       </Text>
                     )}
                   </View>
@@ -590,6 +626,14 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: 'bold',
     fontSize: 16
+  },
+  backBtn: {
+    marginBottom: 15,
+  },
+  backBtnText: {
+    color: COLORS.navy,
+    fontSize: 14,
+    fontWeight: 'bold'
   },
   resultContainer: {
     marginBottom: 20
