@@ -358,7 +358,16 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const hasEjeLibre = filtered.some(p => p.calcVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
         
         let mResults: ExtendedCalcProduct[] = [];
-        if (hasEjeLibre && targetHp > 0) {
+        let finalTargetHp = targetHp;
+        
+        if (hasEjeLibre && targetHp === 0) {
+            const ejeLibrePump = filtered.find(p => p.calcVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
+            if (ejeLibrePump && (ejeLibrePump as any)._q > 0 && (ejeLibrePump as any)._h > 0) {
+                finalTargetHp = ((ejeLibrePump as any)._q * (ejeLibrePump as any)._h) / 1915.2;
+            }
+        }
+        
+        if (hasEjeLibre && finalTargetHp > 0) {
             const dbMotors = await getProductsBySubcategory('MOTOR', true);
             const validMotors = dbMotors.map((m: ParsedProduct): ExtendedCalcProduct => {
                let mHp = 0;
@@ -371,7 +380,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                      }
                   });
                }
-               return { ...m, calcVal: mHp, score: mHp >= targetHp ? mHp - targetHp : 9999 };
+               return { ...m, calcVal: mHp, score: mHp >= finalTargetHp ? mHp - finalTargetHp : 9999 };
             }).filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000)
             .sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
             
