@@ -20,16 +20,18 @@ type ExtendedCalcProduct = CalcProduct & {
   score?: number;
   displayValue?: string;
   isSinAltura?: boolean;
+  pairedSku?: string; // SKU del producto complementario asociado (bomba<->motor/cuerpo), para mostrar el vínculo visual
 };
 
 const USOS = [
-  { id: 'vivienda', title: 'Vivienda / uso general', subtitle: 'Agua de red o tanque para una casa, presión de canillas y duchas.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBAS ELECTRICAS CON INVERSOR', 'MOTOBOMBA VIBRATORIA'] },
-  { id: 'riego_presion', title: 'Riego agrícola / industrial', subtitle: 'Riego, varios pisos de altura, procesos industriales o caudales grandes.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBA A COMBUSTIÓN', 'MOTOBOMBA VIBRATORIA'], pref: ['MULTIETAPAS','MEGANORM','SPY','BIROTOR','CENTRÍFUGA EJE LIBRE'] },
+  { id: 'vivienda', title: 'Vivienda / uso general', subtitle: 'Agua de red o tanque para una casa, presión de canillas y duchas.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBAS ELECTRICAS CON INVERSOR'], maxHp: 2, maxCaudalLpm: 1667 },
+  { id: 'riego', title: 'Riego / agrícola', subtitle: 'Riego por aspersión, goteo, o traslado de agua para riego.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBA A COMBUSTIÓN'] },
   { id: 'combustion', title: 'Sin electricidad en el lugar', subtitle: 'Motobomba a nafta o diésel para zonas sin red eléctrica.', tipos: ['BOMBA A COMBUSTIÓN'], forzarCombustible: true },
   { id: 'dosificacion', title: 'Dosificación química', subtitle: 'Cloro, floculantes u otros químicos en dosis controladas.', tipos: ['BOMBA DOSIFICADORA'] },
-  { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Bomba sumergible para extraer agua de un pozo o perforación.', tipos: ['ELECTROBOMBA SUMERGIBLE MONOBLOQUE','ELECTROBOMBAS SUMERGIDAS MULTIETAPAS','MOTOBOMBA SUMERGIBLE DE TORNILLO','MOTOBOMBA INYECTORA','BOMBA SUMERGIBLE SOLAR', 'CUERPO SUMERGIBLE'] },
-  { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Sótanos inundados, pileta, aguas servidas, achique de obra.', tipos: ['BOMBA DE DRENAJE','BOMBA DE ACHIQUE'] },
-  { id: 'piscina', title: 'Piscina', subtitle: 'Recirculación y filtrado de agua de pileta.', tipos: ['BOMBA PARA PISCINA','MOTOBOMBA RECIRCULADORA'] }
+  { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Bomba sumergible para extraer agua de un pozo o perforación.', tipos: ['ELECTROBOMBA SUMERGIBLE MONOBLOQUE','ELECTROBOMBAS SUMERGIDAS MULTIETAPAS','MOTOBOMBA SUMERGIBLE DE TORNILLO','MOTOBOMBA INYECTORA','BOMBA SUMERGIBLE SOLAR','CUERPO SUMERGIBLE'] },
+  { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Sótanos inundados, pileta, aguas servidas, achique de obra.', tipos: ['BOMBA DE DRENAJE','BOMBA DE ACHIQUE','MOTOBOMBA VIBRATORIA'] },
+  { id: 'piscina', title: 'Piscina', subtitle: 'Recirculación y filtrado de agua de pileta.', tipos: ['BOMBA PARA PISCINA','MOTOBOMBA RECIRCULADORA'] },
+  { id: 'presion', title: 'Alta presión / industrial', subtitle: 'Varios pisos de altura, procesos industriales, o caudales grandes.', tipos: ['BOMBA DE AGUA'], pref: ['MULTIETAPAS','MEGANORM','SPY','BIROTOR','CENTRÍFUGA EJE LIBRE'] }
 ];
 
 export default function CalculadoraModal({ visible, onClose, navigation }: CalculadoraModalProps) {
@@ -43,12 +45,12 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
 
   const [calcResult, setCalcResult] = useState<ExtendedCalcProduct[] | null>(null);
   const [motorResult, setMotorResult] = useState<ExtendedCalcProduct[] | null>(null);
+  const [motorResultTitle, setMotorResultTitle] = useState('Motores Sugeridos (Eje Libre):');
   const [hasCalculated, setHasCalculated] = useState(false);
   const [waitingForCatalog, setWaitingForCatalog] = useState(false);
   
   // Pre-read stats
   const [catStats, setCatStats] = useState<{maxQ: number, maxH: number} | null>(null);
-  const [motorWarning, setMotorWarning] = useState<string | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
@@ -64,7 +66,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
       setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0] });
       setCatStats(null);
-      setMotorWarning(null);
     }
   }, [visible]);
 
@@ -130,7 +131,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                // por un factor de hasta 60x).
                const unitHint = valStr + ' ' + key;
                let valLpm = maxNum; // default: L/min (o sin unidad detectada)
-               if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M^3/H') || unitHint.includes('M3H')) {
+               if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M3H')) {
                   valLpm = (maxNum * 1000) / 60;
                } else if (unitHint.includes('L/H') || unitHint.includes('LT/H') || unitHint.includes('LTS/H')) {
                   valLpm = maxNum / 60;
@@ -156,25 +157,12 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
        });
      }
      
-      let isEjeLibreOrCombustion = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR');
-      const subcatStr = String(p.subcategoria).toUpperCase();
-      if (subcatStr.includes('NAFTA') || subcatStr.includes('DIESEL')) isEjeLibreOrCombustion = true;
-      if (p.specs && JSON.stringify(p.specs).toUpperCase().includes('COMBUSTIÓN')) isEjeLibreOrCombustion = true;
+     if (!is220 && !is380) {
+        if (hpVal <= 3) is220 = true;
+        else is380 = true;
+     }
 
-      if (!is220 && !is380 && !isEjeLibreOrCombustion) {
-         if (hpVal <= 3) is220 = true;
-         else is380 = true;
-      }
-
-      let isEjeLibre = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.subcategoria).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR') || String(p.subcategoria).toUpperCase().includes('SIN MOTOR');
-      if (!isEjeLibre && p.specs) {
-          const allSpecsStr = JSON.stringify(p.specs).toUpperCase();
-          if (allSpecsStr.includes('SIN MOTOR') || allSpecsStr.includes('EJE LIBRE')) {
-              isEjeLibre = true;
-          }
-      }
-
-      return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380, isEjeLibre };
+     return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380 };
   }
 
   // Pre-read stats effect
@@ -203,28 +191,10 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     }
   }, [wizardStep, pumpWizard.uso, calcMode]);
 
-  const handleUnitChange = (newUnit: 'l/min' | 'm3/h' | 'l/h') => {
-    const currentVal = parseFloat(pumpWizard.caudal);
-    if (!currentVal || isNaN(currentVal)) {
-       setPumpWizard({...pumpWizard, unidadCaudal: newUnit});
-       return;
-    }
-    let valLpm = currentVal;
-    if (pumpWizard.unidadCaudal === 'm3/h') valLpm = currentVal * (1000/60);
-    else if (pumpWizard.unidadCaudal === 'l/h') valLpm = currentVal / 60;
-
-    let newVal = valLpm;
-    if (newUnit === 'm3/h') newVal = valLpm / (1000/60);
-    else if (newUnit === 'l/h') newVal = valLpm * 60;
-
-    const newValStr = Number.isInteger(newVal) ? newVal.toString() : newVal.toFixed(2).replace(/\.00$/, '');
-    setPumpWizard({...pumpWizard, unidadCaudal: newUnit, caudal: newValStr});
-  };
-
   function getTargetCaudalLpm() {
     const targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
     let targetCaudalLpm = targetCaudalInput;
-    if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * (1000 / 60);
+    if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * 16.6667;
     if (pumpWizard.unidadCaudal === 'l/h') targetCaudalLpm = targetCaudalInput / 60;
     return targetCaudalLpm;
   }
@@ -293,7 +263,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            targetCaudalLpm = getTargetCaudalLpm();
         } else {
            targetCaudalInput = parseFloat(adv.caudal) || 0;
-           targetCaudalLpm = targetCaudalInput * (1000 / 60);
+           targetCaudalLpm = targetCaudalInput * 16.6667;
            targetAlturaInput = hTotal;
            reqFase = '';
         }
@@ -316,11 +286,11 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         }
         
         // Strict fuel filter
-        if (usoConf?.forzarCombustible) {
+        if (bombaTab === 'guiado' && usoConf?.forzarCombustible) {
            pool = pool.filter(p => {
              const sub = String(p.subcategoria).toUpperCase();
              const allSpecs = p.specs ? JSON.stringify(p.specs).toUpperCase() : '';
-             return sub.includes('NAFTA') || sub.includes('DIESEL') || sub.includes('COMBUSTIÓN') || sub.includes('GASOLINA') || allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('COMBUSTIÓN') || allSpecs.includes('GASOLINA');
+             return sub.includes('NAFTA') || sub.includes('DIESEL') || allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('COMBUSTIÓN');
            });
         }
 
@@ -356,87 +326,107 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               }
            }
 
-           return { ...p, calcVal: specs.hpVal, score, displayValue: displayVal, isSinAltura: specs.maxAlturaMca === 0, _q: specs.maxCaudalLpm, _h: specs.maxAlturaMca, _is220: specs.is220, _is380: specs.is380, _isEjeLibre: specs.isEjeLibre } as any;
+           return { ...p, calcVal: specs.hpVal, score, displayValue: displayVal, isSinAltura: specs.maxAlturaMca === 0, _q: specs.maxCaudalLpm, _h: specs.maxAlturaMca, _is220: specs.is220, _is380: specs.is380 } as any;
         });
 
+        // Tope de potencia y caudal por categoría (ej. vivienda no debería
+        // sugerir bombas industriales, aunque técnicamente cumplan el
+        // caudal/altura pedidos). El tope de HP solo aplica a bombas con
+        // motor propio conocido — pero el tope de CAUDAL aplica siempre,
+        // incluso a bombas de eje libre/sin motor (esas no tienen HP fijo,
+        // así que sin este segundo filtro se colaban bombas industriales
+        // enormes con "0 HP" igual).
+        let filteredByHp = mapped;
+        if (bombaTab === 'guiado' && usoConf?.maxHp) {
+           filteredByHp = filteredByHp.filter(p => p.calcVal === 0 || p.calcVal <= (usoConf.maxHp as number));
+        }
+        if (bombaTab === 'guiado' && usoConf?.maxCaudalLpm) {
+           filteredByHp = filteredByHp.filter(p => !(p as any)._q || (p as any)._q <= (usoConf.maxCaudalLpm as number));
+        }
+
         // 75% Filter
-        let conAltura = mapped.filter(p => !p.isSinAltura);
-        let sinAltura = mapped.filter(p => p.isSinAltura);
+        let conAltura = filteredByHp.filter(p => !p.isSinAltura);
+        let sinAltura = filteredByHp.filter(p => p.isSinAltura);
 
         if (targetCaudalLpm > 0) {
-           let byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm && (p as any)._q <= targetCaudalLpm * 1.3);
-           if (byQ.length < 2) {
-              byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * 0.75 && (p as any)._q <= targetCaudalLpm * 1.5);
+           let byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm);
+           if (byQ.length < 4) {
+              byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * 0.75);
            }
            conAltura = byQ;
            
-           sinAltura = sinAltura.filter(p => ((p as any)._q >= targetCaudalLpm * 0.75 && (p as any)._q <= targetCaudalLpm * 1.5) || (p as any)._q === 0);
+           sinAltura = sinAltura.filter(p => (p as any)._q >= targetCaudalLpm * 0.75 || (p as any)._q === 0);
         }
 
         if (targetAlturaInput > 0) {
-           let byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput && (p as any)._h <= targetAlturaInput * 1.3);
-           if (byH.length < 2) {
-              byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput * 0.75 && (p as any)._h <= targetAlturaInput * 1.5);
+           let byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput);
+           if (byH.length < 3) {
+              byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput * 0.75);
            }
            conAltura = byH;
         }
         
         // Fase Filter
         if (reqFase === 'sinelec') {
-           conAltura = conAltura.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
-           sinAltura = sinAltura.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
+           conAltura = conAltura.filter(p => !(p as any)._is220 && !(p as any)._is380);
+           sinAltura = sinAltura.filter(p => !(p as any)._is220 && !(p as any)._is380);
         } else if (reqFase === '220v') {
-           conAltura = conAltura.filter(p => (p as any)._is220 || (p as any)._isEjeLibre);
-           sinAltura = sinAltura.filter(p => (p as any)._is220 || (p as any)._isEjeLibre);
+           conAltura = conAltura.filter(p => (p as any)._is220);
         } else if (reqFase === '380v') {
-           conAltura = conAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
-           sinAltura = sinAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
+           conAltura = conAltura.filter(p => (p as any)._is380);
         }
 
         conAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
         sinAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
 
-        filtered = [...conAltura, ...sinAltura].slice(0, 5).map(p => {
+        const preStrip = [...conAltura, ...sinAltura].slice(0, 5);
+
+        filtered = preStrip.map(p => {
            const { _q, _h, _is220, _is380, ...rest } = p as any;
            return rest;
         });
 
-        const hasEjeLibre = filtered.some(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
+        const hasEjeLibre = preStrip.some(p => p.calcVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR') || String(p.subcategoria).toUpperCase().includes('CUERPO SUMERGIBLE'));
         
         let mResults: ExtendedCalcProduct[] = [];
         let finalTargetHp = targetHp;
-        
-        setMotorWarning(null);
+        let ejeLibrePump: ExtendedCalcProduct | undefined;
+
         if (hasEjeLibre) {
-            const ejeLibrePump = filtered.find(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
-            if (ejeLibrePump) {
-                let rawHp = 0;
-                if ((ejeLibrePump as any)._q > 0 && (ejeLibrePump as any)._h > 0) {
-                    rawHp = ((ejeLibrePump as any)._q * (ejeLibrePump as any)._h) / 3150;
-                } else if (ejeLibrePump.calcVal > 0) {
-                    rawHp = ejeLibrePump.calcVal;
-                } else {
-                    rawHp = (targetCaudalLpm * targetAlturaInput) / 3150;
+            ejeLibrePump = preStrip.find(p => p.calcVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR') || String(p.subcategoria).toUpperCase().includes('CUERPO SUMERGIBLE'));
+
+            // Preferimos el HP que el propio fabricante indica en la ficha
+            // (ej. specs: "Para Motor 90 HP"), más confiable que estimarlo
+            // con la fórmula genérica de Q x H.
+            let explicitHp = 0;
+            if (ejeLibrePump?.specs) {
+                for (const s of ejeLibrePump.specs) {
+                    const match = String(s[1]).match(/PARA\s+MOTOR\s+([\d.,]+)\s*HP/i);
+                    if (match) {
+                        explicitHp = parseFloat(match[1].replace(',', '.'));
+                        break;
+                    }
                 }
-                
-                // Margen de seguridad para evitar que el motor trabaje ahogado
-                if (rawHp > 20) finalTargetHp = rawHp * 1.10;
-                else if (rawHp >= 3) finalTargetHp = rawHp * 1.15;
-                else finalTargetHp = rawHp * 1.20;
+            }
+
+            if (explicitHp > 0) {
+                finalTargetHp = explicitHp;
+            } else if (targetHp === 0 && ejeLibrePump && (ejeLibrePump as any)._q > 0 && (ejeLibrePump as any)._h > 0) {
+                finalTargetHp = ((ejeLibrePump as any)._q * (ejeLibrePump as any)._h) / 1915.2;
             }
         }
         
         if (hasEjeLibre && finalTargetHp > 0) {
-            const ejeLibrePump = filtered.find(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
-            const isPumpSumergible = ejeLibrePump ? (String(ejeLibrePump.subcategoria).toUpperCase().includes('SUMERGIBLE') || String(ejeLibrePump.modelo).toUpperCase().includes('SUMERGIBLE')) : (usoConf?.id === 'pozo');
-            
+            // Si la bomba sugerida es un cuerpo sumergible, el motor tiene
+            // que ser sumergible también (no encaja un motor de eje libre
+            // común). Si es una bomba normal, hacemos lo inverso: excluimos
+            // los motores sumergibles de la sugerencia.
+            const esSumergible = ejeLibrePump ? String(ejeLibrePump.subcategoria).toUpperCase().includes('SUMERGIBLE') : false;
+
             const dbMotors = await getProductsBySubcategory('MOTOR', true);
-            const validMotors = dbMotors.filter(m => {
-               const mSub = String(m.subcategoria).toUpperCase();
-               const mMod = String(m.modelo).toUpperCase();
-               const isMotorSumergible = mSub.includes('SUMERGIBLE') || mMod.includes('SUMERGIBLE') || mMod.includes('4PD') || mMod.includes('6PD');
-               return isPumpSumergible ? isMotorSumergible : !isMotorSumergible;
-            }).map((m: ParsedProduct): ExtendedCalcProduct => {
+            const motorsFiltrados = dbMotors.filter(m => String(m.subcategoria).toUpperCase().includes('SUMERGIBLE') === esSumergible);
+
+            const validMotors = motorsFiltrados.map((m: ParsedProduct): ExtendedCalcProduct => {
                let mHp = 0;
                if (m.specs) {
                   m.specs.forEach((s) => {
@@ -448,43 +438,66 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   });
                }
                return { ...m, calcVal: mHp, score: mHp >= finalTargetHp ? mHp - finalTargetHp : 9999 };
-            });
-
-            const filteredValidMotors = validMotors.filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000).sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
+            }).filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000)
+            .sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
             
             // Get up to 3 motors
-            mResults = filteredValidMotors.slice(0, 3).map(m => {
+            mResults = validMotors.slice(0, 3).map(m => {
                m.marca = 'Motor Sugerido: ' + m.marca;
                m.displayValue = m.calcVal > 0 ? `${m.calcVal.toFixed(1)} HP (Est. ${Math.round(finalTargetHp)} HP req)` : '? HP';
+               m.pairedSku = ejeLibrePump?.modelo;
                return m;
             });
-            
-            if (mResults.length === 0) {
-               const maxCatalogHp = Math.max(...validMotors.map(m => m.calcVal || 0));
-               if (finalTargetHp > maxCatalogHp && maxCatalogHp > 0) {
-                  if (targetAlturaInput > 0) {
-                      const maxLpm = (maxCatalogHp * 3150) / targetAlturaInput;
-                      let maxDisplay = '';
-                      if (pumpWizard.unidadCaudal === 'm3/h') maxDisplay = (maxLpm * 60 / 1000).toFixed(1) + ' m³/h';
-                      else if (pumpWizard.unidadCaudal === 'l/h') maxDisplay = (maxLpm * 60).toFixed(0) + ' L/h';
-                      else maxDisplay = maxLpm.toFixed(0) + ' L/min';
-                      
-                      setMotorWarning(`⚠️ El requerimiento exige ~${Math.round(finalTargetHp)} HP. Acoplando nuestro motor más potente en stock (${maxCatalogHp} HP), a esta altura de ${targetAlturaInput} mca, el equipo entregará un caudal máximo estimado de ${maxDisplay}.`);
-                  } else {
-                      setMotorWarning(`⚠️ El equipo exige ~${Math.round(finalTargetHp)} HP. Mostrando motores de mayor capacidad en catálogo (${maxCatalogHp} HP).`);
-                  }
-                  
-                  // Sugerir el motor más grande que tengamos como "Plan B"
-                  const fallbackMotors = validMotors.filter(m => m.calcVal === maxCatalogHp);
-                  mResults = fallbackMotors.slice(0, 3).map(m => {
-                      m.marca = 'Motor Sugerido: ' + m.marca;
-                      m.displayValue = `Máx cap. ${maxCatalogHp} HP`;
-                      return m;
-                  });
-               } else {
-                  setMotorWarning(`⚠️ No se encontraron motores en stock compatibles para cubrir los ${Math.round(finalTargetHp)} HP exigidos.`);
-               }
+            setMotorResultTitle(esSumergible ? 'Motores Sumergibles Sugeridos:' : 'Motores Sugeridos (Eje Libre):');
+            // Marcamos la bomba principal con la misma referencia, para
+            // mostrar en su tarjeta "🔗 necesita motor" y que el vendedor
+            // vea que están asociadas.
+            if (ejeLibrePump && mResults.length > 0) {
+               const idxInFiltered = filtered.findIndex(p => p.modelo === ejeLibrePump!.modelo);
+               if (idxInFiltered >= 0) filtered[idxInFiltered].pairedSku = mResults[0].modelo;
             }
+        }
+
+        // Caso inverso: si el resultado principal es un MOTOR SUMERGIBLE
+        // suelto (sin cuerpo), no sirve de nada solo — hace falta sugerir
+        // el cuerpo sumergible que le corresponde, igual que un motor de
+        // eje libre necesita su bomba.
+        if (mResults.length === 0) {
+           const motorSumergibleSolo = preStrip.find(p => {
+              const sub = String(p.subcategoria).toUpperCase();
+              return sub.includes('MOTOR') && sub.includes('SUMERGIBLE');
+           });
+
+           if (motorSumergibleSolo && motorSumergibleSolo.calcVal > 0) {
+              const motorHp = motorSumergibleSolo.calcVal;
+              const dbCuerpos = await getProductsBySubcategory('CUERPO SUMERGIBLE', true);
+              const validCuerpos = dbCuerpos.map((c: ParsedProduct): ExtendedCalcProduct => {
+                 let cuerpoHpReq = 0;
+                 if (c.specs) {
+                    for (const s of c.specs) {
+                       const match = String(s[1]).match(/PARA\s+MOTOR\s+([\d.,]+)\s*HP/i);
+                       if (match) { cuerpoHpReq = parseFloat(match[1].replace(',', '.')); break; }
+                    }
+                 }
+                 return { ...c, calcVal: cuerpoHpReq, score: cuerpoHpReq > 0 ? Math.abs(cuerpoHpReq - motorHp) : 9999 };
+              }).filter((c) => c.score !== undefined && c.score < 9999)
+              .sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
+
+              mResults = validCuerpos.slice(0, 3).map(c => {
+                 c.marca = 'Cuerpo Sugerido: ' + c.marca;
+                 c.displayValue = c.calcVal > 0 ? `Requiere motor ${c.calcVal.toFixed(0)} HP (tenés ${motorHp.toFixed(0)} HP)` : '';
+                 c.pairedSku = motorSumergibleSolo.modelo;
+                 return c;
+              });
+              // Marcamos el motor principal con la misma referencia, para
+              // mostrar en su tarjeta "🔗 necesita cuerpo" y que el vendedor
+              // vea que están asociadas.
+              if (mResults.length > 0) {
+                 const idxInFiltered = filtered.findIndex(p => p.modelo === motorSumergibleSolo.modelo);
+                 if (idxInFiltered >= 0) filtered[idxInFiltered].pairedSku = mResults[0].modelo;
+              }
+              setMotorResultTitle('Cuerpos Sumergibles Sugeridos:');
+           }
         }
         setMotorResult(mResults);
       }
@@ -719,51 +732,47 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                              <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Caudal</Text>
                                 <View style={styles.unitTabs}>
-                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('l/min')}>
+                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabBtnActive]} onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'l/min'})}>
                                       <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabTxtActive]}>L/min</Text>
                                    </TouchableOpacity>
-                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('m3/h')}>
+                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabBtnActive]} onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'm3/h'})}>
                                       <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabTxtActive]}>m³/h</Text>
                                    </TouchableOpacity>
-                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('l/h')}>
+                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabBtnActive]} onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'l/h'})}>
                                       <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabTxtActive]}>L/h</Text>
                                    </TouchableOpacity>
                                 </View>
                                 <View style={styles.caudalRow}>
                                   <TextInput style={[styles.textInputSmall, { flex: 1, marginHorizontal: 0, marginRight: 5 }]} keyboardType="numeric" placeholder="Ej: 100" placeholderTextColor={COLORS.gray4} value={pumpWizard.caudal} onChangeText={(t) => setPumpWizard({...pumpWizard, caudal: t})} />
                                 </View>
-                                {catStats && Math.round(getTargetCaudalLpm()) > Math.round(catStats.maxQ) && getTargetCaudalLpm() > 0 && (
+                                {catStats && getTargetCaudalLpm() > catStats.maxQ && getTargetCaudalLpm() > 0 && (
                                    <Text style={styles.advWarn}>⚠️ El caudal ingresado supera el máximo de nuestro catálogo ({catStats.maxQ.toFixed(0)} L/min).</Text>
                                 )}
                              </View>
-              <View style={styles.colListRow}>
+                             <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Altura (mca)</Text>
-                                <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} maxLength={3} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
-                                {catStats && Math.round(parseFloat(pumpWizard.altura) || 0) > Math.round(catStats.maxH) && (parseFloat(pumpWizard.altura) || 0) > 0 && (
+                                <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
+                                {catStats && (parseFloat(pumpWizard.altura) || 0) > catStats.maxH && (parseFloat(pumpWizard.altura) || 0) > 0 && (
                                    <Text style={styles.advWarn}>⚠️ La altura supera el máximo disponible ({catStats.maxH.toFixed(0)} mca).</Text>
                                 )}
                              </View>
                           </View>
 
-                          {pumpWizard.uso !== 'combustion' && (
-                            <>
-                              <Text style={styles.inputTitleSmall}>Alimentación Eléctrica (Opcional)</Text>
-                              <View style={styles.faseGrid}>
-                                <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
-                                  <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>220V</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
-                                  <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>380V</Text>
-                                </TouchableOpacity>
-
-                                {(!['dosificacion', 'combustion', 'piscina', 'drenaje'].includes(pumpWizard.uso)) && (
-                                  <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'sinelec' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'sinelec' ? '' : 'sinelec'})}>
-                                    <Text style={[styles.faseBtnText, pumpWizard.fase === 'sinelec' && styles.faseBtnTextActive]}>Sin Motor</Text>
-                                  </TouchableOpacity>
-                                )}
-                              </View>
-                            </>
-                          )}
+                          <Text style={styles.inputTitleSmall}>Alimentación Eléctrica (Opcional)</Text>
+                          <View style={styles.faseGrid}>
+                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
+                              <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>220V</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
+                              <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>380V</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'nose' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'nose' ? '' : 'nose'})}>
+                              <Text style={[styles.faseBtnText, pumpWizard.fase === 'nose' && styles.faseBtnTextActive]}>No sé</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'sinelec' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'sinelec' ? '' : 'sinelec'})}>
+                              <Text style={[styles.faseBtnText, pumpWizard.fase === 'sinelec' && styles.faseBtnTextActive]}>Sin Motor</Text>
+                            </TouchableOpacity>
+                          </View>
 
                           <TouchableOpacity 
                             style={[styles.calculateBtn, {paddingVertical: 10, marginBottom: 5}, (catStats && (getTargetCaudalLpm() > catStats.maxQ * 1.5 || (parseFloat(pumpWizard.altura)||0) > catStats.maxH * 1.5)) && { backgroundColor: COLORS.gray4 }]} 
@@ -849,6 +858,11 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                           ) : (
                             <View style={styles.suggestedImgPlaceholder} />
                           )}
+                          {item.pairedSku && (
+                            <View style={styles.pairedBadge}>
+                              <Text style={styles.pairedBadgeText}>🔗 Requiere componente</Text>
+                            </View>
+                          )}
                           <Text style={styles.suggestedMarca} numberOfLines={1}>{item.marca}</Text>
                           <Text style={styles.suggestedModelo} numberOfLines={2}>{item.modelo}</Text>
                           <Text style={styles.suggestedVal}>
@@ -860,12 +874,9 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   </View>
                 )}
 
-                {motorResult && motorResult.length === 0 && motorWarning && (
-                  <Text style={styles.advWarn}>{motorWarning}</Text>
-                )}
                 {motorResult && motorResult.length > 0 && (
                   <View style={[styles.suggestedContainer, {marginTop: 5}]}>
-                    <Text style={styles.suggestedTitle}>Motores Sugeridos (Eje Libre):</Text>
+                    <Text style={styles.suggestedTitle}>{motorResultTitle}</Text>
                     <FlatList
                       data={motorResult}
                       horizontal
@@ -882,6 +893,11 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                             <Image source={{ uri: item.imagen }} style={styles.suggestedImg} contentFit="contain" />
                           ) : (
                             <View style={styles.suggestedImgPlaceholder} />
+                          )}
+                          {item.pairedSku && (
+                            <View style={[styles.pairedBadge, { backgroundColor: COLORS.green }]}>
+                              <Text style={styles.pairedBadgeText}>🔗 Para: {item.pairedSku}</Text>
+                            </View>
                           )}
                           <Text style={styles.suggestedMarca} numberOfLines={1}>{item.marca}</Text>
                           <Text style={styles.suggestedModelo} numberOfLines={2}>{item.modelo}</Text>
@@ -1103,6 +1119,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     marginBottom: 5,
     borderRadius: 4
+  },
+  pairedBadge: {
+    backgroundColor: COLORS.navy,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginBottom: 4,
+    alignSelf: 'flex-start'
+  },
+  pairedBadgeText: {
+    fontSize: 8,
+    color: '#fff',
+    fontWeight: 'bold'
   },
   suggestedMarca: {
     fontSize: 9,
