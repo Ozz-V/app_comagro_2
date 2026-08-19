@@ -129,7 +129,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                // por un factor de hasta 60x).
                const unitHint = valStr + ' ' + key;
                let valLpm = maxNum; // default: L/min (o sin unidad detectada)
-               if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M3H')) {
+               if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M^3/H') || unitHint.includes('M3H')) {
                   valLpm = (maxNum * 1000) / 60;
                } else if (unitHint.includes('L/H') || unitHint.includes('LT/H') || unitHint.includes('LTS/H')) {
                   valLpm = maxNum / 60;
@@ -389,8 +389,16 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         }
         
         if (hasEjeLibre && finalTargetHp > 0) {
+            const ejeLibrePump = filtered.find(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
+            const isPumpSumergible = ejeLibrePump ? (String(ejeLibrePump.subcategoria).toUpperCase().includes('SUMERGIBLE') || String(ejeLibrePump.modelo).toUpperCase().includes('SUMERGIBLE')) : (usoConf?.id === 'profundo');
+            
             const dbMotors = await getProductsBySubcategory('MOTOR', true);
-            const validMotors = dbMotors.map((m: ParsedProduct): ExtendedCalcProduct => {
+            const validMotors = dbMotors.filter(m => {
+               const mSub = String(m.subcategoria).toUpperCase();
+               const mMod = String(m.modelo).toUpperCase();
+               const isMotorSumergible = mSub.includes('SUMERGIBLE') || mMod.includes('SUMERGIBLE') || mMod.includes('4PD') || mMod.includes('6PD');
+               return isPumpSumergible ? isMotorSumergible : !isMotorSumergible;
+            }).map((m: ParsedProduct): ExtendedCalcProduct => {
                let mHp = 0;
                if (m.specs) {
                   m.specs.forEach((s) => {
