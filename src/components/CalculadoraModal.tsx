@@ -23,12 +23,12 @@ type ExtendedCalcProduct = CalcProduct & {
 };
 
 const USOS = [
-  { id: 'vivienda', title: 'Vivienda / uso general', subtitle: 'Agua de red o tanque para una casa, presión de canillas y duchas.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBAS ELECTRICAS CON INVERSOR'] },
-  { id: 'riego_presion', title: 'Riego agrícola / industrial', subtitle: 'Riego, varios pisos de altura, procesos industriales o caudales grandes.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBA A COMBUSTIÓN'], pref: ['MULTIETAPAS','MEGANORM','SPY','BIROTOR','CENTRÍFUGA EJE LIBRE'] },
+  { id: 'vivienda', title: 'Vivienda / uso general', subtitle: 'Agua de red o tanque para una casa, presión de canillas y duchas.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBAS ELECTRICAS CON INVERSOR', 'MOTOBOMBA VIBRATORIA'] },
+  { id: 'riego_presion', title: 'Riego agrícola / industrial', subtitle: 'Riego, varios pisos de altura, procesos industriales o caudales grandes.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBA A COMBUSTIÓN', 'MOTOBOMBA VIBRATORIA'], pref: ['MULTIETAPAS','MEGANORM','SPY','BIROTOR','CENTRÍFUGA EJE LIBRE'] },
   { id: 'combustion', title: 'Sin electricidad en el lugar', subtitle: 'Motobomba a nafta o diésel para zonas sin red eléctrica.', tipos: ['BOMBA A COMBUSTIÓN', 'MOTOBOMBA CENTRÍFUGA', 'MOTOBOMBA AUTOCEBANTE', 'MOTOBOMBA', 'MOTOBOMBA ALTA PRESIÓN', 'MOTOBOMBA CAUDAL', 'BOMBA DE AGUA'], forzarCombustible: true },
   { id: 'dosificacion', title: 'Dosificación química', subtitle: 'Cloro, floculantes u otros químicos en dosis controladas.', tipos: ['BOMBA DOSIFICADORA'] },
   { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Bomba sumergible para extraer agua de un pozo o perforación.', tipos: ['ELECTROBOMBA SUMERGIBLE MONOBLOQUE','ELECTROBOMBAS SUMERGIDAS MULTIETAPAS','MOTOBOMBA SUMERGIBLE DE TORNILLO','MOTOBOMBA INYECTORA','BOMBA SUMERGIBLE SOLAR'] },
-  { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Sótanos inundados, pileta, aguas servidas, achique de obra.', tipos: ['BOMBA DE DRENAJE','BOMBA DE ACHIQUE','MOTOBOMBA VIBRATORIA'] },
+  { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Sótanos inundados, pileta, aguas servidas, achique de obra.', tipos: ['BOMBA DE DRENAJE','BOMBA DE ACHIQUE'] },
   { id: 'piscina', title: 'Piscina', subtitle: 'Recirculación y filtrado de agua de pileta.', tipos: ['BOMBA PARA PISCINA','MOTOBOMBA RECIRCULADORA'] }
 ];
 
