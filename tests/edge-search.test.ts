@@ -1,5 +1,9 @@
 // @ts-nocheck
-import { extractIntent, getEmbedding, vectorSearch } from '../supabase/functions/chat/search';
+Object.defineProperty(global, 'Deno', {
+  value: { env: { get: () => 'mock-key' } },
+  writable: true
+});
+const { extractIntent, getEmbedding, vectorSearch } = require('../supabase/functions/chat/search');
 
 describe('Edge Function: search', () => {
   let originalFetch: any;
@@ -22,13 +26,13 @@ describe('Edge Function: search', () => {
         })
       });
 
-      const res = await extractIntent('Quiero una bomba de agua', 'dummy-key');
+      const res = await extractIntent('Quiero una bomba de agua');
       expect(res).toEqual([['bomba de agua']]);
     });
 
     it('returns null on fetch error or invalid json', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: false });
-      const res = await extractIntent('bad request', 'dummy-key');
+      const res = await extractIntent('bad request');
       expect(res).toBeNull();
     });
   });
@@ -45,7 +49,7 @@ describe('Edge Function: search', () => {
         })
       };
 
-      const res = await getEmbedding('bomba', 'dummy-key', supaAdmin);
+      const res = await getEmbedding('bomba', supaAdmin);
       expect(res.cacheHit).toBe(true);
       expect(res.embedding).toEqual([0.1, 0.2, 0.3]);
     });
@@ -67,7 +71,7 @@ describe('Edge Function: search', () => {
         json: async () => ({ embedding: { values: [0.9, 0.8] } })
       });
 
-      const res = await getEmbedding('bomba', 'dummy-key', supaAdmin);
+      const res = await getEmbedding('bomba', supaAdmin);
       expect(res.cacheHit).toBe(false);
       expect(res.embedding).toEqual([0.9, 0.8]);
       expect(supaAdmin.from).toHaveBeenCalledWith('search_embeddings_cache');
