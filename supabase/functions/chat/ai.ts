@@ -1,37 +1,34 @@
-import { fetchWithGeminiRotation } from "../shared/gemini.ts";
+import { fetchGeminiWithRotation } from "./gemini.ts";
+
 export async function generateResponse(
   finalPrompt: string,
   // deno-lint-ignore no-explicit-any
   geminiHistory: any[],
-  geminiKey: string
 ): Promise<string> {
   try {
-    const res = await fetchWithGeminiRotation(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`,
-      { method: 'POST' },
-      {
+    const data = await fetchGeminiWithRotation(() => ({
+      url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`,
+      body: {
         systemInstruction: { parts: [{ text: finalPrompt }] },
         contents: geminiHistory,
         generationConfig: { maxOutputTokens: 8192 }
       }
-    );
+    }));
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error(JSON.stringify({ event: "gemini_generate_failed", status: res.status, error: errText }));
-      
-      if (res.status === 429) {
-        return "Nuestros servidores están recibiendo muchas consultas en este momento. Por favor, intenta de nuevo en unos minutos.";
-      }
-      return "Lo siento, tuvimos un problema de conexión temporal. Por favor, intenta de nuevo.";
-    }
-
-    const data = await res.json();
     if (data.candidates?.[0]?.content?.parts) {
       return data.candidates[0].content.parts[0].text.trim();
     }
   } catch (e) {
-    console.error(JSON.stringify({ event: "gemini_generate_error", error: String(e) }));
+    // Este error solo llega hasta acá si las N keys de Gemini configuradas
+    // fallaron TODAS -- si al menos una funcionaba, fetchGeminiWithRotation
+    // ya devolvió la respuesta normal más arriba sin que el usuario note nada.
+    const status = (e as Error & { status?: number }).status;
+    console.error(JSON.stringify({ event: "gemini_generate_failed", status, error: (e as Error).message }));
+
+    if (status === 429 || status === 403) {
+      return "Nuestros servidores están recibiendo muchas consultas en este momento. Por favor, intenta de nuevo en unos minutos.";
+    }
+    return "Lo siento, tuvimos un problema de conexión temporal. Por favor, intenta de nuevo.";
   }
   return "Lo siento, tuve un problema interno. Intenta de nuevo.";
 }
@@ -109,7 +106,7 @@ const INJECTION_PATTERNS = [
 const MAX_RULE_LENGTH = 500;
 
 // deno-lint-ignore no-explicit-any
-export function saveLearnedRule(learnedRule: string, geminiKey: string, supaAdmin: any): void {
+export function saveLearnedRule(learnedRule: string, supaAdmin: any): void {
   // ── Validación de seguridad ────────────────────────────────────────────────
   if (learnedRule.length > MAX_RULE_LENGTH) {
     console.warn(JSON.stringify({
@@ -133,17 +130,16 @@ export function saveLearnedRule(learnedRule: string, geminiKey: string, supaAdmi
   }
   // ──────────────────────────────────────────────────────────────────────────
 
-  // Fire and forget (zero latency for user)
-  fetchWithGeminiRotation(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`,
-    { method: 'POST' },
-    {
+  // Fire and forget (zero latency for user) -- ahora con rotación de keys también
+  fetchGeminiWithRotation(() => ({
+    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`,
+    body: {
       model: 'models/gemini-embedding-2',
       content: { parts: [{ text: learnedRule }] },
       outputDimensionality: 768,
       taskType: "RETRIEVAL_DOCUMENT"
     }
-  ).then(r => r.json()).then(data => {
+  })).then(data => {
     if (data?.embedding?.values) {
       // Insert into a suggestions table to prevent automatic poisoning
       supaAdmin.from('ai_knowledge_suggestions').insert({

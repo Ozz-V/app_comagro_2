@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getDefaultMetrics, checkBan, resetCountersIfNeeded, checkQuotaExceeded, processStrike } from "./metrics.ts";
 import { extractIntent, getEmbedding, vectorSearch, keywordSearch } from "./search.ts";
 import { generateResponse, parseLearnTag, saveLearnedRule, stripHallucinatedSkus } from "./ai.ts";
+import { GEMINI_KEYS, checkGeminiHealth } from "./gemini.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://www.comagro.com.py',
@@ -19,29 +20,27 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
     if (body.ping) {
-      const keys = getGeminiKeys();
-      if (keys.length === 0) {
-        return new Response(JSON.stringify({ status: 'error', message: 'Missing API Key' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 });
+      // Chequeo real de conectividad SIN gastar tokens: el endpoint
+      // models.get (GET) solo devuelve metadata del modelo (versión,
+      // límites, etc.) — no pasa por generateContent, así que no
+      // consume cuota de inferencia ni tokens. Google lo documenta
+      // como una llamada de lectura, no facturable.
+      // Ahora prueba TODAS las keys configuradas (GEMINI_API_KEYS) y reporta
+      // cuántas están operativas, en vez de depender de una sola.
+      const health = await checkGeminiHealth();
+      if (!health.ok) {
+        return new Response(JSON.stringify({
+          status: 'error',
+          message: health.lastError || 'Ninguna de las keys de Gemini configuradas responde',
+          working_keys: health.workingKeys,
+          total_keys: health.totalKeys,
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 });
       }
-      try {
-        // Chequeo real de conectividad SIN gastar tokens: el endpoint
-        // models.get (GET) solo devuelve metadata del modelo (versión,
-        // límites, etc.) — no pasa por generateContent, así que no
-        // consume cuota de inferencia ni tokens. Google lo documenta
-        // como una llamada de lectura, no facturable.
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-        // Just ping the first available key
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite?key=${keys[0]}`,
-          { signal: controller.signal },
-        );
-        clearTimeout(timeoutId);
-        if (!res.ok) throw new Error(`Gemini respondió ${res.status}`);
-        return new Response(JSON.stringify({ status: 'ok' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      } catch (e) {
-        return new Response(JSON.stringify({ status: 'error', message: (e as Error).message || 'Gemini no responde' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 });
-      }
+      return new Response(JSON.stringify({
+        status: 'ok',
+        working_keys: health.workingKeys,
+        total_keys: health.totalKeys,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const { messages } = body;
@@ -75,9 +74,11 @@ Deno.serve(async (req: Request) => {
     const user_id = user.id;
 
     const supaAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    const keys = getGeminiKeys();
-    if (keys.length === 0) throw new Error('GEMINI_API_KEY missing');
-    const geminiKey = keys[0]; // just for extractIntent fallback signature, though they will use rotation internally
+
+    // Ya no dependemos de una sola GEMINI_API_KEY: search.ts y ai.ts importan
+    // el módulo gemini.ts, que rota automáticamente entre todas las keys de
+    // GEMINI_API_KEYS. Acá solo validamos que exista AL MENOS una configurada.
+    if (GEMINI_KEYS.length === 0) throw new Error('GEMINI_API_KEYS (o GEMINI_API_KEY) no está configurada');
 
     // ── Metrics & Bans ──
     const { data: userMetrics } = await supaAdmin.from('chat_user_metrics').select('*').eq('user_id', user_id).single();
@@ -129,7 +130,7 @@ Deno.serve(async (req: Request) => {
     // el usuario pidió (heurística simple: cantidad de exact matches >= cantidad de
     // "términos de producto" detectados por potentialSkus). En la duda, igual buscamos.
     if (exactContext.length < Math.max(potentialSkus.length, 1)) {
-      const intents = await extractIntent(chatHistoryText, geminiKey);
+      const intents = await extractIntent(chatHistoryText);
       // queryGroups: un grupo (array de variantes/sinónimos) por cada producto detectado.
       let queryGroups: string[][] = [[lastMessage]];
       if (intents && intents.length > 0) queryGroups = intents;
@@ -147,7 +148,7 @@ Deno.serve(async (req: Request) => {
 
       // Un embedding por grupo, generado con el primer sinónimo limpio (g[1]) si existe,
       // porque g[0] suele tener errores ortográficos del usuario (ej: "moto boma").
-      const embedPromises = queryGroups.map(g => getEmbedding(g.length > 1 ? g[1] : g[0], geminiKey, supaAdmin));
+      const embedPromises = queryGroups.map(g => getEmbedding(g.length > 1 ? g[1] : g[0], supaAdmin));
       const embedResults = await Promise.all(embedPromises);
       searchQueriesUsed = queryGroups.map(g => g.join(' | '));
       cacheHit = embedResults.some(r => r.cacheHit);
@@ -259,13 +260,13 @@ REGLA DE PEDIDOS MASIVOS (SIEMPRE APLICA): Si el usuario pide de una sola vez M�
       };
     });
 
-    let reply = await generateResponse(finalPrompt, geminiHistory, geminiKey);
+    let reply = await generateResponse(finalPrompt, geminiHistory);
 
     // Parse tags
     reply = processStrike(reply, metrics);
     const { cleanReply, learnedRule } = parseLearnTag(reply);
     reply = cleanReply;
-    if (learnedRule) saveLearnedRule(learnedRule, geminiKey, supaAdmin);
+    if (learnedRule) saveLearnedRule(learnedRule, supaAdmin);
 
     // Blindaje anti-alucinación: borra cualquier [SKU: XXX] que el modelo haya
     // inventado y que no esté en la lista real de productos de este turno.
