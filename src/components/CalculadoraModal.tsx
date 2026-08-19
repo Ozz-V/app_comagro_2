@@ -155,12 +155,19 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
        });
      }
      
-     if (!is220 && !is380) {
-        if (hpVal <= 3) is220 = true;
-        else is380 = true;
-     }
+      let isEjeLibreOrCombustion = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR');
+      let subcatStr = String(p.subcategoria).toUpperCase();
+      if (subcatStr.includes('NAFTA') || subcatStr.includes('DIESEL')) isEjeLibreOrCombustion = true;
+      if (p.specs && JSON.stringify(p.specs).toUpperCase().includes('COMBUSTIÓN')) isEjeLibreOrCombustion = true;
 
-     return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380 };
+      if (!is220 && !is380 && !isEjeLibreOrCombustion) {
+         if (hpVal <= 3) is220 = true;
+         else is380 = true;
+      }
+
+      const isEjeLibre = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.subcategoria).toUpperCase().includes('EJE LIBRE');
+
+      return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380, isEjeLibre };
   }
 
   // Pre-read stats effect
@@ -324,7 +331,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               }
            }
 
-           return { ...p, calcVal: specs.hpVal, score, displayValue: displayVal, isSinAltura: specs.maxAlturaMca === 0, _q: specs.maxCaudalLpm, _h: specs.maxAlturaMca, _is220: specs.is220, _is380: specs.is380 } as any;
+           return { ...p, calcVal: specs.hpVal, score, displayValue: displayVal, isSinAltura: specs.maxAlturaMca === 0, _q: specs.maxCaudalLpm, _h: specs.maxAlturaMca, _is220: specs.is220, _is380: specs.is380, _isEjeLibre: specs.isEjeLibre } as any;
         });
 
         // 75% Filter
@@ -351,12 +358,12 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         
         // Fase Filter
         if (reqFase === 'sinelec') {
-           conAltura = conAltura.filter(p => !(p as any)._is220 && !(p as any)._is380);
-           sinAltura = sinAltura.filter(p => !(p as any)._is220 && !(p as any)._is380);
+           conAltura = conAltura.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
+           sinAltura = sinAltura.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
         } else if (reqFase === '220v') {
-           conAltura = conAltura.filter(p => (p as any)._is220);
+           conAltura = conAltura.filter(p => (p as any)._is220 || (p as any)._isEjeLibre);
         } else if (reqFase === '380v') {
-           conAltura = conAltura.filter(p => (p as any)._is380);
+           conAltura = conAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
         }
 
         conAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
@@ -367,15 +374,17 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            return rest;
         });
 
-        const hasEjeLibre = filtered.some(p => p.calcVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
+        const hasEjeLibre = filtered.some(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
         
         let mResults: ExtendedCalcProduct[] = [];
         let finalTargetHp = targetHp;
         
         if (hasEjeLibre && targetHp === 0) {
-            const ejeLibrePump = filtered.find(p => p.calcVal === 0 || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
+            const ejeLibrePump = filtered.find(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
             if (ejeLibrePump && (ejeLibrePump as any)._q > 0 && (ejeLibrePump as any)._h > 0) {
                 finalTargetHp = ((ejeLibrePump as any)._q * (ejeLibrePump as any)._h) / 1915.2;
+            } else if (ejeLibrePump && ejeLibrePump.calcVal > 0) {
+                finalTargetHp = ejeLibrePump.calcVal;
             }
         }
         
