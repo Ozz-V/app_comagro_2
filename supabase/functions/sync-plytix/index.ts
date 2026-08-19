@@ -1,3 +1,4 @@
+// deno-lint-ignore no-import-prefix
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const PLYTIX_URL = Deno.env.get('PLYTIX_CHANNEL_URL') ?? 'https://pim.plytix.com/channels/69b2c94b558d8c2b27901090/feed';
@@ -10,6 +11,7 @@ const PLYTIX_URL = Deno.env.get('PLYTIX_CHANNEL_URL') ?? 'https://pim.plytix.com
 function sanitizeUnicode(value: any): any {
   if (typeof value === 'string') {
     return value
+      // deno-lint-ignore no-control-regex
       .replace(/\u0000/g, '') // Postgres no permite el carácter NUL en jsonb/text bajo ninguna circunstancia
       .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, ''); // surrogates sueltos
   }
@@ -60,8 +62,44 @@ async function computeHash(value: any): Promise<string> {
 //
 // (Por compatibilidad, si no existe GEMINI_API_KEYS pero sí existe la vieja
 // GEMINI_API_KEY con una sola key, también funciona igual.)
-const geminiKeysRaw = Deno.env.get('GEMINI_API_KEYS') ?? Deno.env.get('GEMINI_API_KEY') ?? '';
-const GEMINI_KEYS = geminiKeysRaw.split(',').map(k => k.trim()).filter(Boolean);
+function loadGeminiKeys(): string[] {
+  const keys: string[] = [];
+  
+  // 1. GEMINI_API_KEYS (comma separated)
+  const commaList = Deno.env.get('GEMINI_API_KEYS');
+  if (commaList) {
+    const parts = commaList.split(',').map(k => k.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      keys.push(...parts);
+      return [...new Set(keys)];
+    }
+  }
+  
+  // 2. Numbered variables
+  let hasNumberedKeys = false;
+  let i = 1;
+  while (true) {
+    const k = Deno.env.get(`GEMINI_API_KEY_${i}`);
+    if (!k) break; // Stop at first undefined
+    if (k.trim()) keys.push(k.trim());
+    hasNumberedKeys = true;
+    i++;
+  }
+  
+  if (hasNumberedKeys) {
+    return [...new Set(keys)];
+  }
+  
+  // 3. Fallback to singular
+  const k0 = Deno.env.get('GEMINI_API_KEY');
+  if (k0 && k0.trim()) {
+    keys.push(k0.trim());
+  }
+  
+  return [...new Set(keys)];
+}
+
+const GEMINI_KEYS = loadGeminiKeys();
 
 // Índice de la "key actual". Vive a nivel de módulo: si la instancia de Deno
 // se reutiliza entre corridas de cron (lo usual), la próxima corrida arranca
@@ -105,7 +143,7 @@ async function fetchGeminiWithRotation(
   // deno-lint-ignore no-explicit-any
 ): Promise<any> {
   if (keys.length === 0) {
-    throw new Error('No hay API keys de Gemini configuradas. Definí GEMINI_API_KEYS (separadas por coma) en los secrets de Supabase.');
+    throw new Error('No hay API keys de Gemini configuradas.');
   }
 
   let lastErrorText = '';
@@ -117,11 +155,19 @@ async function fetchGeminiWithRotation(
     const key = keys[idx];
     const { url, body } = buildRequest(key);
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify(body),
+      });
+    } catch (networkErr) {
+      lastErrorText = String(networkErr);
+      lastStatus = 0;
+      console.warn(`Gemini key #${idx + 1}/${keys.length} falló por red. Rotando...`);
+      continue;
+    }
 
     if (res.ok) {
       currentKeyIndex = idx; // esta key sirvió, la dejamos "fijada" para la próxima llamada

@@ -10,8 +10,44 @@
 // Podés poner 1, 4 o las que quieras: nunca hay que tocar el código, solo
 // esa variable. (Por compatibilidad, si no existe GEMINI_API_KEYS pero sí
 // existe la vieja GEMINI_API_KEY con una sola key, también funciona igual.)
-const geminiKeysRaw = Deno.env.get('GEMINI_API_KEYS') ?? Deno.env.get('GEMINI_API_KEY') ?? '';
-export const GEMINI_KEYS = geminiKeysRaw.split(',').map(k => k.trim()).filter(Boolean);
+function loadGeminiKeys(): string[] {
+  const keys: string[] = [];
+  
+  // 1. GEMINI_API_KEYS (comma separated)
+  const commaList = Deno.env.get('GEMINI_API_KEYS');
+  if (commaList) {
+    const parts = commaList.split(',').map(k => k.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      keys.push(...parts);
+      return [...new Set(keys)];
+    }
+  }
+  
+  // 2. Numbered variables
+  let hasNumberedKeys = false;
+  let i = 1;
+  while (true) {
+    const k = Deno.env.get(`GEMINI_API_KEY_${i}`);
+    if (!k) break; // Stop at first undefined
+    if (k.trim()) keys.push(k.trim());
+    hasNumberedKeys = true;
+    i++;
+  }
+  
+  if (hasNumberedKeys) {
+    return [...new Set(keys)];
+  }
+  
+  // 3. Fallback to singular
+  const k0 = Deno.env.get('GEMINI_API_KEY');
+  if (k0 && k0.trim()) {
+    keys.push(k0.trim());
+  }
+  
+  return [...new Set(keys)];
+}
+
+export const GEMINI_KEYS = loadGeminiKeys();
 
 // Índice de la "key actual". Vive a nivel de módulo: al ser un solo módulo
 // importado desde search.ts y ai.ts, el puntero es COMPARTIDO entre las 4
@@ -28,12 +64,12 @@ let currentKeyIndex = 0;
 // A diferencia del batch del sync (que puede esperar al próximo cron), acá
 // es una request de chat en vivo: si las N keys fallan, se lanza el error
 // para que quien llamó decida qué mensaje mostrarle al usuario.
-// deno-lint-ignore no-explicit-any
 export async function fetchGeminiWithRotation(
   buildRequest: (key: string) => { url: string; body: unknown },
+  // deno-lint-ignore no-explicit-any
 ): Promise<any> {
   if (GEMINI_KEYS.length === 0) {
-    throw new Error('No hay API keys de Gemini configuradas. Definí GEMINI_API_KEYS en los secrets de Supabase.');
+    throw new Error('No hay API keys de Gemini configuradas.');
   }
 
   let lastErrorText = '';
