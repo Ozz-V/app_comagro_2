@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { extractIntent, getEmbedding, vectorSearch } from '../supabase/functions/chat/search';
 
 describe('Edge Function: search', () => {

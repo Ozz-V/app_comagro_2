@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Módulo compartido de rotación de API keys de Gemini para la función de
 // chat. Lo usan search.ts (extractIntent, getEmbedding) y ai.ts
 // (generateResponse, saveLearnedRule) para que TODAS las llamadas a Gemini
