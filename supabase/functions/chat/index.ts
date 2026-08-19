@@ -1,4 +1,3 @@
-import { getGeminiKeys } from "../shared/gemini.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getDefaultMetrics, checkBan, resetCountersIfNeeded, checkQuotaExceeded, processStrike } from "./metrics.ts";
 import { extractIntent, getEmbedding, vectorSearch, keywordSearch } from "./search.ts";
