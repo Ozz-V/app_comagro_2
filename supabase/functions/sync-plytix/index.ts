@@ -339,11 +339,12 @@ Deno.serve(async (req: Request) => {
     // momento programado de reintento (next_attempt_at) ya haya llegado. Así los
     // productos que vienen fallando mucho (backoff largo) no le quitan lugar en
     // el batch a productos sanos o recién ingresados.
+    const nowISO = new Date().toISOString();
     const { data: queueItems, error: qErr } = await supaAdmin
       .from('plytix_queue')
       .select('*')
       .eq('status', 'pending')
-      .lte('next_attempt_at', new Date().toISOString())
+      .or(`next_attempt_at.is.null,next_attempt_at.lte.${nowISO}`)
       .order('updated_at', { ascending: true })
       .limit(10);
 
