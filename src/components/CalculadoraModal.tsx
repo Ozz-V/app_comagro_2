@@ -25,7 +25,7 @@ type ExtendedCalcProduct = CalcProduct & {
 const USOS = [
   { id: 'vivienda', title: 'Vivienda / uso general', subtitle: 'Agua de red o tanque para una casa, presión de canillas y duchas.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBAS ELECTRICAS CON INVERSOR', 'MOTOBOMBA VIBRATORIA'] },
   { id: 'riego_presion', title: 'Riego agrícola / industrial', subtitle: 'Riego, varios pisos de altura, procesos industriales o caudales grandes.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBA A COMBUSTIÓN', 'MOTOBOMBA VIBRATORIA'], pref: ['MULTIETAPAS','MEGANORM','SPY','BIROTOR','CENTRÍFUGA EJE LIBRE'] },
-  { id: 'combustion', title: 'Sin electricidad en el lugar', subtitle: 'Motobomba a nafta o diésel para zonas sin red eléctrica.', tipos: ['BOMBA A COMBUSTIÓN', 'MOTOBOMBA CENTRÍFUGA', 'MOTOBOMBA AUTOCEBANTE', 'MOTOBOMBA', 'MOTOBOMBA ALTA PRESIÓN', 'MOTOBOMBA CAUDAL', 'BOMBA DE AGUA'], forzarCombustible: true },
+  { id: 'combustion', title: 'Sin electricidad en el lugar', subtitle: 'Motobomba a nafta o diésel para zonas sin red eléctrica.', tipos: ['BOMBA A COMBUSTIÓN'], forzarCombustible: true },
   { id: 'dosificacion', title: 'Dosificación química', subtitle: 'Cloro, floculantes u otros químicos en dosis controladas.', tipos: ['BOMBA DOSIFICADORA'] },
   { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Bomba sumergible para extraer agua de un pozo o perforación.', tipos: ['ELECTROBOMBA SUMERGIBLE MONOBLOQUE','ELECTROBOMBAS SUMERGIDAS MULTIETAPAS','MOTOBOMBA SUMERGIBLE DE TORNILLO','MOTOBOMBA INYECTORA','BOMBA SUMERGIBLE SOLAR'] },
   { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Sótanos inundados, pileta, aguas servidas, achique de obra.', tipos: ['BOMBA DE DRENAJE','BOMBA DE ACHIQUE'] },
@@ -48,6 +48,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   
   // Pre-read stats
   const [catStats, setCatStats] = useState<{maxQ: number, maxH: number} | null>(null);
+  const [motorWarning, setMotorWarning] = useState<string | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
       setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0] });
       setCatStats(null);
+      setMotorWarning(null);
     }
   }, [visible]);
 
@@ -195,6 +197,24 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     }
   }, [wizardStep, pumpWizard.uso, calcMode]);
 
+  const handleUnitChange = (newUnit: 'l/min' | 'm3/h' | 'l/h') => {
+    const currentVal = parseFloat(pumpWizard.caudal);
+    if (!currentVal || isNaN(currentVal)) {
+       setPumpWizard({...pumpWizard, unidadCaudal: newUnit});
+       return;
+    }
+    let valLpm = currentVal;
+    if (pumpWizard.unidadCaudal === 'm3/h') valLpm = currentVal * (1000/60);
+    else if (pumpWizard.unidadCaudal === 'l/h') valLpm = currentVal / 60;
+
+    let newVal = valLpm;
+    if (newUnit === 'm3/h') newVal = valLpm / (1000/60);
+    else if (newUnit === 'l/h') newVal = valLpm * 60;
+
+    const newValStr = Number.isInteger(newVal) ? newVal.toString() : newVal.toFixed(2).replace(/\.00$/, '');
+    setPumpWizard({...pumpWizard, unidadCaudal: newUnit, caudal: newValStr});
+  };
+
   function getTargetCaudalLpm() {
     const targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
     let targetCaudalLpm = targetCaudalInput;
@@ -290,11 +310,11 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         }
         
         // Strict fuel filter
-        if (bombaTab === 'guiado' && usoConf?.forzarCombustible) {
+        if (usoConf?.forzarCombustible) {
            pool = pool.filter(p => {
              const sub = String(p.subcategoria).toUpperCase();
              const allSpecs = p.specs ? JSON.stringify(p.specs).toUpperCase() : '';
-             return sub.includes('NAFTA') || sub.includes('DIESEL') || sub.includes('COMBUSTIÓN') || sub.includes('GASOLINA') || sub.includes('MOTOBOMBA') || allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('COMBUSTIÓN') || allSpecs.includes('GASOLINA') || allSpecs.includes('MOTOBOMBA');
+             return sub.includes('NAFTA') || sub.includes('DIESEL') || sub.includes('COMBUSTIÓN') || sub.includes('GASOLINA') || allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('COMBUSTIÓN') || allSpecs.includes('GASOLINA');
            });
         }
 
@@ -378,12 +398,23 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         let mResults: ExtendedCalcProduct[] = [];
         let finalTargetHp = targetHp;
         
-        if (hasEjeLibre && targetHp === 0) {
+        setMotorWarning(null);
+        if (hasEjeLibre) {
             const ejeLibrePump = filtered.find(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
-            if (ejeLibrePump && (ejeLibrePump as any)._q > 0 && (ejeLibrePump as any)._h > 0) {
-                finalTargetHp = ((ejeLibrePump as any)._q * (ejeLibrePump as any)._h) / 1915.2;
-            } else if (ejeLibrePump && ejeLibrePump.calcVal > 0) {
-                finalTargetHp = ejeLibrePump.calcVal;
+            if (ejeLibrePump) {
+                let rawHp = 0;
+                if ((ejeLibrePump as any)._q > 0 && (ejeLibrePump as any)._h > 0) {
+                    rawHp = ((ejeLibrePump as any)._q * (ejeLibrePump as any)._h) / 1915.2;
+                } else if (ejeLibrePump.calcVal > 0) {
+                    rawHp = ejeLibrePump.calcVal;
+                } else {
+                    rawHp = targetHp;
+                }
+                
+                // Margen de seguridad para evitar que el motor trabaje ahogado
+                if (rawHp > 20) finalTargetHp = rawHp * 1.10;
+                else if (rawHp >= 3) finalTargetHp = rawHp * 1.15;
+                else finalTargetHp = rawHp * 1.20;
             }
         }
         
@@ -415,9 +446,18 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             // Get up to 3 motors
             mResults = validMotors.slice(0, 3).map(m => {
                m.marca = 'Motor Sugerido: ' + m.marca;
-               m.displayValue = m.calcVal > 0 ? `${m.calcVal.toFixed(1)} HP (Est. ${Math.round(targetHp)} HP req)` : '? HP';
+               m.displayValue = m.calcVal > 0 ? `${m.calcVal.toFixed(1)} HP (Est. ${Math.round(finalTargetHp)} HP req)` : '? HP';
                return m;
             });
+            
+            if (mResults.length === 0) {
+               const maxCatalogHp = Math.max(...dbMotors.map(m => extractNum(m.specs?.find(s => String(s[0]).toUpperCase().includes('HP') || String(s[0]).toUpperCase().includes('POTENCIA'))?.[1] as string) || 0));
+               if (finalTargetHp > maxCatalogHp && maxCatalogHp > 0) {
+                  setMotorWarning(`⚠️ Para alcanzar la exigencia de esta bomba se estima un motor de ${Math.round(finalTargetHp)} HP, lo cual excede el máximo de motores en catálogo (${maxCatalogHp} HP).`);
+               } else {
+                  setMotorWarning(`⚠️ No se encontraron motores en stock compatibles para cubrir los ${Math.round(finalTargetHp)} HP exigidos.`);
+               }
+            }
         }
         setMotorResult(mResults);
       }
@@ -652,13 +692,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                              <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Caudal</Text>
                                 <View style={styles.unitTabs}>
-                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabBtnActive]} onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'l/min'})}>
+                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('l/min')}>
                                       <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabTxtActive]}>L/min</Text>
                                    </TouchableOpacity>
-                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabBtnActive]} onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'm3/h'})}>
+                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('m3/h')}>
                                       <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabTxtActive]}>m³/h</Text>
                                    </TouchableOpacity>
-                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabBtnActive]} onPress={() => setPumpWizard({...pumpWizard, unidadCaudal: 'l/h'})}>
+                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('l/h')}>
                                       <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabTxtActive]}>L/h</Text>
                                    </TouchableOpacity>
                                 </View>
@@ -671,7 +711,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                              </View>
                              <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Altura (mca)</Text>
-                                <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
+                                <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} maxLength={3} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
                                 {catStats && Math.round(parseFloat(pumpWizard.altura) || 0) > Math.round(catStats.maxH) && (parseFloat(pumpWizard.altura) || 0) > 0 && (
                                    <Text style={styles.advWarn}>⚠️ La altura supera el máximo disponible ({catStats.maxH.toFixed(0)} mca).</Text>
                                 )}
@@ -791,6 +831,9 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   </View>
                 )}
 
+                {motorResult && motorResult.length === 0 && motorWarning && (
+                  <Text style={styles.advWarn}>{motorWarning}</Text>
+                )}
                 {motorResult && motorResult.length > 0 && (
                   <View style={[styles.suggestedContainer, {marginTop: 5}]}>
                     <Text style={styles.suggestedTitle}>Motores Sugeridos (Eje Libre):</Text>
