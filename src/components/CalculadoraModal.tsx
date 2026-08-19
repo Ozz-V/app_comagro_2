@@ -156,7 +156,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
      }
      
       let isEjeLibreOrCombustion = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR');
-      let subcatStr = String(p.subcategoria).toUpperCase();
+      const subcatStr = String(p.subcategoria).toUpperCase();
       if (subcatStr.includes('NAFTA') || subcatStr.includes('DIESEL')) isEjeLibreOrCombustion = true;
       if (p.specs && JSON.stringify(p.specs).toUpperCase().includes('COMBUSTIÓN')) isEjeLibreOrCombustion = true;
 
