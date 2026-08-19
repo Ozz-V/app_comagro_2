@@ -198,7 +198,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   function getTargetCaudalLpm() {
     const targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
     let targetCaudalLpm = targetCaudalInput;
-    if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * 16.6667;
+    if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * (1000 / 60);
     if (pumpWizard.unidadCaudal === 'l/h') targetCaudalLpm = targetCaudalInput / 60;
     return targetCaudalLpm;
   }
@@ -267,7 +267,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            targetCaudalLpm = getTargetCaudalLpm();
         } else {
            targetCaudalInput = parseFloat(adv.caudal) || 0;
-           targetCaudalLpm = targetCaudalInput * 16.6667;
+           targetCaudalLpm = targetCaudalInput * (1000 / 60);
            targetAlturaInput = hTotal;
            reqFase = '';
         }
@@ -665,14 +665,14 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                                 <View style={styles.caudalRow}>
                                   <TextInput style={[styles.textInputSmall, { flex: 1, marginHorizontal: 0, marginRight: 5 }]} keyboardType="numeric" placeholder="Ej: 100" placeholderTextColor={COLORS.gray4} value={pumpWizard.caudal} onChangeText={(t) => setPumpWizard({...pumpWizard, caudal: t})} />
                                 </View>
-                                {catStats && getTargetCaudalLpm() > catStats.maxQ && getTargetCaudalLpm() > 0 && (
+                                {catStats && Math.round(getTargetCaudalLpm()) > Math.round(catStats.maxQ) && getTargetCaudalLpm() > 0 && (
                                    <Text style={styles.advWarn}>⚠️ El caudal ingresado supera el máximo de nuestro catálogo ({catStats.maxQ.toFixed(0)} L/min).</Text>
                                 )}
                              </View>
                              <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Altura (mca)</Text>
                                 <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
-                                {catStats && (parseFloat(pumpWizard.altura) || 0) > catStats.maxH && (parseFloat(pumpWizard.altura) || 0) > 0 && (
+                                {catStats && Math.round(parseFloat(pumpWizard.altura) || 0) > Math.round(catStats.maxH) && (parseFloat(pumpWizard.altura) || 0) > 0 && (
                                    <Text style={styles.advWarn}>⚠️ La altura supera el máximo disponible ({catStats.maxH.toFixed(0)} mca).</Text>
                                 )}
                              </View>
@@ -689,7 +689,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                             <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'nose' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'nose' ? '' : 'nose'})}>
                               <Text style={[styles.faseBtnText, pumpWizard.fase === 'nose' && styles.faseBtnTextActive]}>No sé</Text>
                             </TouchableOpacity>
-                            {(!['dosificacion', 'combustion', 'piscina'].includes(pumpWizard.uso)) && (
+                            {(!['dosificacion', 'combustion', 'piscina', 'drenaje'].includes(pumpWizard.uso)) && (
                               <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'sinelec' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'sinelec' ? '' : 'sinelec'})}>
                                 <Text style={[styles.faseBtnText, pumpWizard.fase === 'sinelec' && styles.faseBtnTextActive]}>Sin Motor</Text>
                               </TouchableOpacity>
