@@ -1,3 +1,4 @@
+import { fetchWithGeminiRotation } from "../shared/gemini.ts";
 export async function extractIntent(chatHistoryText: string, geminiKey: string): Promise<string[][] | null> {
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`, {

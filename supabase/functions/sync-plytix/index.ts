@@ -1,3 +1,4 @@
+import { getGeminiKeys, fetchWithGeminiRotation } from "../shared/gemini.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const PLYTIX_URL = Deno.env.get('PLYTIX_CHANNEL_URL') ?? 'https://pim.plytix.com/channels/69b2c94b558d8c2b27901090/feed';
@@ -12,7 +13,8 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
+    const keys = getGeminiKeys();
+    const geminiKey = keys.length > 0 ? keys[0] : '';
 
     // Auth check: comparación constant-time para evitar ataques de timing
     const secret = req.headers.get('x-sync-secret') ?? '';
@@ -100,7 +102,7 @@ Deno.serve(async (req: Request) => {
     const { data: queueItems, error: qErr } = await supaAdmin
       .from('plytix_queue')
       .select('*')
-      .eq('status', 'pending')
+      .in('status', ['pending', 'error'])
       .order('updated_at', { ascending: true })
       .limit(10);
 
@@ -128,14 +130,14 @@ ${productContext}
 
 Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 párrafo para este producto (máximo 5 a 6 líneas). Resalta sus usos principales y características clave. Usa un tono vendedor pero profesional. No uses Markdown, solo texto plano. NO incluyas el código SKU en el texto. Empieza directamente con la descripción.`;
 
-         const generateRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
-            body: JSON.stringify({
+         const generateRes = await fetchWithGeminiRotation(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`,
+            { method: 'POST' },
+            {
                contents: [{ role: 'user', parts: [{ text: prompt }] }],
                generationConfig: { maxOutputTokens: 2000, temperature: 0.3 }
-            })
-         });
+            }
+         );
          
          if (!generateRes.ok) {
             const errText = await generateRes.text();
@@ -155,16 +157,16 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
             
          const embedText = `Producto: ${nombreProd}. Especificaciones: ${specsText}. Descripción general: ${salesPitch}`;
 
-         const embedRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
-            body: JSON.stringify({
+         const embedRes = await fetchWithGeminiRotation(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`,
+            { method: 'POST' },
+            {
                model: 'models/gemini-embedding-2',
                content: { parts: [{ text: embedText }] },
                outputDimensionality: 768,
                taskType: "RETRIEVAL_DOCUMENT"
-            })
-         });
+            }
+         );
 
          if (!embedRes.ok) throw new Error('Error generando embeddings');
          const embedData = await embedRes.json();

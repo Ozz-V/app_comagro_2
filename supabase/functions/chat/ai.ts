@@ -1,3 +1,4 @@
+import { fetchWithGeminiRotation } from "../shared/gemini.ts";
 export async function generateResponse(
   finalPrompt: string,
   // deno-lint-ignore no-explicit-any
@@ -5,15 +6,15 @@ export async function generateResponse(
   geminiKey: string
 ): Promise<string> {
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
-      body: JSON.stringify({
+    const res = await fetchWithGeminiRotation(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`,
+      { method: 'POST' },
+      {
         systemInstruction: { parts: [{ text: finalPrompt }] },
         contents: geminiHistory,
         generationConfig: { maxOutputTokens: 8192 }
-      })
-    });
+      }
+    );
 
     if (!res.ok) {
       const errText = await res.text();
@@ -133,16 +134,16 @@ export function saveLearnedRule(learnedRule: string, geminiKey: string, supaAdmi
   // ──────────────────────────────────────────────────────────────────────────
 
   // Fire and forget (zero latency for user)
-  fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
-    body: JSON.stringify({
+  fetchWithGeminiRotation(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`,
+    { method: 'POST' },
+    {
       model: 'models/gemini-embedding-2',
       content: { parts: [{ text: learnedRule }] },
       outputDimensionality: 768,
       taskType: "RETRIEVAL_DOCUMENT"
-    })
-  }).then(r => r.json()).then(data => {
+    }
+  ).then(r => r.json()).then(data => {
     if (data?.embedding?.values) {
       // Insert into a suggestions table to prevent automatic poisoning
       supaAdmin.from('ai_knowledge_suggestions').insert({

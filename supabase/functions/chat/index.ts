@@ -1,3 +1,4 @@
+import { getGeminiKeys } from "../shared/gemini.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getDefaultMetrics, checkBan, resetCountersIfNeeded, checkQuotaExceeded, processStrike } from "./metrics.ts";
 import { extractIntent, getEmbedding, vectorSearch, keywordSearch } from "./search.ts";
@@ -18,8 +19,8 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
     if (body.ping) {
-      const geminiKey = Deno.env.get('GEMINI_API_KEY');
-      if (!geminiKey) {
+      const keys = getGeminiKeys();
+      if (keys.length === 0) {
         return new Response(JSON.stringify({ status: 'error', message: 'Missing API Key' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 });
       }
       try {
@@ -30,8 +31,9 @@ Deno.serve(async (req: Request) => {
         // como una llamada de lectura, no facturable.
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 6000);
+        // Just ping the first available key
         const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite?key=${geminiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite?key=${keys[0]}`,
           { signal: controller.signal },
         );
         clearTimeout(timeoutId);
@@ -73,8 +75,9 @@ Deno.serve(async (req: Request) => {
     const user_id = user.id;
 
     const supaAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    const geminiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
-    if (!geminiKey) throw new Error('GEMINI_API_KEY missing');
+    const keys = getGeminiKeys();
+    if (keys.length === 0) throw new Error('GEMINI_API_KEY missing');
+    const geminiKey = keys[0]; // just for extractIntent fallback signature, though they will use rotation internally
 
     // ── Metrics & Bans ──
     const { data: userMetrics } = await supaAdmin.from('chat_user_metrics').select('*').eq('user_id', user_id).single();
