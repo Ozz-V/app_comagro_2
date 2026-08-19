@@ -211,6 +211,7 @@ async function fetchGeminiWithRotation(
 }
 
 Deno.serve(async (req: Request) => {
+  console.log('--- FUNCTION STARTED ---', req.method, req.url);
   try {
     // Health check
     const url = new URL(req.url);
@@ -269,8 +270,8 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!plytixData.length) {
-      return new Response(JSON.stringify({ error: 'Feed vacío o inválido' }), { status: 400 });
-    }
+      console.warn('Feed de Plytix vacío o sin productos nuevos. Saltando Ingesta y procediendo al procesamiento de cola.');
+    } else {
 
     // PASO A: INGESTA INSTANTANEA
     // Guardamos en la cola solo lo que REALMENTE cambió. Plytix repite el mismo delta
@@ -333,6 +334,7 @@ Deno.serve(async (req: Request) => {
         }
       }
     }
+    } // Fin del else de plytixData.length
 
     // PASO B: PROCESAMIENTO SEGURO
     // Tomamos un lote (batch) de máximo 10 productos que estén 'pending' Y cuyo
