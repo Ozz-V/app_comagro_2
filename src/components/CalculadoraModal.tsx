@@ -27,7 +27,7 @@ const USOS = [
   { id: 'riego_presion', title: 'Riego agrícola / industrial', subtitle: 'Riego, varios pisos de altura, procesos industriales o caudales grandes.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBA A COMBUSTIÓN', 'MOTOBOMBA VIBRATORIA'], pref: ['MULTIETAPAS','MEGANORM','SPY','BIROTOR','CENTRÍFUGA EJE LIBRE'] },
   { id: 'combustion', title: 'Sin electricidad en el lugar', subtitle: 'Motobomba a nafta o diésel para zonas sin red eléctrica.', tipos: ['BOMBA A COMBUSTIÓN'], forzarCombustible: true },
   { id: 'dosificacion', title: 'Dosificación química', subtitle: 'Cloro, floculantes u otros químicos en dosis controladas.', tipos: ['BOMBA DOSIFICADORA'] },
-  { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Bomba sumergible para extraer agua de un pozo o perforación.', tipos: ['ELECTROBOMBA SUMERGIBLE MONOBLOQUE','ELECTROBOMBAS SUMERGIDAS MULTIETAPAS','MOTOBOMBA SUMERGIBLE DE TORNILLO','MOTOBOMBA INYECTORA','BOMBA SUMERGIBLE SOLAR'] },
+  { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Bomba sumergible para extraer agua de un pozo o perforación.', tipos: ['ELECTROBOMBA SUMERGIBLE MONOBLOQUE','ELECTROBOMBAS SUMERGIDAS MULTIETAPAS','MOTOBOMBA SUMERGIBLE DE TORNILLO','MOTOBOMBA INYECTORA','BOMBA SUMERGIBLE SOLAR', 'CUERPO SUMERGIBLE'] },
   { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Sótanos inundados, pileta, aguas servidas, achique de obra.', tipos: ['BOMBA DE DRENAJE','BOMBA DE ACHIQUE'] },
   { id: 'piscina', title: 'Piscina', subtitle: 'Recirculación y filtrado de agua de pileta.', tipos: ['BOMBA PARA PISCINA','MOTOBOMBA RECIRCULADORA'] }
 ];
@@ -166,7 +166,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
          else is380 = true;
       }
 
-      const isEjeLibre = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.subcategoria).toUpperCase().includes('EJE LIBRE');
+      let isEjeLibre = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.subcategoria).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR') || String(p.subcategoria).toUpperCase().includes('SIN MOTOR');
+      if (!isEjeLibre && p.specs) {
+          const allSpecsStr = JSON.stringify(p.specs).toUpperCase();
+          if (allSpecsStr.includes('SIN MOTOR') || allSpecsStr.includes('EJE LIBRE')) {
+              isEjeLibre = true;
+          }
+      }
 
       return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380, isEjeLibre };
   }
@@ -358,19 +364,19 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         let sinAltura = mapped.filter(p => p.isSinAltura);
 
         if (targetCaudalLpm > 0) {
-           let byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm);
-           if (byQ.length < 4) {
-              byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * 0.75);
+           let byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm && (p as any)._q <= targetCaudalLpm * 1.3);
+           if (byQ.length < 2) {
+              byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * 0.75 && (p as any)._q <= targetCaudalLpm * 1.5);
            }
            conAltura = byQ;
            
-           sinAltura = sinAltura.filter(p => (p as any)._q >= targetCaudalLpm * 0.75 || (p as any)._q === 0);
+           sinAltura = sinAltura.filter(p => ((p as any)._q >= targetCaudalLpm * 0.75 && (p as any)._q <= targetCaudalLpm * 1.5) || (p as any)._q === 0);
         }
 
         if (targetAlturaInput > 0) {
-           let byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput);
-           if (byH.length < 3) {
-              byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput * 0.75);
+           let byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput && (p as any)._h <= targetAlturaInput * 1.3);
+           if (byH.length < 2) {
+              byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput * 0.75 && (p as any)._h <= targetAlturaInput * 1.5);
            }
            conAltura = byH;
         }
@@ -381,8 +387,10 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            sinAltura = sinAltura.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
         } else if (reqFase === '220v') {
            conAltura = conAltura.filter(p => (p as any)._is220 || (p as any)._isEjeLibre);
+           sinAltura = sinAltura.filter(p => (p as any)._is220 || (p as any)._isEjeLibre);
         } else if (reqFase === '380v') {
            conAltura = conAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
+           sinAltura = sinAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
         }
 
         conAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
@@ -404,11 +412,11 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             if (ejeLibrePump) {
                 let rawHp = 0;
                 if ((ejeLibrePump as any)._q > 0 && (ejeLibrePump as any)._h > 0) {
-                    rawHp = ((ejeLibrePump as any)._q * (ejeLibrePump as any)._h) / 1915.2;
+                    rawHp = ((ejeLibrePump as any)._q * (ejeLibrePump as any)._h) / 3150;
                 } else if (ejeLibrePump.calcVal > 0) {
                     rawHp = ejeLibrePump.calcVal;
                 } else {
-                    rawHp = targetHp;
+                    rawHp = (targetCaudalLpm * targetAlturaInput) / 3150;
                 }
                 
                 // Margen de seguridad para evitar que el motor trabaje ahogado
@@ -420,7 +428,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         
         if (hasEjeLibre && finalTargetHp > 0) {
             const ejeLibrePump = filtered.find(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
-            const isPumpSumergible = ejeLibrePump ? (String(ejeLibrePump.subcategoria).toUpperCase().includes('SUMERGIBLE') || String(ejeLibrePump.modelo).toUpperCase().includes('SUMERGIBLE')) : (usoConf?.id === 'profundo');
+            const isPumpSumergible = ejeLibrePump ? (String(ejeLibrePump.subcategoria).toUpperCase().includes('SUMERGIBLE') || String(ejeLibrePump.modelo).toUpperCase().includes('SUMERGIBLE')) : (usoConf?.id === 'pozo');
             
             const dbMotors = await getProductsBySubcategory('MOTOR', true);
             const validMotors = dbMotors.filter(m => {
@@ -440,20 +448,39 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   });
                }
                return { ...m, calcVal: mHp, score: mHp >= finalTargetHp ? mHp - finalTargetHp : 9999 };
-            }).filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000)
-            .sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
+            });
+
+            const filteredValidMotors = validMotors.filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000).sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
             
             // Get up to 3 motors
-            mResults = validMotors.slice(0, 3).map(m => {
+            mResults = filteredValidMotors.slice(0, 3).map(m => {
                m.marca = 'Motor Sugerido: ' + m.marca;
                m.displayValue = m.calcVal > 0 ? `${m.calcVal.toFixed(1)} HP (Est. ${Math.round(finalTargetHp)} HP req)` : '? HP';
                return m;
             });
             
             if (mResults.length === 0) {
-               const maxCatalogHp = Math.max(...dbMotors.map(m => extractNum(m.specs?.find(s => String(s[0]).toUpperCase().includes('HP') || String(s[0]).toUpperCase().includes('POTENCIA'))?.[1] as string) || 0));
+               const maxCatalogHp = Math.max(...validMotors.map(m => m.calcVal || 0));
                if (finalTargetHp > maxCatalogHp && maxCatalogHp > 0) {
-                  setMotorWarning(`⚠️ Para alcanzar la exigencia de esta bomba se estima un motor de ${Math.round(finalTargetHp)} HP, lo cual excede el máximo de motores en catálogo (${maxCatalogHp} HP).`);
+                  if (targetAlturaInput > 0) {
+                      const maxLpm = (maxCatalogHp * 3150) / targetAlturaInput;
+                      let maxDisplay = '';
+                      if (pumpWizard.unidadCaudal === 'm3/h') maxDisplay = (maxLpm * 60 / 1000).toFixed(1) + ' m³/h';
+                      else if (pumpWizard.unidadCaudal === 'l/h') maxDisplay = (maxLpm * 60).toFixed(0) + ' L/h';
+                      else maxDisplay = maxLpm.toFixed(0) + ' L/min';
+                      
+                      setMotorWarning(`⚠️ El requerimiento exige ~${Math.round(finalTargetHp)} HP. Acoplando nuestro motor más potente en stock (${maxCatalogHp} HP), a esta altura de ${targetAlturaInput} mca, el equipo entregará un caudal máximo estimado de ${maxDisplay}.`);
+                  } else {
+                      setMotorWarning(`⚠️ El equipo exige ~${Math.round(finalTargetHp)} HP. Mostrando motores de mayor capacidad en catálogo (${maxCatalogHp} HP).`);
+                  }
+                  
+                  // Sugerir el motor más grande que tengamos como "Plan B"
+                  const fallbackMotors = validMotors.filter(m => m.calcVal === maxCatalogHp);
+                  mResults = fallbackMotors.slice(0, 3).map(m => {
+                      m.marca = 'Motor Sugerido: ' + m.marca;
+                      m.displayValue = `Máx cap. ${maxCatalogHp} HP`;
+                      return m;
+                  });
                } else {
                   setMotorWarning(`⚠️ No se encontraron motores en stock compatibles para cubrir los ${Math.round(finalTargetHp)} HP exigidos.`);
                }
@@ -709,7 +736,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                                    <Text style={styles.advWarn}>⚠️ El caudal ingresado supera el máximo de nuestro catálogo ({catStats.maxQ.toFixed(0)} L/min).</Text>
                                 )}
                              </View>
-                             <View style={styles.colListRow}>
+              <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Altura (mca)</Text>
                                 <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} maxLength={3} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
                                 {catStats && Math.round(parseFloat(pumpWizard.altura) || 0) > Math.round(catStats.maxH) && (parseFloat(pumpWizard.altura) || 0) > 0 && (
@@ -718,23 +745,25 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                              </View>
                           </View>
 
-                          <Text style={styles.inputTitleSmall}>Alimentación Eléctrica (Opcional)</Text>
-                          <View style={styles.faseGrid}>
-                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
-                              <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>220V</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
-                              <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>380V</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'nose' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'nose' ? '' : 'nose'})}>
-                              <Text style={[styles.faseBtnText, pumpWizard.fase === 'nose' && styles.faseBtnTextActive]}>No sé</Text>
-                            </TouchableOpacity>
-                            {(!['dosificacion', 'combustion', 'piscina', 'drenaje'].includes(pumpWizard.uso)) && (
-                              <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'sinelec' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'sinelec' ? '' : 'sinelec'})}>
-                                <Text style={[styles.faseBtnText, pumpWizard.fase === 'sinelec' && styles.faseBtnTextActive]}>Sin Motor</Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
+                          {pumpWizard.uso !== 'combustion' && (
+                            <>
+                              <Text style={styles.inputTitleSmall}>Alimentación Eléctrica (Opcional)</Text>
+                              <View style={styles.faseGrid}>
+                                <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
+                                  <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>220V</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
+                                  <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>380V</Text>
+                                </TouchableOpacity>
+
+                                {(!['dosificacion', 'combustion', 'piscina', 'drenaje'].includes(pumpWizard.uso)) && (
+                                  <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'sinelec' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'sinelec' ? '' : 'sinelec'})}>
+                                    <Text style={[styles.faseBtnText, pumpWizard.fase === 'sinelec' && styles.faseBtnTextActive]}>Sin Motor</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            </>
+                          )}
 
                           <TouchableOpacity 
                             style={[styles.calculateBtn, {paddingVertical: 10, marginBottom: 5}, (catStats && (getTargetCaudalLpm() > catStats.maxQ * 1.5 || (parseFloat(pumpWizard.altura)||0) > catStats.maxH * 1.5)) && { backgroundColor: COLORS.gray4 }]} 
