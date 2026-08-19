@@ -295,7 +295,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            pool = pool.filter(p => {
              const sub = String(p.subcategoria).toUpperCase();
              const allSpecs = p.specs ? JSON.stringify(p.specs).toUpperCase() : '';
-             return sub.includes('NAFTA') || sub.includes('DIESEL') || allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('COMBUSTIÓN');
+             return sub.includes('NAFTA') || sub.includes('DIESEL') || sub.includes('COMBUSTIÓN') || sub.includes('GASOLINA') || sub.includes('MOTOBOMBA') || allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('COMBUSTIÓN') || allSpecs.includes('GASOLINA') || allSpecs.includes('MOTOBOMBA');
            });
         }
 
