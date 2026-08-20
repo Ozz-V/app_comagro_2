@@ -38,7 +38,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   const [wizardStep, setWizardStep] = useState(1);
   const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
   
-  const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0] });
+  const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'l/min' as 'l/min' | 'm3/h' | 'l/h' });
 
   const [calcResult, setCalcResult] = useState<ExtendedCalcProduct[] | null>(null);
   const [motorResult, setMotorResult] = useState<ExtendedCalcProduct[] | null>(null);
@@ -62,7 +62,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       setBombaTab('guiado');
       setWizardStep(1);
       setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
-      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0] });
+      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'l/min' });
       setCatStats(null);
       setMotorWarning(null);
     }
@@ -292,8 +292,12 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            reqFase = pumpWizard.fase;
            targetCaudalLpm = getTargetCaudalLpm();
         } else {
-           targetCaudalInput = parseFloat(adv.caudal) || 0;
-           targetCaudalLpm = targetCaudalInput * (1000 / 60);
+           // Modo avanzado: convertir caudal a L/min según unidad seleccionada
+           const advCaudalRaw = parseFloat(adv.caudal) || 0;
+           if (adv.unidadCaudal === 'm3/h') targetCaudalLpm = advCaudalRaw * (1000 / 60);
+           else if (adv.unidadCaudal === 'l/h') targetCaudalLpm = advCaudalRaw / 60;
+           else targetCaudalLpm = advCaudalRaw; // L/min por defecto
+           targetCaudalInput = targetCaudalLpm;
            targetAlturaInput = hTotal;
            reqFase = '';
         }
@@ -301,53 +305,43 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         let targetHp = (targetCaudalLpm * targetAlturaInput) / 1915.2;
         if (targetHp > 0 && targetHp < 0.5) targetHp = 0.5;
         
-        const dbProducts = await getProductsBySubcategory('BOMBA', true);
-        
+        // Pool de bombas: traer BOMBA + CUERPO SUMERGIBLE en una sola query unificada
+        const [dbBombas, dbCuerpos] = await Promise.all([
+           getProductsBySubcategory('BOMBA', true),
+           getProductsBySubcategory('CUERPO SUMERGIBLE', true),
+        ]);
+        // Unir evitando duplicados por SKU
+        const skuSet = new Set(dbBombas.map(p => p.modelo));
+        const dbProducts = [...dbBombas, ...dbCuerpos.filter(c => !skuSet.has(c.modelo))];
+
         let pool = dbProducts;
         const usoConf = USOS.find(u => u.id === pumpWizard.uso);
         
-        // Filter by USOS types
+        // ── FILTRO POR CATEGORÍA ──────────────────────────────────────────────
         if (bombaTab === 'guiado' && usoConf) {
            pool = pool.filter(p => {
               const sub = String(p.subcategoria).toUpperCase();
               const nom = String(p.modelo).toUpperCase();
-              
+
+              // Solo pasan los tipos definidos en la categoría
               if (!usoConf.tipos.some(t => sub.includes(t) || nom.includes(t))) return false;
-              
-              // Smart crossover logic: Cap all residential pumps to 3 HP
+
+              // ── VIVIENDA: doble barrera (HP + Caudal como fallback) ──
               if (pumpWizard.uso === 'vivienda') {
-                 let isOver3Hp = false;
-                 if (p.specs) {
-                    p.specs.forEach((s) => {
-                       const k = String(s[0]).toUpperCase();
-                       if (k.includes('HP') || k.includes('POTENCIA')) {
-                          const n = extractNum(s[1]);
-                          if (n && n > 3) isOver3Hp = true;
-                       }
-                    });
-                 }
-                 if (isOver3Hp) return false;
+                 const specs = parsePumpSpecs(p as ParsedProduct);
+                 // Si tiene HP explícito → debe ser <= 3 HP
+                 if (specs.hpVal > 3) return false;
+                 // Si no tiene HP pero tiene caudal → caudal máx 165 L/min (~10 m³/h)
+                 if (specs.hpVal === 0 && specs.maxCaudalLpm > 165) return false;
               }
 
-              // Umbral Industrial: Mostrar a partir de 3 HP (Limpiar domésticas)
+              // ── INDUSTRIAL: piso de 3 HP (excluir domésticas explícitas) ──
               if (pumpWizard.uso === 'riego_presion') {
-                 let isSmall = false;
-                 let hasHp = false;
-                 if (p.specs) {
-                    p.specs.forEach((s) => {
-                       const k = String(s[0]).toUpperCase();
-                       if (k.includes('HP') || k.includes('POTENCIA')) {
-                          const n = extractNum(s[1]);
-                          if (n) {
-                              hasHp = true;
-                              if (n < 3) isSmall = true;
-                          }
-                       }
-                    });
-                 }
-                 if (hasHp && isSmall) return false; // Excluye equipos explícitamente pequeños
+                 const specs = parsePumpSpecs(p as ParsedProduct);
+                 // Si tiene HP explícito y es < 3 → excluir
+                 if (specs.hpVal > 0 && specs.hpVal < 3) return false;
               }
-              
+
               return true;
            });
         }
@@ -446,7 +440,14 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         setMotorWarning(null);
         if (hasEjeLibre) {
             const ejeLibrePumps = filtered.filter(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
-            const dbMotors = await getProductsBySubcategory('MOTOR', true);
+            // Traer SOLO motores eléctricos reales: eléctricos de superficie Y sumergibles
+            // La query %MOTOR% trae llaves motorizadas y otros accesorios - aquí los excluimos
+            const [dbMotoresElec, dbMotoresSub] = await Promise.all([
+               getProductsBySubcategory('MOTOR ELÉCTRICO', true),
+               getProductsBySubcategory('MOTOR SUMERGIBLE', true),
+            ]);
+            const motorSkuSet = new Set(dbMotoresElec.map((m: ParsedProduct) => m.modelo));
+            const dbMotors: ParsedProduct[] = [...dbMotoresElec, ...dbMotoresSub.filter((m: ParsedProduct) => !motorSkuSet.has(m.modelo))];
             let highestTargetHp = 0;
             
             for (const pump of ejeLibrePumps) {
