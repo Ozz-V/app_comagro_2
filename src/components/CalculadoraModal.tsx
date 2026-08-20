@@ -422,7 +422,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         } else if (reqFase === '380v') {
            conAltura = conAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
            sinAltura = sinAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
-        }
+}
 
         conAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
         sinAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
@@ -432,14 +432,20 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            return rest;
         });
 
-        const hasEjeLibre = filtered.some(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
+        const checkNeedsMotor = (p: any) => {
+           const isEjeLibre = p._isEjeLibre || String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR');
+           const isCuerpo = String(p.subcategoria).toUpperCase().includes('CUERPO SUMERGIBLE');
+           return isEjeLibre || isCuerpo;
+        };
+
+        const hasEjeLibre = filtered.some(checkNeedsMotor);
         
         let mResults: ExtendedCalcProduct[] = [];
         let finalTargetHp = targetHp;
         
         setMotorWarning(null);
         if (hasEjeLibre) {
-            const ejeLibrePumps = filtered.filter(p => p.calcVal === 0 || (p as any)._isEjeLibre || p.modelo.toUpperCase().includes('EJE LIBRE') || p.modelo.toUpperCase().includes('SIN MOTOR'));
+            const ejeLibrePumps = filtered.filter(checkNeedsMotor);
             // Traer SOLO motores eléctricos reales: eléctricos de superficie Y sumergibles
             // La query %MOTOR% trae llaves motorizadas y otros accesorios - aquí los excluimos
             const [dbMotoresElec, dbMotoresSub] = await Promise.all([
@@ -461,6 +467,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                 }
                 
                 const pumpTargetHp = (pump.calcVal > 0 && rawHp === pump.calcVal) ? rawHp : rawHp * 1.25;
+                
+                // Si faltan datos y el HP calculado es 0, abortamos la sugerencia de motor para esta bomba
+                if (pumpTargetHp === 0) {
+                    setMotorWarning('⚠️ Ingresá la altura (mca) para poder sugerir el motor correcto.');
+                    continue;
+                }
+                
                 if (pumpTargetHp > highestTargetHp) highestTargetHp = pumpTargetHp;
                 
                 const isPumpSumergible = String(pump.subcategoria).toUpperCase().includes('SUMERGIBLE') || String(pump.modelo).toUpperCase().includes('SUMERGIBLE') || usoConf?.id === 'pozo';
@@ -481,7 +494,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                          }
                       });
                    }
-                   return { ...m, calcVal: mHp, score: mHp >= pumpTargetHp ? mHp - pumpTargetHp : 9999 };
+                   // Excluir motores con 0 HP asignándoles score alto
+                   return { ...m, calcVal: mHp, score: (mHp > 0 && mHp >= pumpTargetHp) ? mHp - pumpTargetHp : 9999 };
                 });
 
                 let bestMotor: ExtendedCalcProduct | undefined = validMotors.filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000).sort((a, b) => (a.score ?? 999) - (b.score ?? 999))[0];
