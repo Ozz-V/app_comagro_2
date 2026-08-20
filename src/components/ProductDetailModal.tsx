@@ -1,4 +1,4 @@
-﻿import * as Sentry from '@sentry/react-native';
+import * as Sentry from '@sentry/react-native';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, Modal, ScrollView, TouchableOpacity,
@@ -439,7 +439,7 @@ export default function ProductDetailModal({
                           style={[styles.compareBtn, { backgroundColor: COLORS.navy, marginTop: 10 }]}
                           onPress={() => setShowCurveModal(true)}
                         >
-                          <SvgIcon name="actualizar" size={16} color={COLORS.white} />
+                          <SvgIcon name="curva" size={16} color={COLORS.white} />
                           <Text style={styles.compareBtnText}>Ver Curva de Rendimiento</Text>
                         </TouchableOpacity>
                       )}
@@ -449,7 +449,7 @@ export default function ProductDetailModal({
                        style={[styles.compareBtn, { backgroundColor: COLORS.navy, marginBottom: 16 }]}
                        onPress={() => setShowCurveModal(true)}
                      >
-                       <SvgIcon name="actualizar" size={16} color={COLORS.white} />
+                       <SvgIcon name="curva" size={16} color={COLORS.white} />
                        <Text style={styles.compareBtnText}>Ver Curva de Rendimiento</Text>
                      </TouchableOpacity>
                   ) : null}
@@ -615,7 +615,7 @@ export default function ProductDetailModal({
                          return (
                            <G key={`y-${t}`}>
                              <Line x1="50" y1={py} x2="290" y2={py} stroke="#e4eaf4" strokeWidth="1" />
-                             <SvgText x="42" y={py + 3} fontSize="10" fill="#555" textAnchor="end">{t}</SvgText>
+                             <SvgText x="42" y={py + 3} fontSize="10" fill="#555" textAnchor="end">{t} m</SvgText>
                            </G>
                          );
                       })}
