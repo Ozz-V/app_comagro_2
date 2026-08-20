@@ -46,12 +46,12 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
     specPad    = pad2;
   }
 
-  const ALLOWED_CURVE_CATEGORIES = ['BOMBA DE AGUA', 'MOTOBOMBA', 'CUERPO SUMERGIBLE', 'ELECTROBOMBA SUMERGIBLE', 'BOMBA DE ACHIQUE', 'BOMBA DE DRENAJE'];
   const subcatStr = (modalProd?.subcategoria || '').toUpperCase();
-  const isAllowedCategory = ALLOWED_CURVE_CATEGORIES.includes(subcatStr);
+  const isPumpType = subcatStr.includes('BOMBA') || subcatStr.includes('MOTOBOMBA') || subcatStr.includes('CUERPO') || subcatStr.includes('ACHIQUE') || subcatStr.includes('DRENAJE');
+  const isExcluded = subcatStr.includes('PARA ') || subcatStr.includes('VACIO') || subcatStr.includes('REPUESTO') || subcatStr.includes('ACCESORIO') || subcatStr.includes('TABLERO') || subcatStr.includes('PRESURIZADOR') || subcatStr.includes('CONTROL');
   
   let maxQ = 0, maxH = 0;
-  if (isAllowedCategory) {
+  if (isPumpType && !isExcluded) {
      specs.forEach(s => {
         const k = String(s[0]).toUpperCase();
         const v = String(s[1]).toUpperCase();
@@ -81,7 +81,61 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
      });
   }
   
-  const showCurve = isAllowedCategory && maxQ > 0 && maxH > 0;
+  const showCurve = isPumpType && !isExcluded && maxQ > 0 && maxH > 0;
+  let svgCurveHtml = '';
+  
+  if (showCurve) {
+    const finalQ = maxQ * 60 / 1000;
+    const getTicks = (max: number) => {
+       if (max <= 0) return [0, 1];
+       let step = Math.pow(10, Math.floor(Math.log10(max)));
+       const m = max / step;
+       if (m <= 2) step *= 0.2;
+       else if (m <= 5) step *= 0.5;
+       const ticks = [];
+       for (let i = 0; i <= max + step * 0.1; i += step) ticks.push(i);
+       if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
+       return ticks;
+    };
+    
+    const qTicks = getTicks(finalQ);
+    const hTicks = getTicks(maxH);
+    const maxTickQ = qTicks[qTicks.length - 1];
+    const maxTickH = hTicks[hTicks.length - 1];
+    
+    let pathD = '';
+    for (let i = 0; i <= 50; i++) {
+       const q = finalQ * (i / 50);
+       const hp = maxH * (1 - Math.pow(q / finalQ, 2));
+       const px = 50 + (q / maxTickQ) * 240;
+       const py = 280 - (hp / maxTickH) * 240;
+       pathD += `${i === 0 ? 'M' : 'L'} ${px} ${py} `;
+    }
+    
+    const qGrid = qTicks.map(t => {
+       const px = 50 + (t / maxTickQ) * 240;
+       return `<line x1="${px}" y1="40" x2="${px}" y2="280" stroke="#e4eaf4" stroke-width="1" />
+               <text x="${px}" y="295" font-size="10" fill="#555" text-anchor="middle" font-family="Arial">${t}</text>`;
+    }).join('');
+    
+    const hGrid = hTicks.map(t => {
+       const py = 280 - (t / maxTickH) * 240;
+       return `<line x1="50" y1="${py}" x2="290" y2="${py}" stroke="#e4eaf4" stroke-width="1" />
+               <text x="42" y="${py + 3}" font-size="10" fill="#555" text-anchor="end" font-family="Arial">${t}</text>`;
+    }).join('');
+    
+    svgCurveHtml = `
+      <svg width="100%" height="100%" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg">
+        ${qGrid}
+        ${hGrid}
+        <line x1="50" y1="40" x2="50" y2="280" stroke="#555" stroke-width="2" />
+        <line x1="50" y1="280" x2="290" y2="280" stroke="#555" stroke-width="2" />
+        <text x="170" y="315" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial">Caudal (m³/h)</text>
+        <text x="15" y="160" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial" transform="rotate(-90, 15, 160)">Altura total (m.c.a)</text>
+        <path d="${pathD.trim()}" stroke="#0d8a39" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    `;
+  }
   
   const escapeHtml = (unsafe: string) => {
     return (unsafe || '').toString()
@@ -187,7 +241,7 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
           <div class="curve-col">
              <div class="curve-title">CURVA DE RENDIMIENTO</div>
              <div class="curve-wrapper">
-                <canvas id="curveCanvas" style="width: 100%; height: 100%;"></canvas>
+                ${svgCurveHtml}
              </div>
              <div class="curve-disclaimer">Nota: Curva de rendimiento teórica aproximada de referencia. Para datos técnicos exactos y curvas de eficiencia, consulte siempre la ficha oficial del fabricante o a un asesor.</div>
           </div>
@@ -235,73 +289,6 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
             } catch(e) {}
           };
           img.src = '${base64Img}';
-
-          ${showCurve ? `
-          // Dibujar la curva H(Q) = Hmax * (1 - (Q/Qmax)^2)
-          setTimeout(function() {
-             var canvas = document.getElementById('curveCanvas');
-             if (!canvas) return;
-             var ctx = canvas.getContext('2d');
-             var w = canvas.offsetWidth * 2;
-             var h = canvas.offsetHeight * 2;
-             canvas.width = w; canvas.height = h;
-             var pad = 40;
-             var chartW = w - pad * 2;
-             var chartH = h - pad * 2;
-             
-             // Ejes
-             ctx.strokeStyle = '#555';
-             ctx.lineWidth = 2;
-             ctx.beginPath();
-             ctx.moveTo(pad, pad);
-             ctx.lineTo(pad, h - pad);
-             ctx.lineTo(w - pad, h - pad);
-             ctx.stroke();
-             
-             // Labels de los ejes
-             ctx.fillStyle = '#555';
-             ctx.font = '24px Arial';
-             ctx.textAlign = 'center';
-             ctx.fillText('Caudal (m³/h)', w/2, h - 5);
-             ctx.save();
-             ctx.translate(15, h/2);
-             ctx.rotate(-Math.PI/2);
-             ctx.fillText('Altura (mca)', 0, 0);
-             ctx.restore();
-             
-             // Max Q y Max H
-             var maxQ = ${maxQ}; // m3/h
-             var maxH = ${maxH};
-             
-             ctx.font = '20px Arial';
-             ctx.textAlign = 'right';
-             ctx.fillText(maxH.toFixed(0), pad - 5, pad + 10);
-             ctx.textAlign = 'center';
-             ctx.fillText(maxQ.toFixed(0), w - pad, h - pad + 25);
-             
-             // Curva
-             ctx.strokeStyle = '#0d8a39';
-             ctx.lineWidth = 4;
-             ctx.beginPath();
-             for (var i = 0; i <= 100; i++) {
-                var q = maxQ * (i / 100);
-                var hp = maxH * (1 - Math.pow(q / maxQ, 2));
-                var px = pad + (q / maxQ) * chartW;
-                var py = h - pad - (hp / maxH) * chartH;
-                if (i === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-             }
-             ctx.stroke();
-             
-             // Grillado suave
-             ctx.strokeStyle = '#e4eaf4';
-             ctx.lineWidth = 1;
-             ctx.beginPath();
-             ctx.moveTo(pad, pad + chartH/2); ctx.lineTo(w - pad, pad + chartH/2);
-             ctx.moveTo(pad + chartW/2, pad); ctx.lineTo(pad + chartW/2, h - pad);
-             ctx.stroke();
-          }, 100);
-          ` : ''}
         })();
       </script>
     </body>

@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/react-native';
+﻿import * as Sentry from '@sentry/react-native';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, Modal, ScrollView, TouchableOpacity,
@@ -73,9 +73,11 @@ export default function ProductDetailModal({
 
   const curveData = useMemo(() => {
     if (!modalProd) return null;
-    const ALLOWED = ['BOMBA DE AGUA', 'MOTOBOMBA', 'CUERPO SUMERGIBLE', 'ELECTROBOMBA SUMERGIBLE', 'BOMBA DE ACHIQUE', 'BOMBA DE DRENAJE'];
     const subcat = (modalProd.subcategoria || '').toUpperCase();
-    if (!ALLOWED.includes(subcat)) return null;
+    const isPumpType = subcat.includes('BOMBA') || subcat.includes('MOTOBOMBA') || subcat.includes('CUERPO') || subcat.includes('ACHIQUE') || subcat.includes('DRENAJE');
+    const isExcluded = subcat.includes('PARA ') || subcat.includes('VACIO') || subcat.includes('REPUESTO') || subcat.includes('ACCESORIO') || subcat.includes('TABLERO') || subcat.includes('PRESURIZADOR') || subcat.includes('CONTROL');
+    
+    if (!isPumpType || isExcluded) return null;
 
     let maxQ = 0, maxH = 0;
     (modalProd.specs || []).forEach((s: [string, string]) => {
@@ -106,7 +108,28 @@ export default function ProductDetailModal({
       }
     });
 
-    if (maxQ > 0 && maxH > 0) return { maxQ: maxQ * 60 / 1000, maxH }; // guardamos Q en m3/h para la UI
+    if (maxQ > 0 && maxH > 0) {
+      const finalQ = maxQ * 60 / 1000;
+      
+      const getTicks = (max: number) => {
+         if (max <= 0) return [0, 1];
+         let step = Math.pow(10, Math.floor(Math.log10(max)));
+         const m = max / step;
+         if (m <= 2) step *= 0.2;
+         else if (m <= 5) step *= 0.5;
+         const ticks = [];
+         for (let i = 0; i <= max + step * 0.1; i += step) ticks.push(i);
+         if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
+         return ticks;
+      };
+      
+      return { 
+         maxQ: finalQ, 
+         maxH,
+         qTicks: getTicks(finalQ),
+         hTicks: getTicks(maxH)
+      };
+    }
     return null;
   }, [modalProd]);
   
@@ -576,27 +599,45 @@ export default function ProductDetailModal({
             <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center'}}>
               <View style={{width: '90%', backgroundColor: '#fff', borderRadius: 12, padding: 20, alignItems: 'center'}}>
                  <Text style={{fontSize: 18, fontWeight: 'bold', color: COLORS.navy, marginBottom: 20}}>Curva de Rendimiento</Text>
-                 <View style={{width: 300, height: 300}}>
-                    <Svg width="300" height="300">
-                      <Line x1="40" y1="40" x2="40" y2="260" stroke="#555" strokeWidth="2" />
-                      <Line x1="40" y1="260" x2="260" y2="260" stroke="#555" strokeWidth="2" />
-                      <SvgText x="150" y="290" fontSize="12" fill="#555" textAnchor="middle">Caudal (m³/h)</SvgText>
-                      <SvgText x="15" y="150" fontSize="12" fill="#555" textAnchor="middle" transform="rotate(-90, 15, 150)">Altura (mca)</SvgText>
+                 <View style={{width: 320, height: 320}}>
+                    <Svg width="320" height="320">
+                      {curveData.qTicks.map(t => {
+                         const px = 50 + (t / curveData.qTicks[curveData.qTicks.length - 1]) * 240;
+                         return (
+                           <G key={`x-${t}`}>
+                             <Line x1={px} y1="40" x2={px} y2="280" stroke="#e4eaf4" strokeWidth="1" />
+                             <SvgText x={px} y="295" fontSize="10" fill="#555" textAnchor="middle">{t}</SvgText>
+                           </G>
+                         );
+                      })}
+                      {curveData.hTicks.map(t => {
+                         const py = 280 - (t / curveData.hTicks[curveData.hTicks.length - 1]) * 240;
+                         return (
+                           <G key={`y-${t}`}>
+                             <Line x1="50" y1={py} x2="290" y2={py} stroke="#e4eaf4" strokeWidth="1" />
+                             <SvgText x="42" y={py + 3} fontSize="10" fill="#555" textAnchor="end">{t}</SvgText>
+                           </G>
+                         );
+                      })}
                       
-                      <SvgText x="35" y="50" fontSize="12" fill="#555" textAnchor="end">{curveData.maxH.toFixed(0)}</SvgText>
-                      <SvgText x="250" y="275" fontSize="12" fill="#555" textAnchor="middle">{curveData.maxQ.toFixed(0)}</SvgText>
+                      <Line x1="50" y1="40" x2="50" y2="280" stroke="#555" strokeWidth="2" />
+                      <Line x1="50" y1="280" x2="290" y2="280" stroke="#555" strokeWidth="2" />
+                      <SvgText x="170" y="315" fontSize="12" fill="#555" textAnchor="middle" fontWeight="bold">Caudal (m³/h)</SvgText>
+                      <SvgText x="15" y="160" fontSize="12" fill="#555" textAnchor="middle" transform="rotate(-90, 15, 160)" fontWeight="bold">Altura total (m.c.a)</SvgText>
                       
                       <Path 
                         d={
                           [...Array(51).keys()].map(i => {
                              const q = curveData.maxQ * (i / 50);
                              const hp = curveData.maxH * (1 - Math.pow(q / curveData.maxQ, 2));
-                             const px = 40 + (q / curveData.maxQ) * 220;
-                             const py = 260 - (hp / curveData.maxH) * 220;
+                             const maxTickQ = curveData.qTicks[curveData.qTicks.length - 1];
+                             const maxTickH = curveData.hTicks[curveData.hTicks.length - 1];
+                             const px = 50 + (q / maxTickQ) * 240;
+                             const py = 280 - (hp / maxTickH) * 240;
                              return `${i === 0 ? 'M' : 'L'} ${px} ${py}`;
                           }).join(' ')
                         }
-                        stroke={COLORS.green} strokeWidth="3" fill="none"
+                        stroke={COLORS.green} strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round"
                       />
                     </Svg>
                  </View>

@@ -22,6 +22,7 @@ const SVGS: Record<string, string> = {  doc5: `<svg xmlns='http://www.w3.org/200
   ojo: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 120'><path fill="FILLCOLOR" d="M100,10C55,10,10,60,10,60s45,50,90,50s90-50,90-50S145,10,100,10z M100,98c-20.9,0-38-17.1-38-38s17.1-38,38-38s38,17.1,38,38S120.9,98,100,98z M100,40c-11,0-20,9-20,20s9,20,20,20s20-9,20-20S111,40,100,40z"/></svg>`,
   // Dashboard: Upload / Compartido (flecha arriba con bandeja)
   upload: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 180'><path fill="FILLCOLOR" d="M80,0L30,55h35v75h30V55h35L80,0z M40,130v35h80v-35h-12v23H52v-23H40z"/></svg>`,
+  curva: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill="none" stroke="FILLCOLOR" stroke-width="8" stroke-linecap="round" d="M15,10 L15,85 L90,85" /><path fill="none" stroke="FILLCOLOR" stroke-width="6" stroke-linecap="round" d="M25,25 Q55,25 75,75" /></svg>`,
   // Dashboard: Lupa (búsquedas, distinta a buscar para diferenciar)
   lupa2: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><path fill="FILLCOLOR" d="M75,10C39.1,10,10,39.1,10,75s29.1,65,65,65c14.4,0,27.7-4.7,38.4-12.6l41.6,41.6c2.3,2.3,6.1,2.3,8.5,0l6.9-6.9c2.3-2.3,2.3-6.1,0-8.5L128.8,111C137.2,100.4,142,87,142,75C142,39.1,110.9,10,75,10z M75,130c-30.4,0-55-24.6-55-55s24.6-55,55-55s55,24.6,55,55S105.4,130,75,130z"/></svg>`,
   // Dashboard: Gráfico de barras (marcas)
