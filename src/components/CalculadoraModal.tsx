@@ -317,7 +317,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const usoConf = reglas.categorias.find((u: any) => u.id === pumpWizard.uso);
         
         // ── FILTRO POR CATEGORÍA ──────────────────────────────────────────────
-        if (bombaTab === 'guiado' && usoConf) {
+        if (usoConf) {
            pool = pool.filter(p => {
               const sub = String(p.subcategoria).toUpperCase();
               const nom = String(p.modelo).toUpperCase();
@@ -496,46 +496,37 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                    return { ...m, calcVal: mHp, score: (mHp > 0 && mHp >= searchHp) ? mHp - searchHp : 9999 };
                 });
 
-                let bestMotor: ExtendedCalcProduct | undefined = validMotors.filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000).sort((a, b) => (a.score ?? 999) - (b.score ?? 999))[0];
+                let selectedMotors = validMotors.filter(m => m.calcVal > 0 && m.calcVal >= searchHp && m.calcVal <= searchHp * 1.20);
                 
-                // CAMBIO 6: Regla Universal de Cero Bombas Huérfanas
-                // Si no encontramos un motor ideal que cubra la potencia, sugerimos el máximo posible.
-                if (!bestMotor) {
-                    const maxValMotors = validMotors.map((m) => {
-                        return { ...m, calcVal: m.calcVal || 0 };
-                    });
-                    const maxCatalogHp = Math.max(...maxValMotors.map((m: any) => m.calcVal), 0);
-                    bestMotor = maxValMotors.find((m: any) => m.calcVal === maxCatalogHp);
+                // Si no hay motores en ese rango (ej: la bomba pide 2500 HP y el mayor es 500 HP)
+                if (selectedMotors.length === 0) {
+                    const maxCatalogHp = Math.max(...validMotors.map((m: any) => m.calcVal || 0), 0);
+                    selectedMotors = validMotors.filter(m => m.calcVal === maxCatalogHp && maxCatalogHp > 0);
                     
-                    if (bestMotor && maxCatalogHp > 0) {
-                        bestMotor = { ...bestMotor }; // clone
-                        
+                    if (selectedMotors.length > 0) {
+                        const m = selectedMotors[0];
                         if (pumpTargetHp === 0) {
-                            bestMotor.displayValue = `Máx cap. ${maxCatalogHp} HP`;
-                            setMotorWarning(`⚠️ Motor sugerido como referencia (el de mayor potencia). Ingresá la altura (mca) para calcular el motor exacto.`);
+                            m.displayValue = `Máx cap. ${maxCatalogHp} HP`;
+                            setMotorWarning(`⚠️ Motor de mayor potencia sugerido como referencia. Falta altura (mca) para el exacto.`);
                         } else {
-                            bestMotor.displayValue = `Máx cap. ${maxCatalogHp} HP (Aviso: Requiere ~${Math.round(pumpTargetHp)} HP)`;
-                            
+                            m.displayValue = `Máx cap. ${maxCatalogHp} HP`;
                             if (pumpTargetHp > highestTargetHp) {
-                                if (targetAlturaInput > 0) {
-                                    const maxLpm = (maxCatalogHp * reglas.matematica.divisorHpBomba) / targetAlturaInput;
-                                    let maxDisplay = '';
-                                    if (pumpWizard.unidadCaudal === 'm3/h') maxDisplay = (maxLpm * 60 / 1000).toFixed(1) + ' m³/h';
-                                    else if (pumpWizard.unidadCaudal === 'l/h') maxDisplay = (maxLpm * 60).toFixed(0) + ' L/h';
-                                    else maxDisplay = maxLpm.toFixed(0) + ' L/min';
-                                    setMotorWarning(`⚠️ Una de las bombas sugeridas exige ~${Math.round(pumpTargetHp)} HP. Al acoplarle nuestro motor más grande en stock (${maxCatalogHp} HP) a ${targetAlturaInput} mca, entregará máx. ${maxDisplay}.`);
+                                if (targetAlturaInput > 0 && targetCaudalLpm > 0) {
+                                    // Calcular limitación real si mantenemos el caudal constante
+                                    const maxMCA = (maxCatalogHp * reglas.matematica.divisorHpBomba) / targetCaudalLpm;
+                                    setMotorWarning(`⚠️ Requiere ~${Math.round(pumpTargetHp)} HP. Con este motor máximo (${maxCatalogHp} HP), solo elevará hasta ${maxMCA.toFixed(0)} MCA.`);
                                 } else {
-                                    setMotorWarning(`⚠️ Una de las bombas exige ~${Math.round(pumpTargetHp)} HP. Se sugiere el motor de máxima capacidad en stock (${maxCatalogHp} HP) como Plan B.`);
+                                    setMotorWarning(`⚠️ Requiere ~${Math.round(pumpTargetHp)} HP. Se sugiere el motor máximo en stock (${maxCatalogHp} HP) como Plan B.`);
                                 }
                             }
                         }
                     }
                 }
                 
-                if (bestMotor) {
-                    const motorClone = { ...bestMotor };
+                selectedMotors.forEach(m => {
+                    const motorClone = { ...m };
                     motorClone.marca = 'Motor Sugerido: ' + motorClone.marca;
-                    motorClone.displayValue = motorClone.displayValue || (motorClone.calcVal > 0 ? `${motorClone.calcVal.toFixed(1)} HP (Est. ${Math.round(pumpTargetHp)} HP req)` : '? HP');
+                    motorClone.displayValue = motorClone.displayValue || (motorClone.calcVal > 0 ? `${motorClone.calcVal.toFixed(1)} HP` : '? HP');
                     motorClone.pairedSku = pump.modelo;
                     
                     mResults.push(motorClone);
@@ -544,7 +535,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                     if (idxInFiltered >= 0 && !filtered[idxInFiltered].pairedSku) {
                        filtered[idxInFiltered].pairedSku = motorClone.modelo;
                     }
-                }
+                });
             }
             
             finalTargetHp = highestTargetHp;
@@ -705,25 +696,42 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             <View>
               {calcMode === 'bomba' ? (
                 <View>
-                  <View style={styles.tabContainer}>
-                    <TouchableOpacity 
-                      style={[styles.tabBtn, bombaTab === 'guiado' && styles.tabBtnActive]} 
-                      onPress={() => { setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null);
+                  {!(bombaTab === 'guiado' && wizardStep > 1) && (
+                    <View style={styles.tabContainer}>
+                      <TouchableOpacity 
+                        style={[styles.tabBtn, bombaTab === 'guiado' && styles.tabBtnActive]} 
+                        onPress={() => { setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null);
       setMotorResult(null); }}
-                    >
-                      <Text style={[styles.tabText, bombaTab === 'guiado' && styles.tabTextActive]}>GUIADO</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.tabBtn, bombaTab === 'avanzado' && styles.tabBtnActive]} 
-                      onPress={() => { setBombaTab('avanzado'); setHasCalculated(false); setCalcResult(null);
+                      >
+                        <Text style={[styles.tabText, bombaTab === 'guiado' && styles.tabTextActive]}>GUIADO</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.tabBtn, bombaTab === 'avanzado' && styles.tabBtnActive]} 
+                        onPress={() => { setBombaTab('avanzado'); setHasCalculated(false); setCalcResult(null);
       setMotorResult(null); }}
-                    >
-                      <Text style={[styles.tabText, bombaTab === 'avanzado' && styles.tabTextActive]}>CÁLCULO AVANZADO</Text>
-                    </TouchableOpacity>
-                  </View>
+                      >
+                        <Text style={[styles.tabText, bombaTab === 'avanzado' && styles.tabTextActive]}>CÁLCULO AVANZADO</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
 
                   {bombaTab === 'avanzado' ? (
                     <View style={styles.avanzadoContainer}>
+                      <Text style={styles.inputTitleSmall}>Filtro de Categoría</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 15 }}>
+                        {reglas.categorias.map((u: any) => (
+                          <TouchableOpacity 
+                            key={u.id}
+                            style={[styles.usoListCard, { width: 160, marginRight: 10, padding: 10, minHeight: 40 }, pumpWizard.uso === u.id && styles.usoCardActive]}
+                            onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}
+                          >
+                            <Text style={[styles.usoListTitle, { fontSize: 12 }, pumpWizard.uso === u.id && styles.usoTitleActive]}>
+                              {u.title}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+
                       <View style={styles.grid2Cols}>
                         <View style={styles.col}>
                            <Text style={styles.inputTitleSmall}>Caudal (m³/h)</Text>
@@ -776,21 +784,26 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       ) : parseFloat(adv.caudal) > 0 && (
                          <View style={styles.advResultBox}>
                             <View style={styles.advResultRow}>
-                               <Text style={styles.advResultLbl}>Altura Total:</Text>
+                               <Text style={styles.advResultLbl}>Altura manométrica total:</Text>
                                <Text style={styles.advResultVal}>{hTotal.toFixed(2)} mca</Text>
                             </View>
                             <View style={styles.advResultRow}>
-                               <Text style={styles.advResultLbl}>Fricción:</Text>
+                               <Text style={styles.advResultLbl}>Pérdida por fricción:</Text>
                                <Text style={styles.advResultLbl}>{perdida.toFixed(2)} mca</Text>
+                            </View>
+                            <View style={styles.advResultRow}>
+                               <Text style={styles.advResultLbl}>Longitud equivalente total:</Text>
+                               <Text style={styles.advResultLbl}>{lTotal.toFixed(2)} m</Text>
                             </View>
                          </View>
                       )}
 
                       <TouchableOpacity 
-                        style={[styles.calculateBtn, {marginTop: 10, paddingVertical: 10}]} 
+                        style={[styles.calculateBtn, {marginTop: 10, paddingVertical: 10}, !pumpWizard.uso && { backgroundColor: COLORS.gray4 }]} 
                         onPress={handleCalculate}
+                        disabled={!pumpWizard.uso}
                       >
-                        <Text style={styles.calculateBtnText}>Buscar Equipos</Text>
+                        <Text style={styles.calculateBtnText}>{pumpWizard.uso ? 'Buscar Equipos' : 'Seleccione una categoría arriba'}</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (

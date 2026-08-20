@@ -46,6 +46,43 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
     specPad    = pad2;
   }
 
+  const ALLOWED_CURVE_CATEGORIES = ['BOMBA DE AGUA', 'MOTOBOMBA', 'CUERPO SUMERGIBLE', 'ELECTROBOMBA SUMERGIBLE', 'BOMBA DE ACHIQUE', 'BOMBA DE DRENAJE'];
+  const subcatStr = (modalProd?.subcategoria || '').toUpperCase();
+  const isAllowedCategory = ALLOWED_CURVE_CATEGORIES.includes(subcatStr);
+  
+  let maxQ = 0, maxH = 0;
+  if (isAllowedCategory) {
+     specs.forEach(s => {
+        const k = String(s[0]).toUpperCase();
+        const v = String(s[1]).toUpperCase();
+        if (k.includes('CAUDAL') || k.includes('FLUJO')) {
+           const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
+           if (nums) {
+              const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+              const unitHint = v + ' ' + k;
+              let valLpm = maxNum;
+              if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M^3/H') || unitHint.includes('M3H')) {
+                 valLpm = (maxNum * 1000) / 60;
+              } else if (unitHint.includes('L/H') || unitHint.includes('LT/H') || unitHint.includes('LTS/H')) {
+                 valLpm = maxNum / 60;
+              } else if (unitHint.includes('L/S')) {
+                 valLpm = maxNum * 60;
+              }
+              if (valLpm > maxQ) maxQ = valLpm;
+           }
+        }
+        if (k.includes('ALTURA') || k.includes('ELEVACIÓN') || k.includes('MCA')) {
+           const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
+           if (nums) {
+              const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+              if (maxNum > maxH) maxH = maxNum;
+           }
+        }
+     });
+  }
+  
+  const showCurve = isAllowedCategory && maxQ > 0 && maxH > 0;
+  
   const escapeHtml = (unsafe: string) => {
     return (unsafe || '').toString()
       .replace(/&/g, "&amp;")
@@ -102,10 +139,15 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
         .hdr-title { font-size: 19pt; font-weight: bold; color: #0a2566; letter-spacing: 1px; line-height: 1; }
         .hdr-sub { font-size: 7.5pt; color: #8492a6; letter-spacing: 2px; text-transform: uppercase; margin-top: 3px; }
         .green-line { height: 5px; background: linear-gradient(90deg, #0d8a39, #09c24f); margin-top: 10px; flex-shrink: 0; }
-        .top-block { display: flex; flex-direction: column; margin: ${PX_TMARG}px 26px 0 26px; height: ${topBlockH}px; gap: 12px; flex-shrink: 0; }
-        .img-box { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+        .top-block { display: flex; flex-direction: row; margin: ${PX_TMARG}px 26px 0 26px; height: ${topBlockH}px; gap: 12px; flex-shrink: 0; }
+        .img-col { flex: ${showCurve ? '1' : '1'}; min-height: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+        .img-box { width: 100%; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
         .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-        .info-box { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+        .curve-col { flex: 1; display: flex; flex-direction: column; padding: 10px; border: 1px solid #e4eaf4; border-radius: 8px; background: #fafbfc; }
+        .curve-title { font-size: 10pt; font-weight: bold; color: #0a2566; text-align: center; margin-bottom: 6px; }
+        .curve-wrapper { flex: 1; position: relative; }
+        .curve-disclaimer { font-size: 6pt; color: #8492a6; text-align: center; margin-top: 4px; line-height: 1.1; }
+        .info-box { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; }
         .p-marca  { font-size: 11pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; letter-spacing: 0.5px; }
         .p-modelo { font-size: 20pt; font-weight: bold; color: #0a2566; line-height: 1.1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .p-subcat { font-size: 8.5pt; color: #8492a6; text-transform: uppercase; letter-spacing: 1px; }
@@ -128,17 +170,28 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
           <div class="hdr-sep"></div>
           <div class="hdr-text">
             <div class="hdr-title">FICHA T&#201;CNICA</div>
-            <div class="hdr-sub">Especificaciones del producto</div>
+            <div class="hdr-sub">Detalle de Producto</div>
+            <div class="green-line"></div>
           </div>
         </div>
-        <div class="green-line"></div>
         <div class="top-block">
-          <div class="img-box"><img id="prodImg" class="prod-img" src="${base64Img}" /></div>
-          <div class="info-box">
-            <div class="p-marca">${modalProd?.modelo ? 'SKU: ' + modalProd.modelo + ' | ' : ''}${modalProd?.marca ?? ''}</div>
-            <div class="p-modelo">${modalProd?.modelo ?? ''}</div>
-            <div class="p-subcat">${(modalProd?.subcategoria ?? 'GENERAL').toUpperCase()}</div>
+          <div class="img-col">
+            <div class="img-box"><img id="prodImg" class="prod-img" src="" alt="Cargando..." /></div>
+            <div class="info-box">
+              <span class="p-marca">${escapeHtml(modalProd?.marca || '')}</span>
+              <span class="p-modelo">${escapeHtml(modalProd?.modelo || '')}</span>
+              <span class="p-subcat">${escapeHtml(modalProd?.subcategoria || '')}</span>
+            </div>
           </div>
+          ${showCurve ? `
+          <div class="curve-col">
+             <div class="curve-title">CURVA DE RENDIMIENTO</div>
+             <div class="curve-wrapper">
+                <canvas id="curveCanvas" style="width: 100%; height: 100%;"></canvas>
+             </div>
+             <div class="curve-disclaimer">Nota: Curva de rendimiento teórica aproximada de referencia. Para datos técnicos exactos y curvas de eficiencia, consulte siempre la ficha oficial del fabricante o a un asesor.</div>
+          </div>
+          ` : ''}
         </div>
         <div class="specs-block">${specsHtml}</div>
         <div class="footer">
@@ -182,6 +235,73 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
             } catch(e) {}
           };
           img.src = '${base64Img}';
+
+          ${showCurve ? `
+          // Dibujar la curva H(Q) = Hmax * (1 - (Q/Qmax)^2)
+          setTimeout(function() {
+             var canvas = document.getElementById('curveCanvas');
+             if (!canvas) return;
+             var ctx = canvas.getContext('2d');
+             var w = canvas.offsetWidth * 2;
+             var h = canvas.offsetHeight * 2;
+             canvas.width = w; canvas.height = h;
+             var pad = 40;
+             var chartW = w - pad * 2;
+             var chartH = h - pad * 2;
+             
+             // Ejes
+             ctx.strokeStyle = '#555';
+             ctx.lineWidth = 2;
+             ctx.beginPath();
+             ctx.moveTo(pad, pad);
+             ctx.lineTo(pad, h - pad);
+             ctx.lineTo(w - pad, h - pad);
+             ctx.stroke();
+             
+             // Labels de los ejes
+             ctx.fillStyle = '#555';
+             ctx.font = '24px Arial';
+             ctx.textAlign = 'center';
+             ctx.fillText('Caudal (m³/h)', w/2, h - 5);
+             ctx.save();
+             ctx.translate(15, h/2);
+             ctx.rotate(-Math.PI/2);
+             ctx.fillText('Altura (mca)', 0, 0);
+             ctx.restore();
+             
+             // Max Q y Max H
+             var maxQ = ${maxQ}; // m3/h
+             var maxH = ${maxH};
+             
+             ctx.font = '20px Arial';
+             ctx.textAlign = 'right';
+             ctx.fillText(maxH.toFixed(0), pad - 5, pad + 10);
+             ctx.textAlign = 'center';
+             ctx.fillText(maxQ.toFixed(0), w - pad, h - pad + 25);
+             
+             // Curva
+             ctx.strokeStyle = '#0d8a39';
+             ctx.lineWidth = 4;
+             ctx.beginPath();
+             for (var i = 0; i <= 100; i++) {
+                var q = maxQ * (i / 100);
+                var hp = maxH * (1 - Math.pow(q / maxQ, 2));
+                var px = pad + (q / maxQ) * chartW;
+                var py = h - pad - (hp / maxH) * chartH;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+             }
+             ctx.stroke();
+             
+             // Grillado suave
+             ctx.strokeStyle = '#e4eaf4';
+             ctx.lineWidth = 1;
+             ctx.beginPath();
+             ctx.moveTo(pad, pad + chartH/2); ctx.lineTo(w - pad, pad + chartH/2);
+             ctx.moveTo(pad + chartW/2, pad); ctx.lineTo(pad + chartW/2, h - pad);
+             ctx.stroke();
+          }, 100);
+          ` : ''}
         })();
       </script>
     </body>

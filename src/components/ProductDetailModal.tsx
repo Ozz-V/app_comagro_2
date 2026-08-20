@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react-native';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, Modal, ScrollView, TouchableOpacity,
   ActivityIndicator, StyleSheet, useWindowDimensions
@@ -12,6 +12,7 @@ import { captureRef } from 'react-native-view-shot';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
 import SvgIcon from './SvgIcon';
+import Svg, { Path, Line, Text as SvgText, G } from 'react-native-svg';
 import { COLORS, FONTS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -68,6 +69,46 @@ export default function ProductDetailModal({
   const [loadingSimilares, setLoadingSimilares] = useState(true);
   const [compartiendo, setCompartiendo] = useState(false);
   const [contentReady, setContentReady] = useState(false);
+  const [showCurveModal, setShowCurveModal] = useState(false);
+
+  const curveData = useMemo(() => {
+    if (!modalProd) return null;
+    const ALLOWED = ['BOMBA DE AGUA', 'MOTOBOMBA', 'CUERPO SUMERGIBLE', 'ELECTROBOMBA SUMERGIBLE', 'BOMBA DE ACHIQUE', 'BOMBA DE DRENAJE'];
+    const subcat = (modalProd.subcategoria || '').toUpperCase();
+    if (!ALLOWED.includes(subcat)) return null;
+
+    let maxQ = 0, maxH = 0;
+    (modalProd.specs || []).forEach((s: [string, string]) => {
+      const k = String(s[0]).toUpperCase();
+      const v = String(s[1]).toUpperCase();
+      if (k.includes('CAUDAL') || k.includes('FLUJO')) {
+         const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
+         if (nums) {
+            const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+            const unitHint = v + ' ' + k;
+            let valLpm = maxNum;
+            if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M^3/H') || unitHint.includes('M3H')) {
+               valLpm = (maxNum * 1000) / 60;
+            } else if (unitHint.includes('L/H') || unitHint.includes('LT/H') || unitHint.includes('LTS/H')) {
+               valLpm = maxNum / 60;
+            } else if (unitHint.includes('L/S')) {
+               valLpm = maxNum * 60;
+            }
+            if (valLpm > maxQ) maxQ = valLpm;
+         }
+      }
+      if (k.includes('ALTURA') || k.includes('ELEVACIÓN') || k.includes('MCA')) {
+         const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
+         if (nums) {
+            const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+            if (maxNum > maxH) maxH = maxNum;
+         }
+      }
+    });
+
+    if (maxQ > 0 && maxH > 0) return { maxQ: maxQ * 60 / 1000, maxH }; // guardamos Q en m3/h para la UI
+    return null;
+  }, [modalProd]);
   
   // Anti-Flicker: Derived State Pattern
   const [prevModelo, setPrevModelo] = useState(modalProd?.modelo);
@@ -362,13 +403,32 @@ export default function ProductDetailModal({
                       <Text style={[styles.compareBtnText, { color: COLORS.gray4 }]}>Buscando similares...</Text>
                     </View>
                   ) : productosSimilares.length > 0 ? (
-                    <TouchableOpacity
-                      style={[styles.compareBtn, { marginBottom: 16 }]}
-                      onPress={() => onCompare([modalProd, ...productosSimilares.slice(0, 3)])}
-                    >
-                      <SvgIcon name="actualizar" size={16} color={COLORS.white} />
-                      <Text style={styles.compareBtnText}>Comparar con similares</Text>
-                    </TouchableOpacity>
+                    <View style={{ marginBottom: 16 }}>
+                      <TouchableOpacity
+                        style={styles.compareBtn}
+                        onPress={() => onCompare([modalProd, ...productosSimilares.slice(0, 3)])}
+                      >
+                        <SvgIcon name="actualizar" size={16} color={COLORS.white} />
+                        <Text style={styles.compareBtnText}>Comparar con similares</Text>
+                      </TouchableOpacity>
+                      {curveData && (
+                        <TouchableOpacity
+                          style={[styles.compareBtn, { backgroundColor: COLORS.navy, marginTop: 10 }]}
+                          onPress={() => setShowCurveModal(true)}
+                        >
+                          <SvgIcon name="actualizar" size={16} color={COLORS.white} />
+                          <Text style={styles.compareBtnText}>Ver Curva de Rendimiento</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ) : curveData ? (
+                     <TouchableOpacity
+                       style={[styles.compareBtn, { backgroundColor: COLORS.navy, marginBottom: 16 }]}
+                       onPress={() => setShowCurveModal(true)}
+                     >
+                       <SvgIcon name="actualizar" size={16} color={COLORS.white} />
+                       <Text style={styles.compareBtnText}>Ver Curva de Rendimiento</Text>
+                     </TouchableOpacity>
                   ) : null}
 
                   {modalProd?.specs?.length > 0 && (
@@ -508,6 +568,47 @@ export default function ProductDetailModal({
               javaScriptEnabled={true}
             />
           </View>
+        )}
+
+        {/* MODAL CURVA */}
+        {curveData && (
+          <Modal visible={showCurveModal} transparent animationType="fade" onRequestClose={() => setShowCurveModal(false)}>
+            <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center'}}>
+              <View style={{width: '90%', backgroundColor: '#fff', borderRadius: 12, padding: 20, alignItems: 'center'}}>
+                 <Text style={{fontSize: 18, fontWeight: 'bold', color: COLORS.navy, marginBottom: 20}}>Curva de Rendimiento</Text>
+                 <View style={{width: 300, height: 300}}>
+                    <Svg width="300" height="300">
+                      <Line x1="40" y1="40" x2="40" y2="260" stroke="#555" strokeWidth="2" />
+                      <Line x1="40" y1="260" x2="260" y2="260" stroke="#555" strokeWidth="2" />
+                      <SvgText x="150" y="290" fontSize="12" fill="#555" textAnchor="middle">Caudal (m³/h)</SvgText>
+                      <SvgText x="15" y="150" fontSize="12" fill="#555" textAnchor="middle" transform="rotate(-90, 15, 150)">Altura (mca)</SvgText>
+                      
+                      <SvgText x="35" y="50" fontSize="12" fill="#555" textAnchor="end">{curveData.maxH.toFixed(0)}</SvgText>
+                      <SvgText x="250" y="275" fontSize="12" fill="#555" textAnchor="middle">{curveData.maxQ.toFixed(0)}</SvgText>
+                      
+                      <Path 
+                        d={
+                          [...Array(51).keys()].map(i => {
+                             const q = curveData.maxQ * (i / 50);
+                             const hp = curveData.maxH * (1 - Math.pow(q / curveData.maxQ, 2));
+                             const px = 40 + (q / curveData.maxQ) * 220;
+                             const py = 260 - (hp / curveData.maxH) * 220;
+                             return `${i === 0 ? 'M' : 'L'} ${px} ${py}`;
+                          }).join(' ')
+                        }
+                        stroke={COLORS.green} strokeWidth="3" fill="none"
+                      />
+                    </Svg>
+                 </View>
+                 <Text style={{fontSize: 10, color: '#8492a6', textAlign: 'center', marginTop: 15, paddingHorizontal: 10}}>
+                   Nota: Curva de rendimiento teórica aproximada de referencia. Consulte con un asesor para datos exactos.
+                 </Text>
+                 <TouchableOpacity style={[styles.actionBtn, {marginTop: 20, width: '100%', backgroundColor: COLORS.navy}]} onPress={() => setShowCurveModal(false)}>
+                    <Text style={{color: '#fff', fontWeight: 'bold'}}>Cerrar</Text>
+                 </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         )}
       </Reanimated.View>
     </Modal>
