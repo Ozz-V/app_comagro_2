@@ -48,9 +48,9 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
 
   const subcatStr = (modalProd?.subcategoria || '').toUpperCase();
   const isPumpType = subcatStr.includes('BOMBA') || subcatStr.includes('MOTOBOMBA') || subcatStr.includes('CUERPO') || subcatStr.includes('ACHIQUE') || subcatStr.includes('DRENAJE');
-  const isExcluded = subcatStr.includes('PARA ') || subcatStr.includes('VACIO') || subcatStr.includes('REPUESTO') || subcatStr.includes('ACCESORIO') || subcatStr.includes('TABLERO') || subcatStr.includes('PRESURIZADOR') || subcatStr.includes('CONTROL');
+  const isExcluded = (subcatStr.includes('PARA ') && !subcatStr.includes('PISCINA')) || subcatStr.includes('VACIO') || subcatStr.includes('REPUESTO') || subcatStr.includes('ACCESORIO') || subcatStr.includes('TABLERO') || subcatStr.includes('PRESURIZADOR') || subcatStr.includes('CONTROL');
   
-  let maxQ = 0, maxH = 0;
+  let maxQ = 0, maxH = 0, maxBar = 0;
   if (isPumpType && !isExcluded) {
      specs.forEach(s => {
         const k = String(s[0]).toUpperCase();
@@ -77,8 +77,17 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
               const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
               if (maxNum > maxH) maxH = maxNum;
            }
+        } else if (k.includes('BAR') || k.includes('PRESIÓN') || k.includes('PRESION')) {
+           const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
+           if (nums) {
+              const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+              if (maxNum > maxBar) maxBar = maxNum;
+           }
         }
      });
+     if (maxH === 0 && maxBar > 0) {
+        maxH = maxBar * 10.197;
+     }
   }
   
   const showCurve = isPumpType && !isExcluded && maxQ > 0 && maxH > 0;
@@ -121,7 +130,7 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
     const hGrid = hTicks.map(t => {
        const py = 280 - (t / maxTickH) * 240;
        return `<line x1="50" y1="${py}" x2="290" y2="${py}" stroke="#e4eaf4" stroke-width="1" />
-               <text x="42" y="${py + 3}" font-size="10" fill="#555" text-anchor="end" font-family="Arial">${t} m</text>`;
+               <text x="42" y="${py + 3}" font-size="10" fill="#555" text-anchor="end" font-family="Arial">${t}</text>`;
     }).join('');
     
     svgCurveHtml = `
@@ -131,7 +140,7 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
         <line x1="50" y1="40" x2="50" y2="280" stroke="#555" stroke-width="2" />
         <line x1="50" y1="280" x2="290" y2="280" stroke="#555" stroke-width="2" />
         <text x="170" y="315" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial">Caudal (m³/h)</text>
-        <text x="15" y="160" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial" transform="rotate(-90, 15, 160)">Altura total (m.c.a)</text>
+        <text x="15" y="160" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial" transform="rotate(-90, 15, 160)">Altura MCA (m)</text>
         <path d="${pathD.trim()}" stroke="#0d8a39" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     `;
