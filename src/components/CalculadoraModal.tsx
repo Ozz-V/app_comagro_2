@@ -604,6 +604,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       setHasCalculated(false);
       setCalcResult(null);
       setMotorResult(null);
+      setCatStats(null);
     } else if (calcMode) {
       setCalcMode('');
       setHasCalculated(false);
@@ -838,11 +839,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         </View>
                       ) : (
                         <View>
-                          <TouchableOpacity style={styles.backBtn} onPress={() => { setWizardStep(1); setHasCalculated(false); setCalcResult(null);
-      setMotorResult(null); setCatStats(null); }}>
-                            <Text style={styles.backBtnText}>← Volver a Uso</Text>
-                          </TouchableOpacity>
-
                           {statsLoading && <ActivityIndicator size="small" color={COLORS.navy} style={{marginBottom: 10}} />}
                           <View style={styles.colList}>
                              <View style={styles.colListRow}>
