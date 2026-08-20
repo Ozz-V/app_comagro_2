@@ -102,8 +102,13 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
        if (m <= 2) step *= 0.2;
        else if (m <= 5) step *= 0.5;
        const ticks = [];
-       for (let i = 0; i <= max + step * 0.1; i += step) ticks.push(i);
-       if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
+       const count = Math.ceil(max / step);
+       for (let idx = 0; idx <= count; idx++) {
+          ticks.push(Math.round(idx * step * 100) / 100);
+       }
+       if (ticks[ticks.length - 1] < max) {
+          ticks.push(Math.round((ticks[ticks.length - 1] + step) * 100) / 100);
+       }
        return ticks;
     };
     
@@ -113,11 +118,12 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
     const maxTickH = hTicks[hTicks.length - 1];
     
     let pathD = '';
+    const curvePad = 6;
     for (let i = 0; i <= 50; i++) {
        const q = finalQ * (i / 50);
        const hp = maxH * (1 - Math.pow(q / finalQ, 2));
-       const px = 50 + (q / maxTickQ) * 240;
-       const py = 280 - (hp / maxTickH) * 240;
+       const px = 50 + curvePad + (q / maxTickQ) * (240 - curvePad * 2);
+       const py = 280 - curvePad - (hp / maxTickH) * (240 - curvePad * 2);
        pathD += `${i === 0 ? 'M' : 'L'} ${px} ${py} `;
     }
     
@@ -141,7 +147,7 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
         <line x1="50" y1="280" x2="290" y2="280" stroke="#555" stroke-width="2" />
         <text x="170" y="315" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial">Caudal (m³/h)</text>
         <text x="15" y="160" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial" transform="rotate(-90, 15, 160)">Altura MCA (m)</text>
-        <path d="${pathD.trim()}" stroke="#0d8a39" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="${pathD.trim()}" stroke="#0d8a39" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     `;
   }
