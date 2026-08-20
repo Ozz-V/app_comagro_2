@@ -314,8 +314,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               
               if (!usoConf.tipos.some(t => sub.includes(t) || nom.includes(t))) return false;
               
-              // Smart crossover logic: Cap residential submersibles to 3 HP
-              if (pumpWizard.uso === 'vivienda' && (sub.includes('SUMERGIBLE') || nom.includes('SUMERGIBLE'))) {
+              // Smart crossover logic: Cap all residential pumps to 3 HP
+              if (pumpWizard.uso === 'vivienda') {
                  let isOver3Hp = false;
                  if (p.specs) {
                     p.specs.forEach((s) => {
@@ -327,6 +327,25 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                     });
                  }
                  if (isOver3Hp) return false;
+              }
+
+              // Umbral Industrial: Mostrar a partir de 3 HP (Limpiar domésticas)
+              if (pumpWizard.uso === 'riego_presion') {
+                 let isSmall = false;
+                 let hasHp = false;
+                 if (p.specs) {
+                    p.specs.forEach((s) => {
+                       const k = String(s[0]).toUpperCase();
+                       if (k.includes('HP') || k.includes('POTENCIA')) {
+                          const n = extractNum(s[1]);
+                          if (n) {
+                              hasHp = true;
+                              if (n < 3) isSmall = true;
+                          }
+                       }
+                    });
+                 }
+                 if (hasHp && isSmall) return false; // Excluye equipos explícitamente pequeños
               }
               
               return true;
@@ -440,7 +459,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                     rawHp = (targetCaudalLpm * targetAlturaInput) / 3150;
                 }
                 
-                let pumpTargetHp = (pump.calcVal > 0 && rawHp === pump.calcVal) ? rawHp : rawHp * 1.25;
+                const pumpTargetHp = (pump.calcVal > 0 && rawHp === pump.calcVal) ? rawHp : rawHp * 1.25;
                 if (pumpTargetHp > highestTargetHp) highestTargetHp = pumpTargetHp;
                 
                 const isPumpSumergible = String(pump.subcategoria).toUpperCase().includes('SUMERGIBLE') || String(pump.modelo).toUpperCase().includes('SUMERGIBLE') || usoConf?.id === 'pozo';
@@ -464,15 +483,42 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                    return { ...m, calcVal: mHp, score: mHp >= pumpTargetHp ? mHp - pumpTargetHp : 9999 };
                 });
 
-                const bestMotor = validMotors.filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000).sort((a, b) => (a.score ?? 999) - (b.score ?? 999))[0];
+                let bestMotor: ExtendedCalcProduct | undefined = validMotors.filter((m) => m.score !== undefined && m.score >= 0 && m.score < 1000).sort((a, b) => (a.score ?? 999) - (b.score ?? 999))[0];
+                
+                // CAMBIO 6: Regla Universal de Cero Bombas Huérfanas
+                // Si no encontramos un motor ideal que cubra la potencia, sugerimos el máximo posible.
+                if (!bestMotor) {
+                    const maxValMotors = validMotors.map((m) => {
+                        return { ...m, calcVal: m.calcVal || 0 };
+                    });
+                    const maxCatalogHp = Math.max(...maxValMotors.map(m => m.calcVal), 0);
+                    bestMotor = maxValMotors.find(m => m.calcVal === maxCatalogHp);
+                    
+                    if (bestMotor && maxCatalogHp > 0) {
+                        bestMotor = { ...bestMotor }; // clone
+                        bestMotor.displayValue = `Máx cap. ${maxCatalogHp} HP (Aviso: Requiere ~${Math.round(pumpTargetHp)} HP)`;
+                        
+                        if (pumpTargetHp > highestTargetHp) {
+                            if (targetAlturaInput > 0) {
+                                const maxLpm = (maxCatalogHp * 3150) / targetAlturaInput;
+                                let maxDisplay = '';
+                                if (pumpWizard.unidadCaudal === 'm3/h') maxDisplay = (maxLpm * 60 / 1000).toFixed(1) + ' m³/h';
+                                else if (pumpWizard.unidadCaudal === 'l/h') maxDisplay = (maxLpm * 60).toFixed(0) + ' L/h';
+                                else maxDisplay = maxLpm.toFixed(0) + ' L/min';
+                                setMotorWarning(`⚠️ Una de las bombas sugeridas exige ~${Math.round(pumpTargetHp)} HP. Al acoplarle nuestro motor más grande en stock (${maxCatalogHp} HP) a ${targetAlturaInput} mca, entregará máx. ${maxDisplay}.`);
+                            } else {
+                                setMotorWarning(`⚠️ Una de las bombas exige ~${Math.round(pumpTargetHp)} HP. Se sugiere el motor de máxima capacidad en stock (${maxCatalogHp} HP) como Plan B.`);
+                            }
+                        }
+                    }
+                }
                 
                 if (bestMotor) {
                     const motorClone = { ...bestMotor };
                     motorClone.marca = 'Motor Sugerido: ' + motorClone.marca;
-                    motorClone.displayValue = motorClone.calcVal > 0 ? `${motorClone.calcVal.toFixed(1)} HP (Est. ${Math.round(pumpTargetHp)} HP req)` : '? HP';
+                    motorClone.displayValue = motorClone.displayValue || (motorClone.calcVal > 0 ? `${motorClone.calcVal.toFixed(1)} HP (Est. ${Math.round(pumpTargetHp)} HP req)` : '? HP');
                     motorClone.pairedSku = pump.modelo;
                     
-                    // Solo agregarlo si no está ya en la lista (o permitir duplicados si son para distintas bombas)
                     mResults.push(motorClone);
                     
                     const idxInFiltered = filtered.findIndex(p => p.modelo === pump.modelo);
@@ -483,44 +529,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             }
             
             finalTargetHp = highestTargetHp;
-            
-            if (mResults.length === 0) {
-               const maxCatalogHp = Math.max(...dbMotors.map(m => {
-                   let mh = 0;
-                   m.specs?.forEach(s => { if(String(s[0]).toUpperCase().includes('HP')) mh = extractNum(s[1])||0; });
-                   return mh;
-               }));
-               if (finalTargetHp > maxCatalogHp && maxCatalogHp > 0) {
-                  if (targetAlturaInput > 0) {
-                      const maxLpm = (maxCatalogHp * 3150) / targetAlturaInput;
-                      let maxDisplay = '';
-                      if (pumpWizard.unidadCaudal === 'm3/h') maxDisplay = (maxLpm * 60 / 1000).toFixed(1) + ' m³/h';
-                      else if (pumpWizard.unidadCaudal === 'l/h') maxDisplay = (maxLpm * 60).toFixed(0) + ' L/h';
-                      else maxDisplay = maxLpm.toFixed(0) + ' L/min';
-                      
-                      setMotorWarning(`⚠️ El requerimiento exige ~${Math.round(finalTargetHp)} HP. Acoplando nuestro motor más potente en stock (${maxCatalogHp} HP), a esta altura de ${targetAlturaInput} mca, el equipo entregará un caudal máximo estimado de ${maxDisplay}.`);
-                  } else {
-                      setMotorWarning(`⚠️ El equipo exige ~${Math.round(finalTargetHp)} HP. Mostrando motores de mayor capacidad en catálogo (${maxCatalogHp} HP).`);
-                  }
-                  
-                  // Sugerir el motor más grande que tengamos como "Plan B"
-                  let maxValMotors = dbMotors.map((m: ParsedProduct): ExtendedCalcProduct => {
-                      let mh = 0;
-                      m.specs?.forEach(s => { if(String(s[0]).toUpperCase().includes('HP')) mh = extractNum(s[1])||0; });
-                      return { ...m, calcVal: mh };
-                  }).filter(m => m.calcVal === maxCatalogHp);
-
-                  mResults = maxValMotors.slice(0, 3).map(m => {
-                      m.marca = 'Motor Sugerido: ' + m.marca;
-                      m.displayValue = `Máx cap. ${maxCatalogHp} HP`;
-                      m.pairedSku = ejeLibrePumps[0]?.modelo;
-                      return m;
-                  });
-               } else {
-                  setMotorWarning(`⚠️ No se encontraron motores en stock compatibles para cubrir los ${Math.round(finalTargetHp)} HP exigidos.`);
-               }
-            }
-            
             setMotorResultTitle('Motores Sugeridos:');
         }
 
