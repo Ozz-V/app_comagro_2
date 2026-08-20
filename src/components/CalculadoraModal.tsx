@@ -24,13 +24,11 @@ type ExtendedCalcProduct = CalcProduct & {
 };
 
 const USOS = [
-  { id: 'vivienda', title: 'Vivienda / uso general', subtitle: 'Agua de red o tanque para una casa, presión de canillas y duchas.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBAS ELECTRICAS CON INVERSOR', 'MOTOBOMBA VIBRATORIA'] },
-  { id: 'riego_presion', title: 'Riego agrícola / industrial', subtitle: 'Riego, varios pisos de altura, procesos industriales o caudales grandes.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBA A COMBUSTIÓN', 'MOTOBOMBA VIBRATORIA'], pref: ['MULTIETAPAS','MEGANORM','SPY','BIROTOR','CENTRÍFUGA EJE LIBRE'] },
-  { id: 'combustion', title: 'Sin electricidad en el lugar', subtitle: 'Motobomba a nafta o diésel para zonas sin red eléctrica.', tipos: ['BOMBA A COMBUSTIÓN'], forzarCombustible: true },
-  { id: 'dosificacion', title: 'Dosificación química', subtitle: 'Cloro, floculantes u otros químicos en dosis controladas.', tipos: ['BOMBA DOSIFICADORA'] },
-  { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Bomba sumergible para extraer agua de un pozo o perforación.', tipos: ['ELECTROBOMBA SUMERGIBLE MONOBLOQUE','ELECTROBOMBAS SUMERGIDAS MULTIETAPAS','MOTOBOMBA SUMERGIBLE DE TORNILLO','MOTOBOMBA INYECTORA','BOMBA SUMERGIBLE SOLAR', 'CUERPO SUMERGIBLE'] },
-  { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Sótanos inundados, pileta, aguas servidas, achique de obra.', tipos: ['BOMBA DE DRENAJE','BOMBA DE ACHIQUE'] },
-  { id: 'piscina', title: 'Piscina', subtitle: 'Recirculación y filtrado de agua de pileta.', tipos: ['BOMBA PARA PISCINA','MOTOBOMBA RECIRCULADORA'] }
+  { id: 'vivienda', title: 'Vivienda / uso general', subtitle: 'Hogares, presurización, piletas y pozos domésticos.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBAS ELECTRICAS CON INVERSOR', 'MOTOBOMBA VIBRATORIA', 'BOMBA PARA PISCINA', 'MOTOBOMBA RECIRCULADORA', 'ELECTROBOMBA SUMERGIBLE MONOBLOQUE'] },
+  { id: 'riego_presion', title: 'Alta presión / industrial', subtitle: 'Procesos industriales, sistemas de gran caudal y riego agrícola.', tipos: ['BOMBA DE AGUA','MOTOBOMBA CENTRÍFUGA','MOTOBOMBA AUTOCEBANTE','BOMBA A COMBUSTIÓN', 'MOTOBOMBA VIBRATORIA', 'CUERPO SUMERGIBLE', 'ELECTROBOMBAS SUMERGIDAS MULTIETAPAS'], pref: ['MULTIETAPAS','MEGANORM','SPY','BIROTOR','CENTRÍFUGA EJE LIBRE'] },
+  { id: 'pozo', title: 'Pozo / napa subterránea', subtitle: 'Extracción profunda de napas, desde artesianos hasta usos industriales.', tipos: ['ELECTROBOMBA SUMERGIBLE MONOBLOQUE','ELECTROBOMBAS SUMERGIDAS MULTIETAPAS','MOTOBOMBA SUMERGIBLE DE TORNILLO','MOTOBOMBA INYECTORA','BOMBA SUMERGIBLE SOLAR', 'CUERPO SUMERGIBLE'] },
+  { id: 'drenaje', title: 'Agua sucia / desagote', subtitle: 'Drenaje de sótanos, aguas servidas y achique de obras.', tipos: ['BOMBA DE DRENAJE','BOMBA DE ACHIQUE'] },
+  { id: 'combustion', title: 'Sin electricidad en el lugar', subtitle: 'Equipos a combustión para zonas sin red eléctrica.', tipos: ['BOMBA A COMBUSTIÓN'], forzarCombustible: true }
 ];
 
 export default function CalculadoraModal({ visible, onClose, navigation }: CalculadoraModalProps) {
@@ -313,7 +311,25 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            pool = pool.filter(p => {
               const sub = String(p.subcategoria).toUpperCase();
               const nom = String(p.modelo).toUpperCase();
-              return usoConf?.tipos.some(t => sub.includes(t) || nom.includes(t));
+              
+              if (!usoConf.tipos.some(t => sub.includes(t) || nom.includes(t))) return false;
+              
+              // Smart crossover logic: Cap residential submersibles to 3 HP
+              if (pumpWizard.uso === 'vivienda' && (sub.includes('SUMERGIBLE') || nom.includes('SUMERGIBLE'))) {
+                 let isOver3Hp = false;
+                 if (p.specs) {
+                    p.specs.forEach((s) => {
+                       const k = String(s[0]).toUpperCase();
+                       if (k.includes('HP') || k.includes('POTENCIA')) {
+                          const n = extractNum(s[1]);
+                          if (n && n > 3) isOver3Hp = true;
+                       }
+                    });
+                 }
+                 if (isOver3Hp) return false;
+              }
+              
+              return true;
            });
         }
         
@@ -421,10 +437,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                     rawHp = (targetCaudalLpm * targetAlturaInput) / 3150;
                 }
                 
-                // Margen de seguridad para evitar que el motor trabaje ahogado
-                if (rawHp > 20) finalTargetHp = rawHp * 1.10;
-                else if (rawHp >= 3) finalTargetHp = rawHp * 1.15;
-                else finalTargetHp = rawHp * 1.20;
+                // Margen de seguridad estricto del 25% para el motor
+                // Si la ficha del producto ya trae el HP (ej. "Para motor X HP"), respetamos ese valor exacto
+                if (ejeLibrePump.calcVal > 0 && rawHp === ejeLibrePump.calcVal) {
+                    finalTargetHp = rawHp;
+                } else {
+                    finalTargetHp = rawHp * 1.25;
+                }
             }
         }
         
@@ -517,8 +536,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                        if (match) { cuerpoHpReq = parseFloat(match[1].replace(',', '.')); break; }
                     }
                  }
-                 return { ...c, calcVal: cuerpoHpReq, score: cuerpoHpReq > 0 ? Math.abs(cuerpoHpReq - motorHp) : 9999 };
-              }).filter((c) => c.score !== undefined && c.score < 9999).sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
+                 return { ...c, calcVal: cuerpoHpReq, score: (cuerpoHpReq > 0 && motorHp >= cuerpoHpReq) ? (motorHp - cuerpoHpReq) : 9999 };
+              }).filter((c) => c.score !== undefined && c.score < 1000).sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
 
               mResults = validCuerpos.slice(0, 3).map(c => {
                  c.marca = 'Cuerpo Sugerido: ' + c.marca;
@@ -804,7 +823,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                                   <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>380V</Text>
                                 </TouchableOpacity>
 
-                                {(!['dosificacion', 'combustion', 'piscina', 'drenaje'].includes(pumpWizard.uso)) && (
+                                {(!['combustion', 'drenaje'].includes(pumpWizard.uso)) && (
                                   <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'sinelec' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'sinelec' ? '' : 'sinelec'})}>
                                     <Text style={[styles.faseBtnText, pumpWizard.fase === 'sinelec' && styles.faseBtnTextActive]}>Sin Motor</Text>
                                   </TouchableOpacity>
