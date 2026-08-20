@@ -121,7 +121,7 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
     const hGrid = hTicks.map(t => {
        const py = 280 - (t / maxTickH) * 240;
        return `<line x1="50" y1="${py}" x2="290" y2="${py}" stroke="#e4eaf4" stroke-width="1" />
-               <text x="42" y="${py + 3}" font-size="10" fill="#555" text-anchor="end" font-family="Arial">${t}</text>`;
+               <text x="42" y="${py + 3}" font-size="10" fill="#555" text-anchor="end" font-family="Arial">${t} m</text>`;
     }).join('');
     
     svgCurveHtml = `
@@ -197,7 +197,7 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
         .img-col { flex: ${showCurve ? '1' : '1'}; min-height: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
         .img-box { width: 100%; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
         .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-        .curve-col { flex: 1; display: flex; flex-direction: column; padding: 10px; border: 1px solid #e4eaf4; border-radius: 8px; background: #fafbfc; }
+        .curve-col { flex: 1; display: flex; flex-direction: column; padding: 10px; }
         .curve-title { font-size: 10pt; font-weight: bold; color: #0a2566; text-align: center; margin-bottom: 6px; }
         .curve-wrapper { flex: 1; position: relative; }
         .curve-disclaimer { font-size: 6pt; color: #8492a6; text-align: center; margin-top: 4px; line-height: 1.1; }
@@ -230,7 +230,7 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
         </div>
         <div class="top-block">
           <div class="img-col">
-            <div class="img-box"><img id="prodImg" class="prod-img" src="" alt="Cargando..." /></div>
+            <div class="img-box"><img id="prodImg" class="prod-img" src="${base64Img}" alt="Cargando..." /></div>
             <div class="info-box">
               <span class="p-marca">${escapeHtml(modalProd?.marca || '')}</span>
               <span class="p-modelo">${escapeHtml(modalProd?.modelo || '')}</span>
