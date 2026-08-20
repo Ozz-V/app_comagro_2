@@ -127,8 +127,13 @@ export default function ProductDetailModal({
          if (m <= 2) step *= 0.2;
          else if (m <= 5) step *= 0.5;
          const ticks = [];
-         for (let i = 0; i <= max + step * 0.1; i += step) ticks.push(i);
-         if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
+         const count = Math.ceil(max / step);
+         for (let idx = 0; idx <= count; idx++) {
+            ticks.push(Math.round(idx * step * 100) / 100);
+         }
+         if (ticks[ticks.length - 1] < max) {
+            ticks.push(Math.round((ticks[ticks.length - 1] + step) * 100) / 100);
+         }
          return ticks;
       };
       
@@ -641,12 +646,13 @@ export default function ProductDetailModal({
                              const hp = curveData.maxH * (1 - Math.pow(q / curveData.maxQ, 2));
                              const maxTickQ = curveData.qTicks[curveData.qTicks.length - 1];
                              const maxTickH = curveData.hTicks[curveData.hTicks.length - 1];
-                             const px = 50 + (q / maxTickQ) * 240;
-                             const py = 280 - (hp / maxTickH) * 240;
+                             const pad = 6;
+                             const px = 50 + pad + (q / maxTickQ) * (240 - pad * 2);
+                             const py = 280 - pad - (hp / maxTickH) * (240 - pad * 2);
                              return `${i === 0 ? 'M' : 'L'} ${px} ${py}`;
                           }).join(' ')
                         }
-                        stroke={COLORS.green} strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round"
+                        stroke={COLORS.green} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"
                       />
                     </Svg>
                  </View>
