@@ -75,11 +75,11 @@ export default function ProductDetailModal({
     if (!modalProd) return null;
     const subcat = (modalProd.subcategoria || '').toUpperCase();
     const isPumpType = subcat.includes('BOMBA') || subcat.includes('MOTOBOMBA') || subcat.includes('CUERPO') || subcat.includes('ACHIQUE') || subcat.includes('DRENAJE');
-    const isExcluded = subcat.includes('PARA ') || subcat.includes('VACIO') || subcat.includes('REPUESTO') || subcat.includes('ACCESORIO') || subcat.includes('TABLERO') || subcat.includes('PRESURIZADOR') || subcat.includes('CONTROL');
+    const isExcluded = (subcat.includes('PARA ') && !subcat.includes('PISCINA')) || subcat.includes('VACIO') || subcat.includes('REPUESTO') || subcat.includes('ACCESORIO') || subcat.includes('TABLERO') || subcat.includes('PRESURIZADOR') || subcat.includes('CONTROL');
     
     if (!isPumpType || isExcluded) return null;
 
-    let maxQ = 0, maxH = 0;
+    let maxQ = 0, maxH = 0, maxBar = 0;
     (modalProd.specs || []).forEach((s: [string, string]) => {
       const k = String(s[0]).toUpperCase();
       const v = String(s[1]).toUpperCase();
@@ -105,8 +105,17 @@ export default function ProductDetailModal({
             const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
             if (maxNum > maxH) maxH = maxNum;
          }
+      } else if (k.includes('BAR') || k.includes('PRESIÓN') || k.includes('PRESION')) {
+         const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
+         if (nums) {
+            const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+            if (maxNum > maxBar) maxBar = maxNum;
+         }
       }
     });
+    if (maxH === 0 && maxBar > 0) {
+      maxH = maxBar * 10.197;
+    }
 
     if (maxQ > 0 && maxH > 0) {
       const finalQ = maxQ * 60 / 1000;
@@ -615,7 +624,7 @@ export default function ProductDetailModal({
                          return (
                            <G key={`y-${t}`}>
                              <Line x1="50" y1={py} x2="290" y2={py} stroke="#e4eaf4" strokeWidth="1" />
-                             <SvgText x="42" y={py + 3} fontSize="10" fill="#555" textAnchor="end">{t} m</SvgText>
+                             <SvgText x="42" y={py + 3} fontSize="10" fill="#555" textAnchor="end">{t}</SvgText>
                            </G>
                          );
                       })}
@@ -623,7 +632,7 @@ export default function ProductDetailModal({
                       <Line x1="50" y1="40" x2="50" y2="280" stroke="#555" strokeWidth="2" />
                       <Line x1="50" y1="280" x2="290" y2="280" stroke="#555" strokeWidth="2" />
                       <SvgText x="170" y="315" fontSize="12" fill="#555" textAnchor="middle" fontWeight="bold">Caudal (m³/h)</SvgText>
-                      <SvgText x="15" y="160" fontSize="12" fill="#555" textAnchor="middle" transform="rotate(-90, 15, 160)" fontWeight="bold">Altura total (m.c.a)</SvgText>
+                      <SvgText x="15" y="160" fontSize="12" fill="#555" textAnchor="middle" transform="rotate(-90, 15, 160)" fontWeight="bold">Altura MCA (m)</SvgText>
                       
                       <Path 
                         d={
