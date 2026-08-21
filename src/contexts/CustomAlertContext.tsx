@@ -9,8 +9,9 @@ const ANIMATION_ISO = require('../../assets/iso.json');
 interface AlertButton {
   text: string;
   onPress?: () => void;
-  style?: 'cancel' | 'default';
+  style?: 'cancel' | 'default' | 'destructive';
 }
+
 
 interface AlertConfig {
   title: string;
