@@ -634,8 +634,25 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            });
 
            if (bombaSolar && bombaSolar.calcVal > 0) {
-               const pumpHp = bombaSolar.calcVal;
-               const pumpWatts = pumpHp * 745.7; // 1 HP = 745.7 W
+               // Reparar lectura de Watts de la bomba (para que "350 W" no se multiplique por 745 como si fueran HP)
+               let pumpWatts = 0;
+               if (bombaSolar.specs) {
+                   for (const s of bombaSolar.specs) {
+                       const k = String(s[0]).toUpperCase();
+                       const v = String(s[1]).toUpperCase();
+                       if (k.includes('POTENCIA')) {
+                           const n = extractNum(v);
+                           if (n) {
+                               if (v.includes('W') && !v.includes('KW')) pumpWatts = n; // Esta en Watts puros
+                               else if (v.includes('KW')) pumpWatts = n * 1000;
+                               else pumpWatts = n * 745.7; // Asumir HP
+                           }
+                       }
+                   }
+               }
+               // Fallback por si no lo encontramos
+               if (pumpWatts === 0) pumpWatts = bombaSolar.calcVal * 745.7; 
+
                const targetPanelWatts = pumpWatts * 1.4; // 40% margin recommended for solar
 
                const dbPaneles = await getProductsBySubcategory('PANEL SOLAR', true);
@@ -644,7 +661,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                    if (p.specs) {
                       for (const s of p.specs) {
                          const k = String(s[0]).toUpperCase();
-                         if (k.includes('POTENCIA') || k.includes('WATT')) {
+                         // Ignorar atributos que digan VOLTAJE o TENSION para no pisar la potencia real
+                         if ((k.includes('POTENCIA') || k.includes('WATT')) && !k.includes('VOLTAJE') && !k.includes('TENSIÓN')) {
                              const n = extractNum(String(s[1]));
                              if (n && n > 10) panelWatts = n;
                          }
@@ -1044,25 +1062,25 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                 <View>
                   {calcMode === 'gen' && (
                     <View style={{ marginBottom: 15 }}>
-                      <Text style={styles.inputTitleSmall}>¿Qué dato tenés?</Text>
-                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
-                        <TouchableOpacity style={[styles.tabBtn, genUnit === 'KVA' && styles.tabBtnActive]} onPress={() => {setGenUnit('KVA'); setHasCalculated(false);}}>
-                          <Text style={[styles.tabText, genUnit === 'KVA' && styles.tabTextActive]}>Tengo los KVA</Text>
+                      <Text style={styles.inputTitleSmall}>Unidad de medida</Text>
+                      <View style={[styles.unitTabs, { marginBottom: 15 }]}>
+                        <TouchableOpacity style={[styles.unitTabBtn, genUnit === 'KVA' && styles.unitTabBtnActive]} onPress={() => {setGenUnit('KVA'); setHasCalculated(false);}}>
+                          <Text style={[styles.unitTabTxt, genUnit === 'KVA' && styles.unitTabTxtActive]}>KVA</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.tabBtn, genUnit === 'AMPER' && styles.tabBtnActive]} onPress={() => {setGenUnit('AMPER'); setHasCalculated(false);}}>
-                          <Text style={[styles.tabText, genUnit === 'AMPER' && styles.tabTextActive]}>Tengo Amperes</Text>
+                        <TouchableOpacity style={[styles.unitTabBtn, genUnit === 'AMPER' && styles.unitTabBtnActive]} onPress={() => {setGenUnit('AMPER'); setHasCalculated(false);}}>
+                          <Text style={[styles.unitTabTxt, genUnit === 'AMPER' && styles.unitTabTxtActive]}>AMPERES</Text>
                         </TouchableOpacity>
                       </View>
 
                       {genUnit === 'AMPER' && (
                         <View style={{ marginBottom: 15 }}>
-                          <Text style={styles.inputTitleSmall}>¿Qué tensión eléctrica?</Text>
-                          <View style={{ flexDirection: 'row', gap: 10 }}>
-                            <TouchableOpacity style={[styles.tabBtn, genFase === '220v' && styles.tabBtnActive]} onPress={() => {setGenFase('220v'); setHasCalculated(false);}}>
-                              <Text style={[styles.tabText, genFase === '220v' && styles.tabTextActive]}>220V (Monofásico)</Text>
+                          <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
+                          <View style={styles.unitTabs}>
+                            <TouchableOpacity style={[styles.unitTabBtn, genFase === '220v' && styles.unitTabBtnActive]} onPress={() => {setGenFase('220v'); setHasCalculated(false);}}>
+                              <Text style={[styles.unitTabTxt, genFase === '220v' && styles.unitTabTxtActive]}>220V</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={[styles.tabBtn, genFase === '380v' && styles.tabBtnActive]} onPress={() => {setGenFase('380v'); setHasCalculated(false);}}>
-                              <Text style={[styles.tabText, genFase === '380v' && styles.tabTextActive]}>380V (Trifásico)</Text>
+                            <TouchableOpacity style={[styles.unitTabBtn, genFase === '380v' && styles.unitTabBtnActive]} onPress={() => {setGenFase('380v'); setHasCalculated(false);}}>
+                              <Text style={[styles.unitTabTxt, genFase === '380v' && styles.unitTabTxtActive]}>380V</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -1071,7 +1089,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   )}
 
                   <Text style={styles.inputTitleSmall}>
-                    {calcMode === 'gen' ? (genUnit === 'KVA' ? 'Ingresá el valor (KVA)' : 'Ingresá el valor (Amperes)') : 'Ingresá el valor (1 a 500 HP)'}
+                    {calcMode === 'gen' ? (genUnit === 'KVA' ? 'Valor en KVA' : 'Valor en Amperes') : 'Ingresá el valor (1 a 500 HP)'}
                   </Text>
                   
                   <View style={styles.inputRow}>
