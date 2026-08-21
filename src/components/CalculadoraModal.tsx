@@ -85,7 +85,14 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     for (const s of p.specs) {
       const k = String(s[0]).toUpperCase();
       if (k.includes('TENSI') || k.includes('VOLTAJE') || k.includes('TENSION')) {
-        const n = extractNum(String(s[1]));
+        const v = String(s[1]).toUpperCase();
+        
+        // Detección directa por texto (ignora barras y espacios como "230 / 400V")
+        if (v.includes('380') || v.includes('400') || v.includes('415') || v.includes('440') || v.includes('660')) return 380; // Trifásico
+        if (v.includes('220') || v.includes('230') || v.includes('240')) return 220; // Monofásico
+        
+        // Fallback numérico
+        const n = extractNum(v);
         if (n && n > 50) return n; // ignorar valores ridículos tipo "0" o "1"
       }
     }
@@ -299,11 +306,17 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               }
             });
           }
-          const displayValue = ampers ? `${val} KVA - ${ampers}A` : `${val} KVA`;
+          const displayValue = ampers ? `${val} KVA (Corriente: ${ampers}A)` : `${val} KVA`;
           return { ...p, calcVal: val, displayValue };
         }).filter((p: ExtendedCalcProduct) => p.calcVal > 0)
         .filter((p: ExtendedCalcProduct) => matchesFase(p, genFase)) // filtrar por tensión
-        .sort((a: ExtendedCalcProduct, b: ExtendedCalcProduct) => Math.abs(a.calcVal - targetKva) - Math.abs(b.calcVal - targetKva)).slice(0, 5);
+        .sort((a: ExtendedCalcProduct, b: ExtendedCalcProduct) => {
+          const aSuf = a.calcVal >= targetKva;
+          const bSuf = b.calcVal >= targetKva;
+          if (aSuf && !bSuf) return -1;
+          if (!aSuf && bSuf) return 1;
+          return Math.abs(a.calcVal - targetKva) - Math.abs(b.calcVal - targetKva);
+        }).slice(0, 5);
       } else if (calcMode === 'motor') {
         const target = parseFloat(calcInput) || 0;
         const dbProducts = await getProductsBySubcategory('MOTOR', true);
@@ -1101,19 +1114,17 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         </TouchableOpacity>
                       </View>
 
-                      {genUnit === 'AMPER' && (
-                        <View style={{ marginBottom: 15 }}>
-                          <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
-                          <View style={styles.unitTabs}>
-                            <TouchableOpacity style={[styles.unitTabBtn, genFase === '220v' && styles.unitTabBtnActive]} onPress={() => {setGenFase('220v'); setHasCalculated(false);}}>
-                              <Text style={[styles.unitTabTxt, genFase === '220v' && styles.unitTabTxtActive]}>220V</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={[styles.unitTabBtn, genFase === '380v' && styles.unitTabBtnActive]} onPress={() => {setGenFase('380v'); setHasCalculated(false);}}>
-                              <Text style={[styles.unitTabTxt, genFase === '380v' && styles.unitTabTxtActive]}>380V</Text>
-                            </TouchableOpacity>
-                          </View>
+                      <View style={{ marginBottom: 15 }}>
+                        <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
+                        <View style={styles.unitTabs}>
+                          <TouchableOpacity style={[styles.unitTabBtn, genFase === '220v' && styles.unitTabBtnActive]} onPress={() => {setGenFase('220v'); setHasCalculated(false);}}>
+                            <Text style={[styles.unitTabTxt, genFase === '220v' && styles.unitTabTxtActive]}>220V</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.unitTabBtn, genFase === '380v' && styles.unitTabBtnActive]} onPress={() => {setGenFase('380v'); setHasCalculated(false);}}>
+                            <Text style={[styles.unitTabTxt, genFase === '380v' && styles.unitTabTxtActive]}>380V</Text>
+                          </TouchableOpacity>
                         </View>
-                      )}
+                      </View>
                     </View>
                   )}
 
