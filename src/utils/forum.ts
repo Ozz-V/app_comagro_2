@@ -12,7 +12,7 @@ export interface ForumTopic {
   created_at: string;
   updated_at: string;
   profiles?: {
-    nombre: string;
+    full_name: string;
     avatar_url: string | null;
   };
 }
@@ -25,7 +25,7 @@ export interface ForumComment {
   image_url: string | null;
   created_at: string;
   profiles?: {
-    nombre: string;
+    full_name: string;
     avatar_url: string | null;
   };
 }
@@ -77,7 +77,7 @@ export const fetchTopics = async (): Promise<ForumTopic[]> => {
     .select(`
       *,
       profiles (
-        nombre,
+        full_name,
         avatar_url
       )
     `)
@@ -93,7 +93,7 @@ export const fetchComments = async (topicId: string): Promise<ForumComment[]> =>
     .select(`
       *,
       profiles (
-        nombre,
+        full_name,
         avatar_url
       )
     `)
