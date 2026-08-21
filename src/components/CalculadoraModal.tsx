@@ -853,15 +853,15 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                             </View>
 
                             {status === 'sin-datos' && parseFloat(adv.caudal) > 0 ? (
-                              <Text style={styles.advWarn}>No hay datos de fricci\u00f3n para este caudal y di\u00e1metro.</Text>
+                              <Text style={styles.advWarn}>No hay datos de fricción para este caudal y diámetro.</Text>
                             ) : parseFloat(adv.caudal) > 0 && (
                               <View style={[styles.advResultBox, { flexDirection: 'column', padding: 15, alignItems: 'flex-start', gap: 6 }]}>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                                  <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Altura manom\u00e9trica total:</Text>
+                                  <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Altura manométrica total:</Text>
                                   <Text style={[styles.advResultVal, { fontSize: 14 }]}>{hTotal.toFixed(2)} mca</Text>
                                 </View>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                                  <Text style={[styles.advResultLbl, { fontSize: 13 }]}>P\u00e9rdida por fricci\u00f3n:</Text>
+                                  <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Pérdida por fricción:</Text>
                                   <Text style={[styles.advResultVal, { fontSize: 14 }]}>{perdida.toFixed(2)} mca</Text>
                                 </View>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
