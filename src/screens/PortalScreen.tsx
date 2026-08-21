@@ -9,6 +9,7 @@ import SvgIcon from '../components/SvgIcon';
 import CalculadoraModal from '../components/CalculadoraModal';
 import ProfileCompleteModal from '../components/ProfileCompleteModal';
 import OnboardingTutorial from '../components/OnboardingTutorial';
+import ForumModal from '../components/ForumModal';
 import { ParsedProduct } from '../types/models';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
@@ -20,6 +21,7 @@ const PROFILE_CACHE_KEY = '@profile_status_cache';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
+  const [showForumModal, setShowForumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [allProdsCache, setAllProdsCache] = useState<ParsedProduct[]>([]);
   
@@ -258,6 +260,20 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         }}
       />
 
+      <ForumModal
+        visible={showForumModal}
+        onClose={() => setShowForumModal(false)}
+      />
+
+      <TouchableOpacity 
+        style={styles.fabBtn} 
+        activeOpacity={0.8}
+        onPress={() => setShowForumModal(true)}
+      >
+        <SvgIcon name="chat" size={24} color={COLORS.white} />
+        <Text style={styles.fabText}>Sugerencias</Text>
+      </TouchableOpacity>
+
     </SafeAreaView>
   );
 }
@@ -288,4 +304,6 @@ const styles = StyleSheet.create({
   gridCardThird: { flex: 1, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   gridIconThird: { marginBottom: 8 },
   gridTitleThird: { fontFamily: FONTS.heading, fontSize: 11, fontWeight: '700', color: COLORS.navy, textAlign: 'center' },
+  fabBtn: { position: 'absolute', bottom: 30, right: 20, backgroundColor: COLORS.navy, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 30, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 8 },
+  fabText: { color: COLORS.white, fontFamily: FONTS.heading, fontWeight: 'bold', marginLeft: 8, fontSize: 14 }
 });
