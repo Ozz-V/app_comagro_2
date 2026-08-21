@@ -78,6 +78,29 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     return parseFloat(m[1].replace(',', '.'));
   }
 
+  // Devuelve la tensión numérica de un producto leyendo sus specs.
+  // Regla: < 300V = monofásico, >= 300V = trifásico, null = sin dato (se muestra siempre)
+  function getProductTension(p: ParsedProduct): number | null {
+    if (!p.specs) return null;
+    for (const s of p.specs) {
+      const k = String(s[0]).toUpperCase();
+      if (k.includes('TENSI') || k.includes('VOLTAJE') || k.includes('TENSION')) {
+        const n = extractNum(String(s[1]));
+        if (n && n > 50) return n; // ignorar valores ridículos tipo "0" o "1"
+      }
+    }
+    return null;
+  }
+
+  // Devuelve true si el producto es compatible con la fase seleccionada.
+  // Si no tiene tensión cargada, siempre es compatible (no excluir fichas incompletas).
+  function matchesFase(p: ParsedProduct, fase: '220v' | '380v'): boolean {
+    const tension = getProductTension(p);
+    if (tension === null) return true; // sin dato → siempre mostrar
+    if (fase === '220v') return tension < 300;
+    return tension >= 300;
+  }
+
   const { hTotal, perdida, lEquiv, lTotal, status } = useMemo(() => {
     if (bombaTab !== 'avanzado') return { hTotal: 0, perdida: 0, lEquiv: 0, lTotal: 0, status: 'ok' };
     const q = parseFloat(adv.caudal) || 0;
@@ -279,6 +302,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           const displayValue = ampers ? `${val} KVA - ${ampers}A` : `${val} KVA`;
           return { ...p, calcVal: val, displayValue };
         }).filter((p: ExtendedCalcProduct) => p.calcVal > 0)
+        .filter((p: ExtendedCalcProduct) => matchesFase(p, genFase)) // filtrar por tensión
         .sort((a: ExtendedCalcProduct, b: ExtendedCalcProduct) => Math.abs(a.calcVal - targetKva) - Math.abs(b.calcVal - targetKva)).slice(0, 5);
       } else if (calcMode === 'motor') {
         const target = parseFloat(calcInput) || 0;
@@ -522,11 +546,16 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                 const isPumpSumergible = String(pump.subcategoria).toUpperCase().includes('SUMERGIBLE') || String(pump.modelo).toUpperCase().includes('SUMERGIBLE') || usoConf?.id === 'pozo';
                 
                 const validMotors = dbMotors.filter(m => {
-                   const mSub = String(m.subcategoria).toUpperCase();
-                   const mMod = String(m.modelo).toUpperCase();
-                   const isMotorSumergible = mSub.includes('SUMERGIBLE') || mMod.includes('SUMERGIBLE') || mMod.includes('4PD') || mMod.includes('6PD');
-                   return isPumpSumergible ? isMotorSumergible : !isMotorSumergible;
-                }).map((m: ParsedProduct): ExtendedCalcProduct => {
+                    const mSub = String(m.subcategoria).toUpperCase();
+                    const mMod = String(m.modelo).toUpperCase();
+                    const isMotorSumergible = mSub.includes('SUMERGIBLE') || mMod.includes('SUMERGIBLE') || mMod.includes('4PD') || mMod.includes('6PD');
+                    const tipoOk = isPumpSumergible ? isMotorSumergible : !isMotorSumergible;
+                    // Filtrar también por tensión si el vendedor la seleccionó
+                    const faseOk = pumpWizard.fase === '220v' || pumpWizard.fase === '380v'
+                       ? matchesFase(m, pumpWizard.fase as '220v' | '380v')
+                       : true;
+                    return tipoOk && faseOk;
+                 }).map((m: ParsedProduct): ExtendedCalcProduct => {
                    let mHp = 0;
                    if (m.specs) {
                       m.specs.forEach((s) => {
