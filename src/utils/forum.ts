@@ -24,7 +24,8 @@ export interface ForumComment {
   profiles?: { full_name: string; avatar_url?: string | null };
 }
 
-async function uploadForumImage(uri: string): Promise<string> {
+// Exportamos esta función para que tests/Forum.test.ts no falle
+export async function uploadForumImage(uri: string): Promise<string> {
   const ext = uri.split('.').pop();
   const filename = `${Date.now()}.${ext}`;
   const response = await fetch(uri);
@@ -87,7 +88,8 @@ export async function fetchComments(topicId: string): Promise<ForumComment[]> {
   return data as any[];
 }
 
-export async function createTopic(title: string, description: string, imageUri: string | null) {
+// imageUri es opcional para no romper las pruebas viejas
+export async function createTopic(title: string, description: string, imageUri?: string | null) {
   let image_url = null;
   if (imageUri) {
      image_url = await uploadForumImage(imageUri);
@@ -102,7 +104,8 @@ export async function createTopic(title: string, description: string, imageUri: 
   if (error) throw error;
 }
 
-export async function updateTopic(id: string, title: string, description: string, imageUri: string | null) {
+// imageUri es opcional para no romper las pruebas viejas
+export async function updateTopic(id: string, title: string, description: string, imageUri?: string | null) {
   let image_url = imageUri;
   if (imageUri && !imageUri.startsWith('http')) {
      image_url = await uploadForumImage(imageUri);
@@ -116,12 +119,19 @@ export async function updateTopic(id: string, title: string, description: string
   if (error) throw error;
 }
 
+// Restauramos esta función específica porque el archivo de test la busca
+export async function updateTopicTitle(id: string, title: string) {
+  const { error } = await supabase.from('forum_topics').update({ title }).eq('id', id);
+  if (error) throw error;
+}
+
 export async function deleteTopic(id: string) {
   const { error } = await supabase.from('forum_topics').delete().eq('id', id);
   if (error) throw error;
 }
 
-export async function createComment(topicId: string, content: string, imageUri: string | null) {
+// imageUri es opcional para no romper las pruebas viejas
+export async function createComment(topicId: string, content: string, imageUri?: string | null) {
   let image_url = null;
   if (imageUri) {
      image_url = await uploadForumImage(imageUri);
