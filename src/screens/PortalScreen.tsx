@@ -267,11 +267,12 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
 
       <TouchableOpacity 
         style={styles.fabBtn} 
-        activeOpacity={0.8}
+        activeOpacity={0.6}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         onPress={() => setShowForumModal(true)}
       >
-        <SvgIcon name="chat" size={24} color={COLORS.white} />
         <Text style={styles.fabText}>Sugerencias</Text>
+        <SvgIcon name="chatBubble" size={26} color={COLORS.navy} />
       </TouchableOpacity>
 
     </SafeAreaView>
@@ -304,6 +305,6 @@ const styles = StyleSheet.create({
   gridCardThird: { flex: 1, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   gridIconThird: { marginBottom: 8 },
   gridTitleThird: { fontFamily: FONTS.heading, fontSize: 11, fontWeight: '700', color: COLORS.navy, textAlign: 'center' },
-  fabBtn: { position: 'absolute', bottom: 30, right: 20, backgroundColor: COLORS.navy, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 30, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 8 },
-  fabText: { color: COLORS.white, fontFamily: FONTS.heading, fontWeight: 'bold', marginLeft: 8, fontSize: 14 }
+  fabBtn: { position: 'absolute', bottom: 30, right: 20, flexDirection: 'row', alignItems: 'center' },
+  fabText: { color: COLORS.navy, fontFamily: FONTS.heading, fontWeight: '600', marginRight: 10, fontSize: 13 }
 });
