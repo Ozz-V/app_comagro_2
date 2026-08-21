@@ -32,6 +32,8 @@ const SVGS: Record<string, string> = {  doc5: `<svg xmlns='http://www.w3.org/200
   // Portapapeles (botón copiar resumen en dashboard)
   portapapeles: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 200'><path fill="FILLCOLOR" d="M110,20H100V10c0-5.5-4.5-10-10-10H70c-5.5,0-10,4.5-10,10v10H50C38.9,20,30,28.9,30,40v140c0,11.1,8.9,20,20,20h100c11.1,0,20-8.9,20-20V40C170,28.9,161.1,20,150,20H110z M72,10h16v20H72V10z M158,180c0,4.4-3.6,8-8,8H50c-4.4,0-8-3.6-8-8V40c0-4.4,3.6-8,8-8h20v10h40V32h20c4.4,0,8,3.6,8,8V180z M60,90h80V78H60V90z M60,120h80v-12H60V120z M60,150h80v-12H60V150z"/></svg>`,
   trash: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='FILLCOLOR' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'/></svg>`,
+  // Foro / Sugerencias: globo de chat, lineal minimalista (sin relleno)
+  chatBubble: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='FILLCOLOR' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z'/></svg>`,
 };
 
 
