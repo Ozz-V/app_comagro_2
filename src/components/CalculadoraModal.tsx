@@ -37,6 +37,9 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   const [wizardStep, setWizardStep] = useState(1);
   const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
   
+  const [genUnit, setGenUnit] = useState<'KVA'|'AMPER'>('KVA');
+  const [genFase, setGenFase] = useState<'220v'|'380v'>('380v');
+
   const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' as 'l/min' | 'm3/h' | 'l/h' });
 
   const [calcResult, setCalcResult] = useState<ExtendedCalcProduct[] | null>(null);
@@ -241,7 +244,12 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     let filtered: ExtendedCalcProduct[] = [];
     try {
       if (calcMode === 'gen') {
-        const target = parseFloat(calcInput) || 0;
+        let targetKva = parseFloat(calcInput) || 0;
+        if (genUnit === 'AMPER') {
+            if (genFase === '220v') targetKva = (targetKva * 220) / 1000;
+            else targetKva = (targetKva * 380 * 1.732) / 1000;
+        }
+        
         const dbProducts = await getProductsBySubcategory('GENERADOR', true);
         filtered = dbProducts.filter((p: ParsedProduct) => {
           let hasFuel = false;
@@ -254,18 +262,24 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           return hasFuel;
         }).map((p: ParsedProduct): ExtendedCalcProduct => {
           let val = 0;
+          let ampers = '';
           if (p.specs) {
             p.specs.forEach((s: SpecTuple) => {
               const k = String(s[0]).toUpperCase();
+              const v = String(s[1]);
               if (k.includes('POTENCIA') || k.includes('KVA')) {
-                const n = extractNum(s[1]);
+                const n = extractNum(v);
                 if (n) val = n;
+              }
+              if (k.includes('CORRIENTE NOMINAL')) {
+                ampers = v.trim();
               }
             });
           }
-          return { ...p, calcVal: val };
+          const displayValue = ampers ? `${val} KVA - ${ampers}A` : `${val} KVA`;
+          return { ...p, calcVal: val, displayValue };
         }).filter((p: ExtendedCalcProduct) => p.calcVal > 0)
-        .sort((a: ExtendedCalcProduct, b: ExtendedCalcProduct) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
+        .sort((a: ExtendedCalcProduct, b: ExtendedCalcProduct) => Math.abs(a.calcVal - targetKva) - Math.abs(b.calcVal - targetKva)).slice(0, 5);
       } else if (calcMode === 'motor') {
         const target = parseFloat(calcInput) || 0;
         const dbProducts = await getProductsBySubcategory('MOTOR', true);
@@ -608,6 +622,55 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                  if (idxInFiltered >= 0) filtered[idxInFiltered].pairedSku = mResults[0].modelo;
               }
               setMotorResultTitle('Cuerpos Sumergibles Sugeridos:');
+           }
+        }
+
+        // Sugerencia de Paneles Solares para Bombas Solares
+        if (mResults.length === 0) {
+           const bombaSolar = filtered.find(p => {
+              const sub = String(p.subcategoria).toUpperCase();
+              const mod = String(p.modelo).toUpperCase();
+              return sub.includes('SOLAR') || mod.includes('SOLAR');
+           });
+
+           if (bombaSolar && bombaSolar.calcVal > 0) {
+               const pumpHp = bombaSolar.calcVal;
+               const pumpWatts = pumpHp * 745.7; // 1 HP = 745.7 W
+               const targetPanelWatts = pumpWatts * 1.4; // 40% margin recommended for solar
+
+               const dbPaneles = await getProductsBySubcategory('PANEL SOLAR', true);
+               const validPaneles = dbPaneles.map((p: ParsedProduct): ExtendedCalcProduct => {
+                   let panelWatts = 0;
+                   if (p.specs) {
+                      for (const s of p.specs) {
+                         const k = String(s[0]).toUpperCase();
+                         if (k.includes('POTENCIA') || k.includes('WATT')) {
+                             const n = extractNum(String(s[1]));
+                             if (n && n > 10) panelWatts = n;
+                         }
+                      }
+                   }
+                   if (panelWatts === 0) {
+                       const match = String(p.modelo).match(/(\d+)\s*W/i);
+                       if (match) panelWatts = parseInt(match[1]);
+                   }
+                   return { ...p, calcVal: panelWatts, score: panelWatts > 0 ? 1 : 9999 };
+               }).filter(p => p.calcVal > 0).sort((a,b) => b.calcVal - a.calcVal); // prefer bigger panels
+
+               if (validPaneles.length > 0) {
+                   const bestPanel = validPaneles[0];
+                   const numPanels = Math.ceil(targetPanelWatts / bestPanel.calcVal);
+                   const pClone = { ...bestPanel };
+                   pClone.marca = 'Panel Sugerido: ' + pClone.marca;
+                   pClone.displayValue = `Llevar ${numPanels} unidades de ${bestPanel.calcVal}W`;
+                   pClone.pairedSku = bombaSolar.modelo;
+                   mResults.push(pClone);
+
+                   const idxInFiltered = filtered.findIndex(p => p.modelo === bombaSolar.modelo);
+                   if (idxInFiltered >= 0) filtered[idxInFiltered].pairedSku = pClone.modelo;
+                   
+                   setMotorResultTitle('Paneles Solares Sugeridos:');
+               }
            }
         }
         setMotorResult(mResults);
@@ -979,16 +1042,44 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                 </View>
               ) : (
                 <View>
+                  {calcMode === 'gen' && (
+                    <View style={{ marginBottom: 15 }}>
+                      <Text style={styles.inputTitleSmall}>¿Qué dato tenés?</Text>
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
+                        <TouchableOpacity style={[styles.tabBtn, genUnit === 'KVA' && styles.tabBtnActive]} onPress={() => {setGenUnit('KVA'); setHasCalculated(false);}}>
+                          <Text style={[styles.tabText, genUnit === 'KVA' && styles.tabTextActive]}>Tengo los KVA</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.tabBtn, genUnit === 'AMPER' && styles.tabBtnActive]} onPress={() => {setGenUnit('AMPER'); setHasCalculated(false);}}>
+                          <Text style={[styles.tabText, genUnit === 'AMPER' && styles.tabTextActive]}>Tengo Amperes</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {genUnit === 'AMPER' && (
+                        <View style={{ marginBottom: 15 }}>
+                          <Text style={styles.inputTitleSmall}>¿Qué tensión eléctrica?</Text>
+                          <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity style={[styles.tabBtn, genFase === '220v' && styles.tabBtnActive]} onPress={() => {setGenFase('220v'); setHasCalculated(false);}}>
+                              <Text style={[styles.tabText, genFase === '220v' && styles.tabTextActive]}>220V (Monofásico)</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.tabBtn, genFase === '380v' && styles.tabBtnActive]} onPress={() => {setGenFase('380v'); setHasCalculated(false);}}>
+                              <Text style={[styles.tabText, genFase === '380v' && styles.tabTextActive]}>380V (Trifásico)</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
                   <Text style={styles.inputTitleSmall}>
-                    {calcMode === 'gen' ? 'Ingresá el valor (1 a 3000 KVA)' : 'Ingresá el valor (1 a 500 HP)'}
+                    {calcMode === 'gen' ? (genUnit === 'KVA' ? 'Ingresá el valor (KVA)' : 'Ingresá el valor (Amperes)') : 'Ingresá el valor (1 a 500 HP)'}
                   </Text>
                   
                   <View style={styles.inputRow}>
                     <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; if (current > 1) { setCalcInput(String(current - 1)); setHasCalculated(false); } }}>
                       <Text style={styles.counterBtnText}>-</Text>
                     </TouchableOpacity>
-                    <TextInput style={styles.textInput} keyboardType="numeric" placeholder="Ej: 2" placeholderTextColor={COLORS.gray4} value={calcInput} onChangeText={(t) => { setCalcInput(t); setHasCalculated(false); }} />
-                    <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; const max = calcMode === 'gen' ? 3000 : 500; if (current < max) { setCalcInput(String(current + 1)); setHasCalculated(false); } }}>
+                    <TextInput style={styles.textInput} keyboardType="numeric" placeholder="Ej: 50" placeholderTextColor={COLORS.gray4} value={calcInput} onChangeText={(t) => { setCalcInput(t); setHasCalculated(false); }} />
+                    <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; const max = calcMode === 'gen' ? (genUnit === 'KVA' ? 3000 : 5000) : 500; if (current < max) { setCalcInput(String(current + 1)); setHasCalculated(false); } }}>
                       <Text style={styles.counterBtnText}>+</Text>
                     </TouchableOpacity>
                   </View>
@@ -1005,7 +1096,15 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   <View style={styles.estimationBox}>
                     <Text style={styles.estimationTitle}>Estimación rápida:</Text>
                     <Text style={styles.estimationText}>
-                      {calcMode === 'gen' ? estimateGenerador(parseFloat(calcInput)) :
+                      {calcMode === 'gen' ? (() => {
+                          let finalKva = parseFloat(calcInput) || 0;
+                          if (genUnit === 'AMPER') {
+                              if (genFase === '220v') finalKva = (finalKva * 220) / 1000;
+                              else finalKva = (finalKva * 380 * 1.732) / 1000;
+                          }
+                          const equivalentText = genUnit === 'AMPER' ? `(Equivale a ${finalKva.toFixed(1)} KVA)\n\n` : '';
+                          return equivalentText + estimateGenerador(finalKva);
+                      })() :
                        calcMode === 'motor' ? estimateMotor(parseFloat(calcInput)) :
                        ''}
                     </Text>
@@ -1029,6 +1128,21 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   </View>
                 )}
 
+                {(() => {
+                  const PAIRED_COLORS = ['#2E7D32', '#1565C0', '#D84315', '#6A1B9A', '#00838F', '#AD1457'];
+                  const pumpColorMap = new Map<string, string>();
+                  if (calcResult) {
+                     let colorIdx = 0;
+                     calcResult.forEach(item => {
+                        if (item.pairedSku && !pumpColorMap.has(item.modelo)) {
+                           pumpColorMap.set(item.modelo, PAIRED_COLORS[colorIdx % PAIRED_COLORS.length]);
+                           colorIdx++;
+                        }
+                     });
+                  }
+
+                  return (
+                    <>
                 {calcResult && calcResult.length > 0 && (
                   <View style={styles.suggestedContainer}>
                     <Text style={styles.suggestedTitle}>Equipos Sugeridos:</Text>
@@ -1037,9 +1151,12 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       horizontal
                       showsHorizontalScrollIndicator={false}
                       keyExtractor={(item, index) => item.modelo + index}
-                      renderItem={({ item }) => (
+                      renderItem={({ item }) => {
+                        const borderColor = pumpColorMap.get(item.modelo) || COLORS.border;
+                        const borderWidth = pumpColorMap.has(item.modelo) ? 2 : 1;
+                        return (
                         <TouchableOpacity 
-                          style={styles.suggestedCard}
+                          style={[styles.suggestedCard, { borderColor: borderColor, borderWidth: borderWidth }]}
                           onPress={() => {
                               navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: calcResult.map(r => r.modelo) });
                           }}
@@ -1050,17 +1167,18 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                             <View style={styles.suggestedImgPlaceholder} />
                           )}
                           {item.pairedSku && (
-                            <View style={styles.pairedBadge}>
+                            <View style={[styles.pairedBadge, { backgroundColor: borderColor }]}>
                               <Text style={styles.pairedBadgeText}>🔗 Requiere componente</Text>
                             </View>
                           )}
                           <Text style={styles.suggestedMarca} numberOfLines={1}>{item.marca}</Text>
                           <Text style={styles.suggestedModelo} numberOfLines={2}>{item.modelo}</Text>
-                          <Text style={styles.suggestedVal}>
+                          <Text style={[styles.suggestedVal, pumpColorMap.has(item.modelo) && {color: borderColor}]}>
                             {item.displayValue || (calcMode === 'gen' ? `${item.calcVal} KVA` : calcMode === 'motor' ? `${item.calcVal} HP` : `${item.calcVal > 0 ? item.calcVal.toFixed(1) : '?'} HP`)}
                           </Text>
                         </TouchableOpacity>
-                      )}
+                        );
+                      }}
                     />
                   </View>
                 )}
@@ -1076,9 +1194,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       horizontal
                       showsHorizontalScrollIndicator={false}
                       keyExtractor={(item, index) => item.modelo + index}
-                      renderItem={({ item }) => (
+                      renderItem={({ item }) => {
+                        // The motor is paired TO a pump. The pump's sku is item.pairedSku
+                        const parentColor = item.pairedSku ? pumpColorMap.get(item.pairedSku) : null;
+                        const borderColor = parentColor || COLORS.green;
+                        return (
                         <TouchableOpacity 
-                          style={[styles.suggestedCard, { borderColor: COLORS.green, borderWidth: 2 }]}
+                          style={[styles.suggestedCard, { borderColor: borderColor, borderWidth: 2 }]}
                           onPress={() => {
                               navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: motorResult.map(r => r.modelo) });
                           }}
@@ -1089,20 +1211,24 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                             <View style={styles.suggestedImgPlaceholder} />
                           )}
                           {item.pairedSku && (
-                            <View style={[styles.pairedBadge, { backgroundColor: COLORS.green }]}>
+                            <View style={[styles.pairedBadge, { backgroundColor: borderColor }]}>
                               <Text style={styles.pairedBadgeText}>🔗 Para: {item.pairedSku}</Text>
                             </View>
                           )}
                           <Text style={styles.suggestedMarca} numberOfLines={1}>{item.marca}</Text>
                           <Text style={styles.suggestedModelo} numberOfLines={2}>{item.modelo}</Text>
-                          <Text style={[styles.suggestedVal, {color: COLORS.green}]}>
+                          <Text style={[styles.suggestedVal, {color: borderColor}]}>
                             {item.displayValue || `${item.calcVal} HP`}
                           </Text>
                         </TouchableOpacity>
-                      )}
+                        );
+                      }}
                     />
                   </View>
                 )}
+                    </>
+                  );
+                })()}
                 </View>
               )}
 
