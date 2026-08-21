@@ -21,11 +21,13 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
   const [selectedTopic, setSelectedTopic] = useState<ForumTopic | null>(null);
   const [comments, setComments] = useState<ForumComment[]>([]);
   
+  // Estado para Crear/Editar
   const [newTopicTitle, setNewTopicTitle] = useState('');
   const [newTopicDesc, setNewTopicDesc] = useState('');
   const [newTopicImg, setNewTopicImg] = useState<string | null>(null);
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
 
+  // Estado para Comentarios
   const [newComment, setNewComment] = useState('');
   const [newCommentImg, setNewCommentImg] = useState<string | null>(null);
   
@@ -97,8 +99,10 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
     setLoading(true);
     try {
       if (editingTopicId) {
+        // MODO EDICIÓN: Llama a updateTopic
         await updateTopic(editingTopicId, newTopicTitle.trim(), newTopicDesc.trim(), newTopicImg);
       } else {
+        // MODO CREACIÓN: Llama a createTopic
         await createTopic(newTopicTitle.trim(), newTopicDesc.trim(), newTopicImg);
       }
       resetForm();
@@ -109,12 +113,13 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
     setLoading(false);
   };
 
+  // Función que prepara el formulario para editar
   const handleEditTopic = (topic: ForumTopic) => {
     setEditingTopicId(topic.id);
     setNewTopicTitle(topic.title);
     setNewTopicDesc(topic.description);
     setNewTopicImg(topic.image_url);
-    setView('create');
+    setView('create'); // Usa la misma vista de creación, pero con los datos llenos
   };
 
   const resetForm = () => {
@@ -239,11 +244,13 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                     </View>
                     
                     <View style={styles.topicActions}>
+                      {/* BOTÓN DE EDITAR (Solo dueño) */}
                       {isOwner && (
                         <TouchableOpacity style={{padding: 5}} onPress={() => handleEditTopic(item)}>
                           <SvgIcon name="edit" size={16} color={COLORS.navy} />
                         </TouchableOpacity>
                       )}
+                      {/* BOTÓN DE BORRAR (Dueño o Admin) */}
                       {(isOwner || isAdmin) && (
                         <TouchableOpacity style={{padding: 5}} onPress={() => handleDeleteTopic(item.id)}>
                             <SvgIcon name="trash" size={16} color={COLORS.gray3} />
@@ -312,6 +319,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
               </View>
 
               <TouchableOpacity style={styles.submitBtn} onPress={handleCreateOrUpdateTopic} disabled={loading}>
+                {/* BOTÓN CAMBIA DE TEXTO SI ESTÁ EDITANDO */}
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnTxt}>{editingTopicId ? 'Guardar Cambios' : 'Publicar Sugerencia'}</Text>}
               </TouchableOpacity>
             </ScrollView>
@@ -335,6 +343,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                       <Text style={styles.authorName}>{selectedTopic.profiles?.full_name || 'Usuario'}</Text>
                     </View>
                     <View style={styles.topicActions}>
+                      {/* BOTÓN DE EDITAR ADENTRO DEL TEMA */}
                       {currentUser?.id === selectedTopic.user_id && (
                         <TouchableOpacity style={{padding: 5}} onPress={() => handleEditTopic(selectedTopic)}>
                           <SvgIcon name="edit" size={16} color={COLORS.navy} />
