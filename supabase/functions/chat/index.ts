@@ -123,66 +123,61 @@ Deno.serve(async (req: Request) => {
     let cacheHit = false;
     let searchQueriesUsed: string[] = [];
 
-    // Antes esto se saltaba ENTERO si exactContext tenía algo (bug: un match exacto de
-    // UN producto bloqueaba la búsqueda semántica de TODOS los demás productos pedidos
-    // en el mismo mensaje). Ahora solo lo saltamos si ya cubrimos todos los ítems que
-    // el usuario pidió (heurística simple: cantidad de exact matches >= cantidad de
-    // "términos de producto" detectados por potentialSkus). En la duda, igual buscamos.
-    if (exactContext.length < Math.max(potentialSkus.length, 1)) {
-      const intents = await extractIntent(chatHistoryText);
-      // queryGroups: un grupo (array de variantes/sinónimos) por cada producto detectado.
-      let queryGroups: string[][] = [[lastMessage]];
-      if (intents && intents.length > 0) queryGroups = intents;
+    // Siempre ejecutamos la búsqueda semántica. El match "exacto" puede ser una falsa alarma
+    // (ej: el usuario menciona "18000 btu", eso matchea un SKU al azar que contiene 18000, 
+    // y antes esto bloqueaba toda la búsqueda real).
+    const intents = await extractIntent(chatHistoryText);
+    // queryGroups: un grupo (array de variantes/sinónimos) por cada producto detectado.
+    let queryGroups: string[][] = [[lastMessage]];
+    if (intents && intents.length > 0) queryGroups = intents;
 
-      // Fallback: si el extractor de intents devolvió un solo grupo pero el mensaje
-      // tiene conectores típicos de pedido múltiple ("y", ",", "también"), lo
-      // separamos nosotros mismos para no depender 100% del modelo chico.
-      if (queryGroups.length === 1 && queryGroups[0].length <= 1 && /\by\b|,|también/i.test(lastMessage)) {
-        const naiveSplit = lastMessage
-          .split(/\by\b|,|también/i)
-          .map((s: string) => s.trim())
-          .filter((s: string) => s.length > 2);
-        if (naiveSplit.length > 1) queryGroups = naiveSplit.map((q: string) => [q]);
-      }
-
-      // Un embedding por grupo, generado con el primer sinónimo limpio (g[1]) si existe,
-      // porque g[0] suele tener errores ortográficos del usuario (ej: "moto boma").
-      const embedPromises = queryGroups.map(g => getEmbedding(g.length > 1 ? g[1] : g[0], supaAdmin));
-      const embedResults = await Promise.all(embedPromises);
-      searchQueriesUsed = queryGroups.map(g => g.join(' | '));
-      cacheHit = embedResults.some(r => r.cacheHit);
-
-      const vectorPromises = embedResults
-        .filter(r => r.embedding)
-        .map(r => vectorSearch(supaAdmin, r.embedding!));
-
-      // NUEVO: búsqueda de texto en paralelo, usando TODAS las variantes/sinónimos
-      // de cada grupo. Es la red de seguridad para cuando el embedding falla en
-      // reconocer un producto que sí existe con ese nombre literal (o un sinónimo).
-      const keywordPromises = queryGroups.map(g => keywordSearch(supaAdmin, g));
-
-      const [vResults, kwResults] = await Promise.all([
-        Promise.all(vectorPromises),
-        Promise.all(keywordPromises)
-      ]);
-
-      // IMPORTANTE: los resultados de keywordSearch (coincidencia de texto literal)
-      // van PRIMERO, antes que los de vectorSearch (semántico). vectorSearch usa un
-      // threshold muy permisivo y casi siempre llena las 8 posiciones del slice()
-      // de más abajo con productos poco relevantes; si van primero, los aciertos
-      // exactos de keywordSearch quedan cortados por la cola sin que nadie note el error.
-      kwResults.forEach(rows => {
-        vectorData.push(...rows);
-      });
-
-      vResults.forEach(v => {
-        // Tomamos los top 7 de cada búsqueda individual para que ninguna
-        // búsqueda acapare todo el espacio y todas tengan representación.
-        if (v.products) vectorData.push(...v.products.slice(0, 7));
-        if (v.knowledge) knowledgeData.push(...v.knowledge);
-      });
-
+    // Fallback: si el extractor de intents devolvió un solo grupo pero el mensaje
+    // tiene conectores típicos de pedido múltiple ("y", ",", "también"), lo
+    // separamos nosotros mismos para no depender 100% del modelo chico.
+    if (queryGroups.length === 1 && queryGroups[0].length <= 1 && /\by\b|,|también/i.test(lastMessage)) {
+      const naiveSplit = lastMessage
+        .split(/\by\b|,|también/i)
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length > 2);
+      if (naiveSplit.length > 1) queryGroups = naiveSplit.map((q: string) => [q]);
     }
+
+    // Un embedding por grupo, generado con el primer sinónimo limpio (g[1]) si existe,
+    // porque g[0] suele tener errores ortográficos del usuario (ej: "moto boma").
+    const embedPromises = queryGroups.map(g => getEmbedding(g.length > 1 ? g[1] : g[0], supaAdmin));
+    const embedResults = await Promise.all(embedPromises);
+    searchQueriesUsed = queryGroups.map(g => g.join(' | '));
+    cacheHit = embedResults.some(r => r.cacheHit);
+
+    const vectorPromises = embedResults
+      .filter(r => r.embedding)
+      .map(r => vectorSearch(supaAdmin, r.embedding!));
+
+    // NUEVO: búsqueda de texto en paralelo, usando TODAS las variantes/sinónimos
+    // de cada grupo. Es la red de seguridad para cuando el embedding falla en
+    // reconocer un producto que sí existe con ese nombre literal (o un sinónimo).
+    const keywordPromises = queryGroups.map(g => keywordSearch(supaAdmin, g));
+
+    const [vResults, kwResults] = await Promise.all([
+      Promise.all(vectorPromises),
+      Promise.all(keywordPromises)
+    ]);
+
+    // IMPORTANTE: los resultados de keywordSearch (coincidencia de texto literal)
+    // van PRIMERO, antes que los de vectorSearch (semántico). vectorSearch usa un
+    // threshold muy permisivo y casi siempre llena las 8 posiciones del slice()
+    // de más abajo con productos poco relevantes; si van primero, los aciertos
+    // exactos de keywordSearch quedan cortados por la cola sin que nadie note el error.
+    kwResults.forEach(rows => {
+      vectorData.push(...rows);
+    });
+
+    vResults.forEach(v => {
+      // Tomamos los top 7 de cada búsqueda individual para que ninguna
+      // búsqueda acapare todo el espacio y todas tengan representación.
+      if (v.products) vectorData.push(...v.products.slice(0, 7));
+      if (v.knowledge) knowledgeData.push(...v.knowledge);
+    });
 
     const configDataRes = await configPromise;
 
