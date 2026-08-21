@@ -70,7 +70,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
   };
 
   const pickImage = async (setImg: (uri: string | null) => void) => {
-    let result = await ImagePicker.launchImageLibraryAsync({
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
       quality: 1,
@@ -192,9 +192,9 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                   <View style={styles.topicHeader}>
                     <View style={styles.authorRow}>
                       <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>{item.profiles?.nombre?.charAt(0).toUpperCase() || 'U'}</Text>
+                        <Text style={styles.avatarText}>{item.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}</Text>
                       </View>
-                      <Text style={styles.authorName}>{item.profiles?.nombre || 'Usuario'}</Text>
+                      <Text style={styles.authorName}>{item.profiles?.full_name || 'Usuario'}</Text>
                     </View>
                     {(isOwner || isAdmin) && (
                         <TouchableOpacity style={{padding: 5}} onPress={() => handleDeleteTopic(item.id)}>
@@ -270,9 +270,9 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                   <View style={styles.topicHeader}>
                     <View style={styles.authorRow}>
                       <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>{selectedTopic.profiles?.nombre?.charAt(0).toUpperCase() || 'U'}</Text>
+                        <Text style={styles.avatarText}>{selectedTopic.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}</Text>
                       </View>
-                      <Text style={styles.authorName}>{selectedTopic.profiles?.nombre || 'Usuario'}</Text>
+                      <Text style={styles.authorName}>{selectedTopic.profiles?.full_name || 'Usuario'}</Text>
                     </View>
                   </View>
                   <Text style={styles.topicTitle}>{selectedTopic.title}</Text>
@@ -291,9 +291,9 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                       <View style={styles.topicHeader}>
                           <View style={styles.authorRow}>
                             <View style={[styles.avatar, { width: 24, height: 24, borderRadius: 12 }]}>
-                                <Text style={[styles.avatarText, { fontSize: 12 }]}>{item.profiles?.nombre?.charAt(0).toUpperCase() || 'U'}</Text>
+                                <Text style={[styles.avatarText, { fontSize: 12 }]}>{item.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}</Text>
                             </View>
-                            <Text style={styles.commentAuthorName}>{item.profiles?.nombre || 'Usuario'}</Text>
+                            <Text style={styles.commentAuthorName}>{item.profiles?.full_name || 'Usuario'}</Text>
                           </View>
                           {(isOwner || isAdmin) && (
                               <TouchableOpacity style={{padding: 5}} onPress={async () => {
