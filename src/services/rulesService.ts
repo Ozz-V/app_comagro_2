@@ -8,7 +8,9 @@ export const DEFAULT_RULES = {
   matematica: {
     divisorHpTeorico: 1915.2,
     divisorHpBomba: 3150.0,
-    margenSeguridadMotor: 1.25
+    margenSeguridadMotor: 1.25,
+    toleranciaCurva: 1.15,
+    toleranciaCaudalMinimo: 0.85
   },
   filtros: {
     vivienda: {

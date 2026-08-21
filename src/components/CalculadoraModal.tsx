@@ -44,6 +44,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   const [motorResultTitle, setMotorResultTitle] = useState('Motores Sugeridos (Eje Libre):');
   const [hasCalculated, setHasCalculated] = useState(false);
   const [waitingForCatalog, setWaitingForCatalog] = useState(false);
+  const [showDiamPicker, setShowDiamPicker] = useState(false);
   
   // Pre-read stats
   const [catStats, setCatStats] = useState<{maxQ: number, maxH: number} | null>(null);
@@ -393,22 +394,38 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         let conAltura = mapped.filter(p => !p.isSinAltura);
         let sinAltura = mapped.filter(p => p.isSinAltura);
 
-        if (targetCaudalLpm > 0) {
-           let byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm && (p as any)._q <= targetCaudalLpm * 1.3);
-           if (byQ.length < 2) {
-              byQ = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * 0.75 && (p as any)._q <= targetCaudalLpm * 1.5);
-           }
-           conAltura = byQ;
-           
-           sinAltura = sinAltura.filter(p => ((p as any)._q >= targetCaudalLpm * 0.75 && (p as any)._q <= targetCaudalLpm * 1.5) || (p as any)._q === 0);
-        }
+        const tolCurva = reglas.matematica.toleranciaCurva || 1.15; // 15% de margen extra por si acaso
+        const minCaudalTol = reglas.matematica.toleranciaCaudalMinimo || 0.85;
 
-        if (targetAlturaInput > 0) {
-           let byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput && (p as any)._h <= targetAlturaInput * 1.3);
-           if (byH.length < 2) {
-              byH = conAltura.filter(p => (p as any)._h >= targetAlturaInput * 0.75 && (p as any)._h <= targetAlturaInput * 1.5);
+        if (targetCaudalLpm > 0 && targetAlturaInput > 0) {
+           conAltura = conAltura.filter(p => {
+              const qmax = (p as any)._q;
+              const hmax = (p as any)._h;
+              if (qmax < targetCaudalLpm * minCaudalTol || hmax < targetAlturaInput) return false;
+              // Verificar si el punto de operación cae bajo la curva teórica (H = Hmax * (1 - (Q/Qmax)^2))
+              const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
+              // Permitimos que la bomba sea hasta "tolCurva" veces más potente, pero nunca menos potente que el requerimiento.
+              return curvaH >= targetAlturaInput && curvaH <= targetAlturaInput * (tolCurva + 0.5); // Amplio límite superior para no descartar bombas si hay pocas
+           });
+           
+           // Ordenar por qué tan cerca está la curva de lo requerido (score dinámico basado en la física)
+           conAltura.forEach(p => {
+              const qmax = (p as any)._q;
+              const hmax = (p as any)._h;
+              const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
+              (p as any).score = Math.abs(curvaH - targetAlturaInput);
+           });
+        } else {
+           if (targetCaudalLpm > 0) {
+              conAltura = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * minCaudalTol);
            }
-           conAltura = byH;
+           if (targetAlturaInput > 0) {
+              conAltura = conAltura.filter(p => (p as any)._h >= targetAlturaInput);
+           }
+        }
+        
+        if (targetCaudalLpm > 0) {
+           sinAltura = sinAltura.filter(p => (p as any)._q >= targetCaudalLpm * minCaudalTol || (p as any)._q === 0);
         }
         
         // Fase Filter
@@ -719,19 +736,19 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   {bombaTab === 'avanzado' ? (
                     <View style={styles.avanzadoContainer}>
                       <Text style={styles.inputTitleSmall}>Filtro de Categoría</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 15 }}>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 15 }}>
                         {reglas.categorias.map((u: any) => (
                           <TouchableOpacity 
                             key={u.id}
-                            style={[styles.usoListCard, { width: 160, marginRight: 10, padding: 10, minHeight: 40 }, pumpWizard.uso === u.id && styles.usoCardActive]}
+                            style={[styles.usoListCard, { flexGrow: 1, minWidth: '45%', padding: 10, minHeight: 40, marginRight: 0 }, pumpWizard.uso === u.id && styles.usoCardActive]}
                             onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}
                           >
-                            <Text style={[styles.usoListTitle, { fontSize: 12 }, pumpWizard.uso === u.id && styles.usoTitleActive]}>
+                            <Text style={[styles.usoListTitle, { fontSize: 12, textAlign: 'center' }, pumpWizard.uso === u.id && styles.usoTitleActive]}>
                               {u.title}
                             </Text>
                           </TouchableOpacity>
                         ))}
-                      </ScrollView>
+                      </View>
 
                       <View style={styles.grid2Cols}>
                         <View style={styles.col}>
@@ -739,11 +756,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                            <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 15" placeholderTextColor={COLORS.gray4} value={adv.caudal} onChangeText={(t) => setAdv({...adv, caudal: t})} />
                         </View>
                         <View style={styles.col}>
-                           <Text style={styles.inputTitleSmall}>Diámetro</Text>
-                           <TouchableOpacity style={styles.textInputSmall} onPress={() => {
-                               const next = adv.diamIdx >= FRICCION_DIAMS.length - 1 ? 0 : adv.diamIdx + 1;
-                               setAdv({...adv, diamIdx: next});
-                           }}>
+                           <Text style={styles.inputTitleSmall}>Diámetro de Cañería</Text>
+                           <TouchableOpacity style={styles.textInputSmall} onPress={() => setShowDiamPicker(true)}>
                               <Text style={{color: COLORS.navy}}>{FRICCION_DIAMS[adv.diamIdx]}</Text>
                            </TouchableOpacity>
                         </View>
@@ -755,7 +769,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                            <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 200" placeholderTextColor={COLORS.gray4} value={adv.lRecta} onChangeText={(t) => setAdv({...adv, lRecta: t})} />
                         </View>
                         <View style={styles.col}>
-                           <Text style={styles.inputTitleSmall}>Desnivel (m)</Text>
+                           <Text style={styles.inputTitleSmall}>Desnivel Vertical (m)</Text>
                            <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 1" placeholderTextColor={COLORS.gray4} value={adv.hGeo} onChangeText={(t) => setAdv({...adv, hGeo: t})} />
                         </View>
                       </View>
@@ -783,18 +797,18 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       {status === 'sin-datos' && parseFloat(adv.caudal) > 0 ? (
                          <Text style={styles.advWarn}>No hay datos de fricción para este caudal y diámetro.</Text>
                       ) : parseFloat(adv.caudal) > 0 && (
-                         <View style={styles.advResultBox}>
-                            <View style={styles.advResultRow}>
-                               <Text style={styles.advResultLbl}>Altura manométrica total:</Text>
-                               <Text style={styles.advResultVal}>{hTotal.toFixed(2)} mca</Text>
+                         <View style={[styles.advResultBox, { flexDirection: 'column', padding: 15, alignItems: 'flex-start', gap: 6 }]}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                               <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Altura manométrica total:</Text>
+                               <Text style={[styles.advResultVal, { fontSize: 14 }]}>{hTotal.toFixed(2)} mca</Text>
                             </View>
-                            <View style={styles.advResultRow}>
-                               <Text style={styles.advResultLbl}>Pérdida por fricción:</Text>
-                               <Text style={styles.advResultLbl}>{perdida.toFixed(2)} mca</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                               <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Pérdida por fricción:</Text>
+                               <Text style={[styles.advResultVal, { fontSize: 14 }]}>{perdida.toFixed(2)} mca</Text>
                             </View>
-                            <View style={styles.advResultRow}>
-                               <Text style={styles.advResultLbl}>Longitud equivalente total:</Text>
-                               <Text style={styles.advResultLbl}>{lTotal.toFixed(2)} m</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                               <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Longitud equivalente total:</Text>
+                               <Text style={[styles.advResultVal, { fontSize: 14 }]}>{lTotal.toFixed(2)} m</Text>
                             </View>
                          </View>
                       )}
@@ -1033,6 +1047,33 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           )}
           </ScrollView>
         </View>
+
+        <Modal visible={showDiamPicker} transparent animationType="fade" onRequestClose={() => setShowDiamPicker(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 20, maxHeight: '80%' }}>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 15, textAlign: 'center' }}>Seleccione Diámetro</Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {FRICCION_DIAMS.map((d, index) => (
+                  <TouchableOpacity 
+                    key={d} 
+                    style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' }}
+                    onPress={() => {
+                      setAdv({...adv, diamIdx: index});
+                      setShowDiamPicker(false);
+                    }}
+                  >
+                    <Text style={{ fontSize: 16, color: adv.diamIdx === index ? COLORS.green : COLORS.navy, fontWeight: adv.diamIdx === index ? 'bold' : 'normal' }}>
+                      {d}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity style={{ marginTop: 15, padding: 12, backgroundColor: COLORS.navy, borderRadius: 8 }} onPress={() => setShowDiamPicker(false)}>
+                <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </Modal>
   );

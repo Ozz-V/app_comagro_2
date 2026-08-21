@@ -38,7 +38,7 @@ export const FRICCION_ROWS: [number, (number | null)[]][] = [
 [500,[null,null,null,null,null,null,null,null,null,null,null,2.9,1.2]]
 ];
 
-export const FIT_HEADERS = ["CURVA90º", "CURVA 45º", "LLAVE DE PASO", "TE", "VALV. DE PIE", "VALV. RETENC"];
+export const FIT_HEADERS = ["Codo 90°", "Codo 45°", "Llave de Paso", "Tee de Deriv.", "Válv. de Pie", "Válv. Retención"];
 
 export const FIT_ROWS: [string, number[]][] = [
 ["1/2\"",[0.3,0.2,2.6,1,3.6,1.1]],
