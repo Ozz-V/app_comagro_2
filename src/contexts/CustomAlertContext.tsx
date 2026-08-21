@@ -5,13 +5,11 @@ import { COLORS } from '../theme';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
 
-
-interface AlertButton {
+export interface AlertButton {
   text: string;
   onPress?: () => void;
   style?: 'cancel' | 'default' | 'destructive';
 }
-
 
 interface AlertConfig {
   title: string;
@@ -47,7 +45,6 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
   const alertScaleRef = useRef(new Animated.Value(0.96));
   const pendingAlertActionRef = useRef<(() => void) | null>(null);
 
-  // Manejador del Toast
   useEffect(() => {
     if (toastConfig) {
       Animated.parallel([
@@ -164,12 +161,13 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
             <View style={styles.buttonsRow}>
               {alertConfig?.buttons?.map((btn: AlertButton, index: number) => {
                 const isCancel = btn.style === 'cancel';
+                const isDestructive = btn.style === 'destructive';
                 return (
                   <TouchableOpacity
                     key={index}
                     style={[
                       styles.button,
-                      isCancel ? styles.buttonCancel : styles.buttonPrimary,
+                      isCancel ? styles.buttonCancel : isDestructive ? styles.buttonDestructive : styles.buttonPrimary,
                       alertConfig.buttons?.length === 1 && { flex: 1 }
                     ]}
                     activeOpacity={0.7}
@@ -192,7 +190,6 @@ export function CustomAlertProvider({ children }: { children: React.ReactNode })
 }
 
 const styles = StyleSheet.create({
-  // TOAST STYLES
   toastContainer: {
     position: 'absolute',
     top: 0,
@@ -217,8 +214,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  
-  // ALERT STYLES
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -272,10 +267,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonPrimary: {
-    backgroundColor: '#1c9f4b', // Verde de la app
+    backgroundColor: '#1c9f4b',
   },
   buttonCancel: {
     backgroundColor: '#F0F0F0',
+  },
+  buttonDestructive: {
+    backgroundColor: '#D32F2F',
   },
   buttonText: {
     fontFamily: 'BarlowCondensed_700Bold',
