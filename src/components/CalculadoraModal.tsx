@@ -1059,22 +1059,34 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         <Modal visible={showDiamPicker} transparent animationType="fade" onRequestClose={() => setShowDiamPicker(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
             <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 20, maxHeight: '80%' }}>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 15, textAlign: 'center' }}>Seleccione Diámetro</Text>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 4, textAlign: 'center' }}>Seleccione Diámetro</Text>
+              <Text style={{ fontSize: 12, color: COLORS.gray3, marginBottom: 15, textAlign: 'center' }}>
+                {parseFloat(adv.caudal) > 0 ? `Para ${adv.caudal} ${adv.unidadCaudal} — los grises no son válidos` : 'Ingresá el caudal primero para ver opciones válidas'}
+              </Text>
               <ScrollView showsVerticalScrollIndicator={false}>
-                {FRICCION_DIAMS.map((d, index) => (
-                  <TouchableOpacity 
-                    key={d} 
-                    style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' }}
-                    onPress={() => {
-                      setAdv({...adv, diamIdx: index});
-                      setShowDiamPicker(false);
-                    }}
-                  >
-                    <Text style={{ fontSize: 16, color: adv.diamIdx === index ? COLORS.green : COLORS.navy, fontWeight: adv.diamIdx === index ? 'bold' : 'normal' }}>
-                      {d}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {FRICCION_DIAMS.map((d, index) => {
+                  const qRaw = parseFloat(adv.caudal) || 0;
+                  let qM3h = qRaw;
+                  if (adv.unidadCaudal === 'l/min') qM3h = qRaw * 60 / 1000;
+                  else if (adv.unidadCaudal === 'l/h') qM3h = qRaw / 1000;
+                  const { status } = qM3h > 0 ? interpolateFriction(qM3h, index) : { status: 'ok' as const };
+                  const isInvalid = status === 'above' || status === 'sin-datos';
+                  const isSelected = adv.diamIdx === index;
+                  return (
+                    <TouchableOpacity
+                      key={d}
+                      style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', opacity: isInvalid ? 0.3 : 1 }}
+                      onPress={() => { setAdv({...adv, diamIdx: index}); setShowDiamPicker(false); }}
+                      disabled={isInvalid}
+                    >
+                      <Text style={{ fontSize: 16, color: isSelected ? COLORS.green : (isInvalid ? COLORS.gray3 : COLORS.navy), fontWeight: isSelected ? 'bold' : 'normal' }}>
+                        {d}
+                      </Text>
+                      {isInvalid && <Text style={{ fontSize: 11, color: '#c0392b', marginLeft: 8 }}>✗ caudal excede límite</Text>}
+                      {isSelected && !isInvalid && <Text style={{ fontSize: 11, color: COLORS.green, marginLeft: 8 }}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
               <TouchableOpacity style={{ marginTop: 15, padding: 12, backgroundColor: COLORS.navy, borderRadius: 8 }} onPress={() => setShowDiamPicker(false)}>
                 <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Cerrar</Text>
