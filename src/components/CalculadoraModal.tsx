@@ -719,19 +719,19 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   {bombaTab === 'avanzado' ? (
                     <View style={styles.avanzadoContainer}>
                       <Text style={styles.inputTitleSmall}>Filtro de Categoría</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 15 }}>
+                      <View style={styles.usoGrid3Cols}>
                         {reglas.categorias.map((u: any) => (
                           <TouchableOpacity 
                             key={u.id}
-                            style={[styles.usoListCard, { width: 160, marginRight: 10, padding: 10, minHeight: 40 }, pumpWizard.uso === u.id && styles.usoCardActive]}
+                            style={[styles.usoGridCard, pumpWizard.uso === u.id && styles.usoCardActive]}
                             onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}
                           >
-                            <Text style={[styles.usoListTitle, { fontSize: 12 }, pumpWizard.uso === u.id && styles.usoTitleActive]}>
+                            <Text style={[styles.usoGridTitle, pumpWizard.uso === u.id && styles.usoTitleActive]} numberOfLines={3}>
                               {u.title}
                             </Text>
                           </TouchableOpacity>
                         ))}
-                      </ScrollView>
+                      </View>
 
                       <View style={styles.grid2Cols}>
                         <View style={styles.col}>
@@ -751,14 +751,17 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       
                       <View style={styles.grid2Cols}>
                         <View style={styles.col}>
-                           <Text style={styles.inputTitleSmall}>Longitud recta (m)</Text>
+                           <Text style={styles.inputTitleSmall}>Longitud de caño (m)</Text>
                            <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 200" placeholderTextColor={COLORS.gray4} value={adv.lRecta} onChangeText={(t) => setAdv({...adv, lRecta: t})} />
                         </View>
                         <View style={styles.col}>
-                           <Text style={styles.inputTitleSmall}>Desnivel (m)</Text>
-                           <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 1" placeholderTextColor={COLORS.gray4} value={adv.hGeo} onChangeText={(t) => setAdv({...adv, hGeo: t})} />
+                           <Text style={styles.inputTitleSmall}>Desnivel vertical (m)</Text>
+                           <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={adv.hGeo} onChangeText={(t) => setAdv({...adv, hGeo: t})} />
                         </View>
                       </View>
+                      <Text style={styles.advHelpText}>
+                        💡 Longitud de caño: el largo total del caño, sin importar si va recto o con vueltas. Desnivel vertical: cuánto sube el agua en línea vertical (no importa el ángulo del caño, solo la altura real que gana). Si la subida es 100% vertical, el desnivel es igual a la longitud del caño en ese tramo.
+                      </Text>
 
                       <Text style={[styles.inputTitleSmall, { marginTop: 5, marginBottom: 5 }]}>Accesorios (Cantidades)</Text>
                       <View style={styles.accGrid}>
@@ -790,11 +793,11 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                             </View>
                             <View style={styles.advResultRow}>
                                <Text style={styles.advResultLbl}>Pérdida por fricción:</Text>
-                               <Text style={styles.advResultLbl}>{perdida.toFixed(2)} mca</Text>
+                               <Text style={styles.advResultVal}>{perdida.toFixed(2)} mca</Text>
                             </View>
                             <View style={styles.advResultRow}>
                                <Text style={styles.advResultLbl}>Longitud equivalente total:</Text>
-                               <Text style={styles.advResultLbl}>{lTotal.toFixed(2)} m</Text>
+                               <Text style={styles.advResultVal}>{lTotal.toFixed(2)} m</Text>
                             </View>
                          </View>
                       )}
@@ -1323,6 +1326,38 @@ const styles = StyleSheet.create({
   usoTitleActive: {
     color: COLORS.navy
   },
+  usoGrid3Cols: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 12
+  },
+  usoGridCard: {
+    width: '31%',
+    minHeight: 56,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+    marginBottom: 8
+  },
+  usoGridTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: COLORS.navy,
+    textAlign: 'center'
+  },
+  advHelpText: {
+    fontSize: 11,
+    color: COLORS.gray4,
+    marginTop: 4,
+    marginBottom: 10,
+    lineHeight: 15
+  },
   colList: {
     flexDirection: 'column',
     gap: 10,
@@ -1429,24 +1464,30 @@ const styles = StyleSheet.create({
     marginTop: 4
   },
   advResultBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: 'column',
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: COLORS.navy,
     borderRadius: 8,
-    padding: 8,
+    padding: 10,
     marginBottom: 5
   },
   advResultRow: {
-    alignItems: 'center'
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0'
   },
   advResultLbl: {
-    fontSize: 10,
-    color: COLORS.gray4
+    fontSize: 12,
+    color: COLORS.gray4,
+    flexShrink: 1,
+    marginRight: 8
   },
   advResultVal: {
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.navy,
     fontWeight: 'bold'
   },
