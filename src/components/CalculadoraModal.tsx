@@ -398,30 +398,30 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const minCaudalTol = reglas.matematica.toleranciaCaudalMinimo || 0.85;
 
         if (targetCaudalLpm > 0 && targetAlturaInput > 0) {
+           const maxMultiplo = reglas.matematica.maxMultiploCaudalPermitido ?? 8;
            conAltura = conAltura.filter(p => {
               const qmax = (p as any)._q;
               const hmax = (p as any)._h;
+              // Nunca sugerir bombas con caudal máximo > N veces lo requerido
+              if (qmax > targetCaudalLpm * maxMultiplo) return false;
               if (qmax < targetCaudalLpm * minCaudalTol || hmax < targetAlturaInput) return false;
               // Verificar si el punto de operación cae bajo la curva teórica (H = Hmax * (1 - (Q/Qmax)^2))
               const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
-              // Permitimos que la bomba sea hasta "tolCurva" veces más potente, pero nunca menos potente que el requerimiento.
-              return curvaH >= targetAlturaInput && curvaH <= targetAlturaInput * (tolCurva + 0.5); // Amplio límite superior para no descartar bombas si hay pocas
+              return curvaH >= targetAlturaInput && curvaH <= targetAlturaInput * (tolCurva + 0.5);
            });
            
            // Ordenar por qué tan cerca está la curva de lo requerido (score dinámico basado en la física)
+           const pesoExcesoH    = reglas.matematica.pesoExcesoH    ?? 1.0;
+           const pesoExcesoQmax = reglas.matematica.pesoExcesoQmax ?? 0.5;
+           const pesoExcesoHmax = reglas.matematica.pesoExcesoHmax ?? 0.2;
            conAltura.forEach(p => {
               const qmax = (p as any)._q;
               const hmax = (p as any)._h;
               const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
-              
-              // 1. Penalización por exceso de altura en el punto de trabajo
-              const excesoH = Math.abs(curvaH - targetAlturaInput) / targetAlturaInput;
-              
-              // 2. Penalización por sobredimensionamiento bruto del equipo (para evitar sugerir bombas gigantes)
+              const excesoH    = Math.abs(curvaH - targetAlturaInput) / targetAlturaInput;
               const excesoQmax = Math.max(0, (qmax - targetCaudalLpm) / targetCaudalLpm);
               const excesoHmax = Math.max(0, (hmax - targetAlturaInput) / targetAlturaInput);
-              
-              (p as any).score = excesoH + (excesoQmax * 0.2) + (excesoHmax * 0.2);
+              (p as any).score = excesoH * pesoExcesoH + excesoQmax * pesoExcesoQmax + excesoHmax * pesoExcesoHmax;
            });
         } else {
            if (targetCaudalLpm > 0) {
@@ -758,76 +758,122 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         ))}
                       </View>
 
-                      <View style={styles.grid2Cols}>
-                        <View style={styles.col}>
-                           <Text style={styles.inputTitleSmall}>Caudal (m³/h)</Text>
-                           <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 15" placeholderTextColor={COLORS.gray4} value={adv.caudal} onChangeText={(t) => setAdv({...adv, caudal: t})} />
-                        </View>
-                        <View style={styles.col}>
-                           <Text style={styles.inputTitleSmall}>Diámetro de Cañería</Text>
-                           <TouchableOpacity style={styles.textInputSmall} onPress={() => setShowDiamPicker(true)}>
-                              <Text style={{color: COLORS.navy}}>{FRICCION_DIAMS[adv.diamIdx]}</Text>
-                           </TouchableOpacity>
-                        </View>
-                      </View>
-                      
-                      <View style={styles.grid2Cols}>
-                        <View style={styles.col}>
-                           <Text style={styles.inputTitleSmall}>Longitud recta (m)</Text>
-                           <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 200" placeholderTextColor={COLORS.gray4} value={adv.lRecta} onChangeText={(t) => setAdv({...adv, lRecta: t})} />
-                        </View>
-                        <View style={styles.col}>
-                           <Text style={styles.inputTitleSmall}>Desnivel Vertical (m)</Text>
-                           <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 1" placeholderTextColor={COLORS.gray4} value={adv.hGeo} onChangeText={(t) => setAdv({...adv, hGeo: t})} />
-                        </View>
-                      </View>
+                      {/* ── Textos dinámicos desde Supabase (fallback offline) ── */}
+                      {(() => {
+                        const tx = (reglas as any)?.textos ?? {};
+                        const tCaudal   = tx.label_caudal   ?? 'Caudal (m\u00b3/h)';
+                        const tLongitud = tx.label_longitud ?? 'Longitud de Ca\u00f1er\u00eda (m)';
+                        const tDesnivel = tx.label_desnivel ?? 'Altura a Elevar (m)';
+                        const tDiametro = tx.label_diametro ?? 'Di\u00e1metro de Ca\u00f1er\u00eda';
+                        const tAccesorios = tx.label_accesorios ?? 'Accesorios (Cantidades)';
+                        const tBtnBuscar = tx.btn_buscar ?? 'Buscar Equipos';
+                        const tAvisoDiamInsuf  = tx.aviso_diametro_insuficiente ?? '\u26a0 Di\u00e1metro insuficiente';
+                        const tAvisoDiamBloq   = tx.aviso_diametro_bloqueado    ?? 'Rango supera tabla de fricci\u00f3n';
+                        const tAvisoSinCaudal  = tx.aviso_sin_caudal            ?? 'Ingres\u00e1 el caudal para buscar';
 
-                      <Text style={[styles.inputTitleSmall, { marginTop: 5, marginBottom: 5 }]}>Accesorios (Cantidades)</Text>
-                      <View style={styles.accGrid}>
-                         {FIT_HEADERS.map((h, i) => (
-                           <View key={h} style={styles.accCell}>
-                             <Text style={styles.accLabel}>{h}</Text>
-                             <TextInput 
-                               style={styles.accInput} 
-                               keyboardType="numeric" 
-                               value={adv.acc[i] ? String(adv.acc[i]) : ''} 
-                               onChangeText={(t) => {
-                                 const n = parseInt(t) || 0;
-                                 const newAcc = [...adv.acc];
-                                 newAcc[i] = n;
-                                 setAdv({...adv, acc: newAcc});
-                               }} 
-                             />
-                           </View>
-                         ))}
-                      </View>
+                        // ── Validación de diámetro ──
+                        const advQ = parseFloat(adv.caudal) || 0;
+                        const currentDiamSt = advQ > 0 ? interpolateFriction(advQ, adv.diamIdx).status : 'ok';
+                        const currentDiamInvalid = currentDiamSt === 'above' || currentDiamSt === 'sin-datos';
+                        const allDiamsInvalid = advQ > 0 && FRICCION_DIAMS.every((_, idx) => {
+                          const s = interpolateFriction(advQ, idx).status;
+                          return s === 'above' || s === 'sin-datos';
+                        });
 
-                      {status === 'sin-datos' && parseFloat(adv.caudal) > 0 ? (
-                         <Text style={styles.advWarn}>No hay datos de fricción para este caudal y diámetro.</Text>
-                      ) : parseFloat(adv.caudal) > 0 && (
-                         <View style={[styles.advResultBox, { flexDirection: 'column', padding: 15, alignItems: 'flex-start', gap: 6 }]}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                               <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Altura manométrica total:</Text>
-                               <Text style={[styles.advResultVal, { fontSize: 14 }]}>{hTotal.toFixed(2)} mca</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                               <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Pérdida por fricción:</Text>
-                               <Text style={[styles.advResultVal, { fontSize: 14 }]}>{perdida.toFixed(2)} mca</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                               <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Longitud equivalente total:</Text>
-                               <Text style={[styles.advResultVal, { fontSize: 14 }]}>{lTotal.toFixed(2)} m</Text>
-                            </View>
-                         </View>
-                      )}
+                        const hasCaudal = advQ > 0;
+                        const canBuscar = hasCaudal;
 
-                      <TouchableOpacity 
-                        style={[styles.calculateBtn, {marginTop: 10, paddingVertical: 10}, !pumpWizard.uso && { backgroundColor: COLORS.gray4 }]} 
-                        onPress={handleCalculate}
-                        disabled={!pumpWizard.uso}
-                      >
-                        <Text style={styles.calculateBtnText}>{pumpWizard.uso ? 'Buscar Equipos' : 'Seleccione una categoría arriba'}</Text>
-                      </TouchableOpacity>
+                        return (
+                          <>
+                            <View style={styles.grid2Cols}>
+                              <View style={styles.col}>
+                                <Text style={styles.inputTitleSmall}>{tCaudal}</Text>
+                                <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 15" placeholderTextColor={COLORS.gray4} value={adv.caudal} onChangeText={(t) => setAdv({...adv, caudal: t})} />
+                              </View>
+                              <View style={styles.col}>
+                                <Text style={styles.inputTitleSmall}>{tDiametro}</Text>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.textInputSmall,
+                                    allDiamsInvalid && { opacity: 0.45, backgroundColor: '#f0f0f0' },
+                                    currentDiamInvalid && !allDiamsInvalid && { borderColor: '#c0392b', borderWidth: 1.5 }
+                                  ]}
+                                  onPress={() => !allDiamsInvalid && setShowDiamPicker(true)}
+                                  disabled={allDiamsInvalid}
+                                >
+                                  <Text style={{ color: allDiamsInvalid ? COLORS.gray3 : currentDiamInvalid ? '#c0392b' : COLORS.navy, fontSize: 14 }}>
+                                    {FRICCION_DIAMS[adv.diamIdx]}
+                                  </Text>
+                                  {currentDiamInvalid && !allDiamsInvalid && (
+                                    <Text style={{ fontSize: 10, color: '#c0392b', marginTop: 1 }}>{tAvisoDiamInsuf}</Text>
+                                  )}
+                                  {allDiamsInvalid && (
+                                    <Text style={{ fontSize: 10, color: COLORS.gray3, marginTop: 1 }}>{tAvisoDiamBloq}</Text>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+
+                            <View style={styles.grid2Cols}>
+                              <View style={styles.col}>
+                                <Text style={styles.inputTitleSmall}>{tLongitud}</Text>
+                                <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 200" placeholderTextColor={COLORS.gray4} value={adv.lRecta} onChangeText={(t) => setAdv({...adv, lRecta: t})} />
+                              </View>
+                              <View style={styles.col}>
+                                <Text style={styles.inputTitleSmall}>{tDesnivel}</Text>
+                                <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 1" placeholderTextColor={COLORS.gray4} value={adv.hGeo} onChangeText={(t) => setAdv({...adv, hGeo: t})} />
+                              </View>
+                            </View>
+
+                            <Text style={[styles.inputTitleSmall, { marginTop: 5, marginBottom: 5 }]}>{tAccesorios}</Text>
+                            <View style={styles.accGrid}>
+                              {FIT_HEADERS.map((h, i) => (
+                                <View key={h} style={styles.accCell}>
+                                  <Text style={styles.accLabel}>{h}</Text>
+                                  <TextInput
+                                    style={styles.accInput}
+                                    keyboardType="numeric"
+                                    value={adv.acc[i] ? String(adv.acc[i]) : ''}
+                                    onChangeText={(t) => {
+                                      const n = parseInt(t) || 0;
+                                      const newAcc = [...adv.acc];
+                                      newAcc[i] = n;
+                                      setAdv({...adv, acc: newAcc});
+                                    }}
+                                  />
+                                </View>
+                              ))}
+                            </View>
+
+                            {status === 'sin-datos' && parseFloat(adv.caudal) > 0 ? (
+                              <Text style={styles.advWarn}>No hay datos de fricci\u00f3n para este caudal y di\u00e1metro.</Text>
+                            ) : parseFloat(adv.caudal) > 0 && (
+                              <View style={[styles.advResultBox, { flexDirection: 'column', padding: 15, alignItems: 'flex-start', gap: 6 }]}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                                  <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Altura manom\u00e9trica total:</Text>
+                                  <Text style={[styles.advResultVal, { fontSize: 14 }]}>{hTotal.toFixed(2)} mca</Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                                  <Text style={[styles.advResultLbl, { fontSize: 13 }]}>P\u00e9rdida por fricci\u00f3n:</Text>
+                                  <Text style={[styles.advResultVal, { fontSize: 14 }]}>{perdida.toFixed(2)} mca</Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                                  <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Longitud equivalente total:</Text>
+                                  <Text style={[styles.advResultVal, { fontSize: 14 }]}>{lTotal.toFixed(2)} m</Text>
+                                </View>
+                              </View>
+                            )}
+
+                            <TouchableOpacity
+                              style={[styles.calculateBtn, { marginTop: 10, paddingVertical: 10 }, !canBuscar && { backgroundColor: COLORS.gray4 }]}
+                              onPress={handleCalculate}
+                              disabled={!canBuscar}
+                            >
+                              <Text style={styles.calculateBtnText}>{canBuscar ? tBtnBuscar : tAvisoSinCaudal}</Text>
+                            </TouchableOpacity>
+                          </>
+                        );
+                      })()}
                     </View>
                   ) : (
                     <View style={styles.guiadoContainer}>

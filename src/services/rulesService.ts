@@ -10,7 +10,22 @@ export const DEFAULT_RULES = {
     divisorHpBomba: 3150.0,
     margenSeguridadMotor: 1.25,
     toleranciaCurva: 1.15,
-    toleranciaCaudalMinimo: 0.85
+    toleranciaCaudalMinimo: 0.85,
+    pesoExcesoH: 1.0,
+    pesoExcesoQmax: 0.5,
+    pesoExcesoHmax: 0.2,
+    maxMultiploCaudalPermitido: 8
+  },
+  textos: {
+    label_caudal: 'Caudal (m\u00b3/h)',
+    label_longitud: 'Longitud de Ca\u00f1er\u00eda (m)',
+    label_desnivel: 'Altura a Elevar (m)',
+    label_diametro: 'Di\u00e1metro de Ca\u00f1er\u00eda',
+    label_accesorios: 'Accesorios (Cantidades)',
+    btn_buscar: 'Buscar Equipos',
+    aviso_diametro_insuficiente: '\u26a0 Di\u00e1metro insuficiente',
+    aviso_diametro_bloqueado: 'Rango supera tabla de fricci\u00f3n',
+    aviso_sin_caudal: 'Ingres\u00e1 el caudal para buscar'
   },
   filtros: {
     vivienda: {
