@@ -81,7 +81,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     const lRecta = parseFloat(adv.lRecta) || 0;
     const hGeo = parseFloat(adv.hGeo) || 0;
     
-    const { value: loss100, status } = interpolateFriction(q, adv.diamIdx);
+    // Si el caudal es tan alto que NINGÚN diámetro lo soporta, no calculamos fricción (quedaría por las nubes)
+    const allDiamsInvalid = q > 0 && FRICCION_DIAMS.every((_, idx) => {
+      const s = interpolateFriction(q, idx).status;
+      return s === 'above' || s === 'sin-datos';
+    });
+    
+    const { value: loss100, status } = allDiamsInvalid ? { value: 0, status: 'sin-datos' as const } : interpolateFriction(q, adv.diamIdx);
     const fitRow = FIT_ROWS[adv.diamIdx + 1];
     
     let lAcc = 0;
@@ -90,7 +96,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     });
     
     const lTot = lRecta + lAcc;
-    const pFric = loss100 !== null ? (lTot * loss100) / 100 : 0;
+    const pFric = (loss100 !== null && !allDiamsInvalid) ? (lTot * loss100) / 100 : 0;
     const hTot = hGeo + pFric;
     
     return { hTotal: hTot, perdida: pFric, lEquiv: lAcc, lTotal: lTot, status };
@@ -433,7 +439,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         }
         
         if (targetCaudalLpm > 0) {
-           sinAltura = sinAltura.filter(p => (p as any)._q >= targetCaudalLpm * minCaudalTol || (p as any)._q === 0);
+           sinAltura = sinAltura.filter(p => (p as any)._q >= targetCaudalLpm * minCaudalTol || ((p as any)._q === 0 && (p as any)._isEjeLibre));
         }
         
         // Fase Filter
@@ -781,7 +787,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         });
 
                         const hasCaudal = advQ > 0;
-                        const canBuscar = hasCaudal;
+                        const hasUso = !!pumpWizard.uso;
+                        const canBuscar = hasCaudal && hasUso;
 
                         return (
                           <>
@@ -869,7 +876,9 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                               onPress={handleCalculate}
                               disabled={!canBuscar}
                             >
-                              <Text style={styles.calculateBtnText}>{canBuscar ? tBtnBuscar : tAvisoSinCaudal}</Text>
+                              <Text style={styles.calculateBtnText}>
+                                {canBuscar ? tBtnBuscar : (!hasUso ? 'Seleccioná una categoría arriba' : tAvisoSinCaudal)}
+                              </Text>
                             </TouchableOpacity>
                           </>
                         );
