@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, SafeAreaView, FlatList, TextInput, ActivityIndicator, Image, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, FlatList, TextInput, ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
 import * as ImagePicker from 'expo-image-picker';
-import { fetchTopics, fetchComments, createTopic, createComment, deleteTopic, deleteComment, ForumTopic, ForumComment } from '../utils/forum';
+import { fetchTopics, fetchComments, createTopic, updateTopic, voteTopic, createComment, deleteTopic, deleteComment, ForumTopic, ForumComment } from '../utils/forum';
 import { supabase } from '../supabase';
+import { useCustomAlert } from '../contexts/CustomAlertContext';
 
 interface ForumModalProps {
   visible: boolean;
@@ -15,22 +17,23 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
   const [topics, setTopics] = useState<ForumTopic[]>([]);
   const [loading, setLoading] = useState(false);
   
-  // Views: 'list' | 'topic' | 'create'
   const [view, setView] = useState<'list' | 'topic' | 'create'>('list');
   const [selectedTopic, setSelectedTopic] = useState<ForumTopic | null>(null);
   const [comments, setComments] = useState<ForumComment[]>([]);
   
-  // Create Topic State
   const [newTopicTitle, setNewTopicTitle] = useState('');
   const [newTopicDesc, setNewTopicDesc] = useState('');
   const [newTopicImg, setNewTopicImg] = useState<string | null>(null);
+  const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
 
-  // Add Comment State
   const [newComment, setNewComment] = useState('');
   const [newCommentImg, setNewCommentImg] = useState<string | null>(null);
   
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
+
+  const insets = useSafeAreaInsets();
+  const { showAlert } = useCustomAlert();
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user));
   }, []);
@@ -47,7 +50,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
       const data = await fetchTopics();
       setTopics(data);
     } catch (e: any) {
-      Alert.alert('Error', 'No se pudieron cargar las sugerencias.');
+      showAlert('Error', 'No se pudieron cargar las sugerencias.');
     }
     setLoading(false);
   };
@@ -58,7 +61,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
       const data = await fetchComments(topicId);
       setComments(data);
     } catch (e: any) {
-      Alert.alert('Error', 'No se pudieron cargar los comentarios.');
+      showAlert('Error', 'No se pudieron cargar los comentarios.');
     }
     setLoading(false);
   };
@@ -79,29 +82,46 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
       if (asset.fileSize && asset.fileSize > 2097152) {
-        Alert.alert('Error', 'La imagen excede los 2MB permitidos.');
+        showAlert('Error', 'La imagen excede los 2MB permitidos.');
         return;
       }
       setImg(asset.uri);
     }
   };
 
-  const handleCreateTopic = async () => {
+  const handleCreateOrUpdateTopic = async () => {
     if (!newTopicTitle.trim() || !newTopicDesc.trim()) {
-      Alert.alert('Aviso', 'El título y descripción son requeridos.');
+      showAlert('Aviso', 'El título y descripción son requeridos.');
       return;
     }
     setLoading(true);
     try {
-      await createTopic(newTopicTitle.trim(), newTopicDesc.trim(), newTopicImg);
-      setNewTopicTitle('');
-      setNewTopicDesc('');
-      setNewTopicImg(null);
+      if (editingTopicId) {
+        await updateTopic(editingTopicId, newTopicTitle.trim(), newTopicDesc.trim(), newTopicImg);
+      } else {
+        await createTopic(newTopicTitle.trim(), newTopicDesc.trim(), newTopicImg);
+      }
+      resetForm();
       setView('list');
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'No se pudo crear el tema.');
+      showAlert('Error', e.message || 'No se pudo guardar el tema.');
     }
     setLoading(false);
+  };
+
+  const handleEditTopic = (topic: ForumTopic) => {
+    setEditingTopicId(topic.id);
+    setNewTopicTitle(topic.title);
+    setNewTopicDesc(topic.description);
+    setNewTopicImg(topic.image_url);
+    setView('create');
+  };
+
+  const resetForm = () => {
+    setEditingTopicId(null);
+    setNewTopicTitle('');
+    setNewTopicDesc('');
+    setNewTopicImg(null);
   };
 
   const handleCreateComment = async () => {
@@ -115,23 +135,38 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
       setNewCommentImg(null);
       await loadComments(selectedTopic.id);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'No se pudo enviar el comentario.');
+      showAlert('Error', e.message || 'No se pudo enviar el comentario.');
     }
     setLoading(false);
   };
   
   const handleDeleteTopic = async (id: string) => {
-      Alert.alert('Confirmar', '¿Borrar este tema?', [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Borrar', style: 'destructive', onPress: async () => {
-              try {
-                  await deleteTopic(id);
-                  loadTopics();
-              } catch (e: any) {
-                  Alert.alert('Error', 'No tienes permisos para borrar este tema.');
-              }
-          }}
-      ])
+    showAlert('Confirmar', '¿Borrar este tema?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Borrar', style: 'destructive', onPress: async () => {
+          try {
+            await deleteTopic(id);
+            if (view === 'topic') setView('list');
+            else loadTopics();
+          } catch (e: any) {
+            showAlert('Error', 'No tienes permisos para borrar este tema.');
+          }
+      }}
+    ]);
+  };
+
+  const handleVote = async (topicId: string, vote: 1 | -1) => {
+    try {
+      await voteTopic(topicId, vote);
+      const data = await fetchTopics();
+      setTopics(data);
+      if (view === 'topic' && selectedTopic?.id === topicId) {
+        const refreshed = data.find(t => t.id === topicId);
+        if (refreshed) setSelectedTopic(refreshed);
+      }
+    } catch (e: any) {
+      showAlert('Error', 'No se pudo registrar tu voto.');
+    }
   };
 
   const renderFormattedText = (text: string) => {
@@ -156,19 +191,25 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.safe}>
+      <View style={[styles.safe, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => {
-            if (view === 'topic' || view === 'create') setView('list');
-            else onClose();
+            if (view === 'topic' || view === 'create') {
+              setView('list');
+              resetForm();
+            } else {
+              onClose();
+            }
           }} style={styles.backBtn}>
             <SvgIcon name="arrow-left" size={24} color={COLORS.navy} />
           </TouchableOpacity>
+          
           <Text style={styles.headerTitle}>
-            {view === 'list' ? 'Sugerencias' : view === 'create' ? 'Crear Tema' : 'Hilo'}
+            {view === 'list' ? 'Sugerencias' : view === 'create' ? (editingTopicId ? 'Editar Tema' : 'Crear Tema') : 'Hilo'}
           </Text>
+          
           {view === 'list' ? (
-            <TouchableOpacity onPress={() => setView('create')} style={styles.headerActionBtn}>
+            <TouchableOpacity onPress={() => { resetForm(); setView('create'); }} style={styles.headerActionBtn}>
               <SvgIcon name="plus" size={24} color={COLORS.navy} />
             </TouchableOpacity>
           ) : <View style={{ width: 44 }} />}
@@ -196,24 +237,43 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                       </View>
                       <Text style={styles.authorName}>{item.profiles?.full_name || 'Usuario'}</Text>
                     </View>
-                    {(isOwner || isAdmin) && (
+                    
+                    <View style={styles.topicActions}>
+                      {isOwner && (
+                        <TouchableOpacity style={{padding: 5}} onPress={() => handleEditTopic(item)}>
+                          <SvgIcon name="edit" size={16} color={COLORS.navy} />
+                        </TouchableOpacity>
+                      )}
+                      {(isOwner || isAdmin) && (
                         <TouchableOpacity style={{padding: 5}} onPress={() => handleDeleteTopic(item.id)}>
                             <SvgIcon name="trash" size={16} color={COLORS.gray3} />
                         </TouchableOpacity>
-                    )}
+                      )}
+                    </View>
                   </View>
+
                   <Text style={styles.topicTitle}>{item.title}</Text>
                   <Text style={styles.topicDesc} numberOfLines={2}>{item.description}</Text>
-                  {item.image_url && (
-                    <Text style={styles.hasAttachmentText}>📎 Contiene imagen</Text>
-                  )}
+                  {item.image_url && <Text style={styles.hasAttachmentText}>📎 Contiene imagen</Text>}
+
+                  <View style={styles.votesRow}>
+                    <TouchableOpacity onPress={() => handleVote(item.id, 1)} style={styles.voteBtn}>
+                      <SvgIcon name="thumbs-up" size={16} color={item.userVote === 1 ? COLORS.green : COLORS.navy} />
+                      <Text style={[styles.voteText, item.userVote === 1 && styles.voteActive]}>{item.upvotes || 0}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleVote(item.id, -1)} style={styles.voteBtn}>
+                      <SvgIcon name="thumbs-down" size={16} color={item.userVote === -1 ? '#D32F2F' : COLORS.navy} />
+                      <Text style={[styles.voteText, item.userVote === -1 && styles.voteActive]}>{item.downvotes || 0}</Text>
+                    </TouchableOpacity>
+                  </View>
+
                 </TouchableOpacity>
               );
             }}
           />
         )}
 
-        {/* CREATE VIEW */}
+        {/* CREATE / EDIT VIEW */}
         {view === 'create' && (
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={styles.createContainer}>
@@ -239,7 +299,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
               <View style={styles.imgPickerRow}>
                 <TouchableOpacity style={styles.imgPickerBtn} onPress={() => pickImage(setNewTopicImg)}>
                   <SvgIcon name="camera" size={20} color={COLORS.navy} />
-                  <Text style={styles.imgPickerTxt}>Adjuntar Foto</Text>
+                  <Text style={styles.imgPickerTxt}>{newTopicImg ? 'Cambiar Foto' : 'Adjuntar Foto'}</Text>
                 </TouchableOpacity>
                 {newTopicImg && (
                   <View style={styles.imgPreviewCont}>
@@ -251,8 +311,8 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                 )}
               </View>
 
-              <TouchableOpacity style={styles.submitBtn} onPress={handleCreateTopic} disabled={loading}>
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnTxt}>Publicar Sugerencia</Text>}
+              <TouchableOpacity style={styles.submitBtn} onPress={handleCreateOrUpdateTopic} disabled={loading}>
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnTxt}>{editingTopicId ? 'Guardar Cambios' : 'Publicar Sugerencia'}</Text>}
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -274,12 +334,37 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                       </View>
                       <Text style={styles.authorName}>{selectedTopic.profiles?.full_name || 'Usuario'}</Text>
                     </View>
+                    <View style={styles.topicActions}>
+                      {currentUser?.id === selectedTopic.user_id && (
+                        <TouchableOpacity style={{padding: 5}} onPress={() => handleEditTopic(selectedTopic)}>
+                          <SvgIcon name="edit" size={16} color={COLORS.navy} />
+                        </TouchableOpacity>
+                      )}
+                      {(currentUser?.id === selectedTopic.user_id || isAdmin) && (
+                        <TouchableOpacity style={{padding: 5}} onPress={() => handleDeleteTopic(selectedTopic.id)}>
+                            <SvgIcon name="trash" size={16} color={COLORS.gray3} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                   <Text style={styles.topicTitle}>{selectedTopic.title}</Text>
                   {renderFormattedText(selectedTopic.description)}
+                  
                   {selectedTopic.image_url && (
                     <Image source={{ uri: selectedTopic.image_url }} style={styles.msgImgFull} resizeMode="contain" />
                   )}
+
+                  <View style={styles.votesRow}>
+                    <TouchableOpacity onPress={() => handleVote(selectedTopic.id, 1)} style={styles.voteBtn}>
+                      <SvgIcon name="thumbs-up" size={16} color={selectedTopic.userVote === 1 ? COLORS.green : COLORS.navy} />
+                      <Text style={[styles.voteText, selectedTopic.userVote === 1 && styles.voteActive]}>{selectedTopic.upvotes || 0}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleVote(selectedTopic.id, -1)} style={styles.voteBtn}>
+                      <SvgIcon name="thumbs-down" size={16} color={selectedTopic.userVote === -1 ? '#D32F2F' : COLORS.navy} />
+                      <Text style={[styles.voteText, selectedTopic.userVote === -1 && styles.voteActive]}>{selectedTopic.downvotes || 0}</Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <View style={styles.separator} />
                   <Text style={styles.commentsTitle}>Comentarios</Text>
                 </View>
@@ -297,7 +382,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                           </View>
                           {(isOwner || isAdmin) && (
                               <TouchableOpacity style={{padding: 5}} onPress={async () => {
-                                  Alert.alert('Confirmar', '¿Borrar comentario?', [
+                                  showAlert('Confirmar', '¿Borrar comentario?', [
                                       {text: 'Cancelar', style: 'cancel'},
                                       {text: 'Borrar', style: 'destructive', onPress: async () => {
                                           await deleteComment(item.id);
@@ -346,7 +431,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
             </View>
           </KeyboardAvoidingView>
         )}
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -365,10 +450,16 @@ const styles = StyleSheet.create({
   avatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.green, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   avatarText: { color: COLORS.white, fontFamily: FONTS.heading, fontWeight: 'bold', fontSize: 14 },
   authorName: { fontFamily: FONTS.body, color: COLORS.gray1, fontSize: 14 },
+  topicActions: { flexDirection: 'row', alignItems: 'center' },
   topicTitle: { fontFamily: FONTS.heading, fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 5 },
   topicDesc: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray1, lineHeight: 20 },
   hasAttachmentText: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.green, marginTop: 10 },
   
+  votesRow: { flexDirection: 'row', marginTop: 15, gap: 15 },
+  voteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: COLORS.bg, borderRadius: 8 },
+  voteText: { fontSize: 14, opacity: 0.6 },
+  voteActive: { opacity: 1, fontWeight: 'bold' },
+
   createContainer: { padding: 20 },
   label: { fontFamily: FONTS.heading, fontSize: 14, color: COLORS.navy, fontWeight: 'bold', marginBottom: 8, marginTop: 15 },
   input: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 15, fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy },
