@@ -37,7 +37,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   const [wizardStep, setWizardStep] = useState(1);
   const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
   
-  const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'l/min' as 'l/min' | 'm3/h' | 'l/h' });
+  const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' as 'l/min' | 'm3/h' | 'l/h' });
 
   const [calcResult, setCalcResult] = useState<ExtendedCalcProduct[] | null>(null);
   const [motorResult, setMotorResult] = useState<ExtendedCalcProduct[] | null>(null);
@@ -58,13 +58,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       setMotorResult(null);
       setCalcInput('');
       setCalcMode('');
-      setWaitingForCatalog(false);
       setBombaTab('guiado');
       setWizardStep(1);
       setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
-      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'l/min' });
+      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' });
       setCatStats(null);
       setMotorWarning(null);
+      setWaitingForCatalog(false);
     }
   }, [visible]);
 
