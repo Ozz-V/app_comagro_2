@@ -413,7 +413,15 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               const qmax = (p as any)._q;
               const hmax = (p as any)._h;
               const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
-              (p as any).score = Math.abs(curvaH - targetAlturaInput);
+              
+              // 1. Penalización por exceso de altura en el punto de trabajo
+              const excesoH = Math.abs(curvaH - targetAlturaInput) / targetAlturaInput;
+              
+              // 2. Penalización por sobredimensionamiento bruto del equipo (para evitar sugerir bombas gigantes)
+              const excesoQmax = Math.max(0, (qmax - targetCaudalLpm) / targetCaudalLpm);
+              const excesoHmax = Math.max(0, (hmax - targetAlturaInput) / targetAlturaInput);
+              
+              (p as any).score = excesoH + (excesoQmax * 0.2) + (excesoHmax * 0.2);
            });
         } else {
            if (targetCaudalLpm > 0) {
