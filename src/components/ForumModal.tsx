@@ -16,6 +16,7 @@ interface ForumModalProps {
 export default function ForumModal({ visible, onClose }: ForumModalProps) {
   const [topics, setTopics] = useState<ForumTopic[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   
   const [view, setView] = useState<'list' | 'topic' | 'create'>('list');
   const [selectedTopic, setSelectedTopic] = useState<ForumTopic | null>(null);
@@ -38,21 +39,30 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user));
   }, []);
 
+  // CARACHÉ INTELIGENTE: Solo carga de la red si la lista está vacía. 
+  // Si ya hay datos, los muestra al instante y actualiza silenciosamente en segundo plano.
   useEffect(() => {
     if (visible && view === 'list') {
-      loadTopics();
+      if (topics.length === 0) {
+        loadTopics(false);
+      } else {
+        loadTopics(true); // Background refresh silencioso
+      }
     }
   }, [visible, view]);
 
-  const loadTopics = async () => {
-    setLoading(true);
+  const loadTopics = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
+    else setRefreshing(true);
+
     try {
       const data = await fetchTopics();
       setTopics(data);
     } catch (e: any) {
-      showAlert('Error', 'No se pudieron cargar las sugerencias.');
+      if (!isBackground) showAlert('Error', 'No se pudieron cargar las sugerencias.');
     }
     setLoading(false);
+    setRefreshing(false);
   };
 
   const loadComments = async (topicId: string) => {
@@ -103,6 +113,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
       }
       resetForm();
       setView('list');
+      loadTopics(true); // Refrescar lista con los nuevos cambios
     } catch (e: any) {
       showAlert('Error', e.message || 'No se pudo guardar el tema.');
     }
@@ -147,7 +158,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
           try {
             await deleteTopic(id);
             if (view === 'topic') setView('list');
-            else loadTopics();
+            loadTopics(true);
           } catch (e: any) {
             showAlert('Error', 'No tienes permisos para borrar este tema.');
           }
@@ -215,17 +226,15 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
           ) : <View style={{ width: 44 }} />}
         </View>
 
-        {loading && view === 'list' && <ActivityIndicator size="large" color={COLORS.green} style={{ marginTop: 20 }} />}
-
         {/* LIST VIEW */}
         {view === 'list' && (
           <FlatList
             data={topics}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContainer}
-            refreshing={loading}
-            onRefresh={loadTopics}
-            ListEmptyComponent={!loading ? <Text style={styles.emptyText}>No hay sugerencias aún. ¡Crea la primera!</Text> : null}
+            refreshing={refreshing}
+            onRefresh={() => loadTopics(true)}
+            ListEmptyComponent={!loading ? <Text style={styles.emptyText}>No hay sugerencias aún. ¡Crea la primera!</Text> : <ActivityIndicator size="large" color={COLORS.green} style={{ marginTop: 40 }} />}
             renderItem={({ item }) => {
               const isOwner = currentUser?.id === item.user_id;
               return (
