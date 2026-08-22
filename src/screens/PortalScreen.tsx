@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   gridCardThird: { flex: 1, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   gridIconThird: { marginBottom: 8 },
   gridTitleThird: { fontFamily: FONTS.heading, fontSize: 11, fontWeight: '700', color: COLORS.navy, textAlign: 'center' },
-  fabBtn: { position: 'absolute', bottom: 30, right: 20, flexDirection: 'row', alignItems: 'center' },
+  fabBtn: { position: 'absolute', bottom: 75, right: 20, flexDirection: 'row', alignItems: 'center' },
   // Tipografía del FAB unificada con el resto de la app
   fabText: { fontFamily: FONTS.heading, fontSize: 11, fontWeight: '700', color: COLORS.navy, marginRight: 10 }
 });
