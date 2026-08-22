@@ -14,11 +14,8 @@ import { ParsedProduct } from '../types/models';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
 
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const PROFILE_CACHE_KEY = '@profile_status_cache';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [showForumModal, setShowForumModal] = useState(false);
@@ -34,7 +31,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     isMounted.current = true;
     return () => { isMounted.current = false; };
   }, []);
-
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -63,7 +59,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
           if (val !== null && val !== undefined && val !== '') {
             const s = String(val).trim();
             const sLower = s.toLowerCase();
-            // Excluir valores cero y textos basura
             if (s.length > 0 && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
               specs.push([col, s]);
             }
@@ -84,9 +79,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
             try {
               setAllProdsCache(parseRawProducts(res));
               parsed = true;
-            } catch {
-              // error silenced
-            }
+            } catch {}
           }
           if (!parsed) {
             const res2 = await AsyncStorage.getItem('comagro_productos_v3');
@@ -100,14 +93,10 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     }
   }, [showCalcModal, allProdsCache.length]);
 
-  // Decisión INSTANTÁNEA basada en caché local (AsyncStorage = disco local,
-  // no depende de internet). Se ejecuta apenas monta la pantalla, antes de
-  // que el usuario llegue a ver el portal sin el modal — así se mantiene el
-  // efecto de "el modal ya está ahí" sin necesitar la red para nada.
   async function applyCachedProfileStatus() {
     try {
       const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
-      if (!cached) return; // primera vez que se abre, sin caché: no hay nada que mostrar todavía
+      if (!cached) return;
       const { complete, name, phone } = JSON.parse(cached);
       if (!complete) {
         setProfName(name || '');
@@ -120,12 +109,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     } catch {}
   }
 
-  // Verificación REAL contra Supabase, siempre en segundo plano — nunca
-  // bloquea nada de lo que ya se decidió con la caché. Si el backend dice
-  // algo distinto (por ejemplo, se borró el nombre o el teléfono del
-  // usuario), corrige el estado mostrado y actualiza la caché para la
-  // próxima apertura. Si no hay internet o tarda demasiado, simplemente no
-  // hace nada y se sigue confiando en lo que ya se mostró desde la caché.
   async function checkProfile() {
     const withTimeout = <T,>(promise: PromiseLike<T>): Promise<T> =>
       Promise.race([
@@ -154,10 +137,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         const tutorialSeen = await AsyncStorage.getItem('@tutorial_seen');
         if (!tutorialSeen) setShowTutorial(true);
       }
-    } catch {
-      // Sin internet o timeout: no tocamos nada, seguimos con lo que ya
-      // se decidió desde la caché local.
-    }
+    } catch {}
   }
 
   useEffect(() => {
@@ -165,7 +145,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     syncAnalyticsQueue();
     checkProfile();
   }, []);
-
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -306,5 +285,6 @@ const styles = StyleSheet.create({
   gridIconThird: { marginBottom: 8 },
   gridTitleThird: { fontFamily: FONTS.heading, fontSize: 11, fontWeight: '700', color: COLORS.navy, textAlign: 'center' },
   fabBtn: { position: 'absolute', bottom: 30, right: 20, flexDirection: 'row', alignItems: 'center' },
-  fabText: { color: COLORS.navy, fontFamily: FONTS.heading, fontWeight: '600', marginRight: 10, fontSize: 13 }
+  // Tipografía del FAB unificada con el resto de la app
+  fabText: { fontFamily: FONTS.heading, fontSize: 11, fontWeight: '700', color: COLORS.navy, marginRight: 10 }
 });
