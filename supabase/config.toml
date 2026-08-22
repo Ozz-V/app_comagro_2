@@ -11,6 +11,11 @@ entrypoint = "./functions/chat/index.ts"
 # static_files = [ "./functions/chat/*.html" ]
 
 
+[functions.forum-notify]
+enabled = true
+verify_jwt = false  # Protegida por header x-sync-secret (mismo SYNC_SECRET que sync-plytix). La invocan los Database Webhooks, no la app.
+entrypoint = "./functions/forum-notify/index.ts"
+
 
 [functions.sync-plytix]
 enabled = true
