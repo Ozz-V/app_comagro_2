@@ -21,13 +21,11 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
   const [selectedTopic, setSelectedTopic] = useState<ForumTopic | null>(null);
   const [comments, setComments] = useState<ForumComment[]>([]);
   
-  // Estado para Crear/Editar
   const [newTopicTitle, setNewTopicTitle] = useState('');
   const [newTopicDesc, setNewTopicDesc] = useState('');
   const [newTopicImg, setNewTopicImg] = useState<string | null>(null);
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
 
-  // Estado para Comentarios
   const [newComment, setNewComment] = useState('');
   const [newCommentImg, setNewCommentImg] = useState<string | null>(null);
   
@@ -99,10 +97,8 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
     setLoading(true);
     try {
       if (editingTopicId) {
-        // MODO EDICIÓN: Llama a updateTopic
         await updateTopic(editingTopicId, newTopicTitle.trim(), newTopicDesc.trim(), newTopicImg);
       } else {
-        // MODO CREACIÓN: Llama a createTopic
         await createTopic(newTopicTitle.trim(), newTopicDesc.trim(), newTopicImg);
       }
       resetForm();
@@ -113,13 +109,12 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
     setLoading(false);
   };
 
-  // Función que prepara el formulario para editar
   const handleEditTopic = (topic: ForumTopic) => {
     setEditingTopicId(topic.id);
     setNewTopicTitle(topic.title);
     setNewTopicDesc(topic.description);
     setNewTopicImg(topic.image_url);
-    setView('create'); // Usa la misma vista de creación, pero con los datos llenos
+    setView('create');
   };
 
   const resetForm = () => {
@@ -244,13 +239,11 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                     </View>
                     
                     <View style={styles.topicActions}>
-                      {/* BOTÓN DE EDITAR (Solo dueño) */}
                       {isOwner && (
                         <TouchableOpacity style={{padding: 5}} onPress={() => handleEditTopic(item)}>
                           <SvgIcon name="edit" size={16} color={COLORS.navy} />
                         </TouchableOpacity>
                       )}
-                      {/* BOTÓN DE BORRAR (Dueño o Admin) */}
                       {(isOwner || isAdmin) && (
                         <TouchableOpacity style={{padding: 5}} onPress={() => handleDeleteTopic(item.id)}>
                             <SvgIcon name="trash" size={16} color={COLORS.gray3} />
@@ -319,7 +312,6 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
               </View>
 
               <TouchableOpacity style={styles.submitBtn} onPress={handleCreateOrUpdateTopic} disabled={loading}>
-                {/* BOTÓN CAMBIA DE TEXTO SI ESTÁ EDITANDO */}
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnTxt}>{editingTopicId ? 'Guardar Cambios' : 'Publicar Sugerencia'}</Text>}
               </TouchableOpacity>
             </ScrollView>
@@ -343,7 +335,6 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                       <Text style={styles.authorName}>{selectedTopic.profiles?.full_name || 'Usuario'}</Text>
                     </View>
                     <View style={styles.topicActions}>
-                      {/* BOTÓN DE EDITAR ADENTRO DEL TEMA */}
                       {currentUser?.id === selectedTopic.user_id && (
                         <TouchableOpacity style={{padding: 5}} onPress={() => handleEditTopic(selectedTopic)}>
                           <SvgIcon name="edit" size={16} color={COLORS.navy} />
@@ -466,8 +457,8 @@ const styles = StyleSheet.create({
   
   votesRow: { flexDirection: 'row', marginTop: 15, gap: 15 },
   voteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: COLORS.bg, borderRadius: 8 },
-  voteText: { fontSize: 14, opacity: 0.6 },
-  voteActive: { opacity: 1, fontWeight: 'bold' },
+  voteText: { fontSize: 14, color: COLORS.navy, opacity: 0.7 },
+  voteActive: { opacity: 1, fontWeight: 'bold', color: COLORS.navy },
 
   createContainer: { padding: 20 },
   label: { fontFamily: FONTS.heading, fontSize: 14, color: COLORS.navy, fontWeight: 'bold', marginBottom: 8, marginTop: 15 },
@@ -497,7 +488,7 @@ const styles = StyleSheet.create({
   commentInputBox: { backgroundColor: COLORS.white, borderTopWidth: 1, borderTopColor: COLORS.border, padding: 10 },
   commentInputRow: { flexDirection: 'row', alignItems: 'center' },
   attachBtn: { padding: 10 },
-  commentInput: { flex: 1, backgroundColor: COLORS.bg, borderRadius: 20, paddingHorizontal: 15, paddingVertical: 10, minHeight: 40, maxHeight: 100, fontFamily: FONTS.body },
+  commentInput: { flex: 1, backgroundColor: COLORS.bg, borderRadius: 20, paddingHorizontal: 15, paddingVertical: 10, minHeight: 40, maxHeight: 100, fontFamily: FONTS.body, color: COLORS.navy },
   sendBtn: { backgroundColor: COLORS.green, width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginLeft: 10 },
   
   imgPreviewContSmall: { position: 'relative', width: 60, height: 60, marginBottom: 10, marginLeft: 50 },
