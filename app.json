@@ -20,8 +20,10 @@
       "package": "com.comagro.catalogo",
       "versionCode": 120,
       "permissions": [
-        "REQUEST_INSTALL_PACKAGES"
+        "REQUEST_INSTALL_PACKAGES",
+        "POST_NOTIFICATIONS"
       ],
+      "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -83,6 +85,13 @@
           "android": {
             "ndkVersion": "26.1.10909125"
           }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1f2f6b"
         }
       ]
     ],
