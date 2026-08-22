@@ -8,7 +8,7 @@ import {
   updateTopicTitle,
   uploadForumImage,
 } from '../src/utils/forum';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 
 // --- Mock de supabase ---
@@ -46,7 +46,7 @@ jest.mock('../src/supabase', () => ({
   },
 }));
 
-jest.mock('expo-file-system', () => ({
+jest.mock('expo-file-system/legacy', () => ({
   getInfoAsync: jest.fn(),
   readAsStringAsync: jest.fn(),
 }));
