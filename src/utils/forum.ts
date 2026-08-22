@@ -1,5 +1,7 @@
 import { supabase } from '../supabase';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { decode } from 'base64-arraybuffer';
 
 export interface ForumTopic {
   id: string;
@@ -26,30 +28,36 @@ export interface ForumComment {
 }
 
 export async function uploadForumImage(uri: string): Promise<string | null> {
-  // OJO: antes tenías .catch(() => null) acá, que se tragaba
-  // cualquier error real de FileSystem y hacía que la función
-  // siempre devolviera null. Lo saco para que el error real suba.
   const fileInfo = await FileSystem.getInfoAsync(uri);
 
+  // Si no existe información del archivo o el archivo no existe, retornamos null
   if (!fileInfo || fileInfo.exists === false) {
     return null;
   }
 
+  // Validamos el límite de 2MB
   if (fileInfo.size && fileInfo.size > 2097152) {
     throw new Error('La imagen excede los 2MB permitidos.');
   }
 
-  const ext = uri.split('.').pop() || 'jpg';
-  const filename = `${Date.now()}.${ext}`;
-
-  const formData = new FormData();
-  formData.append('file', {
+  // Comprimimos la imagen antes de subirla
+  const manipulated = await ImageManipulator.manipulateAsync(
     uri,
-    name: filename,
-    type: `image/${ext === 'png' ? 'png' : 'jpeg'}`
+    [],
+    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+  );
+
+  // Leemos el archivo comprimido como base64
+  const base64 = await FileSystem.readAsStringAsync(manipulated.uri, {
+    encoding: 'base64',
   } as any);
 
-  const { data, error } = await supabase.storage.from('forum_images').upload(filename, formData);
+  const filename = `${Date.now()}.jpg`;
+  const arrayBuffer = decode(base64);
+
+  const { data, error } = await supabase.storage
+    .from('forum_images')
+    .upload(filename, arrayBuffer, { contentType: 'image/jpeg' });
 
   if (error) throw error;
 
