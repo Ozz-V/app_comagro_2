@@ -28,10 +28,11 @@ export interface ForumComment {
 export async function uploadForumImage(uri: string): Promise<string | null> {
   const fileInfo = await FileSystem.getInfoAsync(uri);
   
-  // Agregamos el 'if (!fileInfo)' para que si el test devuelve undefined, no explote
-  if (!fileInfo || !fileInfo.exists) return null;
+  // Solo devolvemos null si el sistema de archivos dice explícitamente que NO existe
+  if (fileInfo && fileInfo.exists === false) return null;
   
-  if (fileInfo.size && fileInfo.size > 2097152) { // 2MB
+  // Validamos el tamaño solo si fileInfo trae el tamaño
+  if (fileInfo && fileInfo.size && fileInfo.size > 2097152) { // 2MB
     throw new Error('La imagen excede los 2MB permitidos.');
   }
 
