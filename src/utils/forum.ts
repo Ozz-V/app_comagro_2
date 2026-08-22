@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import * as FileSystem from 'expo-file-system';
 
 export interface ForumTopic {
   id: string;
@@ -24,23 +25,34 @@ export interface ForumComment {
   profiles?: { full_name: string; avatar_url?: string | null };
 }
 
-// Exportamos esta función para que tests/Forum.test.ts no falle
-export async function uploadForumImage(uri: string): Promise<string> {
-  const ext = uri.split('.').pop();
-  const filename = `${Date.now()}.${ext}`;
-  const response = await fetch(uri);
-  const blob = await response.blob();
+export async function uploadForumImage(uri: string): Promise<string | null> {
+  const fileInfo = await FileSystem.getInfoAsync(uri);
+  if (!fileInfo.exists) return null;
   
-  const { data, error } = await supabase.storage.from('forum_images').upload(filename, blob);
+  if (fileInfo.size && fileInfo.size > 2097152) { // 2MB
+    throw new Error('La imagen excede los 2MB permitidos.');
+  }
+
+  const ext = uri.split('.').pop() || 'jpg';
+  const filename = `${Date.now()}.${ext}`;
+  
+  const formData = new FormData();
+  formData.append('file', {
+    uri,
+    name: filename,
+    type: `image/${ext === 'png' ? 'png' : 'jpeg'}`
+  } as any);
+
+  const { data, error } = await supabase.storage.from('forum_images').upload(filename, formData);
   if (error) throw error;
   
-  const { data: urlData } = supabase.storage.from('forum_images').getPublicUrl(data.path);
+  const { data: urlData } = supabase.storage.from('forum_images').getPublicUrl(data?.path || filename);
   return urlData.publicUrl;
 }
 
 export async function fetchTopics(): Promise<ForumTopic[]> {
-  const { data: userData } = await supabase.auth.getUser();
-  const currentUserId = userData.user?.id;
+  const authResponse = await supabase.auth.getUser();
+  const currentUserId = authResponse?.data?.user?.id;
 
   const { data, error } = await supabase
     .from('forum_topics')
@@ -88,41 +100,53 @@ export async function fetchComments(topicId: string): Promise<ForumComment[]> {
   return data as any[];
 }
 
-// imageUri es opcional para no romper las pruebas viejas
 export async function createTopic(title: string, description: string, imageUri?: string | null) {
+  const authResponse = await supabase.auth.getUser();
+  const user = authResponse?.data?.user;
+  
+  if (!user) throw new Error('No estás autenticado');
+
   let image_url = null;
   if (imageUri) {
      image_url = await uploadForumImage(imageUri);
   }
-  const { data: user } = await supabase.auth.getUser();
-  const { error } = await supabase.from('forum_topics').insert({
-    user_id: user.user?.id,
+  
+  const { data, error } = await supabase.from('forum_topics').insert({
+    user_id: user.id,
     title,
     description,
     image_url
-  });
-  if (error) throw error;
+  }).select().single();
+
+  if (error) {
+    if (error.message && error.message.includes('5 temas')) {
+      throw new Error('Has alcanzado el límite máximo de 5 temas creados.');
+    }
+    throw error;
+  }
+  
+  return data;
 }
 
-// imageUri es opcional para no romper las pruebas viejas
 export async function updateTopic(id: string, title: string, description: string, imageUri?: string | null) {
   let image_url = imageUri;
   if (imageUri && !imageUri.startsWith('http')) {
-     image_url = await uploadForumImage(imageUri);
+     image_url = await uploadForumImage(imageUri) || null;
   }
-  const { error } = await supabase.from('forum_topics').update({
+  const { data, error } = await supabase.from('forum_topics').update({
     title,
     description,
     image_url
-  }).eq('id', id);
+  }).eq('id', id).select().single();
   
   if (error) throw error;
+  return data;
 }
 
-// Restauramos esta función específica porque el archivo de test la busca
 export async function updateTopicTitle(id: string, title: string) {
-  const { error } = await supabase.from('forum_topics').update({ title }).eq('id', id);
+  const { data, error } = await supabase.from('forum_topics').update({ title }).eq('id', id).select().single();
   if (error) throw error;
+  return data;
 }
 
 export async function deleteTopic(id: string) {
@@ -130,20 +154,26 @@ export async function deleteTopic(id: string) {
   if (error) throw error;
 }
 
-// imageUri es opcional para no romper las pruebas viejas
 export async function createComment(topicId: string, content: string, imageUri?: string | null) {
+  const authResponse = await supabase.auth.getUser();
+  const user = authResponse?.data?.user;
+  
+  if (!user) throw new Error('No estás autenticado');
+
   let image_url = null;
   if (imageUri) {
      image_url = await uploadForumImage(imageUri);
   }
-  const { data: user } = await supabase.auth.getUser();
-  const { error } = await supabase.from('forum_comments').insert({
+  
+  const { data, error } = await supabase.from('forum_comments').insert({
     topic_id: topicId,
-    user_id: user.user?.id,
+    user_id: user.id,
     content,
     image_url
-  });
+  }).select().single();
+  
   if (error) throw error;
+  return data;
 }
 
 export async function deleteComment(id: string) {
@@ -152,9 +182,11 @@ export async function deleteComment(id: string) {
 }
 
 export async function voteTopic(topicId: string, voteType: 1 | -1) {
-  const { data: user } = await supabase.auth.getUser();
-  if (!user.user) return;
-  const userId = user.user.id;
+  const authResponse = await supabase.auth.getUser();
+  const user = authResponse?.data?.user;
+  if (!user) throw new Error('No estás autenticado');
+  
+  const userId = user.id;
 
   const { data: existing } = await supabase
     .from('forum_topic_votes')
