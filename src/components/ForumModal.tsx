@@ -39,14 +39,12 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
     supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user));
   }, []);
 
-  // CARACHÉ INTELIGENTE: Solo carga de la red si la lista está vacía. 
-  // Si ya hay datos, los muestra al instante y actualiza silenciosamente en segundo plano.
   useEffect(() => {
     if (visible && view === 'list') {
       if (topics.length === 0) {
         loadTopics(false);
       } else {
-        loadTopics(true); // Background refresh silencioso
+        loadTopics(true);
       }
     }
   }, [visible, view]);
@@ -113,7 +111,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
       }
       resetForm();
       setView('list');
-      loadTopics(true); // Refrescar lista con los nuevos cambios
+      loadTopics(true);
     } catch (e: any) {
       showAlert('Error', e.message || 'No se pudo guardar el tema.');
     }
@@ -292,6 +290,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                 value={newTopicTitle}
                 onChangeText={setNewTopicTitle}
                 placeholder="Ej. Mejorar el filtro de calculadoras"
+                placeholderTextColor={COLORS.gray1}
                 maxLength={100}
               />
               <Text style={styles.label}>Descripción (máx 450 caracteres)</Text>
@@ -300,6 +299,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                 value={newTopicDesc}
                 onChangeText={setNewTopicDesc}
                 placeholder="Explica tu sugerencia... (usa *texto* para negrita)"
+                placeholderTextColor={COLORS.gray1}
                 multiline
                 maxLength={450}
                 textAlignVertical="top"
@@ -430,6 +430,7 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
                     value={newComment}
                     onChangeText={setNewComment}
                     placeholder="Escribe tu opinión..."
+                    placeholderTextColor={COLORS.gray1}
                     maxLength={450}
                     multiline
                   />
