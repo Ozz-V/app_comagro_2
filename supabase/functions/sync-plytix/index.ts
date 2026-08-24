@@ -260,24 +260,31 @@ async function handleBatchedNotifications(
     }
 
     // Llegó el momento de mandar la notificación agrupada.
+    // Traemos TODOS los perfiles (con o sin token) porque el historial en la
+    // app (notifications_log) tiene que quedar disponible para todos, aunque
+    // el push en sí solo se mande a quienes tienen expo_push_token.
     const { data: profiles, error: profilesError } = await supaAdmin
       .from('profiles')
-      .select('expo_push_token')
-      .not('expo_push_token', 'is', null);
+      .select('id, expo_push_token');
 
     if (profilesError) {
       console.error('Error leyendo perfiles para push:', profilesError.message);
       return;
     }
 
-    if (profiles && profiles.length > 0) {
-      const pushMessages = profiles.map((prof: { expo_push_token: string }) => ({
+    const notifTitle = '¡Catálogo actualizado!';
+    const notifBody = pendingCount === 1
+      ? 'Se agregó o actualizó 1 producto. ¡Revisalo!'
+      : `Se agregaron o actualizaron ${pendingCount} productos. ¡Revisalos!`;
+
+    const profilesWithToken = (profiles || []).filter((p: { expo_push_token: string | null }) => !!p.expo_push_token);
+
+    if (profilesWithToken.length > 0) {
+      const pushMessages = profilesWithToken.map((prof: { expo_push_token: string }) => ({
         to: prof.expo_push_token,
         sound: 'default',
-        title: '¡Catálogo actualizado!',
-        body: pendingCount === 1
-          ? 'Se agregó o actualizó 1 producto. ¡Revisalo!'
-          : `Se agregaron o actualizaron ${pendingCount} productos. ¡Revisalos!`,
+        title: notifTitle,
+        body: notifBody,
         data: { count: pendingCount },
       }));
 
@@ -309,11 +316,27 @@ async function handleBatchedNotifications(
         if (ticketErrors.length > 0) {
           console.error('push_send_ticket_errors', JSON.stringify(ticketErrors));
         } else {
-          console.log(`Push agrupado enviado OK a ${profiles.length} dispositivo(s), ${pendingCount} producto(s).`);
+          console.log(`Push agrupado enviado OK a ${profilesWithToken.length} dispositivo(s), ${pendingCount} producto(s).`);
         }
       }
     } else {
       console.log('No hay dispositivos con token registrado, se omite el push.');
+    }
+
+    // Historial: una fila por cada usuario (tenga token o no), para que la
+    // pantalla de Notificaciones de la app tenga siempre el registro completo.
+    if (profiles && profiles.length > 0) {
+      const logRows = profiles.map((p: { id: string }) => ({
+        user_id: p.id,
+        type: 'plytix',
+        title: notifTitle,
+        body: notifBody,
+        data: { count: pendingCount },
+      }));
+      const { error: logError } = await supaAdmin.from('notifications_log').insert(logRows);
+      if (logError) {
+        console.error('notifications_log_insert_error', logError.message);
+      }
     }
 
     // Reseteamos el contador para la próxima tanda.
