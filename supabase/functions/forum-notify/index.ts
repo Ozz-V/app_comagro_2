@@ -48,6 +48,17 @@ async function sendPush(tokens: string[], title: string, body: string, data: Rec
   }
 }
 
+// Inserta el historial en notifications_log: una fila por destinatario,
+// tenga o no token de push (así el historial en la app queda completo
+// incluso si alguien todavía no aceptó las notificaciones push).
+// deno-lint-ignore no-explicit-any
+async function logNotifications(supaAdmin: any, userIds: string[], type: string, title: string, body: string, data: Record<string, unknown>) {
+  if (userIds.length === 0) return;
+  const rows = userIds.map(id => ({ user_id: id, type, title, body, data }));
+  const { error } = await supaAdmin.from('notifications_log').insert(rows);
+  if (error) console.error('notifications_log_insert_error', error.message);
+}
+
 Deno.serve(async (req: Request) => {
   try {
     // Auth check (mismo secreto que ya usa sync-plytix)
@@ -93,17 +104,23 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
       }
 
-      const tokens = (admins || [])
-        .filter((a: { id: string }) => a.id !== record.user_id)
+      const recipients = (admins || []).filter((a: { id: string }) => a.id !== record.user_id);
+      const tokens = recipients
         // deno-lint-ignore no-explicit-any
         .map((a: any) => a.expo_push_token)
         .filter(Boolean);
 
-      await sendPush(
-        tokens,
-        'Nueva sugerencia',
-        record.title ? `Nuevo tema: "${record.title}"` : 'Se creó un nuevo tema en Sugerencias.',
-        { type: 'forum_topic', topicId: record.id },
+      const notifTitle = 'Nueva sugerencia';
+      const notifBody = record.title ? `Nuevo tema: "${record.title}"` : 'Se creó un nuevo tema en Sugerencias.';
+
+      await sendPush(tokens, notifTitle, notifBody, { type: 'forum_topic', topicId: record.id });
+      await logNotifications(
+        supaAdmin,
+        recipients.map((a: { id: string }) => a.id),
+        'forum_topic',
+        notifTitle,
+        notifBody,
+        { topicId: record.id },
       );
 
       return new Response(JSON.stringify({ ok: true, notified: tokens.length }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -141,13 +158,11 @@ Deno.serve(async (req: Request) => {
       }
 
       const tokens = owner?.expo_push_token ? [owner.expo_push_token] : [];
+      const notifTitle = 'Nuevo comentario';
+      const notifBody = `Alguien comentó en tu tema "${topic.title}".`;
 
-      await sendPush(
-        tokens,
-        'Nuevo comentario',
-        `Alguien comentó en tu tema "${topic.title}".`,
-        { type: 'forum_comment', topicId: topic.id },
-      );
+      await sendPush(tokens, notifTitle, notifBody, { type: 'forum_comment', topicId: topic.id });
+      await logNotifications(supaAdmin, [topic.user_id], 'forum_comment', notifTitle, notifBody, { topicId: topic.id });
 
       return new Response(JSON.stringify({ ok: true, notified: tokens.length }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
