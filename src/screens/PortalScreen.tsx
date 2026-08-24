@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
@@ -209,6 +209,27 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
               <SvgIcon name="config" size={24} color={COLORS.navy} />
             </View>
             <Text style={styles.gridTitleThird}>Configuración</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.gridRow3, { marginTop: 10 }]}>
+          <TouchableOpacity style={styles.gridCardThird} activeOpacity={0.8} onPress={() => setShowForumModal(true)}>
+            <View style={styles.gridIconThird}>
+              <SvgIcon name="chatBubble" size={24} color={COLORS.navy} />
+            </View>
+            <Text style={styles.gridTitleThird}>Sugerencias</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.gridCardThird} activeOpacity={0.8} onPress={() => navigation.navigate('Notificaciones')}>
+            <View style={styles.gridIconThird}>
+              <SvgIcon name="campana" size={24} color={COLORS.navy} />
+            </View>
+            <Text style={styles.gridTitleThird}>Notificaciones</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.gridCardThird} activeOpacity={0.8} onPress={() => Alert.alert('Próximamente', 'Las estadísticas se van a mover a esta pantalla en el próximo paso.')}>
+            <View style={styles.gridIconThird}>
+              <SvgIcon name="chart" size={24} color={COLORS.navy} />
+            </View>
+            <Text style={styles.gridTitleThird}>Estadísticas</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
