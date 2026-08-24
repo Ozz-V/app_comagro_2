@@ -64,7 +64,7 @@ async function computeHash(value: any): Promise<string> {
 // GEMINI_API_KEY con una sola key, también funciona igual.)
 function loadGeminiKeys(): string[] {
   const keys: string[] = [];
-  
+
   // 1. GEMINI_API_KEYS (comma separated)
   const commaList = Deno.env.get('GEMINI_API_KEYS');
   if (commaList) {
@@ -74,7 +74,7 @@ function loadGeminiKeys(): string[] {
       return [...new Set(keys)];
     }
   }
-  
+
   // 2. Numbered variables
   let hasNumberedKeys = false;
   let i = 1;
@@ -85,17 +85,17 @@ function loadGeminiKeys(): string[] {
     hasNumberedKeys = true;
     i++;
   }
-  
+
   if (hasNumberedKeys) {
     return [...new Set(keys)];
   }
-  
+
   // 3. Fallback to singular
   const k0 = Deno.env.get('GEMINI_API_KEY');
   if (k0 && k0.trim()) {
     keys.push(k0.trim());
   }
-  
+
   return [...new Set(keys)];
 }
 
@@ -208,6 +208,124 @@ async function fetchGeminiWithRotation(
   const err = new Error(`Las ${keys.length} key(s) de Gemini configuradas fallaron (último status ${lastStatus}). Último error: ${lastErrorText}`);
   (err as Error & { status?: number }).status = lastStatus;
   throw err;
+}
+
+// ---------------------------------------------------------------------------
+// NOTIFICACIONES PUSH AGRUPADAS (BATCH)
+// ---------------------------------------------------------------------------
+// En vez de mandar un push cada vez que el cron procesa un lote (lo cual, con
+// una carga grande de Plytix, mandaría una notificación cada ~5 minutos hasta
+// vaciar la cola), acumulamos un contador en la tabla `notification_batch` y
+// recién mandamos UNA notificación agrupada cuando:
+//   a) la cola queda en 0 (ya no hay más productos pendientes -> "terminó la
+//      tanda"), o
+//   b) pasó 1 hora desde que empezó a acumularse la tanda actual (por si el
+//      feed nunca llega a vaciarse del todo, para no dejar al usuario sin
+//      avisos indefinidamente).
+// La tabla tiene una sola fila (id = 1) que funciona como "estado global".
+const NOTIFICATION_WINDOW_MINUTES = 60;
+
+async function handleBatchedNotifications(
+  // deno-lint-ignore no-explicit-any
+  supaAdmin: any,
+  newlyProcessedCount: number,
+  remainingInQueue: number,
+) {
+  if (newlyProcessedCount <= 0) return;
+
+  try {
+    const { data: state } = await supaAdmin
+      .from('notification_batch')
+      .select('pending_count, window_started_at')
+      .eq('id', 1)
+      .maybeSingle();
+
+    const now = new Date();
+    const pendingCount = (state?.pending_count || 0) + newlyProcessedCount;
+    const windowStart = state?.window_started_at ? new Date(state.window_started_at) : now;
+    const windowAgeMinutes = (now.getTime() - windowStart.getTime()) / 60000;
+
+    const queueDrained = remainingInQueue === 0;
+    const windowExpired = windowAgeMinutes >= NOTIFICATION_WINDOW_MINUTES;
+
+    if (!queueDrained && !windowExpired) {
+      // Todavía puede venir más contenido en breve: seguimos acumulando sin notificar.
+      await supaAdmin.from('notification_batch').upsert({
+        id: 1,
+        pending_count: pendingCount,
+        window_started_at: windowStart.toISOString(),
+      });
+      console.log(`Notificación en espera: ${pendingCount} producto(s) acumulados (cola: ${remainingInQueue} pendientes).`);
+      return;
+    }
+
+    // Llegó el momento de mandar la notificación agrupada.
+    const { data: profiles, error: profilesError } = await supaAdmin
+      .from('profiles')
+      .select('expo_push_token')
+      .not('expo_push_token', 'is', null);
+
+    if (profilesError) {
+      console.error('Error leyendo perfiles para push:', profilesError.message);
+      return;
+    }
+
+    if (profiles && profiles.length > 0) {
+      const pushMessages = profiles.map((prof: { expo_push_token: string }) => ({
+        to: prof.expo_push_token,
+        sound: 'default',
+        title: '¡Catálogo actualizado!',
+        body: pendingCount === 1
+          ? 'Se agregó o actualizó 1 producto. ¡Revisalo!'
+          : `Se agregaron o actualizaron ${pendingCount} productos. ¡Revisalos!`,
+        data: { count: pendingCount },
+      }));
+
+      const pushRes = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Accept-encoding': 'gzip, deflate',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(pushMessages),
+      });
+
+      // Leemos la respuesta SIEMPRE, para que un fallo de credenciales o de
+      // tokens inválidos quede visible en los logs en vez de desaparecer.
+      let pushJson: unknown = null;
+      try {
+        pushJson = await pushRes.json();
+      } catch (parseErr) {
+        console.error('push_send_parse_error', String(parseErr));
+      }
+
+      if (!pushRes.ok) {
+        console.error('push_send_http_error', pushRes.status, JSON.stringify(pushJson));
+      } else if (pushJson && typeof pushJson === 'object' && Array.isArray((pushJson as { data?: unknown }).data)) {
+        // deno-lint-ignore no-explicit-any
+        const tickets = (pushJson as any).data as any[];
+        const ticketErrors = tickets.filter(t => t?.status === 'error');
+        if (ticketErrors.length > 0) {
+          console.error('push_send_ticket_errors', JSON.stringify(ticketErrors));
+        } else {
+          console.log(`Push agrupado enviado OK a ${profiles.length} dispositivo(s), ${pendingCount} producto(s).`);
+        }
+      }
+    } else {
+      console.log('No hay dispositivos con token registrado, se omite el push.');
+    }
+
+    // Reseteamos el contador para la próxima tanda.
+    await supaAdmin.from('notification_batch').upsert({
+      id: 1,
+      pending_count: 0,
+      window_started_at: null,
+      last_sent_at: now.toISOString(),
+    });
+  } catch (err) {
+    console.error('Error en el manejo de notificaciones agrupadas:', err);
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -475,36 +593,14 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
        }
     }
 
-    // 6. Enviar notificaciones push si hubo productos procesados exitosamente
-    if (processedSkus.length > 0) {
-      try {
-        const { data: profiles } = await supaAdmin.from('profiles').select('expo_push_token').not('expo_push_token', 'is', null);
-        if (profiles && profiles.length > 0) {
-          const pushMessages = profiles.map(prof => ({
-            to: prof.expo_push_token,
-            sound: 'default',
-            title: '¡Nuevo Producto o Actualización!',
-            body: `Se han procesado ${processedSkus.length} producto(s) en el catálogo, incluyendo SKU: ${processedSkus[0]}. ¡Revisalo!`,
-            data: { skus: processedSkus },
-          }));
-
-          await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: {
-              Accept: 'application/json',
-              'Accept-encoding': 'gzip, deflate',
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(pushMessages),
-          });
-        }
-      } catch (err) {
-        console.error('Error enviando push notifications:', err);
-      }
-    }
-
-    // Contar cuántos quedan pendientes en la cola total
+    // Contar cuántos quedan pendientes en la cola total (lo necesitamos ANTES
+    // de decidir si mandamos la notificación agrupada, para saber si la tanda
+    // ya terminó o si todavía falta procesar más).
     const { count: remainingCount } = await supaAdmin.from('plytix_queue').select('*', { count: 'exact', head: true }).eq('status', 'pending');
+
+    // 6. Notificaciones push AGRUPADAS: acumula en este lote y recién manda
+    // una sola notificación cuando la cola se vacía o pasó 1 hora acumulando.
+    await handleBatchedNotifications(supaAdmin, processedSkus.length, remainingCount || 0);
 
     return new Response(JSON.stringify({
         message: 'Lote procesado exitosamente',
