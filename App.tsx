@@ -39,6 +39,7 @@ import ChatScreen from './src/screens/ChatScreen';
 import ProductViewerScreen from './src/screens/ProductViewerScreen';
 import LottieSplashScreen from './src/screens/LottieSplashScreen';
 import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 
@@ -350,6 +351,7 @@ function App() {
                   <Stack.Screen name="Productos" component={ProductosScreen} />
                   <Stack.Screen name="Config"    component={ConfigScreen} />
                   <Stack.Screen name="ChatScreen" component={ChatScreen} />
+                  <Stack.Screen name="Notificaciones" component={NotificationsScreen} />
                   <Stack.Screen 
                     name="ProductViewer" 
                     component={ProductViewerScreen} 
