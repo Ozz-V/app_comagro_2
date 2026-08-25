@@ -67,7 +67,15 @@ export default function NotificationsScreen({ navigation }: { navigation: { goBa
 
   useEffect(() => { cargar(false); }, [cargar]);
 
+  const isNavigatingRef = React.useRef(false);
+
   function manejarToqueNotificacion(item: NotifRow) {
+    // Evita que un doble-toque (o un toque mientras la pantalla todavía
+    // está transicionando) empuje más de una pantalla a la pila de
+    // navegación — eso era lo que generaba "copias" acumuladas al volver
+    // atrás.
+    if (isNavigatingRef.current) return;
+
     if (!item.read_at) {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, read_at: new Date().toISOString() } : i));
       supabase.from('notifications_log').update({ read_at: new Date().toISOString() }).eq('id', item.id).then();
@@ -78,12 +86,24 @@ export default function NotificationsScreen({ navigation }: { navigation: { goBa
 
     if (isForum) {
       if (!item.data || !item.data.topicId) return;
-      navigation.navigate('Portal'); 
-      DeviceEventEmitter.emit('OPEN_FORUM', { topicId: item.data.topicId }); 
+      isNavigatingRef.current = true;
+      // popToTop() en vez de navigate('Portal'): sin importar cuántas
+      // pantallas haya apiladas encima (por ejemplo si hubo algún
+      // doble-toque antes), siempre colapsa a la única instancia de Portal
+      // que existe en la base de la pila.
+      (navigation as { popToTop?: () => void }).popToTop?.();
+      setTimeout(() => {
+        DeviceEventEmitter.emit('OPEN_FORUM', { topicId: item.data.topicId });
+        isNavigatingRef.current = false;
+      }, 50);
     } else if (isProducts) {
       if (!item.data || !item.data.skus || !Array.isArray(item.data.skus) || item.data.skus.length === 0) return;
-      navigation.navigate('Portal'); 
-      DeviceEventEmitter.emit('OPEN_NEW_PRODUCTS', { skus: item.data.skus }); 
+      isNavigatingRef.current = true;
+      (navigation as { popToTop?: () => void }).popToTop?.();
+      setTimeout(() => {
+        DeviceEventEmitter.emit('OPEN_NEW_PRODUCTS', { skus: item.data.skus });
+        isNavigatingRef.current = false;
+      }, 50);
     }
   }
 
