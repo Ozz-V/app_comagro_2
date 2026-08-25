@@ -11,13 +11,8 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 interface ForumModalProps {
   visible: boolean;
   onClose: () => void;
-  // Abre directamente un tema desde una notificación.
   openTopicId?: string | null;
-  // Si la notificación corresponde a un comentario, permite llevar
-  // el hilo directamente hasta ese comentario.
   openCommentId?: string | null;
-  // Cuando viene desde Notificaciones, el botón atrás debe cerrar
-  // completamente el modal y volver a la lista de notificaciones.
   notificationMode?: boolean;
 }
 
@@ -31,11 +26,11 @@ export default function ForumModal({
   const [topics, setTopics] = useState<ForumTopic[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   const [view, setView] = useState<'list' | 'topic' | 'create'>('list');
   const [selectedTopic, setSelectedTopic] = useState<ForumTopic | null>(null);
   const [comments, setComments] = useState<ForumComment[]>([]);
-  
+
   const [newTopicTitle, setNewTopicTitle] = useState('');
   const [newTopicDesc, setNewTopicDesc] = useState('');
   const [newTopicImg, setNewTopicImg] = useState<string | null>(null);
@@ -43,11 +38,9 @@ export default function ForumModal({
 
   const [newComment, setNewComment] = useState('');
   const [newCommentImg, setNewCommentImg] = useState<string | null>(null);
-  
+
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // Ref de la lista de comentarios para poder llevar el hilo hasta
-  // el comentario exacto que originó la notificación.
   const commentsListRef = useRef<FlatList<ForumComment>>(null);
 
   const insets = useSafeAreaInsets();
@@ -67,9 +60,6 @@ export default function ForumModal({
     }
   }, [visible, view]);
 
-  // Cuando se abre desde una notificación, entra directamente al tema.
-  // La comprobación de existencia de tema/comentario se hace antes en
-  // NotificationsScreen; aquí solamente abrimos el contenido válido.
   const lastOpenedNotificationRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -195,7 +185,7 @@ export default function ForumModal({
   const handleCreateComment = async () => {
     if (!selectedTopic) return;
     if (!newComment.trim() && !newCommentImg) return;
-    
+
     setLoading(true);
     try {
       await createComment(selectedTopic.id, newComment.trim(), newCommentImg);
@@ -207,7 +197,7 @@ export default function ForumModal({
     }
     setLoading(false);
   };
-  
+
   const handleDeleteTopic = async (id: string) => {
     showAlert('Confirmar', '¿Borrar este tema?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -263,8 +253,6 @@ export default function ForumModal({
         <View style={styles.header}>
           <TouchableOpacity onPress={() => {
             if (notificationMode) {
-              // Desde una notificación el único destino válido al volver
-              // es la lista de Notificaciones.
               setView('list');
               resetForm();
               onClose();
@@ -280,11 +268,11 @@ export default function ForumModal({
           }} style={styles.backBtn}>
             <SvgIcon name="arrow-left" size={24} color={COLORS.navy} />
           </TouchableOpacity>
-          
+
           <Text style={styles.headerTitle}>
             {view === 'list' ? 'Sugerencias' : view === 'create' ? (editingTopicId ? 'Editar Tema' : 'Crear Tema') : 'Hilo'}
           </Text>
-          
+
           {view === 'list' ? (
             <TouchableOpacity onPress={() => { resetForm(); setView('create'); }} style={styles.headerActionBtn}>
               <SvgIcon name="plus" size={24} color={COLORS.navy} />
@@ -292,7 +280,6 @@ export default function ForumModal({
           ) : <View style={{ width: 44 }} />}
         </View>
 
-        {/* LIST VIEW */}
         {view === 'list' && (
           <FlatList
             data={topics}
@@ -312,7 +299,7 @@ export default function ForumModal({
                       </View>
                       <Text style={styles.authorName}>{item.profiles?.full_name || 'Usuario'}</Text>
                     </View>
-                    
+
                     <View style={styles.topicActions}>
                       {isOwner && (
                         <TouchableOpacity style={{padding: 5}} onPress={() => handleEditTopic(item)}>
@@ -341,14 +328,12 @@ export default function ForumModal({
                       <Text style={[styles.voteText, item.userVote === -1 && styles.voteActive]}>{item.downvotes || 0}</Text>
                     </TouchableOpacity>
                   </View>
-
                 </TouchableOpacity>
               );
             }}
           />
         )}
 
-        {/* CREATE / EDIT VIEW */}
         {view === 'create' && (
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={styles.createContainer}>
@@ -372,7 +357,7 @@ export default function ForumModal({
                 maxLength={450}
                 textAlignVertical="top"
               />
-              
+
               <View style={styles.imgPickerRow}>
                 <TouchableOpacity style={styles.imgPickerBtn} onPress={() => pickImage(setNewTopicImg)}>
                   <SvgIcon name="camera" size={20} color={COLORS.navy} />
@@ -395,7 +380,6 @@ export default function ForumModal({
           </KeyboardAvoidingView>
         )}
 
-        {/* TOPIC VIEW */}
         {view === 'topic' && selectedTopic && (
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
             <FlatList
@@ -435,7 +419,7 @@ export default function ForumModal({
                   </View>
                   <Text style={styles.topicTitle}>{selectedTopic.title}</Text>
                   {renderFormattedText(selectedTopic.description)}
-                  
+
                   {selectedTopic.image_url && (
                     <Image source={{ uri: selectedTopic.image_url }} style={styles.msgImgFull} resizeMode="contain" />
                   )}
@@ -541,7 +525,7 @@ const styles = StyleSheet.create({
   topicTitle: { fontFamily: FONTS.heading, fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 5 },
   topicDesc: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray1, lineHeight: 20 },
   hasAttachmentText: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.green, marginTop: 10 },
-  
+
   votesRow: { flexDirection: 'row', marginTop: 15, gap: 15 },
   voteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: COLORS.bg, borderRadius: 8 },
   voteText: { fontSize: 14, color: COLORS.navy, opacity: 0.7 },
@@ -567,7 +551,7 @@ const styles = StyleSheet.create({
   msgImgFull: { width: '100%', height: 200, marginTop: 15, borderRadius: 8 },
   separator: { height: 1, backgroundColor: COLORS.border, marginVertical: 15 },
   commentsTitle: { fontFamily: FONTS.heading, fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 15 },
-  
+
   commentCard: { backgroundColor: COLORS.white, padding: 15, borderRadius: 12, marginBottom: 10, marginLeft: 20, borderWidth: 1, borderColor: COLORS.border },
   commentAuthorName: { fontFamily: FONTS.body, color: COLORS.gray1, fontSize: 13 },
   msgImgSmall: { width: 100, height: 100, marginTop: 10, borderRadius: 8 },
@@ -577,7 +561,7 @@ const styles = StyleSheet.create({
   attachBtn: { padding: 10 },
   commentInput: { flex: 1, backgroundColor: COLORS.bg, borderRadius: 20, paddingHorizontal: 15, paddingVertical: 10, minHeight: 40, maxHeight: 100, fontFamily: FONTS.body, color: COLORS.navy },
   sendBtn: { backgroundColor: COLORS.green, width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginLeft: 10 },
-  
+
   imgPreviewContSmall: { position: 'relative', width: 60, height: 60, marginBottom: 10, marginLeft: 50 },
   imgPreviewSmall: { width: 60, height: 60, borderRadius: 8 },
   imgRemoveBtnSmall: { position: 'absolute', top: -5, right: -5, backgroundColor: 'red', width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
