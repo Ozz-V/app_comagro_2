@@ -10,8 +10,10 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  DeviceEventEmitter,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
@@ -19,6 +21,7 @@ import ForumModal from '../components/ForumModal';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
+const CACHE_KEY = '@notifications_cache';
 
 type NotifRow = {
   id: number;
@@ -69,6 +72,13 @@ export default function NotificationsScreen({
 
   const { showAlert } = useCustomAlert();
 
+  // Guarda en la memoria caché del teléfono
+  const syncCache = async (newItems: NotifRow[]) => {
+    try {
+      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(newItems));
+    } catch (e) {}
+  };
+
   const cargar = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setCargando(true);
@@ -76,6 +86,16 @@ export default function NotificationsScreen({
     setError(null);
 
     try {
+      // 1. CARGA ULTRARRÁPIDA DESDE CACHÉ (Evita la pantalla de carga)
+      if (!isRefresh) {
+        const cached = await AsyncStorage.getItem(CACHE_KEY);
+        if (cached) {
+          setItems(JSON.parse(cached));
+          setCargando(false);
+        }
+      }
+
+      // 2. SINCRONIZACIÓN DE FONDO CON EL SERVIDOR
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -94,7 +114,10 @@ export default function NotificationsScreen({
 
       if (qErr) throw qErr;
 
-      setItems((data || []) as NotifRow[]);
+      const loadedData = (data || []) as NotifRow[];
+      setItems(loadedData);
+      syncCache(loadedData); // Actualizamos el caché
+
     } catch {
       setError('No se pudo cargar el historial de notificaciones.');
     } finally {
@@ -107,14 +130,28 @@ export default function NotificationsScreen({
     cargar(false);
   }, [cargar]);
 
+  // Escucha cuando otra pantalla (ej. ProductViewer) borra una notificación
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('DELETE_NOTIFICATION', (notifId: number) => {
+      setItems(prev => {
+        const filtrado = prev.filter(i => i.id !== notifId);
+        syncCache(filtrado);
+        return filtrado;
+      });
+    });
+    return () => sub.remove();
+  }, []);
+
   const marcarComoLeida = async (item: NotifRow) => {
     if (item.read_at) return;
 
     const now = new Date().toISOString();
 
-    setItems(prev =>
-      prev.map(i => (i.id === item.id ? { ...i, read_at: now } : i))
-    );
+    setItems(prev => {
+      const actualizados = prev.map(i => (i.id === item.id ? { ...i, read_at: now } : i));
+      syncCache(actualizados);
+      return actualizados;
+    });
 
     await supabase
       .from('notifications_log')
@@ -136,7 +173,11 @@ export default function NotificationsScreen({
       return;
     }
 
-    setItems(prev => prev.filter(i => i.id !== item.id));
+    setItems(prev => {
+      const filtrado = prev.filter(i => i.id !== item.id);
+      syncCache(filtrado); // Actualiza la lista real para que no reaparezca
+      return filtrado;
+    });
   };
 
   const avisarContenidoEliminado = (
@@ -145,9 +186,7 @@ export default function NotificationsScreen({
   ) => {
     showAlert(
       `${tipo} no disponible`,
-      `El ${tipo.toLowerCase()} de esta notificación ya no existe porque fue eliminado.
-
-¿Deseas eliminar también esta notificación del historial?`,
+      `El ${tipo.toLowerCase()} de esta notificación ya no existe porque fue eliminado.\n\n¿Deseas eliminar también esta notificación del historial?`,
       [
         {
           text: 'Conservar',
@@ -165,24 +204,14 @@ export default function NotificationsScreen({
   };
 
   const comprobarYabrirForo = async (item: NotifRow) => {
-    const topicId =
-      typeof item.data?.topicId === 'string' ? item.data.topicId : null;
-
-    const commentId =
-      typeof item.data?.commentId === 'string' ? item.data.commentId : null;
+    const topicId = typeof item.data?.topicId === 'string' ? item.data.topicId : null;
+    const commentId = typeof item.data?.commentId === 'string' ? item.data.commentId : null;
 
     if (!topicId) {
-      avisarContenidoEliminado(
-        item,
-        item.type === 'forum_comment' ? 'Comentario' : 'Sugerencia'
-      );
+      avisarContenidoEliminado(item, item.type === 'forum_comment' ? 'Comentario' : 'Sugerencia');
       return;
     }
 
-    /*
-     * Primero comprobamos que el tema siga existiendo.
-     * Así una notificación vieja nunca rompe la navegación.
-     */
     const { data: topic, error: topicError } = await supabase
       .from('forum_topics')
       .select('id')
@@ -190,17 +219,10 @@ export default function NotificationsScreen({
       .maybeSingle();
 
     if (topicError || !topic) {
-      avisarContenidoEliminado(
-        item,
-        item.type === 'forum_comment' ? 'Comentario' : 'Sugerencia'
-      );
+      avisarContenidoEliminado(item, item.type === 'forum_comment' ? 'Comentario' : 'Sugerencia');
       return;
     }
 
-    /*
-     * Para comentarios comprobamos además que el comentario concreto
-     * siga existiendo. Esto permite detectar comentarios eliminados.
-     */
     if (item.type === 'forum_comment') {
       if (!commentId) {
         avisarContenidoEliminado(item, 'Comentario');
@@ -220,16 +242,6 @@ export default function NotificationsScreen({
       }
     }
 
-    /*
-     * IMPORTANTE:
-     *
-     * NO hacemos navigate('Portal').
-     * NO hacemos popToTop().
-     * NO usamos DeviceEventEmitter.
-     *
-     * ForumModal queda montado SOBRE NotificationsScreen.
-     * Al cerrarlo, regresamos exactamente a esta lista.
-     */
     setForumOpenTopicId(topicId);
     setForumOpenCommentId(commentId);
     setShowForumModal(true);
@@ -238,11 +250,8 @@ export default function NotificationsScreen({
   const manejarToqueNotificacion = async (item: NotifRow) => {
     await marcarComoLeida(item);
 
-    const isForum =
-      item.type === 'forum_topic' || item.type === 'forum_comment';
-
-    const isProducts =
-      item.type === 'new_products' || item.type === 'plytix';
+    const isForum = item.type === 'forum_topic' || item.type === 'forum_comment';
+    const isProducts = item.type === 'new_products' || item.type === 'plytix';
 
     if (isForum) {
       await comprobarYabrirForo(item);
@@ -251,9 +260,7 @@ export default function NotificationsScreen({
 
     if (isProducts) {
       const skus = Array.isArray(item.data?.skus)
-        ? item.data.skus.filter(
-            (sku): sku is string => typeof sku === 'string'
-          )
+        ? item.data.skus.filter((sku): sku is string => typeof sku === 'string')
         : [];
 
       if (skus.length === 0) {
@@ -261,17 +268,6 @@ export default function NotificationsScreen({
         return;
       }
 
-      /*
-       * ProductViewer es una pantalla real de la pila.
-       *
-       * Notificaciones
-       *      ↓
-       * ProductViewer
-       *      ↓
-       * goBack()
-       *      ↓
-       * Notificaciones
-       */
       navigation.navigate('ProductViewer', {
         sku: skus[0],
         contextSkus: skus,
@@ -328,41 +324,24 @@ export default function NotificationsScreen({
         <FlatList
           data={items}
           keyExtractor={i => String(i.id)}
-          contentContainerStyle={{
-            padding: 20,
-            paddingBottom: 60,
-          }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => cargar(true)}
-              colors={[COLORS.green]}
-            />
-          }
+          contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => cargar(true)} colors={[COLORS.green]} />}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
               activeOpacity={0.8}
-              onPress={() => {
-                void manejarToqueNotificacion(item);
-              }}
+              onPress={() => { void manejarToqueNotificacion(item); }}
             >
               {!item.read_at && <View style={styles.dot} />}
 
               <View style={styles.cardIcon}>
-                <SvgIcon
-                  name={iconForType(item.type)}
-                  size={22}
-                  color={COLORS.navy}
-                />
+                <SvgIcon name={iconForType(item.type)} size={22} color={COLORS.navy} />
               </View>
 
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{item.title}</Text>
                 <Text style={styles.cardBody}>{item.body}</Text>
-                <Text style={styles.cardTime}>
-                  {timeAgo(item.sent_at)}
-                </Text>
+                <Text style={styles.cardTime}>{timeAgo(item.sent_at)}</Text>
               </View>
             </TouchableOpacity>
           )}
@@ -381,101 +360,19 @@ export default function NotificationsScreen({
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-  },
-  topbar: {
-    backgroundColor: COLORS.white,
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-    paddingTop:
-      Platform.OS === 'android'
-        ? (StatusBar.currentHeight || 24) + 10
-        : 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  topBorder: {
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  logoAnimado: {
-    width: 100,
-    height: 40,
-  },
-  btnVolver: {
-    fontFamily: FONTS.body,
-    fontSize: 16,
-    color: COLORS.green,
-  },
-  titulo: {
-    fontFamily: FONTS.heading,
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.navy,
-    textAlign: 'center',
-    marginTop: 20,
-    marginBottom: 4,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 30,
-  },
-  errorTxt: {
-    fontFamily: FONTS.body,
-    fontSize: 14,
-    color: '#e74c3c',
-    textAlign: 'center',
-  },
-  vacioTxt: {
-    fontFamily: FONTS.body,
-    fontSize: 14,
-    color: COLORS.gray4,
-    textAlign: 'center',
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    backgroundColor: COLORS.white,
-  },
-  dot: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: COLORS.green,
-  },
-  cardIcon: {
-    marginTop: 2,
-  },
-  cardTitle: {
-    fontFamily: FONTS.heading,
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.navy,
-    marginBottom: 2,
-  },
-  cardBody: {
-    fontFamily: FONTS.body,
-    fontSize: 13,
-    color: COLORS.gray4,
-    marginBottom: 6,
-  },
-  cardTime: {
-    fontFamily: FONTS.body,
-    fontSize: 11,
-    color: COLORS.gray4,
-  },
+  safe: { flex: 1, backgroundColor: COLORS.white },
+  topbar: { backgroundColor: COLORS.white, paddingHorizontal: 20, paddingBottom: 14, paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topBorder: { height: 1, backgroundColor: COLORS.border },
+  logoAnimado: { width: 100, height: 40 },
+  btnVolver: { fontFamily: FONTS.body, fontSize: 16, color: COLORS.green },
+  titulo: { fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, textAlign: 'center', marginTop: 20, marginBottom: 4 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 },
+  errorTxt: { fontFamily: FONTS.body, fontSize: 14, color: '#e74c3c', textAlign: 'center' },
+  vacioTxt: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, textAlign: 'center' },
+  card: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14, marginBottom: 12, backgroundColor: COLORS.white },
+  dot: { position: 'absolute', top: 12, right: 12, width: 9, height: 9, borderRadius: 5, backgroundColor: COLORS.green },
+  cardIcon: { marginTop: 2 },
+  cardTitle: { fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, marginBottom: 2 },
+  cardBody: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, marginBottom: 6 },
+  cardTime: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4 },
 });
