@@ -1,7 +1,7 @@
 // Build Trigger: Restauración versión estable 30-Abril
 import React, { useEffect, useState } from 'react';
 import { View, Text, DeviceEventEmitter } from 'react-native';
-import { NavigationContainer, DefaultTheme, createNavigationContainerRef, StackActions } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { OfflineSyncProvider } from './src/contexts/OfflineSyncContext';
@@ -153,16 +153,10 @@ function App() {
   }, [showAlert]);
 
   // --- OYENTE DE NOTIFICACIONES PUSH ---
-  // Dos problemas reales que este bloque soluciona:
-  //  1) Android a veces vuelve a entregar el MISMO toque de notificación
-  //     cuando la app vuelve a primer plano (p.ej. después de apretar
-  //     "atrás"). Sin descartar duplicados, eso hacía que la app procesara
-  //     el mismo toque de nuevo y navegara otra vez sola.
-  //  2) navigationRef.navigate('Portal') podía, en ciertos casos, no
-  //     colapsar del todo la pila si había pantallas duplicadas encima
-  //     (ver fix en PortalScreen/NotificationsScreen contra doble-toque).
-  //     Usar popToTop() es más robusto: sin importar cuántas pantallas haya
-  //     apiladas, siempre vuelve a la única instancia de Portal.
+  // Los toques duplicados de Android/expo-notifications se filtran por ID.
+  // Cuando el usuario toca una push, primero entramos al historial de
+  // Notificaciones. Desde allí el usuario decide qué notificación abrir.
+  // Así existe siempre una ruta limpia de ida y vuelta.
   const handledNotificationIds = React.useRef(new Set<string>());
 
   useEffect(() => {
@@ -189,19 +183,27 @@ function App() {
         }
       };
 
-      if (data.type === 'forum_topic' || data.type === 'forum_comment') {
-        if (!data.topicId) return;
+      if (
+        data.type === 'forum_topic' ||
+        data.type === 'forum_comment' ||
+        data.type === 'new_products' ||
+        data.type === 'plytix'
+      ) {
+        /*
+         * Una notificación push que se toca desde Android/iOS primero lleva
+         * al historial de Notificaciones.
+         *
+         * El contenido se abre desde esa lista, igual que si el usuario
+         * hubiera entrado manualmente al historial.
+         *
+         * Esto evita el circuito anterior:
+         *
+         * Push -> popToTop -> Portal -> evento global -> modal
+         *
+         * que era la causa de los regresos/loops.
+         */
         tryNavigate(() => {
-          navigationRef.dispatch(StackActions.popToTop());
-          setTimeout(() => DeviceEventEmitter.emit('OPEN_FORUM', { topicId: data.topicId }), 50);
-        });
-      }
-
-      if (data.type === 'new_products' || data.type === 'plytix') {
-        if (!data.skus || !Array.isArray(data.skus) || data.skus.length === 0) return;
-        tryNavigate(() => {
-          navigationRef.dispatch(StackActions.popToTop());
-          setTimeout(() => DeviceEventEmitter.emit('OPEN_NEW_PRODUCTS', { skus: data.skus }), 50);
+          navigationRef.navigate('Notificaciones');
         });
       }
 
