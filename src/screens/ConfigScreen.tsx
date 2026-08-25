@@ -11,8 +11,6 @@ import { supabase, SUPABASE_URL } from '../supabase';
 import { syncAnalyticsQueue } from '../utils/analyticsSync';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
-import DashboardAnalytics from '../components/DashboardAnalytics';
-import SystemHealthMonitor from '../components/SystemHealthMonitor';
 import CollapsibleSection from '../components/CollapsibleSection';
 import DirectoryModal from '../components/DirectoryModal';
 import UserProfileModal from '../components/UserProfileModal';
@@ -38,7 +36,6 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [analyticsTab, setAnalyticsTab] = useState<'mine' | 'general'>('mine');
   const [isEditing, setIsEditing] = useState(false);
 
   const { showAlert, showToast } = useCustomAlert();
@@ -477,15 +474,11 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
           )}
         </View>
 
-        <DashboardAnalytics navigation={navigation} onUserClick={handleUserClick} onTabChange={setAnalyticsTab} />
-
         <CollapsibleSection
           title="Directorio de Contactos"
           iconName="usuarios"
           onPress={() => setShowDirectoryModal(true)}
         />
-
-        {isAdmin && analyticsTab === 'general' && <SystemHealthMonitor />}
 
         <View style={st.versionCard}>
           <LottieView source={ANIMATION_ISO} autoPlay loop style={{ width: 60, height: 60 }} resizeMode="contain" />
