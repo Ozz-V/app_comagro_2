@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, Modal, DeviceEventEmitter } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, Modal, DeviceEventEmitter, FlatList } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
@@ -26,7 +26,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
   const [profName, setProfName] = useState('');
   const [profPhoneInit, setProfPhoneInit] = useState('');
 
-  // Estados para las notificaciones Push de Nuevos Productos
   const [showNewProductsModal, setShowNewProductsModal] = useState(false);
   const [newProductsSkus, setNewProductsSkus] = useState<string[]>([]);
 
@@ -43,15 +42,15 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     return unsubscribe;
   }, [navigation]);
 
-  // --- OYENTES DE NOTIFICACIONES DESDE APP.TSX ---
   useEffect(() => {
     const subForum = DeviceEventEmitter.addListener('OPEN_FORUM', (data) => {
-      setShowForumModal(true);
-      // Nota: Si tu ForumModal en un futuro acepta un initialTopicId, se lo pasaríamos aquí como data.topicId
+      if (data && data.topicId) {
+        setShowForumModal(true);
+      }
     });
 
     const subProducts = DeviceEventEmitter.addListener('OPEN_NEW_PRODUCTS', (data) => {
-      if (data && data.skus) {
+      if (data && data.skus && Array.isArray(data.skus) && data.skus.length > 0) {
         setNewProductsSkus(data.skus);
         setShowNewProductsModal(true);
       }
@@ -258,7 +257,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         </View>
       </ScrollView>
 
-      {/* --- MODAL PARA NUEVOS PRODUCTOS DESDE NOTIFICACIÓN --- */}
+      {/* --- MODAL PARA NUEVOS PRODUCTOS --- */}
       <Modal visible={showNewProductsModal} animationType="slide" transparent onRequestClose={() => setShowNewProductsModal(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '75%' }}>
@@ -274,13 +273,20 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
               </TouchableOpacity>
             </View>
             
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, marginBottom: 16 }}>
-                Selecciona un modelo para ver su ficha técnica detallada:
-              </Text>
-              {newProductsSkus.map((sku, i) => (
+            <FlatList
+              data={newProductsSkus}
+              keyExtractor={(item, index) => `${item}-${index}`}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 30 }}
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              ListHeaderComponent={
+                <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, marginBottom: 16 }}>
+                  Selecciona un modelo para ver su ficha técnica detallada:
+                </Text>
+              }
+              renderItem={({ item: sku }) => (
                 <TouchableOpacity
-                  key={i}
                   style={{ paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
                   onPress={() => {
                     setShowNewProductsModal(false);
@@ -293,12 +299,11 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
                     <Text style={{ color: COLORS.green, fontSize: 18 }}>›</Text>
                   </View>
                 </TouchableOpacity>
-              ))}
-              {newProductsSkus.length === 0 && (
-                <Text style={{ fontFamily: FONTS.body, color: COLORS.gray4, textAlign: 'center', marginTop: 20 }}>No hay información de SKUs disponible.</Text>
               )}
-              <View style={{ height: 30 }} />
-            </ScrollView>
+              ListEmptyComponent={
+                <Text style={{ fontFamily: FONTS.body, color: COLORS.gray4, textAlign: 'center', marginTop: 20 }}>No hay información de SKUs disponible.</Text>
+              }
+            />
           </View>
         </View>
       </Modal>
