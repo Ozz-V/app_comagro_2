@@ -1,7 +1,7 @@
 // Build Trigger: Restauración versión estable 30-Abril
 import React, { useEffect, useState } from 'react';
 import { View, Text, DeviceEventEmitter } from 'react-native';
-import { NavigationContainer, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, createNavigationContainerRef, StackActions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { OfflineSyncProvider } from './src/contexts/OfflineSyncContext';
@@ -153,10 +153,33 @@ function App() {
   }, [showAlert]);
 
   // --- OYENTE DE NOTIFICACIONES PUSH ---
+  // Dos problemas reales que este bloque soluciona:
+  //  1) Android a veces vuelve a entregar el MISMO toque de notificación
+  //     cuando la app vuelve a primer plano (p.ej. después de apretar
+  //     "atrás"). Sin descartar duplicados, eso hacía que la app procesara
+  //     el mismo toque de nuevo y navegara otra vez sola.
+  //  2) navigationRef.navigate('Portal') podía, en ciertos casos, no
+  //     colapsar del todo la pila si había pantallas duplicadas encima
+  //     (ver fix en PortalScreen/NotificationsScreen contra doble-toque).
+  //     Usar popToTop() es más robusto: sin importar cuántas pantallas haya
+  //     apiladas, siempre vuelve a la única instancia de Portal.
+  const handledNotificationIds = React.useRef(new Set<string>());
+
   useEffect(() => {
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function handleNotificationTap(data: any, notifId?: string | null) {
       if (!data) return;
+
+      // Descarta re-entregas de un toque que ya procesamos.
+      if (notifId) {
+        if (handledNotificationIds.current.has(notifId)) return;
+        handledNotificationIds.current.add(notifId);
+        // Evita que este Set crezca sin límite en una sesión muy larga.
+        if (handledNotificationIds.current.size > 50) {
+          const first = handledNotificationIds.current.values().next().value;
+          if (first) handledNotificationIds.current.delete(first);
+        }
+      }
 
       const tryNavigate = (callback: () => void, retries = 0) => {
         if (navigationRef.isReady()) {
@@ -167,20 +190,36 @@ function App() {
       };
 
       if (data.type === 'forum_topic' || data.type === 'forum_comment') {
-        if (!data.topicId) return; 
+        if (!data.topicId) return;
         tryNavigate(() => {
-          navigationRef.navigate('Portal' as never);
-          DeviceEventEmitter.emit('OPEN_FORUM', { topicId: data.topicId });
+          navigationRef.dispatch(StackActions.popToTop());
+          setTimeout(() => DeviceEventEmitter.emit('OPEN_FORUM', { topicId: data.topicId }), 50);
         });
       }
 
-      if (data.type === 'new_products') {
-        if (!data.skus || !Array.isArray(data.skus) || data.skus.length === 0) return; 
+      if (data.type === 'new_products' || data.type === 'plytix') {
+        if (!data.skus || !Array.isArray(data.skus) || data.skus.length === 0) return;
         tryNavigate(() => {
-          navigationRef.navigate('Portal' as never);
-          DeviceEventEmitter.emit('OPEN_NEW_PRODUCTS', { skus: data.skus });
+          navigationRef.dispatch(StackActions.popToTop());
+          setTimeout(() => DeviceEventEmitter.emit('OPEN_NEW_PRODUCTS', { skus: data.skus }), 50);
         });
       }
+
+      // Marca la notificación como "ya consumida" del lado nativo — evita
+      // que Android/expo-notifications la vuelvan a entregar más adelante
+      // (p.ej. si la persona sale de la app con el botón atrás y regresa).
+      Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
+    }
+
+    // Caso: la app estaba CERRADA y se abrió tocando la notificación.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      handleNotificationTap(response.notification.request.content.data, response.notification.request.identifier);
+    }).catch(() => {});
+
+    // Caso: la app ya estaba abierta (foreground o background).
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      handleNotificationTap(response.notification.request.content.data, response.notification.request.identifier);
     });
 
     return () => {
