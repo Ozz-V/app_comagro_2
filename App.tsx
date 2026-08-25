@@ -187,7 +187,8 @@ function App() {
     });
 
     return () => {
-      Notifications.removeNotificationSubscription(responseListener);
+      // FIX: Se remueve el listener directamente desde el objeto retornado por Expo
+      responseListener.remove();
     };
   }, []);
 
