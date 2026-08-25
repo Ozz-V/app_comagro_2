@@ -268,9 +268,8 @@ export default function NotificationsScreen({
         return;
       }
 
-      navigation.navigate('ProductViewer', {
-        sku: skus[0],
-        contextSkus: skus,
+      navigation.navigate('ProductosActualizados', {
+        skus,
         notificationId: item.id,
       });
 
