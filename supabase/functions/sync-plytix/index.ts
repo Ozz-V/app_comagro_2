@@ -54,14 +54,6 @@ async function computeHash(value: any): Promise<string> {
 // ---------------------------------------------------------------------------
 // ROTACIÓN DE API KEYS DE GEMINI
 // ---------------------------------------------------------------------------
-// Definí en los secrets de Supabase la variable GEMINI_API_KEYS con TODAS las
-// keys separadas por coma, por ejemplo:
-//   GEMINI_API_KEYS = "AIzaSy_cuenta1,AIzaSy_cuenta2,AIzaSy_cuenta3"
-// Podés poner 1, 3, 10 o las que quieras: el código nunca hay que tocarlo,
-// solo agregar/quitar keys de esa variable.
-//
-// (Por compatibilidad, si no existe GEMINI_API_KEYS pero sí existe la vieja
-// GEMINI_API_KEY con una sola key, también funciona igual.)
 function loadGeminiKeys(): string[] {
   const keys: string[] = [];
 
@@ -101,22 +93,8 @@ function loadGeminiKeys(): string[] {
 
 const GEMINI_KEYS = loadGeminiKeys();
 
-// Índice de la "key actual". Vive a nivel de módulo: si la instancia de Deno
-// se reutiliza entre corridas de cron (lo usual), la próxima corrida arranca
-// directo en la key que sabíamos que todavía tenía cupo, en vez de volver a
-// probar desde la key #1 y perder llamadas contra cuentas ya agotadas.
 let currentKeyIndex = 0;
 
-// BACKOFF EXPONENCIAL: cuantas más veces falla un producto, más se espacía su
-// próximo intento. Así un producto con un problema real (no transitorio) deja
-// de competir cada 5 minutos por un lugar en el batch contra productos sanos,
-// pero JAMÁS deja de reintentarse -- el día que el problema se resuelva solo,
-// en su próximo intento programado se procesa normal, sin que nadie lo toque.
-// - Intentos 1 a 5: reintenta en la próxima corrida del cron (~5 min) -- para
-//   agarrar rápido los problemas transitorios (un timeout, un 500 puntual).
-// - Intentos 6 a 10: espera 1 hora entre intentos.
-// - Intentos 11 a 20: espera 6 horas entre intentos.
-// - Intentos 21 en adelante: espera 24 horas entre intentos, indefinidamente.
 function computeNextAttempt(retryCount: number): string {
   let delayMinutes = 0;
   if (retryCount <= 5) delayMinutes = 0;
@@ -126,17 +104,6 @@ function computeNextAttempt(retryCount: number): string {
   return new Date(Date.now() + delayMinutes * 60000).toISOString();
 }
 
-// Hace un POST a Gemini probando la key actual. Si esa key falla por CUALQUIER
-// motivo (429 cuota, 403 permiso, 401 credencial inválida, 500 de Google, o
-// cualquier error que hoy no conocemos), rota automáticamente a la siguiente
-// key de la lista y reintenta la MISMA llamada — nunca asumimos que "todas
-// las keys van a fallar igual", así que siempre les damos la oportunidad a
-// las demás antes de rendirnos.
-// Si se agotan TODAS las keys disponibles, lanza un error clasificado:
-// - status 429 si en el camino vimos algún error de cuota (para no gastar
-//   reintentos y esperar el reset diario).
-// - el status real (401, 500, etc.) si fue otro tipo de problema en las N
-//   keys, para que quede el reintento genérico normal.
 async function fetchGeminiWithRotation(
   keys: string[],
   buildRequest: (key: string) => { url: string; body: unknown },
@@ -148,7 +115,7 @@ async function fetchGeminiWithRotation(
 
   let lastErrorText = '';
   let lastStatus = 500;
-  let quotaSeenInThisRound = false; // true si ALGUNA de las keys probadas falló por cuota (429/403)
+  let quotaSeenInThisRound = false; 
 
   for (let attempt = 0; attempt < keys.length; attempt++) {
     const idx = (currentKeyIndex + attempt) % keys.length;
@@ -170,7 +137,7 @@ async function fetchGeminiWithRotation(
     }
 
     if (res.ok) {
-      currentKeyIndex = idx; // esta key sirvió, la dejamos "fijada" para la próxima llamada
+      currentKeyIndex = idx;
       return await res.json();
     }
 
@@ -178,28 +145,12 @@ async function fetchGeminiWithRotation(
     lastErrorText = await res.text();
     quotaSeenInThisRound = quotaSeenInThisRound || res.status === 429 || res.status === 403;
 
-    // Últimos 4 caracteres de la key para poder identificarla en los logs sin
-    // exponer la key completa (que quede visible en Supabase Logs).
     const keyHint = key.length > 4 ? `...${key.slice(-4)}` : '(muy corta)';
 
-    // Rotamos ante CUALQUIER error, sea el código que sea (429 cuota, 403
-    // permiso, 401 credencial inválida, 500 de Google, o algo que hoy ni
-    // siquiera existe todavía). No tiene sentido decidir de antemano cuáles
-    // errores "merecen" rotar: si una key falla por lo que sea, simplemente
-    // probamos la siguiente. Recién si las 4 keys fallan, más abajo,
-    // decidimos qué tipo de problema fue.
     console.warn(`Gemini key #${idx + 1}/${keys.length} (${keyHint}) falló (status ${res.status}). Rotando a la siguiente...`);
     continue;
   }
 
-  // Se probaron TODAS las keys de la lista y ninguna funcionó. Clasificamos
-  // el motivo para que el resto del código sepa cómo reaccionar:
-  // - Si en ALGUNA de las keys vimos 429/403 (cuota), tratamos todo el fallo
-  //   como "cuota agotada" -> no tiene sentido gastar reintentos, hay que
-  //   esperar el reset diario.
-  // - Si no, es otro tipo de problema (401 en las 4, 500 en las 4, etc.) ->
-  //   se maneja como un error genérico retryable, y va quedando registrado
-  //   en last_error para poder revisarlo.
   if (quotaSeenInThisRound) {
     const err = new Error(`Cuota agotada en las ${keys.length} key(s) de Gemini configuradas. Último error: ${lastErrorText}`);
     (err as Error & { status?: number }).status = 429;
@@ -213,16 +164,6 @@ async function fetchGeminiWithRotation(
 // ---------------------------------------------------------------------------
 // NOTIFICACIONES PUSH AGRUPADAS (BATCH)
 // ---------------------------------------------------------------------------
-// En vez de mandar un push cada vez que el cron procesa un lote (lo cual, con
-// una carga grande de Plytix, mandaría una notificación cada ~5 minutos hasta
-// vaciar la cola), acumulamos un contador en la tabla `notification_batch` y
-// recién mandamos UNA notificación agrupada cuando:
-//   a) la cola queda en 0 (ya no hay más productos pendientes -> "terminó la
-//      tanda"), o
-//   b) pasó 1 hora desde que empezó a acumularse la tanda actual (por si el
-//      feed nunca llega a vaciarse del todo, para no dejar al usuario sin
-//      avisos indefinidamente).
-// La tabla tiene una sola fila (id = 1) que funciona como "estado global".
 const NOTIFICATION_WINDOW_MINUTES = 60;
 
 async function handleBatchedNotifications(
@@ -249,7 +190,6 @@ async function handleBatchedNotifications(
     const windowExpired = windowAgeMinutes >= NOTIFICATION_WINDOW_MINUTES;
 
     if (!queueDrained && !windowExpired) {
-      // Todavía puede venir más contenido en breve: seguimos acumulando sin notificar.
       await supaAdmin.from('notification_batch').upsert({
         id: 1,
         pending_count: pendingCount,
@@ -259,10 +199,17 @@ async function handleBatchedNotifications(
       return;
     }
 
-    // Llegó el momento de mandar la notificación agrupada.
-    // Traemos TODOS los perfiles (con o sin token) porque el historial en la
-    // app (notifications_log) tiene que quedar disponible para todos, aunque
-    // el push en sí solo se mande a quienes tienen expo_push_token.
+    // --- MAGIA: OBTENER LOS SKUs EXACTOS DE ESTE BATCH PARA EL MODAL ---
+    // Pedimos los últimos 'pendingCount' SKUs completados ordenados por actualización reciente.
+    const { data: latestItems } = await supaAdmin
+      .from('plytix_queue')
+      .select('sku')
+      .eq('status', 'completed')
+      .order('updated_at', { ascending: false })
+      .limit(pendingCount);
+
+    const batchedSkus = latestItems ? latestItems.map((item: { sku: string }) => item.sku) : [];
+
     const { data: profiles, error: profilesError } = await supaAdmin
       .from('profiles')
       .select('id, expo_push_token');
@@ -285,7 +232,8 @@ async function handleBatchedNotifications(
         sound: 'default',
         title: notifTitle,
         body: notifBody,
-        data: { count: pendingCount },
+        // AQUÍ INYECTAMOS LOS SKUs Y EL TIPO PARA QUE APP.TSX LO INTERCEPTE
+        data: { type: 'new_products', count: pendingCount, skus: batchedSkus }, 
       }));
 
       const pushRes = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -298,8 +246,6 @@ async function handleBatchedNotifications(
         body: JSON.stringify(pushMessages),
       });
 
-      // Leemos la respuesta SIEMPRE, para que un fallo de credenciales o de
-      // tokens inválidos quede visible en los logs en vez de desaparecer.
       let pushJson: unknown = null;
       try {
         pushJson = await pushRes.json();
@@ -323,15 +269,14 @@ async function handleBatchedNotifications(
       console.log('No hay dispositivos con token registrado, se omite el push.');
     }
 
-    // Historial: una fila por cada usuario (tenga token o no), para que la
-    // pantalla de Notificaciones de la app tenga siempre el registro completo.
+    // Historial: agregamos los datos también para que se vean si hace falta en el log
     if (profiles && profiles.length > 0) {
       const logRows = profiles.map((p: { id: string }) => ({
         user_id: p.id,
-        type: 'plytix',
+        type: 'new_products', // Renombrado a new_products para consistencia
         title: notifTitle,
         body: notifBody,
-        data: { count: pendingCount },
+        data: { type: 'new_products', count: pendingCount, skus: batchedSkus },
       }));
       const { error: logError } = await supaAdmin.from('notifications_log').insert(logRows);
       if (logError) {
@@ -339,7 +284,6 @@ async function handleBatchedNotifications(
       }
     }
 
-    // Reseteamos el contador para la próxima tanda.
     await supaAdmin.from('notification_batch').upsert({
       id: 1,
       pending_count: 0,
@@ -354,7 +298,6 @@ async function handleBatchedNotifications(
 Deno.serve(async (req: Request) => {
   console.log('--- FUNCTION STARTED ---', req.method, req.url);
   try {
-    // Health check
     const url = new URL(req.url);
     if (req.method === 'GET' && url.pathname.endsWith('/health')) {
       return new Response(JSON.stringify({ status: 'ok', service: 'sync-plytix', timestamp: new Date().toISOString(), gemini_keys_configured: GEMINI_KEYS.length }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -363,7 +306,6 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-    // Auth check: comparación constant-time para evitar ataques de timing
     const secret = req.headers.get('x-sync-secret') ?? '';
     const expected = Deno.env.get('SYNC_SECRET') ?? '';
     let mismatch = secret.length !== expected.length ? 1 : 0;
@@ -381,7 +323,6 @@ Deno.serve(async (req: Request) => {
 
     const supaAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Obtener todos los productos de Plytix (Fallback de caché)
     let text = '';
     try {
       const controller = new AbortController();
@@ -413,75 +354,58 @@ Deno.serve(async (req: Request) => {
     if (!plytixData.length) {
       console.warn('Feed de Plytix vacío o sin productos nuevos. Saltando Ingesta y procediendo al procesamiento de cola.');
     } else {
+      const sanitizedProducts = plytixData
+        .filter(p => p.SKU && String(p.SKU).trim() !== '' && String(p.SKU).trim().toUpperCase() !== 'UNDEFINED' && String(p.SKU).trim().toUpperCase() !== 'NULL')
+        .map(p => ({ sku: String(p.SKU).trim().toUpperCase(), raw_data: sanitizeUnicode(p) }));
 
-    // PASO A: INGESTA INSTANTANEA
-    // Guardamos en la cola solo lo que REALMENTE cambió. Plytix repite el mismo delta
-    // en cada lectura hasta el próximo "Process" (puede ser cada varias horas), así que
-    // si comparáramos por SKU nomás y reseteáramos siempre a 'pending', cada corrida del
-    // cron (cada 5 min) volvería a resetear productos que ya se completaron minutos antes,
-    // sin que haya cambiado nada real. Por eso comparamos un hash del contenido:
-    // - SKU nuevo → se inserta como 'pending'.
-    // - SKU existente con el MISMO hash → no se toca (Plytix repitió el mismo delta).
-    // - SKU existente con hash DISTINTO → cambio real, se actualiza raw_data y vuelve a 'pending'.
-    const sanitizedProducts = plytixData
-      .filter(p => p.SKU && String(p.SKU).trim() !== '' && String(p.SKU).trim().toUpperCase() !== 'UNDEFINED' && String(p.SKU).trim().toUpperCase() !== 'NULL')
-      .map(p => ({ sku: String(p.SKU).trim().toUpperCase(), raw_data: sanitizeUnicode(p) }));
-
-    // Traemos sku + content_hash existentes, solo para los SKUs de este feed (no toda la tabla),
-    // paginado en lotes para no toparnos con límites de URL en el .in().
-    const existingHashes = new Map<string, string>();
-    const skuLookupChunkSize = 300;
-    const allSkusInFeed = sanitizedProducts.map(p => p.sku);
-    for (let i = 0; i < allSkusInFeed.length; i += skuLookupChunkSize) {
-      const skuChunk = allSkusInFeed.slice(i, i + skuLookupChunkSize);
-      const { data: existingRows, error: lookupError } = await supaAdmin
-        .from('plytix_queue')
-        .select('sku, content_hash')
-        .in('sku', skuChunk);
-      if (lookupError) {
-        console.error('Error consultando hashes existentes:', lookupError.message);
-        continue;
-      }
-      for (const row of existingRows || []) {
-        if (row.content_hash) existingHashes.set(row.sku, row.content_hash);
-      }
-    }
-
-    const upsertQueueData = [];
-    for (const item of sanitizedProducts) {
-      const newHash = await computeHash(item.raw_data);
-      const oldHash = existingHashes.get(item.sku);
-      if (oldHash === newHash) continue; // sin cambios reales, no tocar la fila
-      upsertQueueData.push({
-        sku: item.sku,
-        raw_data: item.raw_data,
-        content_hash: newHash,
-        status: 'pending',
-        retry_count: 0, // cambio real de contenido -> merece intentos frescos
-        next_attempt_at: new Date().toISOString(), // disponible ya, sin arrastrar backoff de fallos viejos
-        updated_at: new Date().toISOString()
-      });
-    }
-
-    if (upsertQueueData.length > 0) {
-      const chunkSize = 1000;
-      for (let i = 0; i < upsertQueueData.length; i += chunkSize) {
-        const chunk = upsertQueueData.slice(i, i + chunkSize);
-        const { error: queueError } = await supaAdmin
+      const existingHashes = new Map<string, string>();
+      const skuLookupChunkSize = 300;
+      const allSkusInFeed = sanitizedProducts.map(p => p.sku);
+      for (let i = 0; i < allSkusInFeed.length; i += skuLookupChunkSize) {
+        const skuChunk = allSkusInFeed.slice(i, i + skuLookupChunkSize);
+        const { data: existingRows, error: lookupError } = await supaAdmin
           .from('plytix_queue')
-          .upsert(chunk, { onConflict: 'sku' });
-        if (queueError) {
-          console.error('Error insertando en plytix_queue:', queueError.message);
+          .select('sku, content_hash')
+          .in('sku', skuChunk);
+        if (lookupError) {
+          console.error('Error consultando hashes existentes:', lookupError.message);
+          continue;
+        }
+        for (const row of existingRows || []) {
+          if (row.content_hash) existingHashes.set(row.sku, row.content_hash);
         }
       }
-    }
-    } // Fin del else de plytixData.length
 
-    // PASO B: PROCESAMIENTO SEGURO
-    // Tomamos un lote (batch) de máximo 10 productos que estén 'pending' Y cuyo
-    // momento programado de reintento (next_attempt_at) ya haya llegado. Así los
-    // productos que vienen fallando mucho (backoff largo) no le quitan lugar en
-    // el batch a productos sanos o recién ingresados.
+      const upsertQueueData = [];
+      for (const item of sanitizedProducts) {
+        const newHash = await computeHash(item.raw_data);
+        const oldHash = existingHashes.get(item.sku);
+        if (oldHash === newHash) continue; 
+        upsertQueueData.push({
+          sku: item.sku,
+          raw_data: item.raw_data,
+          content_hash: newHash,
+          status: 'pending',
+          retry_count: 0,
+          next_attempt_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      if (upsertQueueData.length > 0) {
+        const chunkSize = 1000;
+        for (let i = 0; i < upsertQueueData.length; i += chunkSize) {
+          const chunk = upsertQueueData.slice(i, i + chunkSize);
+          const { error: queueError } = await supaAdmin
+            .from('plytix_queue')
+            .upsert(chunk, { onConflict: 'sku' });
+          if (queueError) {
+            console.error('Error insertando en plytix_queue:', queueError.message);
+          }
+        }
+      }
+    } 
+
     const nowISO = new Date().toISOString();
     const { data: queueItems, error: qErr } = await supaAdmin
       .from('plytix_queue')
@@ -502,12 +426,10 @@ Deno.serve(async (req: Request) => {
     const processedSkus: string[] = [];
     const errors = [];
 
-    // Procesar cada producto del lote
     for (const item of queueItems) {
        const sku = item.sku;
        const p = item.raw_data;
        try {
-         // a) Generar el Sales Pitch con IA (con rotación automática de keys de Gemini)
          const productContext = JSON.stringify(p, null, 2);
          const prompt = `Eres un redactor experto en herramientas técnicas y agrícolas.
 Aquí tienes las especificaciones en bruto de un producto:
@@ -525,7 +447,6 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
          let salesPitch = generateData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Producto técnico de alta calidad.';
          salesPitch = salesPitch.replace(/\*\*/g, '');
 
-         // b) Generar los Embeddings (Vectores) para la búsqueda semántica usando las especificaciones reales
          const nombreProd = p['Nombre del Producto'] || p['Brand'] || sku;
          const specsText = Object.entries(p)
             .filter(([k,v]) => v && String(v).trim() !== '' && !k.toLowerCase().includes('imagen') && !k.toLowerCase().includes('manual'))
@@ -545,7 +466,6 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
          }));
          const embeddingVector = embedData.embedding.values;
 
-         // c) Formatear especificaciones de manera limpia para el bot
          const ignoreKeys = ['imagen', 'manual', 'marcación pim', 'material antiguo', 'despiece', 'denominador estandar', 'volumen', 'peso neto', 'thumbnail', 'ficha tecnica', 'ficha', 'video', 'gama', 'brand logo'];
          const specsList = [];
          for (const [key, val] of Object.entries(p)) {
@@ -556,7 +476,6 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
          }
          const cleanSpecsText = specsList.length > 0 ? `\n\n**Especificaciones Técnicas:**\n${specsList.join('\n')}` : '';
 
-         // d) Guardar en la base de datos Supabase (usando upsert para soportar modificaciones)
          const { error: insertError } = await supaAdmin.from('productos_ai_data').upsert({
             sku: sku,
             sales_pitch: `${salesPitch}${cleanSpecsText}`,
@@ -566,7 +485,6 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
 
          if (insertError) throw insertError;
 
-         // e) Marcar como completado en la cola
          await supaAdmin.from('plytix_queue').update({ status: 'completed', retry_count: 0, next_attempt_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('sku', sku);
 
          processedSkus.push(sku);
@@ -576,14 +494,6 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
          console.error(`Error procesando SKU ${sku}:`, (err as Error).message);
          errors.push({ sku, error: (err as Error).message });
 
-         // Caso especial: se agotaron las 4 (o las que sean) keys de Gemini por
-         // CUOTA DIARIA. Esto no es un error puntual como un timeout o un 500 —
-         // es 100% seguro que va a volver a fallar en la próxima corrida del cron
-         // hasta que Google resetee la cuota al otro día. Por eso NO gastamos
-         // retry_count acá ni aplicamos backoff: el producto queda 'pending'
-         // esperando tranquilo, y el propio cron (cada 5 min) lo va a reintentar
-         // solo hasta que en algún momento ya haya cupo de nuevo -- queremos
-         // agarrar el reset apenas ocurra, no esperar 1 hora de más.
          if (status === 429 || status === 403) {
            await supaAdmin.from('plytix_queue').update({
              status: 'pending',
@@ -595,15 +505,6 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
            break;
          }
 
-         // Reintento genérico para cualquier otro tipo de error (500, 503, fallos
-         // de red, error insertando en Supabase, etc.). A PRUEBA DE ERRORES: no
-         // importa cuál sea el problema ni cuántas veces falle, NUNCA lo abandonamos
-         // marcándolo 'error' de forma permanente. Siempre vuelve a 'pending', pero
-         // con BACKOFF: cuantas más veces falla, más se espacía su próximo intento
-         // (ver computeNextAttempt), así no le saca lugar en el batch a productos
-         // sanos. El cron lo sigue reintentando solo, cada vez más espaciado, para
-         // siempre -- hasta que el problema se resuelva, sin que nadie tenga que
-         // entrar a mano a resetearlo por SQL.
          const newRetryCount = (item.retry_count || 0) + 1;
 
          await supaAdmin.from('plytix_queue').update({
@@ -616,13 +517,8 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
        }
     }
 
-    // Contar cuántos quedan pendientes en la cola total (lo necesitamos ANTES
-    // de decidir si mandamos la notificación agrupada, para saber si la tanda
-    // ya terminó o si todavía falta procesar más).
     const { count: remainingCount } = await supaAdmin.from('plytix_queue').select('*', { count: 'exact', head: true }).eq('status', 'pending');
 
-    // 6. Notificaciones push AGRUPADAS: acumula en este lote y recién manda
-    // una sola notificación cuando la cola se vacía o pasó 1 hora acumulando.
     await handleBatchedNotifications(supaAdmin, processedSkus.length, remainingCount || 0);
 
     return new Response(JSON.stringify({
