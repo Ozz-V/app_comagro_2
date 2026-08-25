@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
@@ -225,7 +225,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
             </View>
             <Text style={styles.gridTitleThird}>Notificaciones</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.gridCardThird} activeOpacity={0.8} onPress={() => Alert.alert('Próximamente', 'Las estadísticas se van a mover a esta pantalla en el próximo paso.')}>
+          <TouchableOpacity style={styles.gridCardThird} activeOpacity={0.8} onPress={() => navigation.navigate('Estadisticas')}>
             <View style={styles.gridIconThird}>
               <SvgIcon name="chart" size={24} color={COLORS.navy} />
             </View>
@@ -265,16 +265,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         onClose={() => setShowForumModal(false)}
       />
 
-      <TouchableOpacity 
-        style={styles.fabBtn} 
-        activeOpacity={0.6}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        onPress={() => setShowForumModal(true)}
-      >
-        <Text style={styles.fabText}>Sugerencias</Text>
-        <SvgIcon name="chatBubble" size={26} color={COLORS.navy} />
-      </TouchableOpacity>
-
     </SafeAreaView>
   );
 }
@@ -305,7 +295,4 @@ const styles = StyleSheet.create({
   gridCardThird: { flex: 1, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white, borderRadius: 12, paddingVertical: 16, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   gridIconThird: { marginBottom: 8 },
   gridTitleThird: { fontFamily: FONTS.heading, fontSize: 11, fontWeight: '700', color: COLORS.navy, textAlign: 'center' },
-  fabBtn: { position: 'absolute', bottom: 75, right: 20, flexDirection: 'row', alignItems: 'center' },
-  // Tipografía del FAB unificada con el resto de la app
-  fabText: { fontFamily: FONTS.heading, fontSize: 11, fontWeight: '700', color: COLORS.navy, marginRight: 10 }
 });
