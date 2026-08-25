@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, FlatList, TextInput, ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, FlatList, TextInput, ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, InteractionManager } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
@@ -11,12 +11,23 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 interface ForumModalProps {
   visible: boolean;
   onClose: () => void;
-  // Si se provee, al abrirse el modal navega directo a ese tema (usado
-  // cuando se llega acá desde una notificación push del foro).
+  // Abre directamente un tema desde una notificación.
   openTopicId?: string | null;
+  // Si la notificación corresponde a un comentario, permite llevar
+  // el hilo directamente hasta ese comentario.
+  openCommentId?: string | null;
+  // Cuando viene desde Notificaciones, el botón atrás debe cerrar
+  // completamente el modal y volver a la lista de notificaciones.
+  notificationMode?: boolean;
 }
 
-export default function ForumModal({ visible, onClose, openTopicId }: ForumModalProps) {
+export default function ForumModal({
+  visible,
+  onClose,
+  openTopicId,
+  openCommentId,
+  notificationMode = false,
+}: ForumModalProps) {
   const [topics, setTopics] = useState<ForumTopic[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,6 +46,10 @@ export default function ForumModal({ visible, onClose, openTopicId }: ForumModal
   
   const [currentUser, setCurrentUser] = useState<any>(null);
 
+  // Ref de la lista de comentarios para poder llevar el hilo hasta
+  // el comentario exacto que originó la notificación.
+  const commentsListRef = useRef<FlatList<ForumComment>>(null);
+
   const insets = useSafeAreaInsets();
   const { showAlert } = useCustomAlert();
 
@@ -52,23 +67,29 @@ export default function ForumModal({ visible, onClose, openTopicId }: ForumModal
     }
   }, [visible, view]);
 
-  // Si se abrió el modal con un openTopicId (viene de tocar una notificación
-  // push del foro), en cuanto la lista de temas esté cargada, navega directo
-  // a ese tema en vez de mostrar la lista general. Si el tema ya no existe
-  // (lo borraron), avisa con un mensaje en vez de quedarse en silencio.
-  const notifiedMissingTopicRef = React.useRef<string | null>(null);
+  // Cuando se abre desde una notificación, entra directamente al tema.
+  // La comprobación de existencia de tema/comentario se hace antes en
+  // NotificationsScreen; aquí solamente abrimos el contenido válido.
+  const lastOpenedNotificationRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (visible && openTopicId && topics.length > 0 && view === 'list') {
-      const found = topics.find(t => t.id === openTopicId);
-      if (found) {
-        openTopic(found);
-      } else if (notifiedMissingTopicRef.current !== openTopicId) {
-        notifiedMissingTopicRef.current = openTopicId;
-        showAlert('Tema no disponible', 'Este tema de Sugerencias ya no existe (fue eliminado).');
-      }
+    if (!visible) {
+      lastOpenedNotificationRef.current = null;
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, openTopicId, topics]);
+
+    if (!openTopicId || view !== 'list' || loading) return;
+
+    const key = `${openTopicId}:${openCommentId || ''}`;
+
+    if (lastOpenedNotificationRef.current === key) return;
+
+    const found = topics.find(t => t.id === openTopicId);
+    if (!found) return;
+
+    lastOpenedNotificationRef.current = key;
+    openTopic(found);
+  }, [visible, openTopicId, openCommentId, topics, view, loading]);
 
   const loadTopics = async (isBackground = false) => {
     if (!isBackground) setLoading(true);
@@ -89,10 +110,27 @@ export default function ForumModal({ visible, onClose, openTopicId }: ForumModal
     try {
       const data = await fetchComments(topicId);
       setComments(data);
+
+      if (notificationMode && openCommentId) {
+        const index = data.findIndex(comment => comment.id === openCommentId);
+
+        if (index >= 0) {
+          InteractionManager.runAfterInteractions(() => {
+            setTimeout(() => {
+              commentsListRef.current?.scrollToIndex({
+                index,
+                animated: true,
+                viewPosition: 0.35,
+              });
+            }, 100);
+          });
+        }
+      }
     } catch (e: any) {
       showAlert('Error', 'No se pudieron cargar los comentarios.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const openTopic = (topic: ForumTopic) => {
@@ -224,6 +262,15 @@ export default function ForumModal({ visible, onClose, openTopicId }: ForumModal
       <View style={[styles.safe, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => {
+            if (notificationMode) {
+              // Desde una notificación el único destino válido al volver
+              // es la lista de Notificaciones.
+              setView('list');
+              resetForm();
+              onClose();
+              return;
+            }
+
             if (view === 'topic' || view === 'create') {
               setView('list');
               resetForm();
@@ -352,8 +399,17 @@ export default function ForumModal({ visible, onClose, openTopicId }: ForumModal
         {view === 'topic' && selectedTopic && (
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
             <FlatList
+              ref={commentsListRef}
               data={comments}
               keyExtractor={(item) => item.id}
+              onScrollToIndexFailed={(info) => {
+                setTimeout(() => {
+                  commentsListRef.current?.scrollToOffset({
+                    offset: Math.max(0, info.averageItemLength * info.index),
+                    animated: true,
+                  });
+                }, 250);
+              }}
               contentContainerStyle={styles.threadContainer}
               ListHeaderComponent={
                 <View style={styles.opCard}>
