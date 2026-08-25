@@ -38,6 +38,7 @@ import ProductosScreen from './src/screens/ProductosScreen';
 import ConfigScreen   from './src/screens/ConfigScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import ProductViewerScreen from './src/screens/ProductViewerScreen';
+import UpdatedProductsScreen from './src/screens/UpdatedProductsScreen';
 import LottieSplashScreen from './src/screens/LottieSplashScreen';
 import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
@@ -64,7 +65,8 @@ type RootStackParamList = {
   ChatScreen: undefined;
   Notificaciones: undefined;
   Estadisticas: undefined;
-  ProductViewer: { sku?: string; contextSkus?: string[] };
+  ProductViewer: { sku?: string; contextSkus?: string[]; notificationId?: number };
+  ProductosActualizados: { skus?: string[]; notificationId?: number };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -391,6 +393,7 @@ function App() {
                   <Stack.Screen name="ChatScreen" component={ChatScreen} />
                   <Stack.Screen name="Notificaciones" component={NotificationsScreen} />
                   <Stack.Screen name="Estadisticas" component={EstadisticasScreen} />
+                  <Stack.Screen name="ProductosActualizados" component={UpdatedProductsScreen} />
                   <Stack.Screen 
                     name="ProductViewer" 
                     component={ProductViewerScreen} 
