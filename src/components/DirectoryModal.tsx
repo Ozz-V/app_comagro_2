@@ -48,7 +48,7 @@ export default function DirectoryModal({ visible, onClose, loadingDirectory, dir
                 <TouchableOpacity 
                   key={i} 
                   style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border }}
-                  onPress={() => { setSearchQuery(''); onClose(); onUserClick(u.email); }}
+                  onPress={() => onUserClick(u.email)} // <-- CAMBIO AQUÍ: Se eliminó onClose() y setSearchQuery('')
                 >
                   <Image source={u.avatar_url ? { uri: u.avatar_url } : { uri: 'https://ui-avatars.com/api/?name=' + u.email + '&background=0D8A39&color=fff' }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
                   <View style={{ flex: 1 }}>
