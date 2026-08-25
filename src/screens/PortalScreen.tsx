@@ -28,8 +28,17 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
 
   const [showNewProductsModal, setShowNewProductsModal] = useState(false);
   const [newProductsSkus, setNewProductsSkus] = useState<string[]>([]);
+  const [forumOpenTopicId, setForumOpenTopicId] = useState<string | null>(null);
 
   const isMounted = React.useRef(true);
+  const isNavigatingToNotifRef = React.useRef(false);
+  function goToNotifications() {
+    if (isNavigatingToNotifRef.current) return;
+    isNavigatingToNotifRef.current = true;
+    navigation.navigate('Notificaciones');
+    setTimeout(() => { isNavigatingToNotifRef.current = false; }, 600);
+  }
+
   useEffect(() => {
     isMounted.current = true;
     return () => { isMounted.current = false; };
@@ -45,6 +54,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
   useEffect(() => {
     const subForum = DeviceEventEmitter.addListener('OPEN_FORUM', (data) => {
       if (data && data.topicId) {
+        setForumOpenTopicId(data.topicId);
         setShowForumModal(true);
       }
     });
@@ -242,7 +252,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
             </View>
             <Text style={styles.gridTitleThird}>Sugerencias</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.gridCardThird} activeOpacity={0.8} onPress={() => navigation.navigate('Notificaciones')}>
+          <TouchableOpacity style={styles.gridCardThird} activeOpacity={0.8} onPress={goToNotifications}>
             <View style={styles.gridIconThird}>
               <SvgIcon name="campana" size={24} color={COLORS.navy} />
             </View>
@@ -336,7 +346,8 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
 
       <ForumModal
         visible={showForumModal}
-        onClose={() => setShowForumModal(false)}
+        openTopicId={forumOpenTopicId}
+        onClose={() => { setShowForumModal(false); setForumOpenTopicId(null); }}
       />
 
     </SafeAreaView>
