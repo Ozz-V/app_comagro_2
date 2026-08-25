@@ -1,7 +1,7 @@
 // Build Trigger: Restauración versión estable 30-Abril
 import React, { useEffect, useState } from 'react';
 import { View, Text, DeviceEventEmitter } from 'react-native';
-import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { OfflineSyncProvider } from './src/contexts/OfflineSyncContext';
@@ -27,6 +27,7 @@ import { useAuthStore } from './src/store/useAuthStore';
 import * as Device from 'expo-device';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Sentry from '@sentry/react-native';
+import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import LoginScreen    from './src/screens/LoginScreen';
@@ -46,9 +47,6 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 SplashScreen.preventAutoHideAsync();
 
-// Si no hay DSN configurado (variable de entorno ausente), Sentry.init
-// deja el SDK en modo no-op — no rompe nada, simplemente no reporta.
-// Ver EXPO_PUBLIC_SENTRY_DSN en .github/workflows/build-produccion.yml.
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   enabled: !!process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -57,6 +55,9 @@ Sentry.init({
 
 const Stack = createNativeStackNavigator();
 
+// --- REFERENCIA DE NAVEGACIÓN GLOBAL ---
+export const navigationRef = createNavigationContainerRef();
+
 const navTheme = {
   ...DefaultTheme,
   colors: {
@@ -64,7 +65,6 @@ const navTheme = {
     background: '#FFFFFF',
   },
 };
-
 
 export default Sentry.wrap(AppWrapper);
 
@@ -79,7 +79,6 @@ function AppWrapper() {
           setIsRooted(true);
         }
       } catch (e) {
-        // Ignorar error si Device.isRooted falla
       }
     }
     checkRoot();
@@ -110,12 +109,10 @@ function AppWrapper() {
 function App() {
   const { session, isAuthenticated, isInitialized, setAuth, clearAuth } = useAuthStore();
   const [showLottie, setShowLottie] = useState(true);
-  const [profileComplete, setProfileComplete] = useState(true); // Inicialmente true para no bloquear la pantalla inicial
-  
-  // --- SISTEMA DE ACTUALIZACIÓN ---
+  const [profileComplete, setProfileComplete] = useState(true);
+
   const { updateState, downloadProgress, updateNotes, setUpdateState, startDownloadUpdate, installUpdate, checkUpdate } = useOTAUpdate();
 
-  // --- COMPROBADOR DE ACTUALIZACIONES: Inicia automáticamente sin importar el Login ---
   useEffect(() => {
     checkUpdate();
   }, []);
@@ -156,6 +153,44 @@ function App() {
     };
   }, [showAlert]);
 
+  // --- OYENTE DE NOTIFICACIONES PUSH (TOQUE DEL USUARIO) ---
+  useEffect(() => {
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      if (!data) return;
+
+      const tryNavigate = (callback: () => void, retries = 0) => {
+        if (navigationRef.isReady()) {
+          callback();
+        } else if (retries < 10) {
+          setTimeout(() => tryNavigate(callback, retries + 1), 300);
+        }
+      };
+
+      if (data.type === 'forum_topic' || data.type === 'forum_comment') {
+        tryNavigate(() => {
+          navigationRef.navigate('Portal' as never);
+          setTimeout(() => {
+            DeviceEventEmitter.emit('OPEN_FORUM', { topicId: data.topicId });
+          }, 600);
+        });
+      }
+
+      if (data.type === 'new_products') {
+        tryNavigate(() => {
+          navigationRef.navigate('Portal' as never);
+          setTimeout(() => {
+            DeviceEventEmitter.emit('OPEN_NEW_PRODUCTS', { skus: data.skus });
+          }, 600);
+        });
+      }
+    });
+
+    return () => {
+      Notifications.removeNotificationSubscription(responseListener);
+    };
+  }, []);
+
   useEffect(() => {
     async function registerAndSaveToken(userId: string) {
       try {
@@ -171,8 +206,6 @@ function App() {
     async function checkProfile(userId: string) {
       try {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-
-        // 1. Intentar desde caché local primero (funciona offline)
         const cached = await AsyncStorage.getItem('@user_profile_cache');
         if (cached) {
           const data = JSON.parse(cached);
@@ -181,40 +214,27 @@ function App() {
             return;
           }
         }
-
-        // 2. Si no hay caché, consultar Supabase
         const { data, error } = await supabase.from('profiles').select('full_name, telefono').eq('id', userId).single();
-
-        // Si hay error de red (offline), no bloquear acceso — dejar pasar
         if (error) {
           setProfileComplete(true);
           return;
         }
-
         if (data && data.full_name && data.full_name.trim() !== '' && data.telefono && data.telefono.trim() !== '') {
-          // IMPORTANTE: guardar en caché para que funcione offline la próxima vez
           await AsyncStorage.setItem('@user_profile_cache', JSON.stringify(data));
           setProfileComplete(true);
         } else {
           setProfileComplete(false);
         }
       } catch(e) {
-        // Si falla (ej. sin internet), no podemos bloquear el acceso offline. Lo dejamos pasar.
         setProfileComplete(true);
       }
     }
 
-    // Intenta rescatar la última sesión válida desde SecureStore (funciona
-    // 100% offline, sin red). Devuelve true si logró restaurar sesión.
-    // Se usa tanto en la carga inicial como en onAuthStateChange, porque
-    // AMBOS caminos pueden recibir "session: null" por una falla de red al
-    // renovar el token, no solo por un cierre de sesión real.
     async function rescueSessionFromCache(): Promise<boolean> {
       try {
         const cached = await SecureStore.getItemAsync(SUPABASE_STORAGE_KEY);
         if (cached) {
           const parsed = JSON.parse(cached);
-          // supabase-js guarda la sesión entera en la raíz del JSON
           if (parsed && parsed.user) {
             setAuth(parsed);
             checkProfile(parsed.user.id);
@@ -227,31 +247,12 @@ function App() {
       return false;
     }
 
-    // Arranque: la caché local (SecureStore) es la ÚNICA fuente de verdad para
-    // decidir si te deja entrar. Nunca se espera a la red para esto — ni con
-    // timeout ni sin él. Si ya tenías sesión guardada, entrás al instante,
-    // tengas internet, mala señal, o nada. La red solo se usa para confirmar
-    // en segundo plano, nunca para decidir el render inicial.
     async function loadInitialSession() {
       const rescued = await rescueSessionFromCache();
-
       if (rescued) {
-        // Ya entraste con lo que había en el caché. Ahora sí, en segundo
-        // plano y sin que nadie espere nada, le pedimos al SDK que intente
-        // confirmar la sesión contra el servidor. Si la confirma, no cambia
-        // nada visible. Si de verdad fue revocada, el propio SDK dispara el
-        // evento SIGNED_OUT del listener de más abajo, y ahí sí se cierra
-        // la sesión — mientras el usuario ya está navegando la app.
-        // Si falla por falta de red, no hacemos nada: seguimos confiando en
-        // el caché hasta que se demuestre lo contrario.
         supabase.auth.getSession().catch(() => {});
         return;
       }
-
-      // Único caso donde de verdad no hay nada local de donde partir:
-      // primera vez que se abre la app, o la sesión ya se había cerrado
-      // explícitamente antes. Ahí sí hace falta preguntarle al servidor,
-      // porque no existe ningún dato guardado del cual arrancar.
       try {
         const { data, error } = await supabase.auth.getSession();
         if (!error && data.session) {
@@ -272,7 +273,6 @@ function App() {
 
     loadInitialSession();
 
-    // Escucha cambios de sesión en tiempo real
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, sess: unknown) => {
       const session = sess as Session | null;
       if (session) {
@@ -282,18 +282,10 @@ function App() {
           checkProfile(session.user.id);
         }
       } else if (event === 'SIGNED_OUT') {
-        // Único caso de cierre de sesión real y explícito (logout manual,
-        // o el refresh token fue revocado del lado del servidor). Acá SÍ
-        // hay que limpiar.
         clearAuth();
         setProfileComplete(true);
         queryClient.clear();
       } else {
-        // Cualquier otro evento con session: null (típicamente
-        // INITIAL_SESSION) puede deberse a que el SDK intentó renovar el
-        // token en segundo plano y falló por falta de red — no a que la
-        // sesión sea inválida de verdad. Antes de desloguear al usuario,
-        // intentamos rescatar la última sesión conocida de SecureStore.
         rescueSessionFromCache().then((rescued) => {
           if (rescued) return;
           clearAuth();
@@ -309,7 +301,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-
     const subProfile = DeviceEventEmitter.addListener('PROFILE_COMPLETED', () => {
       setProfileComplete(true);
     });
@@ -323,7 +314,7 @@ function App() {
     };
   }, []);
   if (!fontsLoaded || !isInitialized) {
-    return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />; // Evita parpadeo negro en lugar de return null
+    return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
   }
 
   const autenticado = !!isAuthenticated;
@@ -331,7 +322,7 @@ function App() {
     <SafeAreaProvider style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <OfflineSyncProvider>
         <ErrorBoundary>
-          <NavigationContainer theme={navTheme}>
+          <NavigationContainer ref={navigationRef} theme={navTheme}>
             <Stack.Navigator 
               screenOptions={{ 
                 headerShown: false, 
@@ -368,7 +359,7 @@ function App() {
             </Stack.Navigator>
           </NavigationContainer>
         </ErrorBoundary>
-        
+
         {showLottie && (
           <LottieSplashScreen
             onFinish={() => setShowLottie(false)}
