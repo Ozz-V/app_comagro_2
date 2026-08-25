@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, SafeAreaView, ActivityIndicator, DeviceEventEmitter } from 'react-native';
 import ProductDetailModal from '../components/ProductDetailModal';
 import CompareModal from '../components/CompareModal';
 import { getProductBySku, fetchMissingProductFromCloud } from '../utils/database';
@@ -25,7 +25,6 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
   const { aiData, setAiData, loadingAi, fetchAiData } = useAiData();
   const { showAlert } = useCustomAlert();
 
-  // Compare state (self-contained: no need to navigate away to ProductosScreen)
   const [compareItems, setCompareItems] = useState<CompareItem[]>([]);
   const [showCompare, setShowCompare] = useState(false);
 
@@ -72,7 +71,6 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
           setActiveSliderList([]);
         }
       } catch {
-        // Error handling silenced per professional codebase standards when UI recovery handles null state
       } finally {
         setLoading(false);
       }
@@ -82,12 +80,6 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
 
   useEffect(() => {
     if (!loading && !modalProd) {
-      /*
-       * El SKU ya no existe.
-       *
-       * Si llegamos desde una notificación, además de informar al usuario
-       * preguntamos si quiere eliminar la notificación obsoleta.
-       */
       if (sku) {
         if (notificationId != null) {
           showAlert(
@@ -112,6 +104,9 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
                       'No se pudo eliminar',
                       'La notificación no pudo eliminarse del historial.'
                     );
+                  } else {
+                    // Aquí emite la orden de borrar localmente y de la caché!
+                    DeviceEventEmitter.emit('DELETE_NOTIFICATION', notificationId);
                   }
                 },
               },
@@ -127,7 +122,6 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
 
       navigation.goBack();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, modalProd, navigation]);
 
   if (loading || !modalProd) {
