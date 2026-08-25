@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, SafeAreaView, StatusBar, Platform,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, DeviceEventEmitter
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
@@ -13,7 +13,7 @@ const ANIMATION_ISO = require('../../assets/iso.json');
 
 type NotifRow = {
   id: number;
-  type: 'plytix' | 'forum_topic' | 'forum_comment';
+  type: 'plytix' | 'new_products' | 'forum_topic' | 'forum_comment';
   title: string;
   body: string;
   data: Record<string, unknown>;
@@ -22,7 +22,7 @@ type NotifRow = {
 };
 
 function iconForType(type: NotifRow['type']) {
-  if (type === 'plytix') return 'doc4';
+  if (type === 'plytix' || type === 'new_products') return 'doc4';
   return 'chatBubble';
 }
 
@@ -37,7 +37,7 @@ function timeAgo(iso: string): string {
   return `hace ${dias} d`;
 }
 
-export default function NotificationsScreen({ navigation }: { navigation: { goBack: () => void; [key: string]: unknown } }) {
+export default function NotificationsScreen({ navigation }: { navigation: { goBack: () => void; navigate: (s: string) => void; [key: string]: unknown } }) {
   const [items, setItems] = useState<NotifRow[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -67,13 +67,25 @@ export default function NotificationsScreen({ navigation }: { navigation: { goBa
 
   useEffect(() => { cargar(false); }, [cargar]);
 
-  async function marcarLeida(item: NotifRow) {
-    if (item.read_at) return;
-    setItems(prev => prev.map(i => i.id === item.id ? { ...i, read_at: new Date().toISOString() } : i));
-    await supabase.from('notifications_log').update({ read_at: new Date().toISOString() }).eq('id', item.id);
-    // Nota: la navegación a la lista de productos actualizados o al tema del
-    // foro correspondiente se conecta en el siguiente paso, junto con el
-    // resto de las pantallas (Sugerencias / Estadísticas).
+  function manejarToqueNotificacion(item: NotifRow) {
+    // 1. Marcar como leída de fondo si no lo estaba
+    if (!item.read_at) {
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, read_at: new Date().toISOString() } : i));
+      supabase.from('notifications_log').update({ read_at: new Date().toISOString() }).eq('id', item.id).then();
+    }
+
+    // 2. Navegar de vuelta al Portal y disparar el evento del modal
+    if (item.type === 'forum_topic' || item.type === 'forum_comment') {
+      navigation.navigate('Portal');
+      setTimeout(() => {
+        DeviceEventEmitter.emit('OPEN_FORUM', { topicId: item.data?.topicId });
+      }, 400); // Pequeño delay de 400ms para que termine la transición de pantalla
+    } else if (item.type === 'new_products' || item.type === 'plytix') {
+      navigation.navigate('Portal');
+      setTimeout(() => {
+        DeviceEventEmitter.emit('OPEN_NEW_PRODUCTS', { skus: item.data?.skus || [] });
+      }, 400);
+    }
   }
 
   return (
@@ -103,7 +115,7 @@ export default function NotificationsScreen({ navigation }: { navigation: { goBa
           contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => cargar(true)} colors={[COLORS.green]} />}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={() => marcarLeida(item)}>
+            <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={() => manejarToqueNotificacion(item)}>
               {!item.read_at && <View style={styles.dot} />}
               <View style={styles.cardIcon}>
                 <SvgIcon name={iconForType(item.type)} size={22} color={COLORS.navy} />
