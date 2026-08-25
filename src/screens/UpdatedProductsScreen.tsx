@@ -1,286 +1,88 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  StatusBar,
-  Platform,
-  ActivityIndicator,
-  RefreshControl,
-  DeviceEventEmitter,
+  View, Text, FlatList, TouchableOpacity,
+  StyleSheet, Image, SafeAreaView, StatusBar,
+  ActivityIndicator, Platform,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
-import ForumModal from '../components/ForumModal';
-import { useCustomAlert } from '../contexts/CustomAlertContext';
+import { useProducts } from '../hooks/useProducts';
+import { ParsedProduct } from '../types/models';
+import { APP_CONSTANTS } from '../config/constants';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
-const CACHE_KEY = '@notifications_cache';
+const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 
-type NotifRow = {
-  id: number;
-  type: 'plytix' | 'new_products' | 'forum_topic' | 'forum_comment';
-  title: string;
-  body: string;
-  data: Record<string, unknown>;
-  sent_at: string;
-  read_at: string | null;
-};
-
-function iconForType(type: NotifRow['type']) {
-  if (type === 'plytix' || type === 'new_products') return 'doc4';
-  return 'chatBubble';
+interface RowItem {
+  sku: string;
+  product: ParsedProduct | null;
 }
 
-function timeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diffMs / 60000);
-
-  if (min < 1) return 'ahora';
-  if (min < 60) return `hace ${min} min`;
-
-  const hs = Math.floor(min / 60);
-  if (hs < 24) return `hace ${hs} h`;
-
-  const dias = Math.floor(hs / 24);
-  return `hace ${dias} d`;
-}
-
-export default function NotificationsScreen({
-  navigation,
-}: {
-  navigation: {
-    goBack: () => void;
-    navigate: (screen: string, params?: Record<string, unknown>) => void;
-    [key: string]: unknown;
-  };
-}) {
-  const [items, setItems] = useState<NotifRow[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [showForumModal, setShowForumModal] = useState(false);
-  const [forumOpenTopicId, setForumOpenTopicId] = useState<string | null>(null);
-  const [forumOpenCommentId, setForumOpenCommentId] = useState<string | null>(null);
-
-  const { showAlert } = useCustomAlert();
-
-  // Guarda en la memoria caché del teléfono
-  const syncCache = async (newItems: NotifRow[]) => {
-    try {
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(newItems));
-    } catch (e) {}
-  };
-
-  const cargar = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setCargando(true);
-
-    setError(null);
-
-    try {
-      // 1. CARGA ULTRARRÁPIDA DESDE CACHÉ (Evita la pantalla de carga)
-      if (!isRefresh) {
-        const cached = await AsyncStorage.getItem(CACHE_KEY);
-        if (cached) {
-          setItems(JSON.parse(cached));
-          setCargando(false);
-        }
-      }
-
-      // 2. SINCRONIZACIÓN DE FONDO CON EL SERVIDOR
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setItems([]);
-        return;
-      }
-
-      const { data, error: qErr } = await supabase
-        .from('notifications_log')
-        .select('id, type, title, body, data, sent_at, read_at')
-        .eq('user_id', user.id)
-        .order('sent_at', { ascending: false })
-        .limit(100);
-
-      if (qErr) throw qErr;
-
-      const loadedData = (data || []) as NotifRow[];
-      setItems(loadedData);
-      syncCache(loadedData); // Actualizamos el caché
-
-    } catch {
-      setError('No se pudo cargar el historial de notificaciones.');
-    } finally {
-      setCargando(false);
-      setRefreshing(false);
-    }
-  }, []);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default function UpdatedProductsScreen({ route, navigation }: { route: any; navigation: any }) {
+  const { skus = [], notificationId } = route.params || {};
+  const { getProductBySkuSafe } = useProducts();
+  const [items, setItems] = useState<RowItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    cargar(false);
-  }, [cargar]);
-
-  // Escucha cuando otra pantalla (ej. ProductViewer) borra una notificación
-  useEffect(() => {
-    const sub = DeviceEventEmitter.addListener('DELETE_NOTIFICATION', (notifId: number) => {
-      setItems(prev => {
-        const filtrado = prev.filter(i => i.id !== notifId);
-        syncCache(filtrado);
-        return filtrado;
-      });
-    });
-    return () => sub.remove();
-  }, []);
-
-  const marcarComoLeida = async (item: NotifRow) => {
-    if (item.read_at) return;
-
-    const now = new Date().toISOString();
-
-    setItems(prev => {
-      const actualizados = prev.map(i => (i.id === item.id ? { ...i, read_at: now } : i));
-      syncCache(actualizados);
-      return actualizados;
-    });
-
-    await supabase
-      .from('notifications_log')
-      .update({ read_at: now })
-      .eq('id', item.id);
-  };
-
-  const eliminarNotificacion = async (item: NotifRow) => {
-    const { error: deleteError } = await supabase
-      .from('notifications_log')
-      .delete()
-      .eq('id', item.id);
-
-    if (deleteError) {
-      showAlert(
-        'No se pudo eliminar',
-        'La notificación no pudo eliminarse del historial. Comprueba que la política de eliminación de notifications_log esté habilitada en Supabase.'
-      );
-      return;
+    let cancelled = false;
+    async function loadAll() {
+      setLoading(true);
+      const uniqueSkus: string[] = [...new Set((skus || []).filter(Boolean))] as string[];
+      const results: RowItem[] = [];
+      for (const sku of uniqueSkus) {
+        const product = await getProductBySkuSafe(sku);
+        results.push({ sku, product });
+      }
+      if (!cancelled) {
+        setItems(results);
+        setLoading(false);
+      }
     }
+    loadAll();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(skus)]);
 
-    setItems(prev => {
-      const filtrado = prev.filter(i => i.id !== item.id);
-      syncCache(filtrado); // Actualiza la lista real para que no reaparezca
-      return filtrado;
-    });
-  };
+  const renderItem = ({ item }: { item: RowItem }) => {
+    const marca = item.product?.marca || '';
+    const logoUri = marca ? `${LOGO_BASE}${marca.toUpperCase().replace(/\s+/g, '_')}.jpg` : null;
+    const imgUri = item.product?.imagenOriginal || item.product?.imagen || logoUri;
+    const noDisponible = !item.product;
 
-  const avisarContenidoEliminado = (
-    item: NotifRow,
-    tipo: 'Sugerencia' | 'Comentario' | 'Producto'
-  ) => {
-    showAlert(
-      `${tipo} no disponible`,
-      `El ${tipo.toLowerCase()} de esta notificación ya no existe porque fue eliminado.\n\n¿Deseas eliminar también esta notificación del historial?`,
-      [
-        {
-          text: 'Conservar',
-          style: 'cancel',
-        },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            void eliminarNotificacion(item);
-          },
-        },
-      ]
+    return (
+      <TouchableOpacity
+        style={styles.row}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate('ProductViewer', {
+          sku: item.sku,
+          // Se mandan TODOS los SKUs de la tanda, no solo este: así, una vez
+          // adentro, las flechas de "anterior / siguiente" del visor pueden
+          // seguir recorriendo el resto de los productos actualizados.
+          contextSkus: items.map(i => i.sku),
+          notificationId,
+        })}
+      >
+        <View style={styles.imgWrap}>
+          {imgUri ? (
+            <Image source={{ uri: imgUri }} style={styles.img} resizeMode="contain" />
+          ) : (
+            <SvgIcon name="buscar" size={20} color={COLORS.gray4} />
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sku} numberOfLines={1}>{item.sku}</Text>
+          {noDisponible ? (
+            <Text style={styles.noDisponible}>Ya no disponible</Text>
+          ) : marca ? (
+            <Text style={styles.marca}>{marca}</Text>
+          ) : null}
+        </View>
+        <Text style={styles.chevron}>›</Text>
+      </TouchableOpacity>
     );
-  };
-
-  const comprobarYabrirForo = async (item: NotifRow) => {
-    const topicId = typeof item.data?.topicId === 'string' ? item.data.topicId : null;
-    const commentId = typeof item.data?.commentId === 'string' ? item.data.commentId : null;
-
-    if (!topicId) {
-      avisarContenidoEliminado(item, item.type === 'forum_comment' ? 'Comentario' : 'Sugerencia');
-      return;
-    }
-
-    const { data: topic, error: topicError } = await supabase
-      .from('forum_topics')
-      .select('id')
-      .eq('id', topicId)
-      .maybeSingle();
-
-    if (topicError || !topic) {
-      avisarContenidoEliminado(item, item.type === 'forum_comment' ? 'Comentario' : 'Sugerencia');
-      return;
-    }
-
-    if (item.type === 'forum_comment') {
-      if (!commentId) {
-        avisarContenidoEliminado(item, 'Comentario');
-        return;
-      }
-
-      const { data: comment, error: commentError } = await supabase
-        .from('forum_comments')
-        .select('id')
-        .eq('id', commentId)
-        .eq('topic_id', topicId)
-        .maybeSingle();
-
-      if (commentError || !comment) {
-        avisarContenidoEliminado(item, 'Comentario');
-        return;
-      }
-    }
-
-    setForumOpenTopicId(topicId);
-    setForumOpenCommentId(commentId);
-    setShowForumModal(true);
-  };
-
-  const manejarToqueNotificacion = async (item: NotifRow) => {
-    await marcarComoLeida(item);
-
-    const isForum = item.type === 'forum_topic' || item.type === 'forum_comment';
-    const isProducts = item.type === 'new_products' || item.type === 'plytix';
-
-    if (isForum) {
-      await comprobarYabrirForo(item);
-      return;
-    }
-
-    if (isProducts) {
-      const skus = Array.isArray(item.data?.skus)
-        ? item.data.skus.filter((sku): sku is string => typeof sku === 'string')
-        : [];
-
-      if (skus.length === 0) {
-        avisarContenidoEliminado(item, 'Producto');
-        return;
-      }
-
-      navigation.navigate('ProductosActualizados', {
-        skus,
-        notificationId: item.id,
-      });
-
-      return;
-    }
-  };
-
-  const cerrarForum = () => {
-    setShowForumModal(false);
-    setForumOpenTopicId(null);
-    setForumOpenCommentId(null);
   };
 
   return (
@@ -295,83 +97,67 @@ export default function NotificationsScreen({
           style={styles.logoAnimado}
           resizeMode="contain"
         />
-
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.btnVolver}>‹ Volver</Text>
         </TouchableOpacity>
       </View>
-
       <View style={styles.topBorder} />
 
-      <Text style={styles.titulo}>Notificaciones</Text>
+      <Text style={styles.titulo}>Productos actualizados</Text>
 
-      {cargando ? (
+      {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={COLORS.navy} />
-        </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.errorTxt}>{error}</Text>
+          <ActivityIndicator size="large" color={COLORS.navy} />
         </View>
       ) : items.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.vacioTxt}>
-            Todavía no llegaron notificaciones.
-          </Text>
+          <Text style={styles.emptyText}>No hay productos para mostrar.</Text>
         </View>
       ) : (
         <FlatList
           data={items}
-          keyExtractor={i => String(i.id)}
-          contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => cargar(true)} colors={[COLORS.green]} />}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              activeOpacity={0.8}
-              onPress={() => { void manejarToqueNotificacion(item); }}
-            >
-              {!item.read_at && <View style={styles.dot} />}
-
-              <View style={styles.cardIcon}>
-                <SvgIcon name={iconForType(item.type)} size={22} color={COLORS.navy} />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardBody}>{item.body}</Text>
-                <Text style={styles.cardTime}>{timeAgo(item.sent_at)}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          keyExtractor={(it) => it.sku}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
         />
       )}
-
-      <ForumModal
-        visible={showForumModal}
-        openTopicId={forumOpenTopicId}
-        openCommentId={forumOpenCommentId}
-        notificationMode
-        onClose={cerrarForum}
-      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.white },
-  topbar: { backgroundColor: COLORS.white, paddingHorizontal: 20, paddingBottom: 14, paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topbar: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   topBorder: { height: 1, backgroundColor: COLORS.border },
   logoAnimado: { width: 100, height: 40 },
   btnVolver: { fontFamily: FONTS.body, fontSize: 16, color: COLORS.green },
-  titulo: { fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, textAlign: 'center', marginTop: 20, marginBottom: 4 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 },
-  errorTxt: { fontFamily: FONTS.body, fontSize: 14, color: '#e74c3c', textAlign: 'center' },
-  vacioTxt: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, textAlign: 'center' },
-  card: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14, marginBottom: 12, backgroundColor: COLORS.white },
-  dot: { position: 'absolute', top: 12, right: 12, width: 9, height: 9, borderRadius: 5, backgroundColor: COLORS.green },
-  cardIcon: { marginTop: 2 },
-  cardTitle: { fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, marginBottom: 2 },
-  cardBody: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, marginBottom: 6 },
-  cardTime: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4 },
+  titulo: {
+    fontFamily: FONTS.heading, fontSize: 22, fontWeight: '800',
+    color: COLORS.navy, textAlign: 'center', marginVertical: 16,
+  },
+  list: { paddingHorizontal: 16, paddingBottom: 40 },
+  row: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#F7F8FA', borderRadius: 10,
+    padding: 10, marginBottom: 8,
+  },
+  imgWrap: {
+    width: 44, height: 44, borderRadius: 8, backgroundColor: COLORS.white,
+    alignItems: 'center', justifyContent: 'center', marginRight: 10,
+  },
+  img: { width: '100%', height: '100%' },
+  sku: { fontFamily: FONTS.heading, fontSize: 14, fontWeight: '700', color: COLORS.navy },
+  marca: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4 },
+  noDisponible: { fontFamily: FONTS.body, fontSize: 11, color: '#e74c3c' },
+  chevron: { fontSize: 22, color: COLORS.gray4, marginLeft: 4 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyText: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4 },
 });
