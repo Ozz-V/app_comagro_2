@@ -8,15 +8,17 @@ import { fetchImageBase64 } from '../utils/pdfService';
 import { APP_CONSTANTS } from '../config/constants';
 import { ParsedProduct, CompareItem } from '../types/models';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
+import { supabase } from '../supabase';
 
 interface RouteParams {
   sku?: string;
   contextSkus?: string[];
+  notificationId?: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function ProductViewerScreen({ route, navigation }: { route: any; navigation: any }) {
-  const { sku, contextSkus } = route.params || {};
+  const { sku, contextSkus, notificationId } = route.params || {};
   const [modalProd, setModalProd] = useState<ParsedProduct | null>(null);
   const [activeSliderList, setActiveSliderList] = useState<ParsedProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,12 +82,49 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
 
   useEffect(() => {
     if (!loading && !modalProd) {
-      // El producto no se encontró (SKU borrado/descontinuado desde que
-      // llegó la notificación, o link inválido). Avisamos en vez de
-      // volver atrás en silencio, para que quede claro qué pasó.
+      /*
+       * El SKU ya no existe.
+       *
+       * Si llegamos desde una notificación, además de informar al usuario
+       * preguntamos si quiere eliminar la notificación obsoleta.
+       */
       if (sku) {
-        showAlert('Producto no disponible', 'Este producto ya no está disponible en el catálogo.');
+        if (notificationId != null) {
+          showAlert(
+            'Producto no disponible',
+            'Este producto ya no está disponible en el catálogo porque fue eliminado o descontinuado.\n\n¿Deseas eliminar también esta notificación del historial?',
+            [
+              {
+                text: 'Conservar',
+                style: 'cancel',
+              },
+              {
+                text: 'Eliminar',
+                style: 'destructive',
+                onPress: async () => {
+                  const { error } = await supabase
+                    .from('notifications_log')
+                    .delete()
+                    .eq('id', notificationId);
+
+                  if (error) {
+                    showAlert(
+                      'No se pudo eliminar',
+                      'La notificación no pudo eliminarse del historial.'
+                    );
+                  }
+                },
+              },
+            ]
+          );
+        } else {
+          showAlert(
+            'Producto no disponible',
+            'Este producto ya no está disponible en el catálogo.'
+          );
+        }
       }
+
       navigation.goBack();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
