@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, Modal, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
@@ -21,10 +21,14 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showForumModal, setShowForumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [allProdsCache, setAllProdsCache] = useState<ParsedProduct[]>([]);
-  
+
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profName, setProfName] = useState('');
   const [profPhoneInit, setProfPhoneInit] = useState('');
+
+  // Estados para las notificaciones Push de Nuevos Productos
+  const [showNewProductsModal, setShowNewProductsModal] = useState(false);
+  const [newProductsSkus, setNewProductsSkus] = useState<string[]>([]);
 
   const isMounted = React.useRef(true);
   useEffect(() => {
@@ -38,6 +42,26 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     });
     return unsubscribe;
   }, [navigation]);
+
+  // --- OYENTES DE NOTIFICACIONES DESDE APP.TSX ---
+  useEffect(() => {
+    const subForum = DeviceEventEmitter.addListener('OPEN_FORUM', (data) => {
+      setShowForumModal(true);
+      // Nota: Si tu ForumModal en un futuro acepta un initialTopicId, se lo pasaríamos aquí como data.topicId
+    });
+
+    const subProducts = DeviceEventEmitter.addListener('OPEN_NEW_PRODUCTS', (data) => {
+      if (data && data.skus) {
+        setNewProductsSkus(data.skus);
+        setShowNewProductsModal(true);
+      }
+    });
+
+    return () => {
+      subForum.remove();
+      subProducts.remove();
+    };
+  }, []);
 
   const parseRawProducts = (rawData: string) => {
     const COLS_EXCLUIDAS = new Set([
@@ -233,6 +257,51 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* --- MODAL PARA NUEVOS PRODUCTOS DESDE NOTIFICACIÓN --- */}
+      <Modal visible={showNewProductsModal} animationType="slide" transparent onRequestClose={() => setShowNewProductsModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '75%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#E8F5E9', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                  <SvgIcon name="campana" size={18} color={COLORS.green} />
+                </View>
+                <Text style={{ fontFamily: FONTS.heading, fontSize: 20, fontWeight: '700', color: COLORS.navy }}>Productos Nuevos</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowNewProductsModal(false)} style={{ padding: 4 }}>
+                <Text style={{ fontSize: 26, color: COLORS.gray4, fontWeight: 'bold' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, marginBottom: 16 }}>
+                Selecciona un modelo para ver su ficha técnica detallada:
+              </Text>
+              {newProductsSkus.map((sku, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={{ paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                  onPress={() => {
+                    setShowNewProductsModal(false);
+                    navigation.navigate('ProductViewer', { sku });
+                  }}
+                >
+                  <Text style={{ fontFamily: FONTS.heading, fontSize: 16, fontWeight: '600', color: COLORS.navy }}>SKU: {sku}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.green, marginRight: 6 }}>Ver ficha</Text>
+                    <Text style={{ color: COLORS.green, fontSize: 18 }}>›</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              {newProductsSkus.length === 0 && (
+                <Text style={{ fontFamily: FONTS.body, color: COLORS.gray4, textAlign: 'center', marginTop: 20 }}>No hay información de SKUs disponible.</Text>
+              )}
+              <View style={{ height: 30 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <CalculadoraModal 
         visible={showCalcModal} 
