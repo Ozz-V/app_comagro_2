@@ -11,9 +11,12 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 interface ForumModalProps {
   visible: boolean;
   onClose: () => void;
+  // Si se provee, al abrirse el modal navega directo a ese tema (usado
+  // cuando se llega acá desde una notificación push del foro).
+  openTopicId?: string | null;
 }
 
-export default function ForumModal({ visible, onClose }: ForumModalProps) {
+export default function ForumModal({ visible, onClose, openTopicId }: ForumModalProps) {
   const [topics, setTopics] = useState<ForumTopic[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,6 +51,24 @@ export default function ForumModal({ visible, onClose }: ForumModalProps) {
       }
     }
   }, [visible, view]);
+
+  // Si se abrió el modal con un openTopicId (viene de tocar una notificación
+  // push del foro), en cuanto la lista de temas esté cargada, navega directo
+  // a ese tema en vez de mostrar la lista general. Si el tema ya no existe
+  // (lo borraron), avisa con un mensaje en vez de quedarse en silencio.
+  const notifiedMissingTopicRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (visible && openTopicId && topics.length > 0 && view === 'list') {
+      const found = topics.find(t => t.id === openTopicId);
+      if (found) {
+        openTopic(found);
+      } else if (notifiedMissingTopicRef.current !== openTopicId) {
+        notifiedMissingTopicRef.current = openTopicId;
+        showAlert('Tema no disponible', 'Este tema de Sugerencias ya no existe (fue eliminado).');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, openTopicId, topics]);
 
   const loadTopics = async (isBackground = false) => {
     if (!isBackground) setLoading(true);
