@@ -161,8 +161,22 @@ Deno.serve(async (req: Request) => {
       const notifTitle = 'Nuevo comentario';
       const notifBody = `Alguien comentó en tu tema "${topic.title}".`;
 
-      await sendPush(tokens, notifTitle, notifBody, { type: 'forum_comment', topicId: topic.id });
-      await logNotifications(supaAdmin, [topic.user_id], 'forum_comment', notifTitle, notifBody, { topicId: topic.id });
+      await sendPush(tokens, notifTitle, notifBody, {
+        type: 'forum_comment',
+        topicId: topic.id,
+        commentId: record.id,
+      });
+      await logNotifications(
+        supaAdmin,
+        [topic.user_id],
+        'forum_comment',
+        notifTitle,
+        notifBody,
+        {
+          topicId: topic.id,
+          commentId: record.id,
+        },
+      );
 
       return new Response(JSON.stringify({ ok: true, notified: tokens.length }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
