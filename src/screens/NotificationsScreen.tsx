@@ -68,23 +68,22 @@ export default function NotificationsScreen({ navigation }: { navigation: { goBa
   useEffect(() => { cargar(false); }, [cargar]);
 
   function manejarToqueNotificacion(item: NotifRow) {
-    // 1. Marcar como leída de fondo si no lo estaba
     if (!item.read_at) {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, read_at: new Date().toISOString() } : i));
       supabase.from('notifications_log').update({ read_at: new Date().toISOString() }).eq('id', item.id).then();
     }
 
-    // 2. Navegar de vuelta al Portal y disparar el evento del modal
-    if (item.type === 'forum_topic' || item.type === 'forum_comment') {
-      navigation.navigate('Portal');
-      setTimeout(() => {
-        DeviceEventEmitter.emit('OPEN_FORUM', { topicId: item.data?.topicId });
-      }, 400); // Pequeño delay de 400ms para que termine la transición de pantalla
-    } else if (item.type === 'new_products' || item.type === 'plytix') {
-      navigation.navigate('Portal');
-      setTimeout(() => {
-        DeviceEventEmitter.emit('OPEN_NEW_PRODUCTS', { skus: item.data?.skus || [] });
-      }, 400);
+    const isForum = item.type === 'forum_topic' || item.type === 'forum_comment';
+    const isProducts = item.type === 'new_products' || item.type === 'plytix';
+
+    if (isForum) {
+      if (!item.data || !item.data.topicId) return;
+      navigation.navigate('Portal'); 
+      DeviceEventEmitter.emit('OPEN_FORUM', { topicId: item.data.topicId }); 
+    } else if (isProducts) {
+      if (!item.data || !item.data.skus || !Array.isArray(item.data.skus) || item.data.skus.length === 0) return;
+      navigation.navigate('Portal'); 
+      DeviceEventEmitter.emit('OPEN_NEW_PRODUCTS', { skus: item.data.skus }); 
     }
   }
 
