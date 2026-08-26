@@ -194,6 +194,33 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
     void loadComments(topic.id);
   };
 
+  useEffect(() => {
+    if (!visible || view !== 'topic' || !selectedTopic) return;
+
+    let active = true;
+
+    const syncCommentsFromRealtime = async () => {
+      if (!active) return;
+
+      try {
+        const data = await fetchComments(selectedTopic.id);
+        if (active) setComments(data);
+      } catch {
+        // Si falla la sincronización silenciosa, dejamos los comentarios
+        // que ya se estaban mostrando; el próximo cambio lo va a intentar de nuevo.
+      }
+    };
+
+    const channel = supabase.channel(`forum-comments-live-${selectedTopic.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'forum_comments', filter: `topic_id=eq.${selectedTopic.id}` }, () => void syncCommentsFromRealtime())
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [visible, view, selectedTopic?.id]);
+
   const pickImage = async (setImg: (uri: string | null) => void) => {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 1 });
 
@@ -254,14 +281,40 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
   const handleCreateComment = async () => {
     if (!selectedTopic || (!newComment.trim() && !newCommentImg)) return;
 
+    const contentToSend = newComment.trim();
+    const imgToSend = newCommentImg;
+
+    // Limpiamos el input al toque, como cualquier chat: se siente instantáneo
+    // aunque el envío real todavía esté en curso.
+    setNewComment('');
+    setNewCommentImg(null);
     setLoading(true);
 
     try {
-      await createComment(selectedTopic.id, newComment.trim(), newCommentImg);
-      setNewComment('');
-      setNewCommentImg(null);
-      await loadComments(selectedTopic.id);
+      const saved = await createComment(selectedTopic.id, contentToSend, imgToSend);
+
+      // El insert ya nos devuelve la fila real (con id definitivo). En vez
+      // de volver a pedir TODOS los comentarios del tema, simplemente lo
+      // agregamos a la lista que ya tenemos.
+      setComments(prev => [
+        ...prev,
+        { ...(saved as ForumComment), profiles: { full_name: currentUser?.user_metadata?.full_name || 'Tú' } },
+      ]);
+
+      // Reconciliación silenciosa en segundo plano (para corregir el nombre
+      // de perfil real si difiere, sin bloquear ni recargar visualmente).
+      void (async () => {
+        try {
+          const data = await fetchComments(selectedTopic.id);
+          setComments(data);
+        } catch {
+          // Si falla, dejamos el comentario optimista tal cual está.
+        }
+      })();
     } catch (e: any) {
+      // Si falló el envío, devolvemos el texto al input para que no se pierda.
+      setNewComment(contentToSend);
+      setNewCommentImg(imgToSend);
       showAlert('Error', e.message || 'No se pudo enviar el comentario.');
     } finally {
       setLoading(false);
@@ -300,17 +353,63 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
   };
 
   const handleVote = async (topicId: string, vote: 1 | -1) => {
+    // Optimista: actualizamos la UI al instante con el mismo cálculo que
+    // hace el servidor (alternar/cambiar/agregar voto), y recién después
+    // avisamos al servidor. Si falla, revertimos.
+    const target = topics.find(t => t.id === topicId) || (selectedTopic?.id === topicId ? selectedTopic : null);
+    if (!target) return;
+
+    const prevVote = target.userVote ?? null;
+    let newUpvotes = target.upvotes || 0;
+    let newDownvotes = target.downvotes || 0;
+    let newUserVote: number | null;
+
+    if (prevVote === vote) {
+      newUserVote = null;
+      if (vote === 1) newUpvotes -= 1; else newDownvotes -= 1;
+    } else if (prevVote) {
+      newUserVote = vote;
+      if (vote === 1) { newUpvotes += 1; newDownvotes -= 1; } else { newDownvotes += 1; newUpvotes -= 1; }
+    } else {
+      newUserVote = vote;
+      if (vote === 1) newUpvotes += 1; else newDownvotes += 1;
+    }
+
+    const applyLocal = (list: ForumTopic[]) =>
+      list.map(t => t.id === topicId ? { ...t, upvotes: newUpvotes, downvotes: newDownvotes, userVote: newUserVote } : t);
+
+    const previousTopics = topics;
+    const previousSelected = selectedTopic;
+    const optimisticTopics = applyLocal(topics);
+
+    setTopics(optimisticTopics);
+    if (selectedTopic?.id === topicId) {
+      setSelectedTopic(prev => prev ? { ...prev, upvotes: newUpvotes, downvotes: newDownvotes, userVote: newUserVote } : prev);
+    }
+    await saveCachedTopics(optimisticTopics);
+
     try {
       await voteTopic(topicId, vote);
 
-      const data = await fetchTopics();
-      await applyTopics(data);
-
-      if (view === 'topic' && selectedTopic?.id === topicId) {
-        const refreshed = data.find(t => t.id === topicId);
-        if (refreshed) setSelectedTopic(refreshed);
-      }
+      // Reconciliamos con el servidor en segundo plano, sin bloquear la UI
+      // (por si otro usuario votó al mismo tiempo).
+      void (async () => {
+        try {
+          const data = await fetchTopics();
+          await applyTopics(data);
+          if (selectedTopic?.id === topicId) {
+            const refreshed = data.find(t => t.id === topicId);
+            if (refreshed) setSelectedTopic(refreshed);
+          }
+        } catch {
+          // Si falla la reconciliación silenciosa, el valor optimista queda
+          // igual; no interrumpimos al usuario por esto.
+        }
+      })();
     } catch (e: any) {
+      setTopics(previousTopics);
+      await saveCachedTopics(previousTopics);
+      if (previousSelected?.id === topicId) setSelectedTopic(previousSelected);
       showAlert('Error', 'No se pudo registrar tu voto.');
     }
   };
@@ -525,10 +624,13 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
                               text: 'Borrar',
                               style: 'destructive',
                               onPress: async () => {
+                                const previousComments = comments;
+                                setComments(prev => prev.filter(c => c.id !== item.id));
+
                                 try {
                                   await deleteComment(item.id);
-                                  await loadComments(selectedTopic.id);
                                 } catch {
+                                  setComments(previousComments);
                                   showAlert('Error', 'No se pudo borrar el comentario.');
                                 }
                               }
