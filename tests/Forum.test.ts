@@ -11,6 +11,14 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 
+// forum.ts ahora usa AsyncStorage para cachear temas/comentarios localmente.
+// Sin este mock, cualquier test que importe forum.ts falla con
+// "NativeModule: AsyncStorage is null" (no hay implementación nativa real
+// disponible en el entorno de Jest).
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
 // --- Mock de supabase ---
 // Cada método de la cadena (select/eq/order/insert/update/delete/single)
 // devuelve el mismo objeto encadenable, y ese objeto también es "thenable"
