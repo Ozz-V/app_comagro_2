@@ -45,6 +45,7 @@ import NotificationsScreen from './src/screens/NotificationsScreen';
 import EstadisticasScreen from './src/screens/EstadisticasScreen';
 import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { ensureCatalogSynced } from './src/services/catalogService';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -211,6 +212,11 @@ function App() {
         data.type === 'new_products' ||
         data.type === 'plytix'
       ) {
+        if (data.type === 'new_products' || data.type === 'plytix') {
+           ensureCatalogSynced({}, { skipVigenciaCheck: true }).catch(err => {
+              console.log("Error in background auto-sync:", err);
+           });
+        }
         tryNavigate(() => {
           navigationRef.navigate('Notificaciones');
         });

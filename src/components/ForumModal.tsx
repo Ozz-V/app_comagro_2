@@ -51,21 +51,18 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
         hasCache = true;
         setTopics(cached);
         setLoading(false);
-      } else if (!isBackground) {
+      } else {
         setLoading(true);
       }
 
-      if (isBackground) setRefreshing(true);
-
+      // Silent fetch
       const data = await fetchTopics();
 
       if (JSON.stringify(data) !== JSON.stringify(cached)) {
         await applyTopics(data);
-      } else {
-        setTopics(cached);
       }
     } catch (e: any) {
-      if (!hasCache && !isBackground) {
+      if (!hasCache) {
         showAlert('Error', 'No se pudieron cargar las sugerencias.');
       }
     } finally {
@@ -77,34 +74,7 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
 
   useEffect(() => {
     if (!visible || view !== 'list') return;
-
-    let active = true;
-
-    const loadCachedImmediately = async () => {
-      try {
-        const cached = await getCachedTopics();
-        if (!active) return;
-
-        if (cached.length > 0) {
-          setTopics(cached);
-          setLoading(false);
-        }
-      } catch {}
-    };
-
-    void loadCachedImmediately();
-
-    return () => { active = false; };
-  }, [visible, view]);
-
-  useEffect(() => {
-    if (!visible || view !== 'list') return;
-
-    const timeout = setTimeout(() => {
-      void loadTopics(true);
-    }, 0);
-
-    return () => clearTimeout(timeout);
+    loadTopics();
   }, [visible, view]);
 
   useEffect(() => {
@@ -429,7 +399,20 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
   const isAdmin = currentUser?.email === 'ovilla@comagro.com.py';
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={() => {
+      if (notificationMode) {
+        setView('list');
+        resetForm();
+        onClose();
+        return;
+      }
+      if (view === 'topic' || view === 'create') {
+        setView('list');
+        resetForm();
+      } else {
+        onClose();
+      }
+    }}>
       <View style={[styles.safe, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => {
@@ -453,8 +436,16 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
           <Text style={styles.headerTitle}>{view === 'list' ? 'Sugerencias' : view === 'create' ? editingTopicId ? 'Editar Tema' : 'Crear Tema' : 'Hilo'}</Text>
 
           {view === 'list' ? (
-            <TouchableOpacity onPress={() => { resetForm(); setView('create'); }} style={styles.headerActionBtn}>
-              <SvgIcon name="plus" size={24} color={COLORS.navy} />
+            <TouchableOpacity onPress={() => {
+              const myTopicsCount = topics.filter(t => t.user_id === currentUser?.id).length;
+              if (myTopicsCount >= 2 && !isAdmin) {
+                showAlert('Límite Alcanzado', 'Llegaste al límite de 2 temas. Si querés publicar algo nuevo, por favor borrá uno anterior.');
+              } else {
+                resetForm();
+                setView('create');
+              }
+            }} style={styles.headerActionBtn}>
+              <SvgIcon name="plus" size={24} color={topics.filter(t => t.user_id === currentUser?.id).length >= 2 && !isAdmin ? COLORS.gray3 : COLORS.navy} />
             </TouchableOpacity>
           ) : (
             <View style={{ width: 44 }} />
@@ -660,15 +651,33 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
               )}
 
               <View style={styles.commentInputRow}>
-                <TouchableOpacity onPress={() => pickImage(setNewCommentImg)} style={styles.attachBtn}>
-                  <SvgIcon name="camera" size={20} color={COLORS.gray1} />
-                </TouchableOpacity>
+                {(() => {
+                  const myCommentsCount = comments.filter(c => c.user_id === currentUser?.id).length;
+                  const limitReached = myCommentsCount >= 2 && !isAdmin;
+                  
+                  return (
+                    <>
+                      <TouchableOpacity onPress={() => !limitReached && pickImage(setNewCommentImg)} style={[styles.attachBtn, limitReached && { opacity: 0.5 }]} disabled={limitReached}>
+                        <SvgIcon name="camera" size={20} color={COLORS.gray1} />
+                      </TouchableOpacity>
 
-                <TextInput style={styles.commentInput} value={newComment} onChangeText={setNewComment} placeholder="Escribe tu opinión..." placeholderTextColor={COLORS.gray1} maxLength={450} multiline />
+                      <TextInput 
+                        style={[styles.commentInput, limitReached && { backgroundColor: COLORS.border, color: COLORS.gray1 }]} 
+                        value={newComment} 
+                        onChangeText={setNewComment} 
+                        placeholder={limitReached ? "Alcanzaste el límite de 2 comentarios aquí" : "Escribe tu opinión..."} 
+                        placeholderTextColor={limitReached ? COLORS.gray3 : COLORS.gray1} 
+                        maxLength={450} 
+                        multiline 
+                        editable={!limitReached}
+                      />
 
-                <TouchableOpacity onPress={handleCreateComment} disabled={loading || (!newComment.trim() && !newCommentImg)} style={styles.sendBtn}>
-                  {loading ? <ActivityIndicator size="small" color={COLORS.white} /> : <SvgIcon name="arrow-right" size={20} color={COLORS.white} />}
-                </TouchableOpacity>
+                      <TouchableOpacity onPress={handleCreateComment} disabled={loading || (!newComment.trim() && !newCommentImg) || limitReached} style={[styles.sendBtn, limitReached && { backgroundColor: COLORS.gray3 }]}>
+                        {loading ? <ActivityIndicator size="small" color={COLORS.white} /> : <SvgIcon name="arrow-right" size={20} color={COLORS.white} />}
+                      </TouchableOpacity>
+                    </>
+                  );
+                })()}
               </View>
             </View>
           </KeyboardAvoidingView>
