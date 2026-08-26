@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, Modal, DeviceEventEmitter, FlatList } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
 import { syncAnalyticsQueue } from '../utils/analyticsSync';
@@ -10,15 +11,37 @@ import CalculadoraModal from '../components/CalculadoraModal';
 import ProfileCompleteModal from '../components/ProfileCompleteModal';
 import OnboardingTutorial from '../components/OnboardingTutorial';
 import ForumModal from '../components/ForumModal';
+import WhatsNewModal from '../components/WhatsNewModal';
 import { ParsedProduct } from '../types/models';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
+
+// Lista de novedades de esta versión. Para la próxima actualización, alcanza
+// con cambiar este array -- el resto del mecanismo (mostrar una sola vez,
+// y volver a mostrarlo desde "Buscar actualización" si no hay nada nuevo
+// para descargar) no necesita tocarse.
+const WHATS_NEW_FEATURES = [
+  'Nuevos íconos',
+  'Buzón de sugerencias',
+  'Estadísticas',
+  'Curva de rendimiento',
+  'Calculadora avanzada',
+  'Sesión de notificaciones',
+  'Alertas sobre actualizaciones de productos',
+];
 
 const PROFILE_CACHE_KEY = '@profile_status_cache';
 
 export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [showForumModal, setShowForumModal] = useState(false);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  // Refs espejo de estos dos estados, para poder consultarlos "en vivo"
+  // dentro del chequeo asíncrono de más abajo sin depender de un closure
+  // viejo (evita mostrar "Novedades" encima del perfil incompleto o del
+  // tutorial de bienvenida si coinciden en el primer ingreso).
+  const showProfileModalRef = React.useRef(false);
+  const showTutorialRef = React.useRef(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [allProdsCache, setAllProdsCache] = useState<ParsedProduct[]>([]);
 
@@ -174,9 +197,47 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
   }
 
   useEffect(() => {
+    showProfileModalRef.current = showProfileModal;
+  }, [showProfileModal]);
+
+  useEffect(() => {
+    showTutorialRef.current = showTutorial;
+  }, [showTutorial]);
+
+  async function checkWhatsNew() {
+    try {
+      const currentVersion = String(Constants.expoConfig?.android?.versionCode || 1);
+      const lastShownVersion = await AsyncStorage.getItem('@whats_new_last_shown_version');
+
+      if (lastShownVersion === currentVersion) return; // ya se mostró para esta versión instalada
+
+      const tutorialSeen = await AsyncStorage.getItem('@tutorial_seen');
+      if (!tutorialSeen) {
+        // Usuario nuevo (nunca vio una versión anterior de la app): no
+        // tiene sentido mostrarle "novedades" de algo que no conocía.
+        // Dejamos guardada la versión actual para que, cuando SÍ haya una
+        // próxima actualización real, le aparezca a él también.
+        await AsyncStorage.setItem('@whats_new_last_shown_version', currentVersion);
+        return;
+      }
+
+      if (!isMounted.current) return;
+      if (showProfileModalRef.current || showTutorialRef.current) return; // no encimar modales
+
+      setShowWhatsNew(true);
+      await AsyncStorage.setItem('@whats_new_last_shown_version', currentVersion);
+    } catch {}
+  }
+
+  useEffect(() => {
     applyCachedProfileStatus();
     syncAnalyticsQueue();
     checkProfile();
+    // Pequeña demora para dejar que el perfil incompleto / tutorial de
+    // bienvenida (si corresponden) ya hayan decidido mostrarse antes de
+    // evaluar si corresponde mostrar "Novedades" encima de todo eso.
+    const t = setTimeout(checkWhatsNew, 1200);
+    return () => clearTimeout(t);
   }, []);
 
   return (
@@ -348,6 +409,12 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         visible={showForumModal}
         openTopicId={forumOpenTopicId}
         onClose={() => { setShowForumModal(false); setForumOpenTopicId(null); }}
+      />
+
+      <WhatsNewModal
+        visible={showWhatsNew}
+        onClose={() => setShowWhatsNew(false)}
+        features={WHATS_NEW_FEATURES}
       />
 
     </SafeAreaView>
