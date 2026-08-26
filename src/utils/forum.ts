@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -27,41 +28,121 @@ export interface ForumComment {
   profiles?: { full_name: string; avatar_url?: string | null };
 }
 
-export async function uploadForumImage(uri: string): Promise<string | null> {
+const FORUM_TOPICS_CACHE_PREFIX = '@forum_topics_cache_v1_';
+
+async function getForumTopicsCacheKey(): Promise<string | null> {
+  const { data } = await supabase.auth.getUser();
+  const userId = data.user?.id;
+
+  if (!userId) {
+    return null;
+  }
+
+  return `${FORUM_TOPICS_CACHE_PREFIX}${userId}`;
+}
+
+export async function getCachedTopics(): Promise<ForumTopic[]> {
+  try {
+    const key = await getForumTopicsCacheKey();
+
+    if (!key) {
+      return [];
+    }
+
+    const cached = await AsyncStorage.getItem(key);
+
+    if (!cached) {
+      return [];
+    }
+
+    const parsed = JSON.parse(cached);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed as ForumTopic[];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveCachedTopics(
+  topics: ForumTopic[]
+): Promise<void> {
+  try {
+    const key = await getForumTopicsCacheKey();
+
+    if (!key) {
+      return;
+    }
+
+    await AsyncStorage.setItem(key, JSON.stringify(topics));
+  } catch {
+    // El cache nunca debe impedir el funcionamiento normal del foro.
+  }
+}
+
+export async function clearCachedTopics(): Promise<void> {
+  try {
+    const key = await getForumTopicsCacheKey();
+
+    if (!key) {
+      return;
+    }
+
+    await AsyncStorage.removeItem(key);
+  } catch {
+    // Ignoramos errores de cache.
+  }
+}
+
+export async function uploadForumImage(
+  uri: string
+): Promise<string | null> {
   const fileInfo = await FileSystem.getInfoAsync(uri);
 
-  // Si no existe información del archivo o el archivo no existe, retornamos null
   if (!fileInfo || fileInfo.exists === false) {
     return null;
   }
 
-  // Validamos el límite de 2MB
   if (fileInfo.size && fileInfo.size > 2097152) {
     throw new Error('La imagen excede los 2MB permitidos.');
   }
 
-  // Comprimimos la imagen antes de subirla
   const manipulated = await ImageManipulator.manipulateAsync(
     uri,
     [],
-    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+    {
+      compress: 0.7,
+      format: ImageManipulator.SaveFormat.JPEG,
+    }
   );
 
-  // Leemos el archivo comprimido como base64
-  const base64 = await FileSystem.readAsStringAsync(manipulated.uri, {
-    encoding: 'base64',
-  } as any);
+  const base64 = await FileSystem.readAsStringAsync(
+    manipulated.uri,
+    {
+      encoding: 'base64',
+    } as any
+  );
 
   const filename = `${Date.now()}.jpg`;
   const arrayBuffer = decode(base64);
 
   const { data, error } = await supabase.storage
     .from('forum_images')
-    .upload(filename, arrayBuffer, { contentType: 'image/jpeg' });
+    .upload(filename, arrayBuffer, {
+      contentType: 'image/jpeg',
+    });
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
-  const publicUrlResult = supabase.storage.from('forum_images').getPublicUrl(data?.path || filename);
+  const publicUrlResult = supabase.storage
+    .from('forum_images')
+    .getPublicUrl(data?.path || filename);
+
   return publicUrlResult?.data?.publicUrl || null;
 }
 
@@ -78,7 +159,9 @@ export async function fetchTopics(): Promise<ForumTopic[]> {
     `)
     .order('created_at', { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   return (data as any[]).map(topic => {
     if (!topic.forum_topic_votes) {
@@ -90,8 +173,14 @@ export async function fetchTopics(): Promise<ForumTopic[]> {
     let userVote = null;
 
     topic.forum_topic_votes.forEach((v: any) => {
-      if (v.vote_type === 1) upvotes++;
-      if (v.vote_type === -1) downvotes++;
+      if (v.vote_type === 1) {
+        upvotes++;
+      }
+
+      if (v.vote_type === -1) {
+        downvotes++;
+      }
+
       if (currentUserId && v.user_id === currentUserId) {
         userVote = v.vote_type;
       }
@@ -101,106 +190,187 @@ export async function fetchTopics(): Promise<ForumTopic[]> {
       ...topic,
       upvotes,
       downvotes,
-      userVote
+      userVote,
     };
   });
 }
 
-export async function fetchComments(topicId: string): Promise<ForumComment[]> {
+export async function syncTopicsToCache(): Promise<ForumTopic[]> {
+  const topics = await fetchTopics();
+  await saveCachedTopics(topics);
+  return topics;
+}
+
+export async function fetchComments(
+  topicId: string
+): Promise<ForumComment[]> {
   const { data, error } = await supabase
     .from('forum_comments')
     .select('*, profiles(full_name)')
     .eq('topic_id', topicId)
     .order('created_at', { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+
   return data as any[];
 }
 
-export async function createTopic(title: string, description: string, imageUri?: string | null) {
+export async function createTopic(
+  title: string,
+  description: string,
+  imageUri?: string | null
+) {
   const authResponse = await supabase.auth.getUser();
   const user = authResponse?.data?.user;
 
-  if (!user) throw new Error('No estás autenticado');
+  if (!user) {
+    throw new Error('No estás autenticado');
+  }
 
   let image_url = null;
+
   if (imageUri) {
     image_url = await uploadForumImage(imageUri);
   }
 
-  const { data, error } = await supabase.from('forum_topics').insert({
-    user_id: user.id,
-    title,
-    description,
-    image_url
-  }).select().single();
+  const { data, error } = await supabase
+    .from('forum_topics')
+    .insert({
+      user_id: user.id,
+      title,
+      description,
+      image_url,
+    })
+    .select()
+    .single();
 
   if (error) {
     if (error.message && error.message.includes('5 temas')) {
-      throw new Error('Has alcanzado el límite máximo de 5 temas creados.');
+      throw new Error(
+        'Has alcanzado el límite máximo de 5 temas creados.'
+      );
     }
+
     throw error;
   }
 
   return data;
 }
 
-export async function updateTopic(id: string, title: string, description: string, imageUri?: string | null) {
+export async function updateTopic(
+  id: string,
+  title: string,
+  description: string,
+  imageUri?: string | null
+) {
   let image_url = imageUri;
+
   if (imageUri && !imageUri.startsWith('http')) {
     image_url = await uploadForumImage(imageUri) || null;
   }
-  const { data, error } = await supabase.from('forum_topics').update({
-    title,
-    description,
-    image_url
-  }).eq('id', id).select().single();
 
-  if (error) throw error;
+  const { data, error } = await supabase
+    .from('forum_topics')
+    .update({
+      title,
+      description,
+      image_url,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
   return data;
 }
 
-export async function updateTopicTitle(id: string, title: string) {
-  const { error } = await supabase.from('forum_topics').update({ title }).eq('id', id);
-  if (error) throw error;
+export async function updateTopicTitle(
+  id: string,
+  title: string
+) {
+  const { error } = await supabase
+    .from('forum_topics')
+    .update({ title })
+    .eq('id', id);
+
+  if (error) {
+    throw error;
+  }
 }
 
 export async function deleteTopic(id: string) {
-  const { error } = await supabase.from('forum_topics').delete().eq('id', id);
-  if (error) throw error;
+  const { error } = await supabase
+    .from('forum_topics')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    throw error;
+  }
 }
 
-export async function createComment(topicId: string, content: string, imageUri?: string | null) {
+export async function createComment(
+  topicId: string,
+  content: string,
+  imageUri?: string | null
+) {
   const authResponse = await supabase.auth.getUser();
   const user = authResponse?.data?.user;
 
-  if (!user) throw new Error('No estás autenticado');
+  if (!user) {
+    throw new Error('No estás autenticado');
+  }
 
   let image_url = null;
+
   if (imageUri) {
     image_url = await uploadForumImage(imageUri);
   }
 
-  const { data, error } = await supabase.from('forum_comments').insert({
-    topic_id: topicId,
-    user_id: user.id,
-    content,
-    image_url
-  }).select().single();
+  const { data, error } = await supabase
+    .from('forum_comments')
+    .insert({
+      topic_id: topicId,
+      user_id: user.id,
+      content,
+      image_url,
+    })
+    .select()
+    .single();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+
   return data;
 }
 
 export async function deleteComment(id: string) {
-  const { error } = await supabase.from('forum_comments').delete().eq('id', id);
-  if (error) throw error;
+  const { error } = await supabase
+    .from('forum_comments')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    throw error;
+  }
 }
 
-export async function voteTopic(topicId: string, voteType: 1 | -1) {
+export async function voteTopic(
+  topicId: string,
+  voteType: 1 | -1
+) {
   const authResponse = await supabase.auth.getUser();
   const user = authResponse?.data?.user;
-  if (!user) throw new Error('No estás autenticado');
+
+  if (!user) {
+    throw new Error('No estás autenticado');
+  }
 
   const userId = user.id;
 
@@ -212,14 +382,22 @@ export async function voteTopic(topicId: string, voteType: 1 | -1) {
     .single();
 
   if (existing && existing.vote_type === voteType) {
-    await supabase.from('forum_topic_votes').delete().eq('id', existing.id);
+    await supabase
+      .from('forum_topic_votes')
+      .delete()
+      .eq('id', existing.id);
   } else if (existing) {
-    await supabase.from('forum_topic_votes').update({ vote_type: voteType }).eq('id', existing.id);
+    await supabase
+      .from('forum_topic_votes')
+      .update({ vote_type: voteType })
+      .eq('id', existing.id);
   } else {
-    await supabase.from('forum_topic_votes').insert({
-      topic_id: topicId,
-      user_id: userId,
-      vote_type: voteType
-    });
+    await supabase
+      .from('forum_topic_votes')
+      .insert({
+        topic_id: topicId,
+        user_id: userId,
+        vote_type: voteType,
+      });
   }
 }
