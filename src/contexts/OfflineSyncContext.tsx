@@ -277,15 +277,17 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
 
         nuevosRows.forEach((prod: any) => {
           const sku = String(prod.SKU || prod.sku).trim();
+          let oldKeyRecycled = false; // Solo reciclar una vez por producto
+
           for (const [col, val] of Object.entries(prod)) {
             if (col.toLowerCase().includes('imagen') && val && String(val).trim().length > 0) {
               const imgUrl = String(val).trim();
               
               // Migración silenciosa: si ya existía descargada bajo el formato antiguo SKU.jpg, migrarla a la nueva llave URL.
               const oldKey = sku + '.jpg';
-              if (!currentManifest[imgUrl] && currentManifest[oldKey]) {
+              if (!currentManifest[imgUrl] && currentManifest[oldKey] && !oldKeyRecycled) {
                 currentManifest[imgUrl] = currentManifest[oldKey];
-                // opcionalmente podríamos borrar el oldKey, pero mejor dejarlo por si acaso.
+                oldKeyRecycled = true; // Ya usamos el paracaídas para la foto principal
               }
               
               totalItems.push({ type: 'imagen', name: imgUrl, url: imgUrl });
