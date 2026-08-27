@@ -6,12 +6,13 @@ import SvgIcon from './SvgIcon';
 interface ImageSelectionModalProps {
   visible: boolean;
   images: string[];
+  maxSelection?: number;
   onClose: () => void;
   onConfirm: (selectedImages: string[]) => void;
 }
 
-export default function ImageSelectionModal({ visible, images, onClose, onConfirm }: ImageSelectionModalProps) {
-  const MAX_IMAGES = 4;
+export default function ImageSelectionModal({ visible, images, maxSelection = 4, onClose, onConfirm }: ImageSelectionModalProps) {
+  const MAX_IMAGES = maxSelection;
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
 
   // Reset selection when modal opens (select up to MAX_IMAGES by default)
@@ -59,23 +60,35 @@ export default function ImageSelectionModal({ visible, images, onClose, onConfir
           </View>
           
           <Text style={styles.subtitle}>
-            Selecciona hasta {MAX_IMAGES} imágenes para incluir en el documento (límite por diseño y memoria).
+            {MAX_IMAGES === 1 
+              ? "Selecciona la imagen que deseas compartir."
+              : `Selecciona hasta ${MAX_IMAGES} imágenes para incluir en el documento (límite por diseño y memoria).`}
           </Text>
           
           <ScrollView contentContainerStyle={styles.grid}>
-            {images.map((img, i) => (
-              <TouchableOpacity 
-                key={i} 
-                style={[styles.imageContainer, selectedIndices.has(i) && styles.imageContainerSelected]}
-                onPress={() => toggleSelection(i)}
-                activeOpacity={0.8}
-              >
-                <Image source={{ uri: img }} style={styles.image} contentFit="contain" />
-                <View style={[styles.checkbox, selectedIndices.has(i) && styles.checkboxSelected]}>
-                  {selectedIndices.has(i) && <SvgIcon name="check" color="#fff" size={16} />}
-                </View>
-              </TouchableOpacity>
-            ))}
+            {images.map((img, i) => {
+              const isSelected = selectedIndices.has(i);
+              const isMaxReached = selectedIndices.size >= MAX_IMAGES;
+              const isDisabled = isMaxReached && !isSelected;
+              
+              return (
+                <TouchableOpacity 
+                  key={i} 
+                  style={[
+                    styles.imageContainer, 
+                    isSelected && styles.imageContainerSelected,
+                    isDisabled && styles.imageContainerDisabled
+                  ]}
+                  onPress={() => toggleSelection(i)}
+                  activeOpacity={0.8}
+                >
+                  <Image source={{ uri: img }} style={styles.image} contentFit="contain" />
+                  <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+                    {isSelected && <SvgIcon name="check" color="#fff" size={16} />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
 
           <TouchableOpacity 
@@ -96,13 +109,13 @@ export default function ImageSelectionModal({ visible, images, onClose, onConfir
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(7,28,80,0.6)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     padding: 20,
     maxHeight: '80%',
     ...Platform.select({
@@ -126,14 +139,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#0a2566', // Navy
   },
   closeBtn: {
     padding: 5,
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#8492a6',
     marginBottom: 20,
   },
   grid: {
@@ -148,13 +161,16 @@ const styles = StyleSheet.create({
     margin: '1.5%',
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: '#eee',
+    borderColor: '#e2e8f0',
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#f8fafc',
   },
   imageContainerSelected: {
-    borderColor: '#3b82f6', // Comagro Blue or similar active color
+    borderColor: '#0d8a39', // Green
+  },
+  imageContainerDisabled: {
+    opacity: 0.4, // Grays out unselected images when max is reached
   },
   image: {
     width: '100%',
@@ -168,24 +184,24 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#ccc',
-    backgroundColor: 'rgba(255,255,255,0.8)',
+    borderColor: '#cbd5e1',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxSelected: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    backgroundColor: '#0d8a39',
+    borderColor: '#0d8a39',
   },
   confirmBtn: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#0d8a39',
     paddingVertical: 15,
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 10,
   },
   confirmBtnDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#94a3b8',
   },
   confirmBtnText: {
     color: '#fff',

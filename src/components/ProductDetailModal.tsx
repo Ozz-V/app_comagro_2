@@ -2,7 +2,8 @@ import * as Sentry from '@sentry/react-native';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, Modal, ScrollView, TouchableOpacity,
-  ActivityIndicator, StyleSheet, useWindowDimensions
+  ActivityIndicator, StyleSheet, useWindowDimensions,
+  Platform, Share
 } from 'react-native';
 import Reanimated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, withSpring } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
@@ -67,7 +68,7 @@ export default function ProductDetailModal({
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [selectionVisible, setSelectionVisible] = useState(false);
-  const [pendingExportType, setPendingExportType] = useState<'pdf' | 'image' | null>(null);
+  const [pendingExportType, setPendingExportType] = useState<'pdf' | 'image' | 'raw_image' | null>(null);
   const productImages = modalProd?.imagenes?.length ? modalProd.imagenes : (modalProd?.imagen ? [modalProd.imagen] : []);
   
   const [productosSimilares, setProductosSimilares] = useState<ParsedProduct[]>([]);
@@ -310,22 +311,44 @@ export default function ProductDetailModal({
     }
   };
 
-  const compartirPdf = () => {
-    if (productImages.length > 1) {
-      setPendingExportType('pdf');
-      setSelectionVisible(true);
-    } else {
-      triggerCompartirPdf();
+  const triggerCompartirRawImagen = async (selectedImages?: string[]) => {
+    if (!selectedImages || selectedImages.length === 0) return;
+    try {
+      setCompartiendo(true);
+      const url = selectedImages[0];
+      const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+      const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+      const fileName = `${safeMarca}_${safeModelo}.jpg`;
+      const localUri = FileSystem.cacheDirectory + fileName;
+      
+      const { uri } = await FileSystem.downloadAsync(url, localUri);
+      
+      if (Platform.OS === 'ios') {
+        await Share.share({ url: uri });
+      } else {
+        await Sharing.shareAsync(uri, {
+          dialogTitle: 'Compartir imagen',
+          mimeType: 'image/jpeg',
+        });
+      }
+    } catch (e: any) {
+      Sentry.captureException(e);
+      showAlert('Error', 'No se pudo compartir la imagen.');
+    } finally {
+      if (isMounted.current) {
+        setCompartiendo(false);
+        setSelectionVisible(false);
+        setPendingExportType(null);
+      }
     }
   };
 
+  const compartirPdf = () => {
+    triggerCompartirPdf();
+  };
+
   const compartirImagen = () => {
-    if (productImages.length > 1) {
-      setPendingExportType('image');
-      setSelectionVisible(true);
-    } else {
-      triggerCompartirImagen();
-    }
+    triggerCompartirImagen();
   };
 
   const capturarHtmlOculto = async () => {
@@ -726,13 +749,15 @@ export default function ProductDetailModal({
         onClose={() => setViewerVisible(false)} 
         onShareRequest={() => {
           setViewerVisible(false);
-          compartirImagen();
+          setPendingExportType('raw_image');
+          setSelectionVisible(true);
         }}
       />
 
       <ImageSelectionModal
         visible={selectionVisible}
         images={productImages}
+        maxSelection={pendingExportType === 'raw_image' ? 1 : 4}
         onClose={() => {
           setSelectionVisible(false);
           setPendingExportType(null);
@@ -742,6 +767,8 @@ export default function ProductDetailModal({
             triggerCompartirPdf(selectedImages);
           } else if (pendingExportType === 'image') {
             triggerCompartirImagen(selectedImages);
+          } else if (pendingExportType === 'raw_image') {
+            triggerCompartirRawImagen(selectedImages);
           }
         }}
       />
