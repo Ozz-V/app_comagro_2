@@ -470,7 +470,7 @@ export default function ProductDetailModal({
                       <Image source={{ uri: productImages[0] }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
                       {productImages.length > 1 && (
                         <View style={styles.dotsContainer}>
-                          {productImages.map((_: string, i: number) => (
+                          {[0, 1, 2].map((i) => (
                             <View key={i} style={[styles.dot, i === 0 ? styles.dotActive : styles.dotInactive]} />
                           ))}
                         </View>
@@ -724,6 +724,10 @@ export default function ProductDetailModal({
         visible={viewerVisible} 
         images={productImages} 
         onClose={() => setViewerVisible(false)} 
+        onShareRequest={() => {
+          setViewerVisible(false);
+          compartirImagen();
+        }}
       />
 
       <ImageSelectionModal
@@ -831,9 +835,9 @@ const styles = StyleSheet.create({
   
   // Carousel Dots
   dotsContainer: { position: 'absolute', bottom: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  dot: { width: 20, height: 4, borderRadius: 2 },
   dotActive: { backgroundColor: 'rgba(13, 138, 57, 0.9)' },
-  dotInactive: { backgroundColor: 'rgba(13, 138, 57, 0.3)' },
+  dotInactive: { backgroundColor: 'rgba(13, 138, 57, 0.4)' },
 
   // Similares
   simSectionTitle: { fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.navy, marginBottom: 12 },

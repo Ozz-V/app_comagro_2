@@ -11,12 +11,17 @@ interface ImageSelectionModalProps {
 }
 
 export default function ImageSelectionModal({ visible, images, onClose, onConfirm }: ImageSelectionModalProps) {
-  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set(images.map((_, i) => i)));
+  const MAX_IMAGES = 4;
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
 
-  // Reset selection when modal opens
+  // Reset selection when modal opens (select up to MAX_IMAGES by default)
   React.useEffect(() => {
     if (visible) {
-      setSelectedIndices(new Set(images.map((_, i) => i)));
+      const initialSelection = new Set<number>();
+      for (let i = 0; i < Math.min(images.length, MAX_IMAGES); i++) {
+        initialSelection.add(i);
+      }
+      setSelectedIndices(initialSelection);
     }
   }, [visible, images]);
 
@@ -27,6 +32,11 @@ export default function ImageSelectionModal({ visible, images, onClose, onConfir
     if (next.has(index)) {
       next.delete(index);
     } else {
+      if (next.size >= MAX_IMAGES) {
+        // We reached limit, ignore or show alert
+        // (Could trigger a toast, but keeping it simple: just don't add)
+        return;
+      }
       next.add(index);
     }
     setSelectedIndices(next);
@@ -48,7 +58,9 @@ export default function ImageSelectionModal({ visible, images, onClose, onConfir
             </TouchableOpacity>
           </View>
           
-          <Text style={styles.subtitle}>Selecciona las imágenes que deseas incluir en el documento:</Text>
+          <Text style={styles.subtitle}>
+            Selecciona hasta {MAX_IMAGES} imágenes para incluir en el documento (límite por diseño y memoria).
+          </Text>
           
           <ScrollView contentContainerStyle={styles.grid}>
             {images.map((img, i) => (
