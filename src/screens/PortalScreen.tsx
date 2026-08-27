@@ -414,6 +414,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
       <WhatsNewModal
         visible={showWhatsNew}
         onClose={() => setShowWhatsNew(false)}
+        versionLabel={`Versión ${Constants.expoConfig?.version || '1.0.0'}`}
         features={WHATS_NEW_FEATURES}
       />
 
