@@ -91,16 +91,32 @@ export default function ProductDetailModal({
     
     // Split if multiple urls were joined by comma (and not query params)
     if (clean.includes(',') && !clean.includes('?')) {
-      cleanUrls.push(...clean.split(',').map(u => u.trim().replace(/^["']|["']$/g, '')));
+      const segments = clean.split(',');
+      const merged: string[] = [];
+      for (const seg of segments) {
+        const tSeg = seg.trim().replace(/^["']|["']$/g, '');
+        const lowerSeg = tSeg.toLowerCase();
+        if (lowerSeg.startsWith('http') || lowerSeg.startsWith('file') || lowerSeg.startsWith('content') || lowerSeg.startsWith('data:')) {
+          merged.push(tSeg);
+        } else {
+          if (merged.length > 0) {
+            merged[merged.length - 1] += ',' + tSeg; // Glue it back! It was a comma in the filename
+          } else {
+            merged.push(tSeg);
+          }
+        }
+      }
+      cleanUrls.push(...merged);
     } else {
       cleanUrls.push(clean);
     }
   }
 
   // Deduplicate and filter out completely invalid strings (must be an HTTP or local File URI)
-  const productImages = Array.from(new Set(cleanUrls)).filter(url => 
-    (url.startsWith('http') || url.startsWith('file://') || url.startsWith('content://')) && url.length > 10
-  );
+  const productImages = Array.from(new Set(cleanUrls)).filter(url => {
+    const lower = url.toLowerCase();
+    return (lower.startsWith('http') || lower.startsWith('file://') || lower.startsWith('content://') || lower.startsWith('data:')) && url.length > 5;
+  });
   
   const [productosSimilares, setProductosSimilares] = useState<ParsedProduct[]>([]);
   const [productosMismaMarca, setProductosMismaMarca] = useState<ParsedProduct[]>([]);
