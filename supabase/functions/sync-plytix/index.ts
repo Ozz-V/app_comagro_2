@@ -358,21 +358,21 @@ Deno.serve(async (req: Request) => {
         .filter(p => p.SKU && String(p.SKU).trim() !== '' && String(p.SKU).trim().toUpperCase() !== 'UNDEFINED' && String(p.SKU).trim().toUpperCase() !== 'NULL')
         .map(p => ({ sku: String(p.SKU).trim().toUpperCase(), raw_data: sanitizeUnicode(p) }));
 
-      const existingHashes = new Map<string, string>();
+      const existingData = new Map<string, { hash: string, status: string }>();
       const skuLookupChunkSize = 300;
       const allSkusInFeed = sanitizedProducts.map(p => p.sku);
       for (let i = 0; i < allSkusInFeed.length; i += skuLookupChunkSize) {
         const skuChunk = allSkusInFeed.slice(i, i + skuLookupChunkSize);
         const { data: existingRows, error: lookupError } = await supaAdmin
           .from('plytix_queue')
-          .select('sku, content_hash')
+          .select('sku, content_hash, status')
           .in('sku', skuChunk);
         if (lookupError) {
           console.error('Error consultando hashes existentes:', lookupError.message);
           continue;
         }
         for (const row of existingRows || []) {
-          if (row.content_hash) existingHashes.set(row.sku, row.content_hash);
+          if (row.content_hash) existingData.set(row.sku, { hash: row.content_hash, status: row.status || 'completed' });
         }
       }
 
@@ -387,13 +387,28 @@ Deno.serve(async (req: Request) => {
         }
         
         const newHash = await computeHash(relevantData);
-        const oldHash = existingHashes.get(item.sku);
-        if (oldHash === newHash) continue; 
+        const oldData = existingData.get(item.sku);
+        const oldHash = oldData?.hash;
         
+        if (oldHash === newHash) {
+          // El texto no cambió, NO disparamos la IA.
+          // Pero SÍ guardamos el raw_data actualizado por si cambiaron solo las fotos.
+          upsertQueueData.push({
+            sku: item.sku,
+            raw_data: item.raw_data, // Tiene las fotos nuevas
+            content_hash: newHash,
+            status: oldData?.status || 'completed', // Mantenemos su estado actual (no lo volvemos pending)
+            updated_at: new Date().toISOString()
+          });
+          continue; 
+        }
+        
+        // Si el hash cambió, significa que el texto cambió.
+        // Lo mandamos a pending para que la IA regenere el Sales Pitch.
         upsertQueueData.push({
           sku: item.sku,
-          raw_data: item.raw_data, // Guardamos todo en la base
-          content_hash: newHash, // Pero la huella digital es solo de datos relevantes
+          raw_data: item.raw_data,
+          content_hash: newHash,
           status: 'pending',
           retry_count: 0,
           next_attempt_at: new Date().toISOString(),
