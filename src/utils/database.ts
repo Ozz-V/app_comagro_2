@@ -262,13 +262,14 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const marca = (p.Brand || p.Marca || p.marca || '').toString().trim().toUpperCase();
       const subcategoria = (p['Tipo de Producto'] || p['Categoria Magento'] || 'General').toString().trim().toUpperCase();
       
-      const validImages: string[] = [];
+      const rawImages: string[] = [];
       for (const [col, val] of Object.entries(p)) {
         if (col.toLowerCase().includes('imagen') && val && String(val).trim().length > 0) {
           const urlVal = String(val).trim();
-          validImages.push((manifest && manifest[urlVal]) || urlVal);
+          rawImages.push((manifest && manifest[urlVal]) || urlVal);
         }
       }
+      const validImages = Array.from(new Set(rawImages)); // Deduplicate
       const imagenOriginal = validImages.length > 0 ? validImages[0] : '';
       const imagen = imagenOriginal;
       const imagenesJson = JSON.stringify(validImages);

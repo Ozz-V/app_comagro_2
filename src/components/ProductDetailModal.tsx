@@ -458,7 +458,7 @@ export default function ProductDetailModal({
                       <Image source={{ uri: productImages[0] }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
                       {productImages.length > 1 && (
                         <View style={styles.dotsContainer}>
-                          {[0, 1, 2].map((i) => (
+                          {Array.from({ length: Math.min(productImages.length, 3) }).map((_, i) => (
                             <View key={i} style={[styles.dot, i === 0 ? styles.dotActive : styles.dotInactive]} />
                           ))}
                         </View>
