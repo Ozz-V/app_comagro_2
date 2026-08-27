@@ -276,9 +276,12 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
         fetchedProducts = nuevosRows;
 
         nuevosRows.forEach((prod: any) => {
-          const imgUrl = prod['imagen 1'] || prod.imagen;
-          if (imgUrl) {
-            totalItems.push({ type: 'imagen', name: prod.SKU + '.jpg', url: imgUrl });
+          for (const [col, val] of Object.entries(prod)) {
+            if (col.toLowerCase().includes('imagen') && val && String(val).trim().length > 0) {
+              const imgUrl = String(val).trim();
+              // key is the original URL, so DB can map it back
+              totalItems.push({ type: 'imagen', name: imgUrl, url: imgUrl });
+            }
           }
         });
       }

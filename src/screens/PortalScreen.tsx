@@ -97,21 +97,29 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
 
   const parseRawProducts = (rawData: string) => {
     const COLS_EXCLUIDAS = new Set([
-      'SKU', 'imagen 1', 'imagen 2', 'imagen 3', 'imagen 4', 'imagen 5',
-      'Brand', 'Marca', 'marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
+      'SKU', 'Brand', 'Marca', 'marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
       'url_key', 'sales_pitch'
     ]);
     return JSON.parse(rawData).map((row: Record<string, unknown>) => {
       const marca = (row['Brand'] || row['Marca'] || row['marca'] || row['MARCA'] || '').toString().trim();
       const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim().toUpperCase();
-      const imagen = (row['imagen 1'] || row['imagen'] || null) as string | null;
-      const specs = [];
+      
+      const validImages: string[] = [];
+      for (const [col, val] of Object.entries(row)) {
+        if (col.toLowerCase().includes('imagen') && val && String(val).trim().length > 0) {
+          validImages.push(String(val).trim());
+        }
+      }
+      const imagen = validImages.length > 0 ? validImages[0] : null;
+      const imagenes = validImages;
+
+      const specs: [string, string][] = [];
       const basura = ['n/a', 'na', 'n.a', 'n.a.', 'no aplica', 'sin dato', 'sin datos',
         'no', 'no tiene', 'no disponible', 'pim', '-', '--', '---', 'st', 'sin información',
         'no corresponde', 'sin especificar', 'sin info'];
 
       for (const [col, val] of Object.entries(row)) {
-        if (!COLS_EXCLUIDAS.has(col) && !col.startsWith('_')) {
+        if (!COLS_EXCLUIDAS.has(col) && !col.toLowerCase().includes('imagen') && !col.startsWith('_')) {
           if (val !== null && val !== undefined && val !== '') {
             const s = String(val).trim();
             const sLower = s.toLowerCase();

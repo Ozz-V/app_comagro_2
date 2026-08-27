@@ -6,6 +6,7 @@ export interface Product {
   subcategoria: string;
   imagen: string;
   imagenOriginal: string;
+  imagenes_json?: string;
   specs_json: string;
   search_text: string;
   sales_pitch: string;
@@ -18,6 +19,7 @@ export interface ParsedProduct {
   subcategoria: string;
   imagen: string;
   imagenOriginal: string;
+  imagenes?: string[];
   specs: SpecTuple[];
   sales_pitch: string;
 }

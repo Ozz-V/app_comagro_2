@@ -12,6 +12,7 @@ export interface ProductRow {
   subcategoria: string;
   imagen: string;
   imagenOriginal: string;
+  imagenes_json?: string;
   specs_json: string;
   search_text: string;
   sales_pitch: string;
@@ -139,6 +140,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
       subcategoria TEXT,
       imagen TEXT,
       imagenOriginal TEXT,
+      imagenes_json TEXT,
       specs_json TEXT,
       search_text TEXT,
       sales_pitch TEXT
@@ -155,6 +157,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
     const hasSkuColumn = tableInfo.some((col) => col.name === 'sku');
     const hasSearchTextColumn = tableInfo.some((col) => col.name === 'search_text');
     const hasSalesPitchColumn = tableInfo.some((col) => col.name === 'sales_pitch');
+    const hasImagenesJsonColumn = tableInfo.some((col) => col.name === 'imagenes_json');
 
     if (!hasSkuColumn) {
       // Si no tiene sku, es versión v1 (obsoleta), borrarla
@@ -170,6 +173,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
           subcategoria TEXT,
           imagen TEXT,
           imagenOriginal TEXT,
+          imagenes_json TEXT,
           specs_json TEXT,
           search_text TEXT,
           sales_pitch TEXT
@@ -182,6 +186,9 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
       }
       if (!hasSalesPitchColumn) {
         await db.execAsync('ALTER TABLE productos ADD COLUMN sales_pitch TEXT;');
+      }
+      if (!hasImagenesJsonColumn) {
+        await db.execAsync('ALTER TABLE productos ADD COLUMN imagenes_json TEXT;');
       }
     }
   }
@@ -254,13 +261,21 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const sku = String(pSku).trim();
       const marca = (p.Brand || p.Marca || p.marca || '').toString().trim().toUpperCase();
       const subcategoria = (p['Tipo de Producto'] || p['Categoria Magento'] || 'General').toString().trim().toUpperCase();
-      const imagenOriginal = (p['imagen 1'] || p.imagen || '').toString().trim();
-      const imagen = (manifest && manifest[sku + '.jpg']) || imagenOriginal;
+      
+      const validImages: string[] = [];
+      for (const [col, val] of Object.entries(p)) {
+        if (col.toLowerCase().includes('imagen') && val && String(val).trim().length > 0) {
+          const urlVal = String(val).trim();
+          validImages.push((manifest && manifest[urlVal]) || urlVal);
+        }
+      }
+      const imagenOriginal = validImages.length > 0 ? validImages[0] : '';
+      const imagen = imagenOriginal;
+      const imagenesJson = JSON.stringify(validImages);
 
       const specs: [string, string][] = [];
       const colsExcluidas = new Set([
-        'SKU', 'imagen 1', 'imagen 2', 'imagen 3', 'imagen 4', 'imagen 5',
-        'Brand', 'Marca', 'marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
+        'SKU', 'Brand', 'Marca', 'marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
         'url_key', 'sales_pitch'
       ]);
 
@@ -269,7 +284,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         'no corresponde', 'sin especificar', 'sin info'];
 
       for (const [col, val] of Object.entries(p)) {
-        if (!colsExcluidas.has(col) && !col.startsWith('_')) {
+        if (!colsExcluidas.has(col) && !col.toLowerCase().includes('imagen') && !col.startsWith('_')) {
           const s = String(val).trim();
           const sLower = s.toLowerCase();
           if (s.length > 0 && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
@@ -283,8 +298,8 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const salesPitch = p.sales_pitch || '';
 
       await db.runAsync(
-        'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, specs_json, search_text, sales_pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [sku, marca, subcategoria, imagen, imagenOriginal, specsJson, searchText, salesPitch]
+        'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, imagenes_json, specs_json, search_text, sales_pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [sku, marca, subcategoria, imagen, imagenOriginal, imagenesJson, specsJson, searchText, salesPitch]
       );
     }
   });
@@ -364,6 +379,7 @@ export async function searchProducts(marcaFiltro: string, subcatFiltro: string, 
   return results.map(r => ({
     modelo: r.sku, marca: r.marca, subcategoria: r.subcategoria,
     imagen: r.imagen, imagenOriginal: r.imagenOriginal,
+    imagenes: r.imagenes_json ? JSON.parse(r.imagenes_json) : [],
     specs: r.specs_json ? JSON.parse(r.specs_json) : [],
     sales_pitch: r.sales_pitch || ''
   }));
@@ -388,6 +404,7 @@ export async function getProductsBySubcategory(substring: string, excludeAccesso
     subcategoria: r.subcategoria,
     imagen: r.imagen,
     imagenOriginal: r.imagenOriginal,
+    imagenes: r.imagenes_json ? JSON.parse(r.imagenes_json) : [],
     specs: r.specs_json ? JSON.parse(r.specs_json) : [],
     sales_pitch: r.sales_pitch || ''
   }));
@@ -403,6 +420,7 @@ export async function getProductBySku(sku: string): Promise<ParsedProduct | null
     subcategoria: result.subcategoria,
     imagen: result.imagen,
     imagenOriginal: result.imagenOriginal,
+    imagenes: result.imagenes_json ? JSON.parse(result.imagenes_json) : [],
     specs: result.specs_json ? JSON.parse(result.specs_json) : [],
     sales_pitch: result.sales_pitch || ''
   };
@@ -445,6 +463,7 @@ export async function getAllProducts(): Promise<ParsedProduct[]> {
     subcategoria: r.subcategoria,
     imagen: r.imagen,
     imagenOriginal: r.imagenOriginal,
+    imagenes: r.imagenes_json ? JSON.parse(r.imagenes_json) : [],
     specs: r.specs_json ? JSON.parse(r.specs_json) : [],
     sales_pitch: r.sales_pitch || ''
   }));

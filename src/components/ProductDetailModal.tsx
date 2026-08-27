@@ -23,6 +23,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 import { ParsedProduct } from '../types';
 import { APP_CONSTANTS } from '../config/constants';
+import ImageViewerModal from './ImageViewerModal';
+import ImageSelectionModal from './ImageSelectionModal';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 
@@ -63,6 +65,10 @@ export default function ProductDetailModal({
   const { showAlert, showToast } = useCustomAlert();
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [generandoPdf, setGenerandoPdf] = useState(false);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [selectionVisible, setSelectionVisible] = useState(false);
+  const [pendingExportType, setPendingExportType] = useState<'pdf' | 'image' | null>(null);
+  const productImages = modalProd?.imagenes?.length ? modalProd.imagenes : (modalProd?.imagen ? [modalProd.imagen] : []);
   
   const [productosSimilares, setProductosSimilares] = useState<ParsedProduct[]>([]);
   const [productosMismaMarca, setProductosMismaMarca] = useState<ParsedProduct[]>([]);
@@ -238,52 +244,87 @@ export default function ProductDetailModal({
     fetchRelated();
   }, [modalProd]);
 
-  const compartirPdf = async () => {
+  const triggerCompartirPdf = async (selectedImages?: string[]) => {
     if (!modalProd) return;
     try {
       setGenerandoPdf(true);
-      await generateAndSharePdf(modalProd, pdfCache, logoRefreshKey);
+      await generateAndSharePdf(modalProd, pdfCache, logoRefreshKey, selectedImages);
       logProductAction('share_pdf');
     } catch (e: unknown) {
       Sentry.captureException(e);
       showAlert('Error', 'No se pudo generar el PDF corporativo.');
     } finally {
-      if (isMounted.current) setGenerandoPdf(false);
+      if (isMounted.current) {
+        setGenerandoPdf(false);
+        setSelectionVisible(false);
+        setPendingExportType(null);
+      }
     }
   };
 
-  const compartirImagen = async () => {
+  const triggerCompartirImagen = async (selectedImages?: string[]) => {
     if (!modalProd) return;
     try {
       setCompartiendo(true);
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
         showAlert('Error', 'Compartir no está disponible en este dispositivo');
-        if (isMounted.current) setCompartiendo(false);
+        if (isMounted.current) {
+          setCompartiendo(false);
+          setSelectionVisible(false);
+          setPendingExportType(null);
+        }
         return;
       }
       
       const specs = modalProd?.specs || [];
-      let finalProdB64 = pdfCache?.prodBase64;
+      let finalProdB64s: string[] = [];
       let finalLogoB64 = pdfCache?.logoBase64;
       
-      if (!finalProdB64) {
-        const marcaSlug = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-        const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg`;
-        
-        const timeoutPromise = () => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000));
-        [finalProdB64, finalLogoB64] = await Promise.all([
-          Promise.race([fetchImageBase64(modalProd?.imagen || ''), timeoutPromise()]).catch(() => '') as Promise<string>,
-          Promise.race([fetchImageBase64(logoUrl), timeoutPromise()]).catch(() => '') as Promise<string>,
-        ]);
-      }
+      const urlsToFetch = selectedImages && selectedImages.length > 0 ? selectedImages : (modalProd?.imagen ? [modalProd.imagen] : []);
       
-      const htmlContent = generarHtmlFicha(specs, finalProdB64, finalLogoB64, modalProd);
+      const marcaSlug = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+      const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg`;
+      
+      const timeoutPromise = () => new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+      
+      if (!finalLogoB64) {
+        finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise()]).catch(() => '') as string;
+      }
+
+      finalProdB64s = await Promise.all(
+        urlsToFetch.map(url => Promise.race([fetchImageBase64(url), timeoutPromise()]).catch(() => '') as Promise<string>)
+      );
+      
+      const htmlContent = generarHtmlFicha(specs, finalProdB64s, finalLogoB64, modalProd);
       if (isMounted.current) setHtmlForImage(htmlContent);
     } catch (e: unknown) {
       Sentry.captureException(e);
       showAlert('Error', 'No se pudo preparar la ficha. Intentá de nuevo.');
       if (isMounted.current) setCompartiendo(false);
+    } finally {
+      if (isMounted.current) {
+        setSelectionVisible(false);
+        setPendingExportType(null);
+      }
+    }
+  };
+
+  const compartirPdf = () => {
+    if (productImages.length > 1) {
+      setPendingExportType('pdf');
+      setSelectionVisible(true);
+    } else {
+      triggerCompartirPdf();
+    }
+  };
+
+  const compartirImagen = () => {
+    if (productImages.length > 1) {
+      setPendingExportType('image');
+      setSelectionVisible(true);
+    } else {
+      triggerCompartirImagen();
     }
   };
 
@@ -421,9 +462,20 @@ export default function ProductDetailModal({
                   <View style={styles.greenLineFull} />
 
                   <View style={styles.productBox}>
-                    <View style={styles.productImgContainer}>
-                      <Image source={{ uri: modalProd?.imagen }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
-                    </View>
+                    <TouchableOpacity 
+                      style={styles.productImgContainer} 
+                      activeOpacity={0.8}
+                      onPress={() => setViewerVisible(true)}
+                    >
+                      <Image source={{ uri: productImages[0] }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
+                      {productImages.length > 1 && (
+                        <View style={styles.dotsContainer}>
+                          {productImages.map((_: string, i: number) => (
+                            <View key={i} style={[styles.dot, i === 0 ? styles.dotActive : styles.dotInactive]} />
+                          ))}
+                        </View>
+                      )}
+                    </TouchableOpacity>
                     <View style={styles.productInfoContainer}>
                       <View style={styles.productInfoGreenBar} />
                       <View style={{ flex: 1 }}>
@@ -615,7 +667,7 @@ export default function ProductDetailModal({
                  <Text style={{fontSize: 18, fontWeight: 'bold', color: COLORS.navy, marginBottom: 20}}>Curva de Rendimiento</Text>
                  <View style={{width: 320, height: 320}}>
                     <Svg width="320" height="320">
-                      {curveData.qTicks.map(t => {
+                      {curveData.qTicks.map((t: number) => {
                          const px = 50 + (t / curveData.qTicks[curveData.qTicks.length - 1]) * 240;
                          return (
                            <G key={`x-${t}`}>
@@ -624,7 +676,7 @@ export default function ProductDetailModal({
                            </G>
                          );
                       })}
-                      {curveData.hTicks.map(t => {
+                      {curveData.hTicks.map((t: number) => {
                          const py = 280 - (t / curveData.hTicks[curveData.hTicks.length - 1]) * 240;
                          return (
                            <G key={`y-${t}`}>
@@ -667,6 +719,28 @@ export default function ProductDetailModal({
           </Modal>
         )}
       </Reanimated.View>
+
+      <ImageViewerModal 
+        visible={viewerVisible} 
+        images={productImages} 
+        onClose={() => setViewerVisible(false)} 
+      />
+
+      <ImageSelectionModal
+        visible={selectionVisible}
+        images={productImages}
+        onClose={() => {
+          setSelectionVisible(false);
+          setPendingExportType(null);
+        }}
+        onConfirm={(selectedImages) => {
+          if (pendingExportType === 'pdf') {
+            triggerCompartirPdf(selectedImages);
+          } else if (pendingExportType === 'image') {
+            triggerCompartirImagen(selectedImages);
+          }
+        }}
+      />
     </Modal>
   );
 }
@@ -755,6 +829,12 @@ const styles = StyleSheet.create({
   copyBtn: { backgroundColor: '#E8F5E9', paddingVertical: 12, alignItems: 'center', borderRadius: 8, marginTop: 16, borderWidth: 1, borderColor: COLORS.green },
   copyBtnText: { fontFamily: FONTS.bodySemi, fontSize: 14, color: COLORS.navy, fontWeight: '700' },
   
+  // Carousel Dots
+  dotsContainer: { position: 'absolute', bottom: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  dotActive: { backgroundColor: 'rgba(13, 138, 57, 0.9)' },
+  dotInactive: { backgroundColor: 'rgba(13, 138, 57, 0.3)' },
+
   // Similares
   simSectionTitle: { fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.navy, marginBottom: 12 },
   simSlideCard: { width: 140, marginRight: 12, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, backgroundColor: COLORS.white },

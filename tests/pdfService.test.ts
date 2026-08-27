@@ -44,7 +44,7 @@ describe('pdfService', () => {
     it('generates HTML string with 2 columns layout when specs > 0 and image is small', () => {
       // Force many specs to trigger double columns
       const manySpecs = Array.from({ length: 30 }, (_, i) => [`Spec${i}`, `Val${i}`]) as [string, string][];
-      const html = generarHtmlFicha(manySpecs, 'base64Img', 'logoBase64', mockProduct);
+      const html = generarHtmlFicha(manySpecs, ['base64Img'], 'logoBase64', mockProduct);
       
       expect(html).toContain('<!DOCTYPE html>');
       expect(html).toContain('ESPECIFICACIONES TÉCNICAS');
@@ -57,7 +57,7 @@ describe('pdfService', () => {
     });
 
     it('generates HTML string with 1 column layout when specs are few', () => {
-      const html = generarHtmlFicha(mockProduct.specs || [], 'base64Img', 'logoBase64', mockProduct);
+      const html = generarHtmlFicha(mockProduct.specs || [], ['base64Img'], 'logoBase64', mockProduct);
       
       expect(html).toContain('<!DOCTYPE html>');
       expect(html).toContain('Power');

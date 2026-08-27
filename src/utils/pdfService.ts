@@ -15,7 +15,7 @@ const PX_SAFETY   = 14;   // margen de seguridad
 const MIN_IMG_H   = 80;   // altura mínima aceptable de la imagen
 const TEXT_H      = 77;   // altura aproximada del bloque de texto
 
-export function generarHtmlFicha(specs: [string, string][], base64Img: string, logoBase64: string, modalProd: ParsedProduct) {
+export function generarHtmlFicha(specs: [string, string][], base64Images: string[], logoBase64: string, modalProd: ParsedProduct) {
   const numSpecs = specs.length;
 
   const fs1  = numSpecs > 22 ? '8.5pt' : numSpecs > 16 ? '9pt'  : '10pt';
@@ -210,8 +210,10 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
         .green-line { height: 5px; background: linear-gradient(90deg, #0d8a39, #09c24f); margin-top: 10px; flex-shrink: 0; }
         .top-block { display: flex; flex-direction: row; margin: ${PX_TMARG}px 26px 0 26px; height: ${topBlockH}px; gap: 12px; flex-shrink: 0; }
         .img-col { flex: ${showCurve ? '1' : '1'}; min-height: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
-        .img-box { width: 100%; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+        .img-box { width: 100%; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; align-content: center; }
         .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+        .img-grid-item { flex: 1 1 ${base64Images.length > 2 ? '45%' : '100%'}; min-width: 0; height: ${base64Images.length > 2 ? '48%' : (base64Images.length === 2 ? '48%' : '100%')}; display: flex; align-items: center; justify-content: center; }
+        .img-grid-item img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
         .curve-col { flex: 1; display: flex; flex-direction: column; padding: 10px; }
         .curve-title { font-size: 10pt; font-weight: bold; color: #0a2566; text-align: center; margin-bottom: 6px; }
         .curve-wrapper { flex: 1; position: relative; }
@@ -245,7 +247,9 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
         </div>
         <div class="top-block">
           <div class="img-col">
-            <div class="img-box"><img id="prodImg" class="prod-img" src="${base64Img}" alt="Cargando..." /></div>
+            <div class="img-box">
+              ${base64Images.map(img => `<div class="img-grid-item"><img class="prod-img" src="${img}" alt="Producto" /></div>`).join('')}
+            </div>
             <div class="info-box">
               <span class="p-marca">${escapeHtml(modalProd?.marca || '')}</span>
               <span class="p-modelo">${escapeHtml(modalProd?.modelo || '')}</span>
@@ -272,38 +276,42 @@ export function generarHtmlFicha(specs: [string, string][], base64Img: string, l
         </div>
       </div>
       <script>
-        (function() {
-          var img = new Image();
-          img.onload = function() {
-            var tmp = document.createElement('canvas');
-            tmp.width = img.width; tmp.height = img.height;
-            var ctx = tmp.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            try {
-              var d = ctx.getImageData(0, 0, tmp.width, tmp.height).data;
-              var w = tmp.width, h = tmp.height;
-              var top = h, left = w, right = -1, bottom = -1;
-              for (var y = 0; y < h; y++) {
-                for (var x = 0; x < w; x++) {
-                  var i4 = (y * w + x) * 4;
-                  if (d[i4+3] > 10 && !(d[i4] >= 245 && d[i4+1] >= 245 && d[i4+2] >= 245)) {
-                    if (x < left) left = x;  if (x > right) right = x;
-                    if (y < top)  top  = y;  if (y > bottom) bottom = y;
+        (function(){
+          var imgs = document.querySelectorAll('.prod-img');
+          imgs.forEach(function(imgEl) {
+            var img = new Image();
+            img.onload = function() {
+              try {
+                var tmp = document.createElement('canvas');
+                var w = img.width, h = img.height;
+                tmp.width = w; tmp.height = h;
+                var ctx = tmp.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                var idata = ctx.getImageData(0,0,w,h);
+                var d = idata.data;
+                var top = h, bottom = 0, left = w, right = 0;
+                for (var y = 0; y < h; y++) {
+                  for (var x = 0; x < w; x++) {
+                    var i4 = (y * w + x) * 4;
+                    if (d[i4+3] > 10 && !(d[i4] >= 245 && d[i4+1] >= 245 && d[i4+2] >= 245)) {
+                      if (x < left) left = x;  if (x > right) right = x;
+                      if (y < top)  top  = y;  if (y > bottom) bottom = y;
+                    }
                   }
                 }
-              }
-              if (right < left || bottom < top) return;
-              var p = 8;
-              left = Math.max(0, left-p); top = Math.max(0, top-p);
-              right = Math.min(w-1, right+p); bottom = Math.min(h-1, bottom+p);
-              var cw = right-left+1, ch = bottom-top+1;
-              var out = document.createElement('canvas');
-              out.width = cw; out.height = ch;
-              out.getContext('2d').drawImage(tmp, left, top, cw, ch, 0, 0, cw, ch);
-              document.getElementById('prodImg').src = out.toDataURL('image/png');
-            } catch(e) {}
-          };
-          img.src = '${base64Img}';
+                if (right < left || bottom < top) return;
+                var p = 8;
+                left = Math.max(0, left-p); top = Math.max(0, top-p);
+                right = Math.min(w-1, right+p); bottom = Math.min(h-1, bottom+p);
+                var cw = right-left+1, ch = bottom-top+1;
+                var out = document.createElement('canvas');
+                out.width = cw; out.height = ch;
+                out.getContext('2d').drawImage(tmp, left, top, cw, ch, 0, 0, cw, ch);
+                imgEl.src = out.toDataURL('image/png');
+              } catch(e) {}
+            };
+            img.src = imgEl.src;
+          });
         })();
       </script>
     </body>
@@ -345,28 +353,35 @@ export async function fetchImageBase64(url: string): Promise<string> {
   }
 }
 
-export async function generateAndSharePdf(modalProd: ParsedProduct, pdfCache: Record<string, string> = {}, logoRefreshKey: string = String(Date.now())) {
+export async function generateAndSharePdf(modalProd: ParsedProduct, pdfCache: Record<string, string> = {}, logoRefreshKey: string = String(Date.now()), selectedImages?: string[]) {
   const specs = modalProd?.specs || [];
-  let finalProdB64 = pdfCache?.prodBase64;
+  let finalProdB64s: string[] = [];
   let finalLogoB64 = pdfCache?.logoBase64;
   
-  if (!finalProdB64) {
-    const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
-    const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg?v=${logoRefreshKey}`;
-    const imgUrl = modalProd?.imagenOriginal || modalProd?.imagen || ''; // use string, no implicit any
-    
-    let timeoutId: NodeJS.Timeout;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error('timeout')), 10000);
-    });
-
-    [finalProdB64, finalLogoB64] = await Promise.all([
-      Promise.race([fetchImageBase64(imgUrl), timeoutPromise]).catch(() => ''),
-      Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => ''),
-    ]).finally(() => clearTimeout(timeoutId));
-  }
+  const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
+  const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg?v=${logoRefreshKey}`;
   
-  const htmlContent = generarHtmlFicha(specs, finalProdB64, finalLogoB64, modalProd);
+  let timeoutId: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('timeout')), 10000);
+  });
+
+  const urlsToFetch = selectedImages && selectedImages.length > 0 
+    ? selectedImages 
+    : [modalProd?.imagenOriginal || modalProd?.imagen || ''];
+
+  if (!finalLogoB64) {
+    finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => '') as string;
+  }
+
+  // Fetch all selected images
+  finalProdB64s = await Promise.all(
+    urlsToFetch.map(url => Promise.race([fetchImageBase64(url), timeoutPromise]).catch(() => '') as Promise<string>)
+  );
+  
+  clearTimeout(timeoutId);
+
+  const htmlContent = generarHtmlFicha(specs, finalProdB64s, finalLogoB64, modalProd);
   const { uri } = await Print.printToFileAsync({ html: htmlContent });
   
   let finalUriToShare = uri;
