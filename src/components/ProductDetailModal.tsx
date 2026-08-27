@@ -25,7 +25,6 @@ import { supabase } from '../supabase';
 import { ParsedProduct } from '../types';
 import { APP_CONSTANTS } from '../config/constants';
 import ImageViewerModal from './ImageViewerModal';
-import ImageSelectionModal from './ImageSelectionModal';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 
@@ -67,8 +66,6 @@ export default function ProductDetailModal({
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
-  const [selectionVisible, setSelectionVisible] = useState(false);
-  const [pendingExportType, setPendingExportType] = useState<'pdf' | 'image' | 'raw_image' | null>(null);
   const productImages = modalProd?.imagenes?.length ? modalProd.imagenes : (modalProd?.imagen ? [modalProd.imagen] : []);
   
   const [productosSimilares, setProductosSimilares] = useState<ParsedProduct[]>([]);
@@ -257,8 +254,8 @@ export default function ProductDetailModal({
     } finally {
       if (isMounted.current) {
         setGenerandoPdf(false);
-        setSelectionVisible(false);
-        setPendingExportType(null);
+
+
       }
     }
   };
@@ -272,8 +269,8 @@ export default function ProductDetailModal({
         showAlert('Error', 'Compartir no está disponible en este dispositivo');
         if (isMounted.current) {
           setCompartiendo(false);
-          setSelectionVisible(false);
-          setPendingExportType(null);
+
+
         }
         return;
       }
@@ -305,40 +302,8 @@ export default function ProductDetailModal({
       if (isMounted.current) setCompartiendo(false);
     } finally {
       if (isMounted.current) {
-        setSelectionVisible(false);
-        setPendingExportType(null);
-      }
-    }
-  };
 
-  const triggerCompartirRawImagen = async (selectedImages?: string[]) => {
-    if (!selectedImages || selectedImages.length === 0) return;
-    try {
-      setCompartiendo(true);
-      const url = selectedImages[0];
-      const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-      const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-      const fileName = `${safeMarca}_${safeModelo}.jpg`;
-      const localUri = FileSystem.cacheDirectory + fileName;
-      
-      const { uri } = await FileSystem.downloadAsync(url, localUri);
-      
-      if (Platform.OS === 'ios') {
-        await Share.share({ url: uri });
-      } else {
-        await Sharing.shareAsync(uri, {
-          dialogTitle: 'Compartir imagen',
-          mimeType: 'image/jpeg',
-        });
-      }
-    } catch (e: any) {
-      Sentry.captureException(e);
-      showAlert('Error', 'No se pudo compartir la imagen.');
-    } finally {
-      if (isMounted.current) {
-        setCompartiendo(false);
-        setSelectionVisible(false);
-        setPendingExportType(null);
+
       }
     }
   };
@@ -747,30 +712,6 @@ export default function ProductDetailModal({
         visible={viewerVisible} 
         images={productImages} 
         onClose={() => setViewerVisible(false)} 
-        onShareRequest={() => {
-          setViewerVisible(false);
-          setPendingExportType('raw_image');
-          setSelectionVisible(true);
-        }}
-      />
-
-      <ImageSelectionModal
-        visible={selectionVisible}
-        images={productImages}
-        maxSelection={pendingExportType === 'raw_image' ? 1 : 4}
-        onClose={() => {
-          setSelectionVisible(false);
-          setPendingExportType(null);
-        }}
-        onConfirm={(selectedImages) => {
-          if (pendingExportType === 'pdf') {
-            triggerCompartirPdf(selectedImages);
-          } else if (pendingExportType === 'image') {
-            triggerCompartirImagen(selectedImages);
-          } else if (pendingExportType === 'raw_image') {
-            triggerCompartirRawImagen(selectedImages);
-          }
-        }}
       />
     </Modal>
   );

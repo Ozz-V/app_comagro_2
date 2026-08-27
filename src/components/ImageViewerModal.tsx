@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
-import { Modal, View, TouchableOpacity, StyleSheet, Text, ActivityIndicator } from 'react-native';
+import { Modal, View, TouchableOpacity, StyleSheet, Text, ActivityIndicator, Platform, Share } from 'react-native';
 import ImageViewer from 'react-native-image-zoom-viewer';
 import SvgIcon from './SvgIcon';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 interface ImageViewerModalProps {
   visible: boolean;
   images: string[];
   initialIndex?: number;
   onClose: () => void;
-  onShareRequest?: () => void;
 }
 
-export default function ImageViewerModal({ visible, images, initialIndex = 0, onClose, onShareRequest }: ImageViewerModalProps) {
+export default function ImageViewerModal({ visible, images, initialIndex = 0, onClose }: ImageViewerModalProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [isSharing, setIsSharing] = useState(false);
 
   // Sync state if initialIndex changes when modal opens
   React.useEffect(() => {
@@ -25,9 +27,27 @@ export default function ImageViewerModal({ visible, images, initialIndex = 0, on
 
   const formattedImages = images.map(url => ({ url }));
 
-  const handleShare = () => {
-    if (onShareRequest) {
-      onShareRequest();
+  const handleShare = async () => {
+    try {
+      setIsSharing(true);
+      const currentImage = images[currentIndex];
+      const fileName = `imagen_${currentIndex + 1}.jpg`;
+      const localUri = FileSystem.cacheDirectory + fileName;
+      
+      const { uri } = await FileSystem.downloadAsync(currentImage, localUri);
+      
+      if (Platform.OS === 'ios') {
+        await Share.share({ url: uri });
+      } else {
+        await Sharing.shareAsync(uri, {
+          dialogTitle: 'Compartir imagen',
+          mimeType: 'image/jpeg',
+        });
+      }
+    } catch (error) {
+      console.error('Error sharing image:', error);
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -42,8 +62,8 @@ export default function ImageViewerModal({ visible, images, initialIndex = 0, on
           <Text style={styles.counterText}>
             {images.length > 1 ? `${currentIndex + 1} / ${images.length}` : ''}
           </Text>
-          <TouchableOpacity onPress={handleShare} style={styles.iconButton}>
-            <SvgIcon name="share" color="#fff" size={24} />
+          <TouchableOpacity onPress={handleShare} style={styles.iconButton} disabled={isSharing}>
+            {isSharing ? <ActivityIndicator color="#fff" size="small" /> : <SvgIcon name="share" color="#fff" size={24} />}
           </TouchableOpacity>
         </View>
 
