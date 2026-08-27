@@ -154,7 +154,7 @@ export async function fetchTopics(): Promise<ForumTopic[]> {
     .from('forum_topics')
     .select(`
       *,
-      profiles (full_name),
+      profiles (full_name, avatar_url),
       forum_topic_votes (user_id, vote_type)
     `)
     .order('created_at', { ascending: false });
@@ -206,7 +206,7 @@ export async function fetchComments(
 ): Promise<ForumComment[]> {
   const { data, error } = await supabase
     .from('forum_comments')
-    .select('*, profiles(full_name)')
+    .select('*, profiles(full_name, avatar_url)')
     .eq('topic_id', topicId)
     .order('created_at', { ascending: true });
 
