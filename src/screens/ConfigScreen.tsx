@@ -402,7 +402,6 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
         setUpdateModalData(data);
         setShowUpdateModal(true);
       } else { 
-        showToast('App actualizada a la última versión.');
         setShowWhatsNew(true);
       }
     } catch (e) { showAlert('Error', 'No se pudo verificar.'); }
@@ -557,7 +556,13 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
       {/* --- MODALS --- */}
       <UpdateModal visible={showUpdateModal} onClose={() => setShowUpdateModal(false)} onUpdate={() => { setShowUpdateModal(false); DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE', { directDownload: true }); }} updateData={updateModalData} isAvailable={true} />
 
-      <WhatsNewModal visible={showWhatsNew} onClose={() => setShowWhatsNew(false)} features={WHATS_NEW_FEATURES} />
+      <WhatsNewModal
+        visible={showWhatsNew}
+        onClose={() => setShowWhatsNew(false)}
+        title="¡Ya tienes la última versión!"
+        versionLabel={`Versión ${appVersion}`}
+        features={WHATS_NEW_FEATURES}
+      />
       <OfflineSyncModal visible={showOfflineModal} onClose={() => setShowOfflineModal(false)} offlineGroups={offlineGroups} setOfflineGroups={setOfflineGroups} onDownload={handleDownload} />
 
       <Modal visible={showNoInternetModal} animationType="fade" transparent onRequestClose={() => setShowNoInternetModal(false)}>
