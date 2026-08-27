@@ -378,13 +378,22 @@ Deno.serve(async (req: Request) => {
 
       const upsertQueueData = [];
       for (const item of sanitizedProducts) {
-        const newHash = await computeHash(item.raw_data);
+        // Clonamos el objeto crudo para quitarle columnas irrelevantes antes de comparar
+        const relevantData = { ...item.raw_data };
+        for (const key of Object.keys(relevantData)) {
+          if (key.toLowerCase().includes('imagen') || key.toLowerCase().includes('manual')) {
+            delete relevantData[key];
+          }
+        }
+        
+        const newHash = await computeHash(relevantData);
         const oldHash = existingHashes.get(item.sku);
         if (oldHash === newHash) continue; 
+        
         upsertQueueData.push({
           sku: item.sku,
-          raw_data: item.raw_data,
-          content_hash: newHash,
+          raw_data: item.raw_data, // Guardamos todo en la base
+          content_hash: newHash, // Pero la huella digital es solo de datos relevantes
           status: 'pending',
           retry_count: 0,
           next_attempt_at: new Date().toISOString(),
