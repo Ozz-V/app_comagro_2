@@ -67,7 +67,37 @@ export default function ProductDetailModal({
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const rawProductImages = modalProd?.imagenes?.length ? modalProd.imagenes : (modalProd?.imagen ? [modalProd.imagen] : []);
-  const productImages = Array.from(new Set(rawProductImages));
+  
+  // Robust cleaning for Plytix weird JSON strings or comma-separated exports
+  const cleanUrls: string[] = [];
+  for (const url of rawProductImages) {
+    if (!url || typeof url !== 'string') continue;
+    let clean = url.trim();
+    // Clean brackets if it was stringified array
+    if (clean.startsWith('[') && clean.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(clean);
+        if (Array.isArray(parsed)) {
+          cleanUrls.push(...parsed);
+          continue;
+        }
+      } catch (e) {}
+    }
+    // Clean enclosing quotes
+    clean = clean.replace(/^["']|["']$/g, '');
+    
+    // Split if multiple urls were joined by comma (and not query params)
+    if (clean.includes(',') && !clean.includes('?')) {
+      cleanUrls.push(...clean.split(',').map(u => u.trim().replace(/^["']|["']$/g, '')));
+    } else {
+      cleanUrls.push(clean);
+    }
+  }
+
+  // Deduplicate and filter out completely invalid strings (must be an HTTP or local File URI)
+  const productImages = Array.from(new Set(cleanUrls)).filter(url => 
+    (url.startsWith('http') || url.startsWith('file://') || url.startsWith('content://')) && url.length > 10
+  );
   
   const [productosSimilares, setProductosSimilares] = useState<ParsedProduct[]>([]);
   const [productosMismaMarca, setProductosMismaMarca] = useState<ParsedProduct[]>([]);
