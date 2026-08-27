@@ -276,10 +276,18 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
         fetchedProducts = nuevosRows;
 
         nuevosRows.forEach((prod: any) => {
+          const sku = String(prod.SKU || prod.sku).trim();
           for (const [col, val] of Object.entries(prod)) {
             if (col.toLowerCase().includes('imagen') && val && String(val).trim().length > 0) {
               const imgUrl = String(val).trim();
-              // key is the original URL, so DB can map it back
+              
+              // Migración silenciosa: si ya existía descargada bajo el formato antiguo SKU.jpg, migrarla a la nueva llave URL.
+              const oldKey = sku + '.jpg';
+              if (!currentManifest[imgUrl] && currentManifest[oldKey]) {
+                currentManifest[imgUrl] = currentManifest[oldKey];
+                // opcionalmente podríamos borrar el oldKey, pero mejor dejarlo por si acaso.
+              }
+              
               totalItems.push({ type: 'imagen', name: imgUrl, url: imgUrl });
             }
           }
@@ -307,6 +315,7 @@ export function OfflineSyncProvider({ children }: { children: ReactNode }) {
       }
 
       if (pendingItems.length === 0) {
+        await saveManifest(currentManifest); // Guardar migraciones si las hubo
         setSyncAlert({
           title: '¡Todo al día!',
           message: 'Todos los archivos que seleccionaste ya están descargados en tu dispositivo. Podés usar la app sin conexión tranquilamente.'
