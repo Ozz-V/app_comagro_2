@@ -24,18 +24,15 @@ import WhatsNewModal from '../components/WhatsNewModal';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
 
-// Misma lista que en PortalScreen (la que se muestra automáticamente una
-// sola vez tras actualizar). Se repite acá porque "Buscar actualización"
-// vive en una pantalla distinta y necesita poder volver a mostrarla bajo
-// demanda cuando ya se tiene la última versión.
 const WHATS_NEW_FEATURES = [
-  'Nuevos íconos',
-  'Buzón de sugerencias',
-  'Estadísticas',
-  'Curva de rendimiento',
-  'Calculadora avanzada',
-  'Sesión de notificaciones',
-  'Alertas sobre actualizaciones de productos',
+  { title: 'Visualizador de imágenes', description: 'Navega por múltiples fotos en alta calidad haciendo zoom y deslizando.' },
+  { title: 'Nuevos íconos', description: 'Renovamos el diseño visual para una experiencia más moderna y clara.' },
+  { title: 'Buzón de sugerencias', description: 'Envía tus comentarios y reportes de forma directa desde la app.' },
+  { title: 'Estadísticas', description: 'Monitorea métricas y análisis detallados en tiempo real.' },
+  { title: 'Curva de rendimiento', description: 'Visualiza gráficos avanzados de rendimiento en los equipos.' },
+  { title: 'Calculadora avanzada', description: 'Herramienta de cálculo optimizada para tareas agrícolas.' },
+  { title: 'Sección de notificaciones', description: 'Centro de mensajes para que no te pierdas ninguna alerta.' },
+  { title: 'Alertas sobre actualizaciones', description: 'Recibe notificaciones en vivo cuando un producto cambia.' },
 ];
 
 // --- COMPONENTE GENÉRICO DE TARJETA PARA EL MENÚ ---
@@ -559,7 +556,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
       <WhatsNewModal
         visible={showWhatsNew}
         onClose={() => setShowWhatsNew(false)}
-        title="¡Ya tienes la última versión!"
+        title="El sistema está actualizado"
         versionLabel={`Versión ${appVersion}`}
         features={WHATS_NEW_FEATURES}
       />

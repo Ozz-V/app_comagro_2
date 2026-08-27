@@ -10,7 +10,7 @@ interface WhatsNewModalProps {
   onClose: () => void;
   title?: string;
   versionLabel?: string;
-  features: string[];
+  features: { title: string; description: string }[];
 }
 
 // Mismo lenguaje visual que el modal global de CustomAlertContext (el mismo
@@ -52,7 +52,10 @@ export default function WhatsNewModal({ visible, onClose, title = '¡Nuevas actu
                 <View style={styles.bullet}>
                   <Text style={styles.bulletText}>✓</Text>
                 </View>
-                <Text style={styles.listText}>{feature}</Text>
+                <View style={styles.textContainer}>
+                  <Text style={styles.listTitle}>{feature.title}</Text>
+                  <Text style={styles.listDesc}>{feature.description}</Text>
+                </View>
               </View>
             ))}
           </View>
@@ -118,8 +121,8 @@ const styles = StyleSheet.create({
   },
   listRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
   bullet: {
     width: 24,
@@ -129,17 +132,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    marginTop: 2,
   },
   bulletText: {
     color: '#1c9f4b',
     fontSize: 13,
     fontWeight: 'bold',
   },
-  listText: {
+  textContainer: {
     flex: 1,
-    fontFamily: 'Barlow_400Regular',
+  },
+  listTitle: {
+    fontFamily: 'Barlow_600SemiBold',
     fontSize: 15,
-    color: '#444444',
-    lineHeight: 20,
+    color: COLORS.navy || '#1F2F6B',
+    marginBottom: 2,
+  },
+  listDesc: {
+    fontFamily: 'Barlow_400Regular',
+    fontSize: 13,
+    color: '#666666',
+    lineHeight: 18,
   },
 });
