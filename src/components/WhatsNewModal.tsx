@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { COLORS } from '../theme';
 
@@ -46,7 +46,7 @@ export default function WhatsNewModal({ visible, onClose, title = '¡Nuevas actu
           <Text style={styles.title}>{title}</Text>
           {!!versionLabel && <Text style={styles.versionLabel}>{versionLabel}</Text>}
 
-          <View style={styles.list}>
+          <ScrollView style={styles.list} showsVerticalScrollIndicator={false} bounces={false}>
             {features.map((feature, index) => (
               <View key={index} style={styles.listRow}>
                 <View style={styles.bullet}>
@@ -58,7 +58,7 @@ export default function WhatsNewModal({ visible, onClose, title = '¡Nuevas actu
                 </View>
               </View>
             ))}
-          </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -75,6 +75,8 @@ const styles = StyleSheet.create({
   },
   box: {
     width: '85%',
+    maxHeight: '85%',
+    flexShrink: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 24,
@@ -118,6 +120,7 @@ const styles = StyleSheet.create({
   },
   list: {
     width: '100%',
+    flexGrow: 0,
   },
   listRow: {
     flexDirection: 'row',

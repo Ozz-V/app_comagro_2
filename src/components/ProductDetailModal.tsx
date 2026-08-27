@@ -66,7 +66,8 @@ export default function ProductDetailModal({
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
-  const productImages = modalProd?.imagenes?.length ? modalProd.imagenes : (modalProd?.imagen ? [modalProd.imagen] : []);
+  const rawProductImages = modalProd?.imagenes?.length ? modalProd.imagenes : (modalProd?.imagen ? [modalProd.imagen] : []);
+  const productImages = Array.from(new Set(rawProductImages));
   
   const [productosSimilares, setProductosSimilares] = useState<ParsedProduct[]>([]);
   const [productosMismaMarca, setProductosMismaMarca] = useState<ParsedProduct[]>([]);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, SafeAreaView, StatusBar,
@@ -40,9 +40,9 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
   const [busquedaDebounced, setBusquedaDebounced] = useState('');
 
   // Espera un poco antes de disparar la consulta a SQLite. La consulta de
-  // "Productos"/"Accesorios" es más pesada (escanea search_text con varios
-  // LIKE) que la de "Todos", así que sin este pequeño delay cada letra
-  // tipeada dispara una consulta nueva y pesada, apilando búsquedas.
+  // "Productos"/"Accesorios" es mÃ¡s pesada (escanea search_text con varios
+  // LIKE) que la de "Todos", asÃ­ que sin este pequeÃ±o delay cada letra
+  // tipeada dispara una consulta nueva y pesada, apilando bÃºsquedas.
   useEffect(() => {
     const t = setTimeout(() => setBusquedaDebounced(busqueda), 300);
     return () => clearTimeout(t);
@@ -77,7 +77,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
   const [showCompareGrid, setShowCompareGrid] = useState(false);
   const [fromProductViewer, setFromProductViewer] = useState(false);
 
-  // PDF caché
+  // PDF cachÃ©
   const [pdfCache, setPdfCache] = useState<{ prodBase64: string; logoBase64: string }>({ prodBase64: '', logoBase64: '' });
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
   const numCols = width >= 600 ? 3 : 2;
   const cardW = (width - 32 - (numCols - 1) * 12) / numCols;
 
-  // El filtrado ahora ocurre en SQLite a través de useProducts
+  // El filtrado ahora ocurre en SQLite a travÃ©s de useProducts
   const activeSliderList = productosFiltrados;
 
   // Funciones de Modal
@@ -113,7 +113,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
     setModalProd(null);
   }, []);
 
-  // Restaurar lógica para abrir productos desde otras pantallas (miniatura)
+  // Restaurar lÃ³gica para abrir productos desde otras pantallas (miniatura)
   useEffect(() => {
     if (route?.params?.openProductSku) {
       const sku = route.params.openProductSku;
@@ -126,7 +126,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
     }
   }, [route?.params?.openProductSku, getProductBySkuSafe, handleOpenModal, navigation]);
 
-  // Recibir lista de comparación desde modal transparente (ProductViewerScreen)
+  // Recibir lista de comparaciÃ³n desde modal transparente (ProductViewerScreen)
   useEffect(() => {
     if (route?.params?.compareSkus) {
       const skus = route.params.compareSkus;
@@ -143,7 +143,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
     }
   }, [route?.params?.compareSkus, route?.params?.fromProductViewer, getProductBySkuSafe, navigation]);
 
-  // Manejar el botón "Atrás" de hardware
+  // Manejar el botÃ³n "AtrÃ¡s" de hardware
   useFocusEffect(
     useCallback(() => {
       const handleBackPress = () => {
@@ -201,12 +201,12 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
 
       {/* ESTADO DE CARGA */}
       {cargando ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={COLORS.navy} /><Text style={styles.centerText}>Cargando catálogo…</Text></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={COLORS.navy} /><Text style={styles.centerText}>Cargando catÃ¡logoâ€¦</Text></View>
       ) : error ? (
         <View style={styles.center}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryBtn} onPress={onRefresh}><Text style={styles.retryText}>Reintentar</Text></TouchableOpacity></View>
       ) : !mostrarLista ? (
         <View style={{ flex: 1 }}>
-          {bgActualiz && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando catálogo…</Text></View>}
+          {bgActualiz && !refreshing && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando catÃ¡logoâ€¦</Text></View>}
           <FlatList
             data={marcas}
             renderItem={renderMarcaBtn}
@@ -225,7 +225,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
         </View>
       ) : (
         <View style={{ flex: 1 }}>
-          {bgActualiz && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando catálogo…</Text></View>}
+          {bgActualiz && !refreshing && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando catÃ¡logoâ€¦</Text></View>}
           <FlatList
             data={productosFiltrados}
             renderItem={({ item }: { item: ParsedProduct }) => (
@@ -236,7 +236,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
                 onPress={() => {
                   if (isComparing) {
                     if (compareItems.some(c => c.modelo === item.modelo)) setCompareItems(prev => prev.filter(c => c.modelo !== item.modelo));
-                    else if (compareItems.length >= 4) showAlert('Límite', 'Podés comparar hasta 4 productos a la vez.');
+                    else if (compareItems.length >= 4) showAlert('LÃ­mite', 'PodÃ©s comparar hasta 4 productos a la vez.');
                     else setCompareItems(prev => [...prev, item]);
                   } else {
                     handleOpenModal(item);
@@ -267,7 +267,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
                   <Text style={{ color: COLORS.gray4 }}>Limpiar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  onPress={() => { if(compareItems.length > 1) setShowCompareGrid(true); else showAlert('Aviso', 'Seleccioná al menos 2 productos para comparar.'); }}
+                  onPress={() => { if(compareItems.length > 1) setShowCompareGrid(true); else showAlert('Aviso', 'SeleccionÃ¡ al menos 2 productos para comparar.'); }}
                   style={[styles.compareRunBtn, { backgroundColor: compareItems.length > 1 ? COLORS.navy : COLORS.gray4 }]}
                 >
                   <Text style={{ color: COLORS.white, fontWeight: 'bold' }}>Comparar</Text>
@@ -298,7 +298,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
         }}
       />
 
-      {/* MODAL DE COMPARACIÓN */}
+      {/* MODAL DE COMPARACIÃ“N */}
       <CompareModal
         visible={showCompareGrid}
         compareItems={compareItems}
