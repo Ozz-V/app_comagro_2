@@ -66,7 +66,10 @@ export default function ProductDetailModal({
   const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
-  const rawProductImages = modalProd?.imagenes?.length ? modalProd.imagenes : (modalProd?.imagen ? [modalProd.imagen] : []);
+  const rawProductImages = [
+    ...(modalProd?.imagen ? [modalProd.imagen] : []),
+    ...(modalProd?.imagenes || [])
+  ];
   
   // Robust cleaning for Plytix weird JSON strings or comma-separated exports
   const cleanUrls: string[] = [];
