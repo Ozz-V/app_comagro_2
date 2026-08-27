@@ -247,9 +247,9 @@ export async function createTopic(
     .single();
 
   if (error) {
-    if (error.message && error.message.includes('5 temas')) {
+    if (error.message && error.message.includes('2 temas')) {
       throw new Error(
-        'Has alcanzado el límite máximo de 5 temas creados.'
+        'Has alcanzado el límite máximo de 2 temas creados.'
       );
     }
 
@@ -344,6 +344,12 @@ export async function createComment(
     .single();
 
   if (error) {
+    if (error.message && error.message.includes('3 comentarios')) {
+      throw new Error(
+        'Has alcanzado el límite máximo de 3 comentarios en este tema.'
+      );
+    }
+
     throw error;
   }
 
