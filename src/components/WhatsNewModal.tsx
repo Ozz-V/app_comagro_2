@@ -9,6 +9,7 @@ interface WhatsNewModalProps {
   visible: boolean;
   onClose: () => void;
   title?: string;
+  versionLabel?: string;
   features: string[];
 }
 
@@ -18,7 +19,7 @@ interface WhatsNewModalProps {
 // como un componente aparte. A diferencia de ese modal, este no tiene fila
 // de botones -- solo una lista de novedades y una "✕" arriba a la derecha
 // para cerrarlo.
-export default function WhatsNewModal({ visible, onClose, title = '¡Nuevas actualizaciones!', features }: WhatsNewModalProps) {
+export default function WhatsNewModal({ visible, onClose, title = '¡Nuevas actualizaciones!', versionLabel, features }: WhatsNewModalProps) {
   return (
     <Modal
       transparent
@@ -43,6 +44,7 @@ export default function WhatsNewModal({ visible, onClose, title = '¡Nuevas actu
           />
 
           <Text style={styles.title}>{title}</Text>
+          {!!versionLabel && <Text style={styles.versionLabel}>{versionLabel}</Text>}
 
           <View style={styles.list}>
             {features.map((feature, index) => (
@@ -101,6 +103,13 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed_700Bold',
     fontSize: 22,
     color: COLORS.navy || '#1F2F6B',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  versionLabel: {
+    fontFamily: 'Barlow_400Regular',
+    fontSize: 13,
+    color: '#8A8A8A',
     marginBottom: 18,
     textAlign: 'center',
   },
