@@ -467,7 +467,11 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
                 <TouchableOpacity style={styles.topicCard} onPress={() => openTopic(item)}>
                   <View style={styles.topicHeader}>
                     <View style={styles.authorRow}>
-                      <View style={styles.avatar}><Text style={styles.avatarText}>{item.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}</Text></View>
+                      {item.profiles?.avatar_url ? (
+                        <Image source={{ uri: item.profiles.avatar_url }} style={styles.avatar} />
+                      ) : (
+                        <View style={styles.avatar}><Text style={styles.avatarText}>{item.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}</Text></View>
+                      )}
                       <Text style={styles.authorName}>{item.profiles?.full_name || 'Usuario'}</Text>
                     </View>
 
@@ -555,7 +559,11 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
                 <View style={styles.opCard}>
                   <View style={styles.topicHeader}>
                     <View style={styles.authorRow}>
-                      <View style={styles.avatar}><Text style={styles.avatarText}>{selectedTopic.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}</Text></View>
+                      {selectedTopic.profiles?.avatar_url ? (
+                        <Image source={{ uri: selectedTopic.profiles.avatar_url }} style={styles.avatar} />
+                      ) : (
+                        <View style={styles.avatar}><Text style={styles.avatarText}>{selectedTopic.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}</Text></View>
+                      )}
                       <Text style={styles.authorName}>{selectedTopic.profiles?.full_name || 'Usuario'}</Text>
                     </View>
 
@@ -601,9 +609,13 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
                   <View style={styles.commentCard}>
                     <View style={styles.topicHeader}>
                       <View style={styles.authorRow}>
-                        <View style={[styles.avatar, { width: 24, height: 24, borderRadius: 12 }]}>
-                          <Text style={[styles.avatarText, { fontSize: 12 }]}>{item.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}</Text>
-                        </View>
+                        {item.profiles?.avatar_url ? (
+                          <Image source={{ uri: item.profiles.avatar_url }} style={[styles.avatar, { width: 24, height: 24, borderRadius: 12 }]} />
+                        ) : (
+                          <View style={[styles.avatar, { width: 24, height: 24, borderRadius: 12 }]}>
+                            <Text style={[styles.avatarText, { fontSize: 12 }]}>{item.profiles?.full_name?.charAt(0).toUpperCase() || 'U'}</Text>
+                          </View>
+                        )}
                         <Text style={styles.commentAuthorName}>{item.profiles?.full_name || 'Usuario'}</Text>
                       </View>
 
