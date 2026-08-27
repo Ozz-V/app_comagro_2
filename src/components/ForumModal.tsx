@@ -653,7 +653,7 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
               <View style={styles.commentInputRow}>
                 {(() => {
                   const myCommentsCount = comments.filter(c => c.user_id === currentUser?.id).length;
-                  const limitReached = myCommentsCount >= 2 && !isAdmin;
+                  const limitReached = myCommentsCount >= 3 && !isAdmin;
                   
                   return (
                     <>
@@ -665,7 +665,7 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
                         style={[styles.commentInput, limitReached && { backgroundColor: COLORS.border, color: COLORS.gray1 }]} 
                         value={newComment} 
                         onChangeText={setNewComment} 
-                        placeholder={limitReached ? "Alcanzaste el límite de 2 comentarios aquí" : "Escribe tu opinión..."} 
+                        placeholder={limitReached ? "Alcanzaste el límite de 3 comentarios aquí" : "Escribe tu opinión..."} 
                         placeholderTextColor={limitReached ? COLORS.gray3 : COLORS.gray1} 
                         maxLength={450} 
                         multiline 
