@@ -115,9 +115,9 @@ describe('forum.ts', () => {
 
     it('convierte el error de límite en un mensaje amigable', async () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
-      mockResult = { data: null, error: { message: 'Ya tiene 5 temas creados' } };
+      mockResult = { data: null, error: { message: 'Ya tiene 2 temas creados' } };
       await expect(createTopic('Título', 'Descripción')).rejects.toThrow(
-        'Has alcanzado el límite máximo de 5 temas creados.'
+        'Has alcanzado el límite máximo de 2 temas creados.'
       );
     });
 
@@ -145,6 +145,14 @@ describe('forum.ts', () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
       mockResult = { data: null, error: new Error('insert fallido') };
       await expect(createComment('topic-1', 'contenido')).rejects.toThrow('insert fallido');
+    });
+
+    it('convierte el error de límite de comentarios en un mensaje amigable', async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+      mockResult = { data: null, error: { message: 'Ya tiene 3 comentarios en este tema' } };
+      await expect(createComment('topic-1', 'contenido')).rejects.toThrow(
+        'Has alcanzado el límite máximo de 3 comentarios en este tema.'
+      );
     });
   });
 
