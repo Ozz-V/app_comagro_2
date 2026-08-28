@@ -23,6 +23,17 @@ import UpdateModal from '../components/UpdateModal';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
 
+const WHATS_NEW_FEATURES = [
+  { title: 'Visualizador de imágenes', description: 'Navega por múltiples fotos en alta calidad haciendo zoom y deslizando.' },
+  { title: 'Nuevos íconos', description: 'Renovamos el diseño visual para una experiencia más moderna y clara.' },
+  { title: 'Buzón de sugerencias', description: 'Envía tus comentarios y reportes de forma directa desde la app.' },
+  { title: 'Estadísticas', description: 'Monitorea métricas y análisis detallados en tiempo real.' },
+  { title: 'Curva de rendimiento', description: 'Visualiza gráficos avanzados de rendimiento en los equipos.' },
+  { title: 'Calculadora avanzada', description: 'Herramienta de cálculo optimizada para tareas agrícolas.' },
+  { title: 'Sección de notificaciones', description: 'Centro de mensajes para que no te pierdas ninguna alerta.' },
+  { title: 'Alertas sobre actualizaciones', description: 'Recibe notificaciones en vivo cuando un producto cambia.' },
+];
+
 // --- COMPONENTE GENÉRICO DE TARJETA PARA EL MENÚ ---
 const MenuCard = ({ iconName, iconNode, title, subtitle, onPress, rightNode, disabled }: any) => (
   <TouchableOpacity style={[st.actionCard, disabled && { opacity: 0.7 }]} onPress={onPress} activeOpacity={0.7} disabled={disabled || !onPress}>
@@ -555,7 +566,9 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
       </ScrollView>
 
       {/* --- MODALS --- */}
-      <UpdateModal visible={showUpdateModal} onClose={() => setShowUpdateModal(false)} onUpdate={() => { setShowUpdateModal(false); DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE', { directDownload: true }); }} updateData={updateModalData} isAvailable={true} />      <OfflineSyncModal visible={showOfflineModal} onClose={() => setShowOfflineModal(false)} offlineGroups={offlineGroups} setOfflineGroups={setOfflineGroups} onDownload={handleDownload} />
+      <UpdateModal visible={showUpdateModal} onClose={() => setShowUpdateModal(false)} onUpdate={() => { setShowUpdateModal(false); DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE', { directDownload: true }); }} updateData={updateModalData} isAvailable={true} />
+
+      <OfflineSyncModal visible={showOfflineModal} onClose={() => setShowOfflineModal(false)} offlineGroups={offlineGroups} setOfflineGroups={setOfflineGroups} onDownload={handleDownload} />
 
       <Modal visible={showNoInternetModal} animationType="fade" transparent onRequestClose={() => setShowNoInternetModal(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>

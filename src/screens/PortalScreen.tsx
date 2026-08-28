@@ -15,7 +15,6 @@ import { ParsedProduct } from '../types/models';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
 
-
 const PROFILE_CACHE_KEY = '@profile_status_cache';
 
 export default function PortalScreen({ navigation }: { navigation: any }) {
@@ -206,11 +205,11 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     showTutorialRef.current = showTutorial;
   }, [showTutorial]);
 
-  
   useEffect(() => {
     applyCachedProfileStatus();
     syncAnalyticsQueue();
-    checkProfile();  }, []);
+    checkProfile();
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe}>

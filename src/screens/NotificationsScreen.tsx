@@ -18,6 +18,8 @@ import { supabase } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 import ForumModal from '../components/ForumModal';
+import ComunicadoModal from '../components/ComunicadoModal';
+import { Comunicado } from '../hooks/useComunicados';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
@@ -68,6 +70,7 @@ export default function NotificationsScreen({
 
   const [showForumModal, setShowForumModal] = useState(false);
   const [forumOpenTopicId, setForumOpenTopicId] = useState<string | null>(null);
+  const [selectedComunicado, setSelectedComunicado] = useState<Comunicado | null>(null);
   const [forumOpenCommentId, setForumOpenCommentId] = useState<string | null>(null);
 
   const { showAlert } = useCustomAlert();
@@ -406,6 +409,20 @@ export default function NotificationsScreen({
         openCommentId={forumOpenCommentId}
         notificationMode
         onClose={cerrarForum}
+      />
+
+      <ComunicadoModal
+        visible={!!selectedComunicado}
+        comunicado={selectedComunicado}
+        onClose={() => setSelectedComunicado(null)}
+        readOnly={true}
+      />
+
+      <ComunicadoModal
+        visible={!!selectedComunicado}
+        comunicado={selectedComunicado}
+        onClose={() => setSelectedComunicado(null)}
+        readOnly={true}
       />
     </SafeAreaView>
   );

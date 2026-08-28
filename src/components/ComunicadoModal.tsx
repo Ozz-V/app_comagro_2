@@ -30,14 +30,14 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
             activeOpacity={0.8}
             hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
-            <Text style={styles.closeFloatText}>✕</Text>
+            <Text style={styles.closeFloatText}>X</Text>
           </TouchableOpacity>
 
           <View style={styles.flyerContainer}>
             {comunicado.imagen_url ? (
               <Image
                 source={{ uri: comunicado.imagen_url }}
-                style={{ width: '100%', height: '100%' }}
+                style={{ width: 320, height: 400 }}
                 contentFit="contain"
                 transition={300}
               />
