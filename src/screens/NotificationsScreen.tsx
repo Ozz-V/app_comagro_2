@@ -384,3 +384,5 @@ const styles = StyleSheet.create({
   cardTime: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4 },
 });
 
+
+

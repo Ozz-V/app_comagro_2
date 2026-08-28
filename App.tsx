@@ -43,6 +43,7 @@ import LottieSplashScreen from './src/screens/LottieSplashScreen';
 import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import EstadisticasScreen from './src/screens/EstadisticasScreen';
+import GlobalComunicadoHandler from './src/components/GlobalComunicadoHandler';
 import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ensureCatalogSynced } from './src/services/catalogService';
@@ -414,6 +415,10 @@ function App() {
             </Stack.Navigator>
           </NavigationContainer>
         </ErrorBoundary>
+
+        {autenticado && profileComplete && !showLottie && (
+          <GlobalComunicadoHandler />
+        )}
 
         {showLottie && (
           <LottieSplashScreen

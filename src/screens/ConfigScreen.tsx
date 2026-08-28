@@ -575,7 +575,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
         onClose={() => setShowWhatsNew(false)}
         title="El sistema está actualizado"
         versionLabel={`Versión ${appVersion}`}
-        features={WHATS_NEW_FEATURES}
+        features={[]}
       />
       <OfflineSyncModal visible={showOfflineModal} onClose={() => setShowOfflineModal(false)} offlineGroups={offlineGroups} setOfflineGroups={setOfflineGroups} onDownload={handleDownload} />
 
