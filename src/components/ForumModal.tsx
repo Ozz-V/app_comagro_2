@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, FlatList, TextInput, ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, InteractionManager } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
 import { supabase } from '../supabase';
@@ -199,7 +200,7 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
 
       let imgSize = asset.fileSize;
       if (!imgSize) {
-        try { const fs = require('expo-file-system'); const fi = await fs.getInfoAsync(asset.uri); if (fi.exists) imgSize = fi.size; } catch(e) {}
+        try { const fi = await FileSystem.getInfoAsync(asset.uri); if (fi.exists) imgSize = (fi as any).size; } catch(e) {}
       }
       if (imgSize && imgSize > 1048576) {
         showAlert('Imagen muy grande', 'La imagen debe pesar menos de 1 MB para subirla.');

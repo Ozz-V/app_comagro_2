@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/react-native';
+﻿import * as Sentry from '@sentry/react-native';
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard, Alert } from 'react-native';
 import { Image } from 'expo-image';
@@ -50,7 +50,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   const [showDiamPicker, setShowDiamPicker] = useState(false);
   
   // Pre-read stats
-  const [catStats, setCatStats] = useState<{maxQ: number, maxH: number} | null>(null);
   const [motorWarning, setMotorWarning] = useState<string | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
@@ -64,9 +63,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       setBombaTab('guiado');
       setWizardStep(1);
       setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
-      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' });
-      setCatStats(null);
-      setMotorWarning(null);
+      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' });      setMotorWarning(null);
       setWaitingForCatalog(false);
     }
   }, [visible]);
@@ -108,8 +105,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     return tension >= 300;
   }
 
-  const { hTotal, perdida, lEquiv, lTotal, status } = useMemo(() => {
-    if (bombaTab !== 'avanzado') return { hTotal: 0, perdida: 0, lEquiv: 0, lTotal: 0, status: 'ok' };
+  const { hTotal, perdida, lTotal, status } = useMemo(() => {
+    if (bombaTab !== 'avanzado') return { hTotal: 0, perdida: 0, lTotal: 0, status: 'ok' };
     const q = parseFloat(adv.caudal) || 0;
     const lRecta = parseFloat(adv.lRecta) || 0;
     const hGeo = parseFloat(adv.hGeo) || 0;
@@ -132,7 +129,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     const pFric = (loss100 !== null && !allDiamsInvalid) ? (lTot * loss100) / 100 : 0;
     const hTot = hGeo + pFric;
     
-    return { hTotal: hTot, perdida: pFric, lEquiv: lAcc, lTotal: lTot, status };
+    return { hTotal: hTot, perdida: pFric, lTotal: lTot, status };
   }, [adv, bombaTab]);
 
   // Extract specs accurately
@@ -232,9 +229,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                if (specs.maxCaudalLpm > mxQ) mxQ = specs.maxCaudalLpm;
                if (specs.maxAlturaMca > mxH) mxH = specs.maxAlturaMca;
             }
-         });
-         setCatStats({maxQ: mxQ, maxH: mxH});
-         setStatsLoading(false);
+         });         setStatsLoading(false);
       }).catch(e => {
          setStatsLoading(false);
          console.error(e);
@@ -757,17 +752,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       setWizardStep(1);
       setHasCalculated(false);
       setCalcResult(null);
-      setMotorResult(null);
-      setCatStats(null);
-    } else if (calcMode) {
+      setMotorResult(null);    } else if (calcMode) {
       setCalcMode('');
       setHasCalculated(false);
       setCalcResult(null);
       setMotorResult(null);
       setBombaTab('guiado');
-      setWizardStep(1);
-      setCatStats(null);
-      setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
+      setWizardStep(1);      setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
     } else {
       onClose();
     }
@@ -1763,3 +1754,4 @@ const styles = StyleSheet.create({
     color: COLORS.navy
   }
 });
+
