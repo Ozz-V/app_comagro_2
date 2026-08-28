@@ -303,6 +303,17 @@ export default function NotificationsScreen({
     setShowForumModal(true);
   };
 
+  const confirmarEliminacionGlobal = (item: NotifRow) => {
+    showAlert(
+      'Eliminar Notificación',
+      '¿Deseas borrar esta notificación permanentemente?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => void eliminarNotificacion(item) }
+      ]
+    );
+  };
+
   const manejarToqueNotificacion = async (item: NotifRow) => {
     await marcarComoLeida(item);
 
