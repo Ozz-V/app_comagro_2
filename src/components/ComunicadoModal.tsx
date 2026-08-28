@@ -17,6 +17,13 @@ const ANIMATION_ISO = require('../../assets/iso.json');
 
 export default function ComunicadoModal({ visible, comunicado, onClose, readOnly = false }: ComunicadoModalProps) {
   const { height, width } = useWindowDimensions();
+  const [readyForLottie, setReadyForLottie] = React.useState(false);
+
+  React.useEffect(() => {
+    if (visible) {
+      setReadyForLottie(false);
+    }
+  }, [visible, comunicado && comunicado.id]);
 
   if (!comunicado) return null;
 
@@ -55,21 +62,31 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
 
   // MODO CAJA BLANCA (Normal)
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+      onShow={() => setReadyForLottie(true)}
+    >
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.overlay}>
           <View style={[styles.modalContainer, { maxHeight: height * 0.85 }]}>
-            
+
             <ScrollView bounces={false} contentContainerStyle={styles.scrollContent}>
-              {/* Animación Lottie superior */}
-              <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                <LottieView
-                  source={ANIMATION_ISO}
-                  autoPlay
-                  loop={true}
-                  style={{ width: 80, height: 80 }}
-                  resizeMode="contain"
-                />
+              {/* Animación Lottie superior: se monta recién cuando el modal ya terminó
+                  su transición de apertura, para no competir por el layout inicial
+                  y evitar el "salto" visual del primer frame. */}
+              <View style={{ alignItems: 'center', marginBottom: 16, width: 80, height: 80, alignSelf: 'center' }}>
+                {readyForLottie && (
+                  <LottieView
+                    source={ANIMATION_ISO}
+                    autoPlay
+                    loop={true}
+                    style={{ width: 80, height: 80 }}
+                    resizeMode="contain"
+                  />
+                )}
               </View>
 
               {/* Título */}
@@ -102,7 +119,7 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
                 <Text style={styles.buttonText}>{readOnly ? 'Cerrar' : 'Entendido'}</Text>
               </TouchableOpacity>
             </View>
-            
+
           </View>
         </View>
       </SafeAreaView>
