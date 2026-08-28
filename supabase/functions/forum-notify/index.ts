@@ -1,4 +1,4 @@
-﻿// deno-lint-ignore no-import-prefix
+// deno-lint-ignore no-import-prefix
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 async function sendPush(tokens: string[], title: string, body: string, data: Record<string, unknown>) {
@@ -15,8 +15,11 @@ async function sendPush(tokens: string[], title: string, body: string, data: Rec
     body: JSON.stringify(messages),
   });
 
-  let json: unknown = null;
-  try { json = await res.json(); } catch (e) {}
+  try { 
+    await res.json(); 
+  } catch (_e) {
+    // Ignore JSON parse errors for push service
+  }
 }
 
 async function logNotifications(supaAdmin: any, userIds: string[], type: string, title: string, body: string, data: Record<string, unknown>) {
@@ -52,7 +55,7 @@ Deno.serve(async (req: Request) => {
       const tokens = recipients.map((a: any) => a.expo_push_token).filter(Boolean);
       
       const notifTitle = 'Nueva sugerencia';
-      const notifBody = record.title ? "Nuevo tema: " + record.title : 'Se cre un nuevo tema en Sugerencias.';
+      const notifBody = record.title ? 'Nuevo tema: "' + record.title + '"' : 'Se creó un nuevo tema en Sugerencias.';
 
       await sendPush(tokens, notifTitle, notifBody, { type: 'forum_topic', topicId: record.id });
       await logNotifications(supaAdmin, recipients.map((a: any) => a.id), 'forum_topic', notifTitle, notifBody, { topicId: record.id });
@@ -65,7 +68,7 @@ Deno.serve(async (req: Request) => {
 
       const actorId = record.user_id; // Quién hizo el comentario o like
       
-      let targetUserIds = new Set<string>();
+      const targetUserIds = new Set<string>();
       
       // Añadimos a todos los admins (que no sean el actor)
       adminProfiles.forEach((a: any) => { if (a.id !== actorId) targetUserIds.add(a.id); });
@@ -85,11 +88,11 @@ Deno.serve(async (req: Request) => {
       
       if (table === 'forum_comments') {
         notifTitle = 'Nuevo comentario';
-        notifBody = Hay un nuevo comentario en el tema " + topic.title + ";
+        notifBody = 'Hay un nuevo comentario en el tema "' + topic.title + '"';
       } else {
         notifTitle = 'Nueva reacción';
         const isUpvote = record.vote_type === 1;
-        notifBody = Alguien dio  + (isUpvote ? 'Me gusta' : 'No me gusta') +  al tema " + topic.title + ";
+        notifBody = 'Alguien dio ' + (isUpvote ? 'Me gusta' : 'No me gusta') + ' al tema "' + topic.title + '"';
       }
 
       await sendPush(tokens, notifTitle, notifBody, { type: 'forum_topic', topicId: topic.id });
