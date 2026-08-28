@@ -306,6 +306,13 @@ export default function NotificationsScreen({
   const manejarToqueNotificacion = async (item: NotifRow) => {
     await marcarComoLeida(item);
 
+        if (item.type === 'comunicado') {
+      if (item.data && item.data.comunicado) {
+        setSelectedComunicado(item.data.comunicado as Comunicado);
+      }
+      return;
+    }
+
     const isForum = item.type === 'forum_topic' || item.type === 'forum_comment';
     const isProducts = item.type === 'new_products' || item.type === 'plytix';
 
@@ -409,13 +416,6 @@ export default function NotificationsScreen({
         openCommentId={forumOpenCommentId}
         notificationMode
         onClose={cerrarForum}
-      />
-
-      <ComunicadoModal
-        visible={!!selectedComunicado}
-        comunicado={selectedComunicado}
-        onClose={() => setSelectedComunicado(null)}
-        readOnly={true}
       />
 
       <ComunicadoModal

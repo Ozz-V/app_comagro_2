@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, useWindowDimensions, SafeAreaView } from 'react-native';
 import { Image } from 'expo-image';
+import LottieView from 'lottie-react-native';
 import Constants from 'expo-constants';
 import { COLORS, FONTS } from '../theme';
 import { Comunicado } from '../hooks/useComunicados';
@@ -11,6 +12,8 @@ interface ComunicadoModalProps {
   onClose: () => void;
   readOnly?: boolean;
 }
+
+const ANIMATION_ISO = require('../../assets/iso.json');
 
 export default function ComunicadoModal({ visible, comunicado, onClose, readOnly = false }: ComunicadoModalProps) {
   const { height, width } = useWindowDimensions();
@@ -103,7 +106,7 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
 const styles = StyleSheet.create({
   safeAreaLight: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   flyerContainer: {
     flex: 1,
