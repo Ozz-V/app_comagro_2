@@ -120,10 +120,20 @@ export function useProducts() {
   // puede llegar DESPUÉS que una más nueva y pisar el resultado correcto — dando la
   // sensación de que "el buscador no funciona" solo en Productos/Accesorios.
   const searchSeq = useRef(0);
+  const lastFiltroMarca = useRef<string>('');
 
   // Nueva función limpia para realizar búsquedas sin cierres de estado (stale closures)
   const fetchCatalog = useCallback(async (marcaFiltro: string, subcatFiltro: string, busqueda: string) => {
     const mySeq = ++searchSeq.current;
+    
+    // Si cambiamos de marca (o entramos a una desde la vista principal), limpiamos la lista actual
+    // inmediatamente. Esto evita el "bug del destello" donde React renderiza la lista con los 
+    // filtros de la marca vieja por unos milisegundos mientras SQLite busca los nuevos.
+    if (marcaFiltro !== lastFiltroMarca.current) {
+      setProductosFiltrados([]);
+    }
+    lastFiltroMarca.current = marcaFiltro;
+
     try {
       const resultados = await searchProducts(marcaFiltro, subcatFiltro, busqueda);
       if (mySeq !== searchSeq.current) return; // Llegó una búsqueda más reciente antes: descartar esta respuesta obsoleta

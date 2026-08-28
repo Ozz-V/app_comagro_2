@@ -151,20 +151,27 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
     if (!isMounted.current) return;
     setShowUserModal(true);
     
-    // Mostramos la data del cach inmediatamente y quitamos el spinner
+    // Mostramos la data del caché inmediatamente
     const cachedProfile = directoryUsers.find(u => u.email === email);
+    let cachedStats = { views: 0, shares: 0 };
+    try {
+      const statsStr = await AsyncStorage.getItem('@user_stats_cache');
+      if (statsStr) {
+        const parsed = JSON.parse(statsStr);
+        if (parsed[email]) cachedStats = parsed[email];
+      }
+    } catch(e) {}
+
     setSelectedUser({ 
       email, 
       full_name: cachedProfile?.full_name || '', 
       telefono: cachedProfile?.telefono || '', 
       avatar_url: cachedProfile?.avatar_url || null, 
-      stats: { views: 0, shares: 0 } 
+      stats: cachedStats 
     });
     setLoadingUser(false);
     
-    if (!isOnline && isMounted.current) {
-      return;
-    }
+    if (!isOnline && isMounted.current) return;
     
     try {
       await syncAnalyticsQueue();
@@ -190,6 +197,15 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
           stats: { views: v, shares: sh }
         });
       }
+
+      // Guardar silenciosamente en caché
+      try {
+        const statsStr = await AsyncStorage.getItem('@user_stats_cache');
+        const parsed = statsStr ? JSON.parse(statsStr) : {};
+        parsed[email] = { views: v, shares: sh };
+        await AsyncStorage.setItem('@user_stats_cache', JSON.stringify(parsed));
+      } catch(e) {}
+
     } catch(e: any) {
       Sentry.captureException(e);
     } finally {
