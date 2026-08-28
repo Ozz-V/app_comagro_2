@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -24,8 +24,8 @@ const ANIMATION_ISO = require('../../assets/iso.json');
 const CACHE_KEY = '@notifications_cache';
 
 type NotifRow = {
-  id: number;
-  type: 'plytix' | 'new_products' | 'forum_topic' | 'forum_comment';
+  id: number | string;
+  type: 'plytix' | 'new_products' | 'forum_topic' | 'forum_comment' | 'comunicado';
   title: string;
   body: string;
   data: Record<string, unknown>;
@@ -112,7 +112,8 @@ export default function NotificationsScreen({
         return;
       }
 
-      const { data, error: qErr } = await supabase
+      // Fetch notificaciones personales de la base de datos
+      const { data: personalData, error: qErr } = await supabase
         .from('notifications_log')
         .select('id, type, title, body, data, sent_at, read_at')
         .eq('user_id', user.id)
@@ -122,9 +123,24 @@ export default function NotificationsScreen({
 
       if (qErr) throw qErr;
 
-      const loadedData = (data || []) as NotifRow[];
-      setItems(loadedData);
-      syncCache(loadedData);
+      let mergedData = (personalData || []) as NotifRow[];
+      
+      // Leer notificaciones globales capturadas localmente
+      try {
+        const capturadosCache = await AsyncStorage.getItem('@captured_comunicados');
+        if (capturadosCache) {
+          const capturados = JSON.parse(capturadosCache) as NotifRow[];
+          mergedData = [...mergedData, ...capturados];
+        }
+      } catch (e) {
+        // ignora
+      }
+
+      // Ordenar por fecha descendente
+      mergedData.sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
+
+      setItems(mergedData);
+      syncCache(mergedData);
 
     } catch {
       setError('No se pudo cargar el historial de notificaciones.');
@@ -161,6 +177,18 @@ export default function NotificationsScreen({
       return actualizados;
     });
 
+    if (item.type === 'comunicado') {
+      try {
+        const capturadosCache = await AsyncStorage.getItem('@captured_comunicados');
+        if (capturadosCache) {
+          const capturados = JSON.parse(capturadosCache) as NotifRow[];
+          const actualizados = capturados.map(i => (i.id === item.id ? { ...i, read_at: now } : i));
+          await AsyncStorage.setItem('@captured_comunicados', JSON.stringify(actualizados));
+        }
+      } catch (e) {}
+      return;
+    }
+
     await supabase
       .from('notifications_log')
       .update({ read_at: now })
@@ -168,6 +196,23 @@ export default function NotificationsScreen({
   };
 
   const eliminarNotificacion = async (item: NotifRow) => {
+    if (item.type === 'comunicado') {
+      try {
+        const capturadosCache = await AsyncStorage.getItem('@captured_comunicados');
+        if (capturadosCache) {
+          const capturados = JSON.parse(capturadosCache) as NotifRow[];
+          const filtrado = capturados.filter(i => i.id !== item.id);
+          await AsyncStorage.setItem('@captured_comunicados', JSON.stringify(filtrado));
+        }
+        setItems(prev => {
+          const filtrados = prev.filter(i => i.id !== item.id);
+          syncCache(filtrados);
+          return filtrados;
+        });
+      } catch (e) {}
+      return;
+    }
+
     const { error: deleteError } = await supabase
       .from('notifications_log')
       .delete()

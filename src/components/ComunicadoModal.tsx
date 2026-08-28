@@ -17,8 +17,40 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
 
   if (!comunicado) return null;
 
+  const isFlyer = comunicado.tipo === 'Imagen';
   const versionApp = Constants.expoConfig?.version || '1.0.0';
 
+  if (isFlyer) {
+    return (
+      <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+        <SafeAreaView style={styles.safeAreaLight}>
+          <TouchableOpacity 
+            style={styles.closeFloatBtn} 
+            onPress={onClose} 
+            activeOpacity={0.8}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <Text style={styles.closeFloatText}>✕</Text>
+          </TouchableOpacity>
+
+          <View style={styles.flyerContainer}>
+            {comunicado.imagen_url ? (
+              <Image
+                source={{ uri: comunicado.imagen_url }}
+                style={{ width: '100%', height: '100%' }}
+                contentFit="contain"
+                transition={300}
+              />
+            ) : (
+              <Text style={{ color: COLORS.gray1, fontFamily: FONTS.body }}>No hay imagen disponible.</Text>
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
+    );
+  }
+
+  // MODO CAJA BLANCA (Normal)
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <SafeAreaView style={styles.safeArea}>
@@ -27,9 +59,7 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
             
             {/* Header / Tipo */}
             <View style={styles.header}>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{comunicado.tipo}</Text>
-              </View>
+              <View style={{ flex: 1 }} />
               {/* Solo mostrar versión si es una novedad técnica, opcional */}
               {comunicado.tipo.includes('actualizaciones') && (
                 <Text style={styles.versionText}>Versión {versionApp}</Text>
@@ -51,7 +81,9 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
               ) : null}
 
               {/* Contenido / Texto */}
-              <Text style={styles.body}>{comunicado.contenido}</Text>
+              {comunicado.contenido ? (
+                <Text style={styles.body}>{comunicado.contenido}</Text>
+              ) : null}
             </ScrollView>
 
             {/* Footer / Botón */}
@@ -69,6 +101,33 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
 }
 
 const styles = StyleSheet.create({
+  safeAreaLight: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
+  flyerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20, // Esto asegura que la imagen no toque los bordes laterales del celular
+  },
+  closeFloatBtn: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  closeFloatText: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -93,24 +152,13 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-  },
-  badge: {
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  badgeText: {
-    color: COLORS.green,
-    fontFamily: FONTS.bodySemi,
-    fontSize: 12,
   },
   versionText: {
     color: COLORS.gray4,

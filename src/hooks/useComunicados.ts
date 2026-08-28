@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 import * as Sentry from '@sentry/react-native';
@@ -41,17 +41,34 @@ export function useComunicados() {
     }
   }, []);
 
-  const marcarComoVisto = async (id: string) => {
+  const marcarComoVisto = async (id: string, comunicado: Comunicado) => {
     try {
       const vistosCache = await AsyncStorage.getItem('@vistos_comunicados');
       const vistos: string[] = vistosCache ? JSON.parse(vistosCache) : [];
       if (!vistos.includes(id)) {
         vistos.push(id);
         await AsyncStorage.setItem('@vistos_comunicados', JSON.stringify(vistos));
+
+        // Captura 100% Local
+        const capturadosCache = await AsyncStorage.getItem('@captured_comunicados');
+        const capturados = capturadosCache ? JSON.parse(capturadosCache) : [];
+        
+        const nuevaNotificacion = {
+          id: comunicado.id, // usamos el mismo ID del comunicado
+          type: 'comunicado',
+          title: comunicado.titulo,
+          body: comunicado.tipo,
+          data: { comunicado },
+          sent_at: new Date().toISOString(),
+          read_at: null
+        };
+        
+        capturados.unshift(nuevaNotificacion);
+        await AsyncStorage.setItem('@captured_comunicados', JSON.stringify(capturados));
       }
       setComunicadoPendiente(null);
     } catch (e) {
-      // Ignorar errores locales
+      // Ignorar errores
     }
   };
 

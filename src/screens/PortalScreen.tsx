@@ -11,28 +11,16 @@ import CalculadoraModal from '../components/CalculadoraModal';
 import ProfileCompleteModal from '../components/ProfileCompleteModal';
 import OnboardingTutorial from '../components/OnboardingTutorial';
 import ForumModal from '../components/ForumModal';
-import WhatsNewModal from '../components/WhatsNewModal';
 import { ParsedProduct } from '../types/models';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
 
-const WHATS_NEW_FEATURES = [
-  { title: 'Visualizador de imágenes', description: 'Navega por múltiples fotos en alta calidad haciendo zoom y deslizando.' },
-  { title: 'Nuevos íconos', description: 'Renovamos el diseño visual para una experiencia más moderna y clara.' },
-  { title: 'Buzón de sugerencias', description: 'Envía tus comentarios y reportes de forma directa desde la app.' },
-  { title: 'Estadísticas', description: 'Monitorea métricas y análisis detallados en tiempo real.' },
-  { title: 'Curva de rendimiento', description: 'Visualiza gráficos avanzados de rendimiento en los equipos.' },
-  { title: 'Calculadora avanzada', description: 'Herramienta de cálculo optimizada para tareas agrícolas.' },
-  { title: 'Sección de notificaciones', description: 'Centro de mensajes para que no te pierdas ninguna alerta.' },
-  { title: 'Alertas sobre actualizaciones', description: 'Recibe notificaciones en vivo cuando un producto cambia.' },
-];
 
 const PROFILE_CACHE_KEY = '@profile_status_cache';
 
 export default function PortalScreen({ navigation }: { navigation: any }) {
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [showForumModal, setShowForumModal] = useState(false);
-  const [showWhatsNew, setShowWhatsNew] = useState(false);
   // Refs espejo de estos dos estados, para poder consultarlos "en vivo"
   // dentro del chequeo asíncrono de más abajo sin depender de un closure
   // viejo (evita mostrar "Novedades" encima del perfil incompleto o del
@@ -218,41 +206,11 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     showTutorialRef.current = showTutorial;
   }, [showTutorial]);
 
-  async function checkWhatsNew() {
-    try {
-      const currentVersion = String(Constants.expoConfig?.android?.versionCode || 1);
-      const lastShownVersion = await AsyncStorage.getItem('@whats_new_last_shown_version');
-
-      if (lastShownVersion === currentVersion) return; // ya se mostró para esta versión instalada
-
-      const tutorialSeen = await AsyncStorage.getItem('@tutorial_seen');
-      if (!tutorialSeen) {
-        // Usuario nuevo (nunca vio una versión anterior de la app): no
-        // tiene sentido mostrarle "novedades" de algo que no conocía.
-        // Dejamos guardada la versión actual para que, cuando SÍ haya una
-        // próxima actualización real, le aparezca a él también.
-        await AsyncStorage.setItem('@whats_new_last_shown_version', currentVersion);
-        return;
-      }
-
-      if (!isMounted.current) return;
-      if (showProfileModalRef.current || showTutorialRef.current) return; // no encimar modales
-
-      setShowWhatsNew(true);
-      await AsyncStorage.setItem('@whats_new_last_shown_version', currentVersion);
-    } catch {}
-  }
-
+  
   useEffect(() => {
     applyCachedProfileStatus();
     syncAnalyticsQueue();
-    checkProfile();
-    // Pequeña demora para dejar que el perfil incompleto / tutorial de
-    // bienvenida (si corresponden) ya hayan decidido mostrarse antes de
-    // evaluar si corresponde mostrar "Novedades" encima de todo eso.
-    const t = setTimeout(checkWhatsNew, 1200);
-    return () => clearTimeout(t);
-  }, []);
+    checkProfile();  }, []);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -424,14 +382,6 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         openTopicId={forumOpenTopicId}
         onClose={() => { setShowForumModal(false); setForumOpenTopicId(null); }}
       />
-
-      <WhatsNewModal
-        visible={showWhatsNew}
-        onClose={() => setShowWhatsNew(false)}
-        versionLabel={`Versión ${Constants.expoConfig?.version || '1.0.0'}`}
-        features={WHATS_NEW_FEATURES}
-      />
-
     </SafeAreaView>
   );
 }

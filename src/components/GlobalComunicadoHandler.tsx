@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useComunicados } from '../hooks/useComunicados';
 import ComunicadoModal from './ComunicadoModal';
 
@@ -11,7 +11,7 @@ export default function GlobalComunicadoHandler() {
       comunicado={comunicadoPendiente}
       onClose={() => {
         if (comunicadoPendiente) {
-          marcarComoVisto(comunicadoPendiente.id);
+          marcarComoVisto(comunicadoPendiente.id, comunicadoPendiente);
         }
       }}
     />
