@@ -100,7 +100,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
     return JSON.parse(rawData).map((row: Record<string, unknown>) => {
       const marca = (row['Brand'] || row['Marca'] || row['marca'] || row['MARCA'] || '').toString().trim();
       const subcategoria = (row['Tipo de Producto'] || row['Categoria Magento'] || 'General').toString().trim().toUpperCase();
-      
+
       const validImages: string[] = [];
       for (const [col, val] of Object.entries(row)) {
         if (col.toLowerCase().includes('imagen') && val && String(val).trim().length > 0) {
@@ -116,11 +116,20 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
         'no corresponde', 'sin especificar', 'sin info'];
 
       for (const [col, val] of Object.entries(row)) {
-        if (!COLS_EXCLUIDAS.has(col) && !col.toLowerCase().includes('imagen') && !col.startsWith('_')) {
+        const kLower = col.toLowerCase();
+        
+        // 1. Filtro estricto para bloquear imágenes y links
+        const esColumnaImagen = kLower.includes('imagen') || kLower.includes('foto') || kLower.includes('img') || kLower.includes('manual');
+        
+        if (!COLS_EXCLUIDAS.has(col) && !col.startsWith('_') && !esColumnaImagen) {
           if (val !== null && val !== undefined && val !== '') {
             const s = String(val).trim();
             const sLower = s.toLowerCase();
-            if (s.length > 0 && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
+            const tieneLink = sLower.includes('http://') || sLower.includes('https://') || sLower.includes('plytix.com');
+            // 2. Filtro estricto para bloquear símbolos sueltos (., ", /, -)
+            const tieneContenidoReal = /[a-zA-Z0-9]/.test(s);
+
+            if (!tieneLink && tieneContenidoReal && s.length > 0 && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
               specs.push([col, s]);
             }
           }
@@ -348,7 +357,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
                 <Text style={{ fontSize: 26, color: COLORS.gray4, fontWeight: 'bold' }}>✕</Text>
               </TouchableOpacity>
             </View>
-            
+
             <FlatList
               data={newProductsSkus}
               keyExtractor={(item, index) => `${item}-${index}`}
