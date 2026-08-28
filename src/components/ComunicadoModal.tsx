@@ -60,18 +60,20 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
         <View style={styles.overlay}>
           <View style={[styles.modalContainer, { maxHeight: height * 0.85 }]}>
             
-            {/* Header / Tipo */}
-            <View style={styles.header}>
-              <View style={{ flex: 1 }} />
-              {/* Solo mostrar versión si es una novedad técnica, opcional */}
-              {comunicado.tipo.includes('actualizaciones') && (
-                <Text style={styles.versionText}>Versión {versionApp}</Text>
-              )}
-            </View>
-
             <ScrollView bounces={false} contentContainerStyle={styles.scrollContent}>
+              {/* Animación Lottie superior */}
+              <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                <LottieView
+                  source={ANIMATION_ISO}
+                  autoPlay
+                  loop={true}
+                  style={{ width: 80, height: 80 }}
+                  resizeMode="contain"
+                />
+              </View>
+
               {/* Título */}
-              <Text style={styles.title}>{comunicado.titulo}</Text>
+              <Text style={[styles.title, { textAlign: 'center' }]}>{comunicado.titulo}</Text>
 
               {/* Flyer (Si existe) */}
               {comunicado.imagen_url ? (
@@ -85,8 +87,13 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
 
               {/* Contenido / Texto */}
               {comunicado.contenido ? (
-                <Text style={styles.body}>{comunicado.contenido}</Text>
+                <Text style={[styles.body, { textAlign: 'center' }]}>{comunicado.contenido}</Text>
               ) : null}
+
+              {/* Versión centrada abajo */}
+              {comunicado.tipo.includes('actualizaciones') && (
+                <Text style={[styles.versionText, { textAlign: 'center', marginTop: 24 }]}>Versión {versionApp}</Text>
+              )}
             </ScrollView>
 
             {/* Footer / Botón */}
