@@ -63,20 +63,23 @@ export default function ProductDetailModal({
   const insets = useSafeAreaInsets();
   const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const { showAlert, showToast } = useCustomAlert();
-  const [activeTab, setActiveTab] = useState('FICHA'); // FICHA | ASISTENTE | SIMILARES
+  const [activeTab, setActiveTab] = useState('FICHA');
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
+  
+  // Carrusel State
+  const [activeImgIndex, setActiveImgIndex] = useState(0);
+  const [imgWidth, setImgWidth] = useState<number>(0);
+
   const rawProductImages = [
     ...(modalProd?.imagen ? [modalProd.imagen] : []),
     ...(modalProd?.imagenes || [])
   ];
-  
-  // Robust cleaning for Plytix weird JSON strings or comma-separated exports
+
   const cleanUrls: string[] = [];
   for (const url of rawProductImages) {
     if (!url || typeof url !== 'string') continue;
     let clean = url.trim();
-    // Clean brackets if it was stringified array
     if (clean.startsWith('[') && clean.endsWith(']')) {
       try {
         const parsed = JSON.parse(clean);
@@ -86,10 +89,8 @@ export default function ProductDetailModal({
         }
       } catch (e) {}
     }
-    // Clean enclosing quotes
     clean = clean.replace(/^["']|["']$/g, '');
-    
-    // Split if multiple urls were joined by comma (and not query params)
+
     if (clean.includes(',') && !clean.includes('?')) {
       const segments = clean.split(',');
       const merged: string[] = [];
@@ -100,7 +101,7 @@ export default function ProductDetailModal({
           merged.push(tSeg);
         } else {
           if (merged.length > 0) {
-            merged[merged.length - 1] += ',' + tSeg; // Glue it back! It was a comma in the filename
+            merged[merged.length - 1] += ',' + tSeg; 
           } else {
             merged.push(tSeg);
           }
@@ -112,12 +113,11 @@ export default function ProductDetailModal({
     }
   }
 
-  // Deduplicate and filter out completely invalid strings (must be an HTTP or local File URI)
   const productImages = Array.from(new Set(cleanUrls)).filter(url => {
     const lower = url.toLowerCase();
     return (lower.startsWith('http') || lower.startsWith('file://') || lower.startsWith('content://') || lower.startsWith('data:')) && url.length > 5;
   });
-  
+
   const [productosSimilares, setProductosSimilares] = useState<ParsedProduct[]>([]);
   const [productosMismaMarca, setProductosMismaMarca] = useState<ParsedProduct[]>([]);
   const [loadingSimilares, setLoadingSimilares] = useState(true);
@@ -130,7 +130,7 @@ export default function ProductDetailModal({
     const subcat = (modalProd.subcategoria || '').toUpperCase();
     const isPumpType = subcat.includes('BOMBA') || subcat.includes('MOTOBOMBA') || subcat.includes('CUERPO') || subcat.includes('ACHIQUE') || subcat.includes('DRENAJE');
     const isExcluded = (subcat.includes('PARA ') && !subcat.includes('PISCINA')) || subcat.includes('VACIO') || subcat.includes('REPUESTO') || subcat.includes('ACCESORIO') || subcat.includes('TABLERO') || subcat.includes('PRESURIZADOR') || subcat.includes('CONTROL');
-    
+
     if (!isPumpType || isExcluded) return null;
 
     let maxQ = 0, maxH = 0, maxBar = 0;
@@ -173,7 +173,7 @@ export default function ProductDetailModal({
 
     if (maxQ > 0 && maxH > 0) {
       const finalQ = maxQ * 60 / 1000;
-      
+
       const getTicks = (max: number) => {
          if (max <= 0) return [0, 1];
          let step = Math.pow(10, Math.floor(Math.log10(max)));
@@ -190,7 +190,7 @@ export default function ProductDetailModal({
          }
          return ticks;
       };
-      
+
       return { 
          maxQ: finalQ, 
          maxH,
@@ -200,17 +200,17 @@ export default function ProductDetailModal({
     }
     return null;
   }, [modalProd]);
-  
-  // Anti-Flicker: Derived State Pattern
+
   const [prevModelo, setPrevModelo] = useState(modalProd?.modelo);
   if (modalProd && modalProd.modelo !== prevModelo) {
     setPrevModelo(modalProd.modelo);
     setActiveTab('FICHA');
+    setActiveImgIndex(0); // Resetea el carrusel al cambiar de producto
     setProductosSimilares([]);
     setProductosMismaMarca([]);
     setLoadingSimilares(true);
   }
-  
+
   const hiddenWebViewRef = useRef<View>(null);
   const [htmlForImage, setHtmlForImage] = useState<string | null>(null);
 
@@ -247,9 +247,9 @@ export default function ProductDetailModal({
           email = parsed.email;
         }
       }
-      
+
       if (!email || email === 'anon@comagro.com.py') {
-         return; // Evita envenenar la cola si no hay un email válido
+         return; 
       }
 
       const q = await AsyncStorage.getItem('@analytics_queue');
@@ -277,8 +277,6 @@ export default function ProductDetailModal({
   const prevProd = currentIndex > 0 ? activeSliderList[currentIndex - 1] : null;
   const nextProd = currentIndex !== -1 && currentIndex < (activeSliderList?.length || 0) - 1 ? activeSliderList[currentIndex + 1] : null;
 
-
-
   useEffect(() => {
     async function fetchRelated() {
       if (isMounted.current) setLoadingSimilares(true);
@@ -304,8 +302,6 @@ export default function ProductDetailModal({
     } finally {
       if (isMounted.current) {
         setGenerandoPdf(false);
-
-
       }
     }
   };
@@ -319,23 +315,21 @@ export default function ProductDetailModal({
         showAlert('Error', 'Compartir no está disponible en este dispositivo');
         if (isMounted.current) {
           setCompartiendo(false);
-
-
         }
         return;
       }
-      
+
       const specs = modalProd?.specs || [];
       let finalProdB64s: string[] = [];
       let finalLogoB64 = pdfCache?.logoBase64;
-      
+
       const urlsToFetch = selectedImages && selectedImages.length > 0 ? selectedImages : (modalProd?.imagen ? [modalProd.imagen] : []);
-      
+
       const marcaSlug = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
       const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg`;
-      
+
       const timeoutPromise = () => new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-      
+
       if (!finalLogoB64) {
         finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise()]).catch(() => '') as string;
       }
@@ -343,18 +337,13 @@ export default function ProductDetailModal({
       finalProdB64s = await Promise.all(
         urlsToFetch.map(url => Promise.race([fetchImageBase64(url), timeoutPromise()]).catch(() => '') as Promise<string>)
       );
-      
+
       const htmlContent = generarHtmlFicha(specs, finalProdB64s, finalLogoB64, modalProd);
       if (isMounted.current) setHtmlForImage(htmlContent);
     } catch (e: unknown) {
       Sentry.captureException(e);
       showAlert('Error', 'No se pudo preparar la ficha. Intentá de nuevo.');
       if (isMounted.current) setCompartiendo(false);
-    } finally {
-      if (isMounted.current) {
-
-
-      }
     }
   };
 
@@ -374,14 +363,14 @@ export default function ProductDetailModal({
         quality: 1.0,
         result: 'tmpfile'
       });
-      
+
       let finalUriToShare = imgUri;
       try {
         const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
         const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
         const newFileName = `${safeMarca}_${safeModelo}.png`;
         const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
-        
+
         const fileInfo = await FileSystem.getInfoAsync(newUri);
         if (fileInfo.exists) {
           await FileSystem.deleteAsync(newUri);
@@ -391,7 +380,7 @@ export default function ProductDetailModal({
       } catch (renameError) {
         console.log('No se pudo renombrar, usando original:', renameError);
       }
-      
+
       await Sharing.shareAsync(finalUriToShare, {
         dialogTitle: `Ficha ${modalProd?.modelo}`,
         mimeType: 'image/png',
@@ -425,7 +414,7 @@ export default function ProductDetailModal({
       navigationBarTranslucent
     >
       <Reanimated.View style={styles.modalOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
-        
+
         {!contentReady && (
           <View style={StyleSheet.absoluteFill} onLayout={handleProbeLayout} pointerEvents="none" />
         )}
@@ -436,7 +425,7 @@ export default function ProductDetailModal({
               <Text style={styles.navBtnText}>‹</Text>
             </TouchableOpacity>
           )}
-          
+
           {nextProd && (
             <TouchableOpacity onPress={() => onOpenProduct(nextProd)} style={styles.navBtnRight}>
               <Text style={styles.navBtnText}>›</Text>
@@ -486,7 +475,7 @@ export default function ProductDetailModal({
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled={true}
           >
-            
+
             {activeTab === 'FICHA' && (
               <View>
                 <View style={styles.fichaCard}>
@@ -500,20 +489,41 @@ export default function ProductDetailModal({
                   <View style={styles.greenLineFull} />
 
                   <View style={styles.productBox}>
-                    <TouchableOpacity 
+                    <View 
                       style={styles.productImgContainer} 
-                      activeOpacity={0.8}
-                      onPress={() => setViewerVisible(true)}
+                      onLayout={(e) => setImgWidth(e.nativeEvent.layout.width)}
                     >
-                      <Image source={{ uri: productImages[0] }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
+                      {imgWidth > 0 && (
+                        <ScrollView
+                          horizontal
+                          pagingEnabled
+                          showsHorizontalScrollIndicator={false}
+                          onMomentumScrollEnd={(e) => {
+                            const idx = Math.round(e.nativeEvent.contentOffset.x / imgWidth);
+                            setActiveImgIndex(idx);
+                          }}
+                        >
+                          {productImages.map((uri, i) => (
+                            <TouchableOpacity
+                              key={i}
+                              activeOpacity={0.9}
+                              onPress={() => setViewerVisible(true)}
+                              style={{ width: imgWidth, height: '100%' }}
+                            >
+                              <Image source={{ uri }} style={{ width: '100%', height: '100%' }} contentFit="contain" />
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      )}
+
                       {productImages.length > 1 && (
                         <View style={styles.dotsContainer}>
-                          {Array.from({ length: Math.min(productImages.length, 3) }).map((_, i) => (
-                            <View key={i} style={[styles.dot, i === 0 ? styles.dotActive : styles.dotInactive]} />
+                          {productImages.map((_, i) => (
+                            <View key={i} style={[styles.dot, i === activeImgIndex ? styles.dotActive : styles.dotInactive]} />
                           ))}
                         </View>
                       )}
-                    </TouchableOpacity>
+                    </View>
                     <View style={styles.productInfoContainer}>
                       <View style={styles.productInfoGreenBar} />
                       <View style={{ flex: 1 }}>
@@ -657,7 +667,7 @@ export default function ProductDetailModal({
                     </ScrollView>
                   </View>
                 )}
-                
+
                 {productosSimilares.length > 0 && (
                   <View>
                     <Text style={styles.simSectionTitle}>Misma categoría</Text>
@@ -672,19 +682,18 @@ export default function ProductDetailModal({
                     ))}
                   </View>
                 )}
-                
+
                 {productosSimilares.length === 0 && productosMismaMarca.length === 0 && (
                   <Text style={styles.aiBodyText}>No hay productos relacionados.</Text>
                 )}
               </View>
             )}
-            
+
             <View style={{ height: 40 }} />
           </ScrollView>
         </Reanimated.View>
         )}
 
-        {/* WEBVIEW OCULTO PARA EXPORTAR PNG A4 */}
         {htmlForImage && (
           <View style={styles.hiddenWebviewWrap} pointerEvents="none" collapsable={false} ref={hiddenWebViewRef}>
             <WebView 
@@ -697,7 +706,6 @@ export default function ProductDetailModal({
           </View>
         )}
 
-        {/* MODAL CURVA */}
         {curveData && (
           <Modal visible={showCurveModal} transparent animationType="fade" onRequestClose={() => setShowCurveModal(false)}>
             <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center'}}>
@@ -723,12 +731,12 @@ export default function ProductDetailModal({
                            </G>
                          );
                       })}
-                      
+
                       <Line x1="50" y1="40" x2="50" y2="280" stroke="#555" strokeWidth="2" />
                       <Line x1="50" y1="280" x2="290" y2="280" stroke="#555" strokeWidth="2" />
                       <SvgText x="170" y="315" fontSize="12" fill="#555" textAnchor="middle" fontWeight="bold">Caudal (m³/h)</SvgText>
                       <SvgText x="15" y="160" fontSize="12" fill="#555" textAnchor="middle" transform="rotate(-90, 15, 160)" fontWeight="bold">Altura MCA (m)</SvgText>
-                      
+
                       <Path 
                         d={
                           [...Array(51).keys()].map(i => {
@@ -768,48 +776,24 @@ export default function ProductDetailModal({
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(7,28,80,0.55)',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  modalDialog: {
-    width: '100%',
-    maxHeight: '92%',
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    overflow: 'hidden',
-  },
-  modalHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  modalTitle: {
-    fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700',
-    color: COLORS.navy, flex: 1, letterSpacing: 0.5,
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(7,28,80,0.55)', alignItems: 'center', justifyContent: 'flex-end' },
+  modalDialog: { width: '100%', maxHeight: '92%', backgroundColor: COLORS.white, borderTopLeftRadius: 12, borderTopRightRadius: 12, overflow: 'hidden' },
+  modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  modalTitle: { fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: COLORS.navy, flex: 1, letterSpacing: 0.5 },
   modalClose: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy },
   navBtnLeft: { position: 'absolute', left: 5, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 30 },
   navBtnRight: { position: 'absolute', right: 5, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 30 },
   navBtnText: { fontSize: 40, color: COLORS.white, fontWeight: 'bold' },
-  
-  // Tabs
+
   tabsWrap: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: '#edf1f5', marginBottom: 0 },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center' },
   tabBtnActive: { borderBottomWidth: 3, borderBottomColor: COLORS.navy },
   tabContentRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tabText: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4 },
   tabTextActive: { color: COLORS.navy, fontWeight: '700' },
-  
+
   modalBody: { padding: 18 },
-  
-  // Ficha
+
   fichaCard: { backgroundColor: COLORS.white, padding: 15, borderRadius: 8 },
   fichaHeaderMobile: { flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', marginBottom: 10 },
   logoContainer: { width: 140, justifyContent: 'center', alignItems: 'center' },
@@ -817,17 +801,16 @@ const styles = StyleSheet.create({
   headerTitleText: { fontFamily: FONTS.heading, fontSize: 16, color: '#0a2566', letterSpacing: 1 },
   greenLineFull: { height: 2, backgroundColor: '#0d8a39', width: '100%', marginBottom: 16 },
   productBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: '#a0a0a0', borderRadius: 12, padding: 15, marginBottom: 16 },
-  productImgContainer: { flex: 1.5, height: 180, paddingRight: 10 },
+  productImgContainer: { flex: 1.5, height: 180, position: 'relative', paddingRight: 10 },
   productInfoContainer: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   productInfoGreenBar: { width: 4, height: 60, backgroundColor: '#0d8a39', marginRight: 10 },
   infoMarca: { fontFamily: FONTS.body, fontSize: 11, fontWeight: 'bold', color: '#0d8a39', textTransform: 'uppercase' },
   infoModelo: { fontFamily: FONTS.heading, fontSize: 18, color: '#0a2566', marginVertical: 4 },
   infoSubcat: { fontFamily: FONTS.body, fontSize: 11, fontWeight: 'bold', color: '#8a939c', textTransform: 'uppercase' },
-  
+
   compareBtn: { backgroundColor: COLORS.navy, padding: 12, borderRadius: 8, height: 44, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
   compareBtnText: { color: COLORS.white, fontWeight: 'bold' },
-  
-  // Specs
+
   specsWrap: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, overflow: 'hidden', marginTop: 10 },
   specsHead: { backgroundColor: COLORS.navy, padding: 10 },
   specsHeadText: { fontFamily: FONTS.bodySemi, fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', color: COLORS.white },
@@ -835,29 +818,25 @@ const styles = StyleSheet.create({
   specRowAlt: { backgroundColor: '#fafbfc' },
   specName: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4, fontWeight: '700', width: '45%', textTransform: 'uppercase', letterSpacing: 0.3, paddingRight: 10 },
   specVal: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray1, flex: 1, flexWrap: 'wrap' },
-  
-  // Actions
+
   modalActionsWrap: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 30 },
   actionBtn: { backgroundColor: COLORS.navy, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: 44, borderRadius: 6 },
   actionBtnDisabled: { opacity: 0.6 },
   actionBtnContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   actionBtnText: { fontFamily: FONTS.bodySemi, fontSize: 14, color: COLORS.white, fontWeight: '700' },
-  
-  // Asistente IA
+
   tabContent: { padding: 16 },
   aiHeader: { marginBottom: 12 },
   aiTitle: { fontFamily: FONTS.bodySemi, fontSize: 16, fontWeight: '700', color: COLORS.navy },
   aiBodyText: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray1, lineHeight: 22 },
   copyBtn: { backgroundColor: '#E8F5E9', paddingVertical: 12, alignItems: 'center', borderRadius: 8, marginTop: 16, borderWidth: 1, borderColor: COLORS.green },
   copyBtnText: { fontFamily: FONTS.bodySemi, fontSize: 14, color: COLORS.navy, fontWeight: '700' },
-  
-  // Carousel Dots
-  dotsContainer: { position: 'absolute', bottom: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6 },
-  dot: { width: 20, height: 4, borderRadius: 2 },
-  dotActive: { backgroundColor: 'rgba(13, 138, 57, 0.9)' },
-  dotInactive: { backgroundColor: 'rgba(13, 138, 57, 0.4)' },
 
-  // Similares
+  dotsContainer: { position: 'absolute', bottom: 0, left: 0, right: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  dot: { width: 14, height: 4, borderRadius: 2 },
+  dotActive: { backgroundColor: 'rgba(13, 138, 57, 0.9)' },
+  dotInactive: { backgroundColor: 'rgba(13, 138, 57, 0.3)' },
+
   simSectionTitle: { fontFamily: FONTS.heading, fontSize: 16, fontWeight: '700', color: COLORS.navy, marginBottom: 12 },
   simSlideCard: { width: 140, marginRight: 12, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 10, backgroundColor: COLORS.white },
   simSlideImg: { width: '100%', height: 90, marginBottom: 8 },
@@ -868,7 +847,6 @@ const styles = StyleSheet.create({
   simInfo: { flex: 1 },
   simMarca: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4, fontWeight: '700', textTransform: 'uppercase' },
   simModelo: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray1, marginTop: 2 },
-  
-  // Hidden WebView
+
   hiddenWebviewWrap: { position: 'absolute', top: -10000, left: -10000, width: 794, height: 1123, zIndex: -10, opacity: 0 }
 });
