@@ -132,6 +132,18 @@ export async function initDB(): Promise<SQLite.SQLiteDatabase> {
 async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
   const db = await getDB();
 
+  // --- ACTUALIZACIÓN SILENCIOSA EN SEGUNDO PLANO (Graceful Sync) ---
+  const SYNC_CACHE = 'graceful_sync_v6_limpieza_specs';
+  const yaSincronizado = await AsyncStorage.getItem(SYNC_CACHE);
+  if (!yaSincronizado) {
+    // Borramos la fecha de última sincronización. Esto forzará al sistema
+    // a descargar el catálogo entero por detrás y hacer un INSERT OR REPLACE,
+    // sobrescribiendo la basura vieja SIN vaciarle la pantalla al usuario.
+    try { await AsyncStorage.removeItem('comagro_productos_fecha_v3'); } catch {}
+    await AsyncStorage.setItem(SYNC_CACHE, '1');
+  }
+  // -----------------------------------------------------------------
+
   // Crear la tabla base si no existe (la base será la versión actual completa)
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS productos (
@@ -261,7 +273,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const sku = String(pSku).trim();
       const marca = (p.Brand || p.Marca || p.marca || '').toString().trim().toUpperCase();
       const subcategoria = (p['Tipo de Producto'] || p['Categoria Magento'] || 'General').toString().trim().toUpperCase();
-      
+
       const rawImages: string[] = [];
       for (const [col, val] of Object.entries(p)) {
         if (col.toLowerCase().includes('imagen') && val && String(val).trim().length > 0) {
@@ -285,10 +297,19 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         'no corresponde', 'sin especificar', 'sin info'];
 
       for (const [col, val] of Object.entries(p)) {
-        if (!colsExcluidas.has(col) && !col.toLowerCase().includes('imagen') && !col.startsWith('_')) {
-          const s = String(val).trim();
-          const sLower = s.toLowerCase();
-          if (s.length > 0 && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
+        const kLower = col.toLowerCase();
+        const s = String(val).trim();
+        const sLower = s.toLowerCase();
+
+        // 1. Filtro estricto para bloquear imágenes y links
+        const esColumnaImagen = kLower.includes('imagen') || kLower.includes('foto') || kLower.includes('img') || kLower.includes('manual');
+        const tieneLink = sLower.includes('http://') || sLower.includes('https://') || sLower.includes('plytix.com');
+        
+        // 2. Filtro estricto para bloquear símbolos sueltos (., ", /, -)
+        const tieneContenidoReal = /[a-zA-Z0-9]/.test(s);
+
+        if (!colsExcluidas.has(col) && !col.startsWith('_') && !esColumnaImagen && !tieneLink) {
+          if (s.length > 0 && tieneContenidoReal && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
             specs.push([col, s]);
           }
         }
@@ -431,19 +452,19 @@ export async function fetchMissingProductFromCloud(sku: string): Promise<ParsedP
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
-    
+
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetch(`${EDGE_URL}?sku=${encodeURIComponent(sku)}`, { headers });
     if (!res.ok) return null;
     const all = await res.json();
-    
+
     // El edge ya debería haber filtrado y devuelto solo ese producto (o un array con 1 elemento)
     const dataArray = Array.isArray(all) ? all : [all];
     const p = dataArray.find((x: Product) => String(x.SKU || x.sku).trim().toLowerCase() === String(sku).trim().toLowerCase());
     if (!p) return null;
-    
+
     const { data: ai } = await supabase.from('productos_ai_data').select('sales_pitch').eq('sku', sku).single();
     if (ai) p.sales_pitch = ai.sales_pitch;
 
