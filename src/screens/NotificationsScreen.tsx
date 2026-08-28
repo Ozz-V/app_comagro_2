@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -86,7 +86,7 @@ export default function NotificationsScreen({
     setError(null);
 
     try {
-      // 1. CARGA ULTRARRÁPIDA DESDE CACHÉ (Evita la pantalla de carga)
+      // 1. CARGA ULTRARRPIDA DESDE CACH
       if (!isRefresh) {
         const cached = await AsyncStorage.getItem(CACHE_KEY);
         if (cached) {
@@ -95,7 +95,14 @@ export default function NotificationsScreen({
         }
       }
 
-      // 2. SINCRONIZACIÓN DE FONDO CON EL SERVIDOR
+      // 2. OBTENER FECHA DE INSTALACIN PARA NO BAJAR BASURA DEL PASADO
+      let installDate = await AsyncStorage.getItem('@install_date');
+      if (!installDate) {
+        installDate = new Date().toISOString();
+        await AsyncStorage.setItem('@install_date', installDate);
+      }
+
+      // 3. SINCRONIZACIN DE FONDO (Solo cosas nuevas)
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -109,6 +116,7 @@ export default function NotificationsScreen({
         .from('notifications_log')
         .select('id, type, title, body, data, sent_at, read_at')
         .eq('user_id', user.id)
+        .gte('sent_at', installDate)
         .order('sent_at', { ascending: false })
         .limit(100);
 
@@ -116,7 +124,7 @@ export default function NotificationsScreen({
 
       const loadedData = (data || []) as NotifRow[];
       setItems(loadedData);
-      syncCache(loadedData); // Actualizamos el caché
+      syncCache(loadedData);
 
     } catch {
       setError('No se pudo cargar el historial de notificaciones.');
@@ -375,3 +383,4 @@ const styles = StyleSheet.create({
   cardBody: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, marginBottom: 6 },
   cardTime: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4 },
 });
+

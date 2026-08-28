@@ -197,8 +197,12 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const asset = result.assets[0];
 
-      if (asset.fileSize && asset.fileSize > 2097152) {
-        showAlert('Error', 'La imagen excede los 2MB permitidos.');
+      let imgSize = asset.fileSize;
+      if (!imgSize) {
+        try { const fs = require('expo-file-system'); const fi = await fs.getInfoAsync(asset.uri); if (fi.exists) imgSize = fi.size; } catch(e) {}
+      }
+      if (imgSize && imgSize > 1048576) {
+        showAlert('Imagen muy grande', 'La imagen debe pesar menos de 1 MB para subirla.');
         return;
       }
 
@@ -254,41 +258,35 @@ export default function ForumModal({ visible, onClose, openTopicId, openCommentI
     const contentToSend = newComment.trim();
     const imgToSend = newCommentImg;
 
-    // Limpiamos el input al toque, como cualquier chat: se siente instantáneo
-    // aunque el envío real todavía esté en curso.
+    // 0 ms — inyección optimista inmediata
+    const tempId = `temp_${Date.now()}`;
+    setComments(prev => [...prev, {
+      id: tempId,
+      topic_id: selectedTopic.id,
+      user_id: currentUser?.id || '',
+      content: contentToSend,
+      image_url: imgToSend,
+      created_at: new Date().toISOString(),
+      profiles: {
+        full_name: currentUser?.user_metadata?.full_name || 'Yo',
+        avatar_url: currentUser?.user_metadata?.avatar_url,
+      },
+    }]);
     setNewComment('');
     setNewCommentImg(null);
-    setLoading(true);
+    setTimeout(() => { commentsListRef.current?.scrollToEnd({ animated: true }); }, 100);
 
-    try {
-      const saved = await createComment(selectedTopic.id, contentToSend, imgToSend);
-
-      // El insert ya nos devuelve la fila real (con id definitivo). En vez
-      // de volver a pedir TODOS los comentarios del tema, simplemente lo
-      // agregamos a la lista que ya tenemos.
-      setComments(prev => [
-        ...prev,
-        { ...(saved as ForumComment), profiles: { full_name: currentUser?.user_metadata?.full_name || 'Tú' } },
-      ]);
-
-      // Reconciliación silenciosa en segundo plano (para corregir el nombre
-      // de perfil real si difiere, sin bloquear ni recargar visualmente).
-      void (async () => {
-        try {
-          const data = await fetchComments(selectedTopic.id);
-          setComments(data);
-        } catch {
-          // Si falla, dejamos el comentario optimista tal cual está.
-        }
-      })();
-    } catch (e: any) {
-      // Si falló el envío, devolvemos el texto al input para que no se pierda.
-      setNewComment(contentToSend);
-      setNewCommentImg(imgToSend);
-      showAlert('Error', e.message || 'No se pudo enviar el comentario.');
-    } finally {
-      setLoading(false);
-    }
+    // Sync silencioso en segundo plano
+    (async () => {
+      try {
+        const saved = await createComment(selectedTopic.id, contentToSend, imgToSend);
+        setComments(prev => prev.map(c =>
+          c.id === tempId ? { ...c, id: (saved as ForumComment).id } : c
+        ));
+      } catch {
+        // Silencioso — el comentario optimista ya está visible
+      }
+    })();
   };
 
   const handleDeleteTopic = (id: string) => {

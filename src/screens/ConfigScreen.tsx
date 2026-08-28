@@ -150,7 +150,8 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
   async function handleUserClick(email: string) {
     if (!isMounted.current) return;
     setShowUserModal(true);
-    setLoadingUser(true);
+    
+    // Mostramos la data del cach inmediatamente y quitamos el spinner
     const cachedProfile = directoryUsers.find(u => u.email === email);
     setSelectedUser({ 
       email, 
@@ -159,9 +160,9 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
       avatar_url: cachedProfile?.avatar_url || null, 
       stats: { views: 0, shares: 0 } 
     });
+    setLoadingUser(false);
     
     if (!isOnline && isMounted.current) {
-      setLoadingUser(false);
       return;
     }
     

@@ -106,8 +106,8 @@ export async function uploadForumImage(
     return null;
   }
 
-  if (fileInfo.size && fileInfo.size > 2097152) {
-    throw new Error('La imagen excede los 2MB permitidos.');
+  if (fileInfo.size && fileInfo.size > 1048576) {
+    throw new Error('La imagen excede 1 MB. Usa una imagen más pequeña.');
   }
 
   const manipulated = await ImageManipulator.manipulateAsync(

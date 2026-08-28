@@ -518,9 +518,12 @@ export default function ProductDetailModal({
 
                       {productImages.length > 1 && (
                         <View style={styles.dotsContainer}>
-                          {productImages.map((_, i) => (
-                            <View key={i} style={[styles.dot, i === activeImgIndex ? styles.dotActive : styles.dotInactive]} />
-                          ))}
+                          {Array.from({ length: Math.min(productImages.length, 5) }).map((_, i) => {
+                            const isActive = (activeImgIndex < 4 && i === activeImgIndex) || (activeImgIndex >= 4 && i === 4);
+                            return (
+                              <View key={i} style={[styles.dot, isActive ? styles.dotActive : styles.dotInactive]} />
+                            );
+                          })}
                         </View>
                       )}
                     </View>
