@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, SafeAreaView, StatusBar,
@@ -33,7 +33,7 @@ interface RouteParams {
 export default function ProductosScreen({ navigation, route }: { navigation: any; route: any }) {
   const insets = useSafeAreaInsets();
   const { showAlert } = useCustomAlert();
-  
+
   const [filtroMarca, setFiltroMarca] = useState('');
   const [filtroSubcategoria, setFiltroSubcategoria] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -158,7 +158,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
         }
         return false; // Dejar que vuelva al home
       };
-      
+
       const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
       return () => subscription.remove();
     }, [filtroMarca, busqueda, setFiltroMarca, setFiltroSubcategoria, setBusqueda])
@@ -201,12 +201,12 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
 
       {/* ESTADO DE CARGA */}
       {cargando ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={COLORS.navy} /><Text style={styles.centerText}>Cargando catÃ¡logoâ€¦</Text></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={COLORS.navy} /><Text style={styles.centerText}>Cargando datos...</Text></View>
       ) : error ? (
         <View style={styles.center}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryBtn} onPress={onRefresh}><Text style={styles.retryText}>Reintentar</Text></TouchableOpacity></View>
       ) : !mostrarLista ? (
         <View style={{ flex: 1 }}>
-          {bgActualiz && !refreshing && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando catÃ¡logoâ€¦</Text></View>}
+          {bgActualiz && !refreshing && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando datos...</Text></View>}
           <FlatList
             data={marcas}
             renderItem={renderMarcaBtn}
@@ -225,7 +225,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
         </View>
       ) : (
         <View style={{ flex: 1 }}>
-          {bgActualiz && !refreshing && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando catÃ¡logoâ€¦</Text></View>}
+          {bgActualiz && !refreshing && <View style={styles.bgBanner}><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.bgBannerText}>Actualizando datos...</Text></View>}
           <FlatList
             data={productosFiltrados}
             renderItem={({ item }: { item: ParsedProduct }) => (
@@ -236,7 +236,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
                 onPress={() => {
                   if (isComparing) {
                     if (compareItems.some(c => c.modelo === item.modelo)) setCompareItems(prev => prev.filter(c => c.modelo !== item.modelo));
-                    else if (compareItems.length >= 4) showAlert('LÃ­mite', 'PodÃ©s comparar hasta 4 productos a la vez.');
+                    else if (compareItems.length >= 4) showAlert('L\u00edmite', 'Pod\u00e9s comparar hasta 4 productos a la vez.');
                     else setCompareItems(prev => [...prev, item]);
                   } else {
                     handleOpenModal(item);
@@ -267,7 +267,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
                   <Text style={{ color: COLORS.gray4 }}>Limpiar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  onPress={() => { if(compareItems.length > 1) setShowCompareGrid(true); else showAlert('Aviso', 'SeleccionÃ¡ al menos 2 productos para comparar.'); }}
+                  onPress={() => { if(compareItems.length > 1) setShowCompareGrid(true); else showAlert('Aviso', 'Seleccion\u00e1 al menos 2 productos para comparar.'); }}
                   style={[styles.compareRunBtn, { backgroundColor: compareItems.length > 1 ? COLORS.navy : COLORS.gray4 }]}
                 >
                   <Text style={{ color: COLORS.white, fontWeight: 'bold' }}>Comparar</Text>
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
   prodRow: { gap: 12, marginBottom: 12 },
   bgBanner: { backgroundColor: COLORS.navy, flexDirection: 'row', padding: 8, justifyContent: 'center', alignItems: 'center', gap: 8 },
   bgBannerText: { color: COLORS.white, fontSize: 12 },
-  
+
   // Compare Toolbar
   compareToolbar: { position: 'absolute', left: 20, right: 20, backgroundColor: COLORS.white, padding: 15, borderRadius: 12, elevation: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: COLORS.border },
   compareToolbarText: { fontWeight: 'bold', color: COLORS.navy },
