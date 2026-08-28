@@ -190,10 +190,10 @@ describe('forum.ts', () => {
       expect(result).toBeNull();
     });
 
-    it('lanza error si la imagen excede los 2MB', async () => {
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, size: 3 * 1024 * 1024 });
+    it('lanza error si la imagen excede 1 MB', async () => {
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, size: 1.5 * 1024 * 1024 });
       await expect(uploadForumImage('file:///grande.jpg')).rejects.toThrow(
-        'La imagen excede los 2MB permitidos.'
+        'La imagen excede 1 MB. Usa una imagen más pequeña.'
       );
     });
 
