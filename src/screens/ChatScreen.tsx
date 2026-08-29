@@ -44,12 +44,35 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
   }, [dotOpacity]);
 
   useEffect(() => {
-    // Saludo instantáneo genérico para que la pantalla no aparezca vacía mientras carga la red
-    setChatHistory([{
-      role: 'assistant',
-      content: `¡Hola! Soy el Asistente IA de Comagro. Estoy conectado a la base de datos de productos. ¿En qué te puedo ayudar hoy?`
-    }]);
-    fetchInitData();
+    async function initGreeting() {
+      let localName = '';
+      try {
+        const cached = await AsyncStorage.getItem('@user_profile_cache');
+        if (cached) {
+          const profileData = JSON.parse(cached);
+          if (profileData.full_name && profileData.full_name.trim() !== '') {
+            localName = profileData.full_name.split(' ')[0];
+            setProfName(profileData.full_name);
+          }
+        }
+      } catch (e) {}
+
+      if (localName) {
+        setChatHistory([{
+          role: 'assistant',
+          content: `¡Hola ${localName}! Soy el Asistente IA de Comagro. Estoy conectado a la base de datos de productos. ¿En qué te puedo ayudar hoy?`
+        }]);
+      } else {
+        setChatHistory([{
+          role: 'assistant',
+          content: `¡Hola! Soy el Asistente IA de Comagro. Estoy conectado a la base de datos de productos. ¿En qué te puedo ayudar hoy?`
+        }]);
+      }
+      
+      fetchInitData();
+    }
+    
+    initGreeting();
   }, []);
 
   async function fetchInitData() {
@@ -66,7 +89,7 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
         setApiStatus('offline');
       }
 
-      // 2. Remote Config — leído con el token del usuario autenticado
+      // 2. Remote Config (leído con el token del usuario autenticado)
       const { data: config } = await supabase
         .from('app_config')
         .select('ai_prompt')
@@ -75,29 +98,8 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
 
       if (config) setRemoteConfig(config);
 
-      // 3. Perfil Usuario
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .single();
+      // (Se eliminó la consulta a 'profiles' porque el nombre ya se carga instantáneamente de la memoria local)
 
-        if (prof && prof.full_name && prof.full_name.trim() !== '') {
-          setProfName(prof.full_name);
-          // Actualizamos el saludo con el nombre, solo si el usuario aún no ha escrito nada
-          setChatHistory(prev => {
-            if (prev.length === 1 && prev[0].role === 'assistant') {
-              return [{
-                role: 'assistant',
-                content: `¡Hola ${prof.full_name.split(' ')[0]}! Soy el Asistente IA de Comagro. Estoy conectado a la base de datos de productos. ¿En qué te puedo ayudar hoy?`
-              }];
-            }
-            return prev;
-          });
-        }
-      }
     } catch (e) {
       setApiStatus('offline');
     }
