@@ -11,7 +11,10 @@ export async function generateResponse(
       body: {
         systemInstruction: { parts: [{ text: finalPrompt }] },
         contents: geminiHistory,
-        generationConfig: { maxOutputTokens: 8192 }
+        // El propio prompt le pide respuestas cortas (charla + máximo 4 tags
+        // [SKU: XXX]) -- 8192 no aporta nada salvo dejar la puerta abierta a
+        // que en el peor caso el modelo divague de más y tarde más en generar.
+        generationConfig: { maxOutputTokens: 700 }
       }
     }));
 
