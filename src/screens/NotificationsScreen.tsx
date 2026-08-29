@@ -404,6 +404,8 @@ export default function NotificationsScreen({
               style={styles.card}
               activeOpacity={0.8}
               onPress={() => { void manejarToqueNotificacion(item); }}
+              onLongPress={() => confirmarEliminacionGlobal(item)}
+              delayLongPress={400}
             >
               {!item.read_at && <View style={styles.dot} />}
 
@@ -456,6 +458,3 @@ const styles = StyleSheet.create({
   cardBody: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, marginBottom: 6 },
   cardTime: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4 },
 });
-
-
-
