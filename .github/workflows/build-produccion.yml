@@ -51,10 +51,8 @@ jobs:
             const fs = require('fs');
             const cfg = JSON.parse(fs.readFileSync('app.json','utf8'));
             cfg.expo.android.versionCode = (cfg.expo.android.versionCode ?? 0) + 1;
-            const patchVersion = Math.max(0, cfg.expo.android.versionCode - 203);
-            cfg.expo.version = '2.0.' + patchVersion;
             fs.writeFileSync('app.json', JSON.stringify(cfg, null, 2));
-            console.log('version =>', cfg.expo.version);
+            console.log('versionCode =>', cfg.expo.android.versionCode);
           "
 
       - name: Prebuild Android Project
