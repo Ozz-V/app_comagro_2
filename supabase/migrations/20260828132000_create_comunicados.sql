@@ -1,4 +1,4 @@
-﻿-- Crear el menú desplegable (ENUM) en la base de datos
+-- Crear el menú desplegable (ENUM) en la base de datos
 CREATE TYPE public.tipo_comunicado AS ENUM (
     '¡Nuevas actualizaciones!',
     'Aviso Importante',
