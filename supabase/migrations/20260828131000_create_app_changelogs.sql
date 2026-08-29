@@ -1,4 +1,4 @@
-﻿CREATE TABLE public.app_comunicados (
+CREATE TABLE public.app_comunicados (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tipo TEXT NOT NULL DEFAULT 'update', -- Puede ser 'update' o 'aviso'
     version TEXT, -- Se deja en blanco si es un 'aviso'
