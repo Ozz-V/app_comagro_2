@@ -82,20 +82,31 @@ export async function fetchGeminiWithRotation(
     const keyHint = key.length > 4 ? `...${key.slice(-4)}` : '(muy corta)';
 
     let res: Response;
+    // Timeout defensivo: sin esto, si Google responde lento con la key
+    // actual (degradación temporal, no necesariamente un error de status),
+    // el fetch podía quedar esperando indefinidamente y todo el chat se
+    // sentía "trabado" muchos segundos de más antes de intentar rotar. Con
+    // este límite, a los 12s cortamos y probamos la próxima key en vez de
+    // seguir esperando a la misma que ya viene lenta.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     try {
       res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
     } catch (networkErr) {
-      // Error de red (timeout, DNS, etc.): también rotamos, no es exclusivo
-      // de errores HTTP -- un hipo de red en una key no debería tirar abajo
-      // todo el chat si las otras keys/conexiones sí responden.
+      // Error de red O timeout (AbortError): también rotamos, un hipo de
+      // red o una key lenta en un momento dado no debería tirar abajo todo
+      // el chat si las otras keys/conexiones sí responden rápido.
       lastErrorText = String(networkErr);
       lastStatus = 0;
-      console.warn(`Gemini key #${idx + 1}/${GEMINI_KEYS.length} (${keyHint}) falló por red. Rotando a la siguiente...`);
+      console.warn(`Gemini key #${idx + 1}/${GEMINI_KEYS.length} (${keyHint}) falló por red o timeout (12s). Rotando a la siguiente...`);
       continue;
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (res.ok) {
