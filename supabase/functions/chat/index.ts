@@ -172,7 +172,7 @@ Deno.serve(async (req: Request) => {
     // deno-lint-ignore no-explicit-any
     const exactContext: any[] = [];
     // deno-lint-ignore no-explicit-any
-    exactSearchResponses.forEach((res: any) => { if (res?.data) exactContext.push(...res.data); });
+    exactSearchResponses.forEach((res: any) => { if (res?.data) exactContext.push(...res.data.map((d: any) => ({ ...d, __groupIndex: -1 }))); });
 
     // deno-lint-ignore no-explicit-any
     const vectorData: any[] = [];
@@ -234,18 +234,18 @@ Deno.serve(async (req: Request) => {
     cacheHit = embedResults.some(r => r.cacheHit);
 
     const gruposConEmbedding = queryGroups
-      .map((g, i) => ({ group: g, embedding: embedResults[i].embedding, target: groupTargets[i], categoryWords: groupCategoryWords[i] }))
+      .map((g, i) => ({ group: g, embedding: embedResults[i].embedding, target: groupTargets[i], categoryWords: groupCategoryWords[i], groupIndex: i }))
       .filter(x => x.embedding);
 
     const vectorPromises = gruposConEmbedding
-      .map(x => vectorSearch(supaAdmin, x.embedding!).then(res => ({ ...res, group: x.group, target: x.target, categoryWords: x.categoryWords })));
+      .map(x => vectorSearch(supaAdmin, x.embedding!).then(res => ({ ...res, group: x.group, target: x.target, categoryWords: x.categoryWords, groupIndex: x.groupIndex })));
 
     // La búsqueda de texto también propaga el target Y el set de palabras
     // de categoría de su grupo a cada producto que encuentra (__target,
     // __categoryWords), para poder compararlos más abajo.
     const keywordPromises = queryGroups.map((g, i) =>
       // deno-lint-ignore no-explicit-any
-      keywordSearch(supaAdmin, g).then((rows: any[]) => rows.map(r => ({ ...r, __target: groupTargets[i], __categoryWords: groupCategoryWords[i] })))
+      keywordSearch(supaAdmin, g).then((rows: any[]) => rows.map(r => ({ ...r, __target: groupTargets[i], __categoryWords: groupCategoryWords[i], __groupIndex: i })))
     );
 
     const [vResults, kwResults] = await Promise.all([
@@ -261,7 +261,7 @@ Deno.serve(async (req: Request) => {
       // deno-lint-ignore no-explicit-any
       const relevantes = (v.products || []).filter((p: any) => groupMatchesText(v.group, p.sales_pitch || ''));
       // deno-lint-ignore no-explicit-any
-      const tagged = relevantes.slice(0, 12).map((p: any) => ({ ...p, __target: v.target, __categoryWords: v.categoryWords }));
+      const tagged = relevantes.slice(0, 12).map((p: any) => ({ ...p, __target: v.target, __categoryWords: v.categoryWords, __groupIndex: v.groupIndex }));
       vectorData.push(...tagged);
       if (v.knowledge) knowledgeData.push(...v.knowledge);
     });
@@ -379,17 +379,51 @@ Deno.serve(async (req: Request) => {
     });
 
     // Ya no se descarta nada por un multiplicador fijo -- se ordena por
-    // cercanía real y se le pasa TODO el pool de candidatos al LLM (con la
-    // nota de cada uno) para que decida caso por caso.
-    const filteredContext = annotatedContext;
+    // cercanía real y se le pasa el pool de candidatos al LLM (con la nota
+    // de cada uno) para que decida caso por caso.
+    //
+    // CORTE POR GRUPO, NO GLOBAL (fix 2026-08-30): antes se ordenaba y
+    // cortaba TODO el pool junto (slice(0,40) global), sin importar de qué
+    // producto pedido venía cada candidato. Eso rompía pedidos con varios
+    // productos en el mismo mensaje (ej. generador + bomba + taladro +
+    // panel solar): un grupo SIN target (panel solar/taladro, sin watts ni
+    // medida pedida) siempre manda su __sortKey a Infinity, así que
+    // quedaba último en el orden global -- si generador+bomba ya sumaban
+    // 40 candidatos con target real, el panel solar quedaba afuera del
+    // todo aunque la búsqueda SÍ lo había encontrado (por eso el bot decía
+    // "no tenemos" con stock real). Mismo problema del lado de la bomba:
+    // si el generador aportaba muchos candidatos de ratio más ajustado, le
+    // podía ganar el lugar en el corte global a la opción de bomba
+    // realmente más cercana a los HP pedidos, dejando solo una peor como
+    // "la más cercana disponible".
+    //
+    // Ahora cada producto pedido compite SOLO contra las opciones de su
+    // propia categoría por un cupo propio -- nunca contra las de otro
+    // producto distinto del mismo mensaje. Con 1 solo producto pedido (el
+    // caso más común) el cupo da 40, igual que antes.
+    const perGroupCap = Math.max(8, Math.floor(40 / Math.max(1, queryGroups.length)));
 
-    filteredContext.sort((a: any, b: any) => {
-      const ka = a.__sortKey == null ? Infinity : a.__sortKey;
-      const kb = b.__sortKey == null ? Infinity : b.__sortKey;
-      return ka - kb;
+    // deno-lint-ignore no-explicit-any
+    const byGroup = new Map<number, any[]>();
+    // deno-lint-ignore no-explicit-any
+    annotatedContext.forEach((item: any) => {
+      const gi = typeof item.__groupIndex === 'number' ? item.__groupIndex : -1;
+      if (!byGroup.has(gi)) byGroup.set(gi, []);
+      byGroup.get(gi)!.push(item);
     });
 
-    const finalContext = filteredContext.slice(0, 40);
+    // deno-lint-ignore no-explicit-any
+    const finalContext: any[] = [];
+    byGroup.forEach((items, gi) => {
+      items.sort((a: any, b: any) => {
+        const ka = a.__sortKey == null ? Infinity : a.__sortKey;
+        const kb = b.__sortKey == null ? Infinity : b.__sortKey;
+        return ka - kb;
+      });
+      // gi === -1 son matches por SKU/modelo EXACTO mencionado literal en
+      // el mensaje -- van todos siempre, no compiten por cupo.
+      finalContext.push(...(gi === -1 ? items : items.slice(0, perGroupCap)));
+    });
 
     let dbContextText = '';
     if (knowledgeData.length > 0) {
@@ -419,6 +453,12 @@ INSTRUCCIÓN CRÍTICA DE APRENDIZAJE: Si el usuario te enseña una regla, DEBES 
     if (configDataRes.data?.ai_prompt) aiPrompt = configDataRes.data.ai_prompt;
 
     let finalPrompt = aiPrompt + dbContextText;
+    // REGLA DE BREVEDAD en código (no en app_config.ai_prompt) para que
+    // aplique SIEMPRE, la tenga o no la tenga el prompt configurado en la
+    // base. Si notás que sigue respondiendo largo, revisá también el
+    // contenido de app_config.ai_prompt -- ese texto se antepone a todo
+    // esto y puede estar empujando para el otro lado.
+    finalPrompt += `\n\nREGLA CRÍTICA DE BREVEDAD (PRIORIDAD MÁXIMA, SIEMPRE): Contestá SIEMPRE corto. El texto antes de los tags [SKU: XXX] tiene que ser 1 sola oración corta para TODA la respuesta, no una oración por producto. PROHIBIDO justificar cada producto ("es ideal para...", "una opción robusta para...", "para un respaldo eficiente..."): eso lo lee el cliente en "Ver Ficha Técnica". Ejemplo correcto ante generador + bomba + taladro + panel solar: "Te paso estas opciones:" y ahí nomás los tags. Si algo no tiene stock, sumalo en esa MISMA oración corta (ej. "de panel solar no tengo stock por ahora"), nunca en un párrafo aparte.`;
     finalPrompt += `\n\nINSTRUCCIÓN SOBRE ALTERNATIVAS (MUY IMPORTANTE): Si el usuario pide un producto con una especificación exacta (ej. "motor 300 hp" o "bomba a nafta") y en la lista de productos encontrados NO hay uno exactamente igual, DEBES OFRECER la alternativa más cercana que tengamos en esa misma categoría (ej. "No tengo de 300 HP, pero te ofrezco este de 200 HP", o "No me queda a nafta, pero tengo esta opción a diésel o eléctrica"). NUNCA digas "Tenemos estas opciones" sin poner los tags [SKU: XXX] al final. Si decides no ofrecer nada, di "No tengo" y NO digas "tenemos estas opciones".
 REGLA DE CATEGORÍAS RELACIONADAS: Si lo único disponible pertenece a una categoría de máquina DISTINTA pero cercana en el rubro a la que pidió el usuario (ej. pidió algo para "podadora" y lo que hay en la lista es para "desmalezadora"), SÍ podés ofrecerlo como alternativa, pero DEBES aclarar explícitamente y sin ambigüedad que es de esa otra categoría (ej. "Para podadora no tengo, pero tengo esto para desmalezadora, podría servirte"). Tenés PROHIBIDO presentarlo como si fuera exactamente para la máquina que pidió el usuario.
 REGLA CRÍTICA SOBRE MÁQUINAS Y REPUESTOS: Si el usuario pide comprar una máquina principal (ej. "bomba", "motor", "cortacésped", "panel solar", "generador"), TIENES TOTALMENTE PROHIBIDO ofrecer REPUESTOS, ACCESORIOS o partes sueltas que sirvan de acompañamiento a esa máquina (ej. un tablero de transferencia automática -ATS- junto a un generador, impulsores, bujías, conectores, repuestos para bomba). Ofrécele ÚNICAMENTE la máquina completa. Ejemplo concreto: si el cliente pide "un generador" y en la lista aparece un producto tipo "ATS" o "Tablero de Transferencia Automática", ESE PRODUCTO NO ES UN GENERADOR -- es un accesorio que se instala junto a un generador para que cambie de luz de red a luz del generador solo. No lo ofrezcas como si fuera el generador que pidió, aunque su ficha mencione kVA o esté en la misma categoría de búsqueda.
