@@ -159,30 +159,44 @@ function convertQuantity(qty: Quantity, ctx: ConversionContext): { variants: str
   return { variants: [], target: null };
 }
 
-// Cache en memoria de la lista real de "Tipo de Producto" del catálogo
-// (se refresca cada 30 min). Evita pegarle a la base en cada mensaje del
-// chat, pero igual se mantiene al día automáticamente cuando se cargan
-// productos nuevos -- sin tocar código ni prompts.
+// Cache en memoria de la lista real de "Tipo de Producto" del catálogo.
+// Se mantiene al día automáticamente cuando se cargan productos nuevos --
+// sin tocar código ni prompts.
 let productTypesCache: { list: string[]; fetchedAt: number } | null = null;
-const PRODUCT_TYPES_TTL_MS = 30 * 60 * 1000;
+const PRODUCT_TYPES_TTL_MS = 60 * 60 * 1000; // 1h -- el catálogo no cambia tan seguido
 
 // deno-lint-ignore no-explicit-any
-export async function getProductTypes(supaAdmin: any): Promise<string[]> {
-  const now = Date.now();
-  if (productTypesCache && (now - productTypesCache.fetchedAt) < PRODUCT_TYPES_TTL_MS) {
-    return productTypesCache.list;
-  }
+async function refreshProductTypes(supaAdmin: any): Promise<string[]> {
   try {
     const { data, error } = await supaAdmin.rpc('obtener_tipos_producto');
     if (error) throw error;
     // deno-lint-ignore no-explicit-any
     const list = (data || []).map((r: any) => r.tipo).filter(Boolean);
-    productTypesCache = { list, fetchedAt: now };
+    productTypesCache = { list, fetchedAt: Date.now() };
     return list;
   } catch (e) {
     console.error(JSON.stringify({ event: "product_types_fetch_failed", error: String(e) }));
     return productTypesCache?.list || [];
   }
+}
+
+// STALE-WHILE-REVALIDATE: si ya hay algo en cache (aunque esté vencido),
+// lo devolvemos AL INSTANTE y refrescamos en segundo plano sin que el
+// cliente espere -- antes, cuando el cache vencía (cada 30 min), el
+// mensaje del chat se quedaba esperando el RPC completo antes de poder
+// arrancar, sumando latencia real al tiempo de respuesta. Ahora solo se
+// bloquea la primera vez que la función arranca en frío (cache
+// completamente vacío), que es inevitable.
+// deno-lint-ignore no-explicit-any
+export async function getProductTypes(supaAdmin: any): Promise<string[]> {
+  const now = Date.now();
+  if (productTypesCache) {
+    if ((now - productTypesCache.fetchedAt) >= PRODUCT_TYPES_TTL_MS) {
+      refreshProductTypes(supaAdmin).catch(() => {}); // fire-and-forget
+    }
+    return productTypesCache.list;
+  }
+  return await refreshProductTypes(supaAdmin);
 }
 
 export async function extractIntent(chatHistoryText: string, productTypes: string[]): Promise<IntentGroup[] | null> {
@@ -194,6 +208,7 @@ export async function extractIntent(chatHistoryText: string, productTypes: strin
           parts: [{
             text: "Eres el motor de búsqueda interno. Tu trabajo es leer el historial de chat y deducir EXACTAMENTE qué productos está buscando el usuario en su ÚLTIMO mensaje. ¡OJO CON EL HISTORIAL! Usa el historial solo para entender el contexto, pero NO MEZCLES características de productos anteriores con el nuevo pedido. Si pide una 'bomba' y un 'motor' en el MISMO mensaje, debes buscar ambos. REGLA DE ORO: Si el usuario escribe en PLURAL, INCLUYE obligatoriamente la versión en SINGULAR. IMPORTANTE SOBRE PEDIDOS MÚLTIPLES: Cada vez que detectes un producto DISTINTO solicitado, debes crearle un GRUPO independiente con sus propias 3 a 5 variantes y sinónimos. "
               + `REGLA DE CATEGORÍA REAL (LA MÁS IMPORTANTE DE TODAS): esta es la lista COMPLETA y REAL de valores de 'Tipo de Producto' que existen ahora mismo en nuestro catálogo -- no es una lista de ejemplos, es el vocabulario oficial y no hay otras categorías fuera de esta lista: ${productTypes.join(' | ')}. Tu trabajo es, usando sentido común general de ferretería/agro (no necesitás que te dé ejemplos caso por caso), identificar cuál o cuáles de ESTAS categorías reales resuelve lo que pide el cliente -- incluso si lo cuenta como una necesidad y no nombra el producto (ej. si pide algo para "hacer hoyos y poner postes", buscá en la lista cuál categoría real corresponde a eso). Si el pedido podría resolverse razonablemente con más de una categoría real de la lista, generá un grupo separado por cada una (no elijas una sola a ciegas). NUNCA inventes ni uses una categoría que no esté literalmente en esta lista. Para cada grupo, el primer término de 'terms' debe ser el nombre EXACTO de la categoría elegida tal como aparece en la lista, seguido de sinónimos/plurales/variantes coloquiales de esa palabra que un cliente paraguayo usaría. `
+              + `REGLA DE SUBTIPOS DEL MISMO OBJETO: en la lista real vas a encontrar casos donde el mismo objeto tiene varias categorías separadas por subtipo/variante (ej. "PANEL SOLAR BIFACIAL" y "PANEL SOLAR MONOCRISTALINO" son ambas variantes de panel solar; "BOMBA DE AGUA" y "MOTOBOMBA" podrían convivir como categorías separadas). Si el cliente pidió el objeto en general SIN especificar la variante/subtipo (ej. "un panel solar" sin decir bifacial o monocristalino), incluí TODAS las categorías reales de la lista que sean subtipos de ese mismo objeto como términos del MISMO grupo (no elijas una sola variante a ciegas y no generes grupos separados por subtipo tampoco, van todas juntas en un solo grupo). Si el cliente sí especificó la variante, priorizá esa categoría real puntual. `
               + `REGLA DE ACCESORIO/REPUESTO PARA UNA MÁQUINA ESPECÍFICA: en la lista de categorías reales vas a encontrar variantes con calificador, tipo "REPUESTOS PARA X", "ACCESORIOS PARA X", "ATS PARA X". Si el cliente pide explícitamente un repuesto, accesorio, pieza o ATS (con esas palabras o similares) PARA una máquina puntual que nombró, elegí la categoría real con calificador que corresponda (ej. "REPUESTOS PARA GENERADOR") en vez de la categoría de la máquina completa. Si el cliente NO usó ninguna palabra de accesorio/repuesto (solo describió una necesidad o pidió la máquina en sí), NUNCA elijas una categoría con calificador "PARA X" -- elegí la categoría de la máquina completa. Si pide el accesorio suelto sin nombrar ninguna máquina (ej. "necesito un arnés" a secas), buscá en la lista real cuál categoría con calificador podría aplicar, sin asumir una máquina específica. `
               + `REGLA DE UNIDADES (MUY IMPORTANTE): Si el usuario menciona una cantidad con unidad de medida (amperios, PSI, libras, litros por minuto, pies cúbicos, caballos de fuerza, kVA, kW, bar, kg, m3/h, o cualquier otra), tenés PROHIBIDO convertirla vos mismo. Tu único trabajo con eso es reportarla TAL CUAL la escribió el cliente en el campo 'quantity' del grupo correspondiente (value: número, unit: la unidad tal cual la escribió, ej. 'amperios', 'psi', 'hp'). La conversión matemática la hace otro sistema después. NO agregues variantes de búsqueda ya convertidas a otra unidad -- eso ya no es tu trabajo. `
               + "Responde ÚNICAMENTE con un array JSON de objetos, cada uno con 'terms' (array de strings con sinónimos/variantes de búsqueda, SIN conversiones de unidad) y 'quantity' (objeto {value, unit} tal cual lo escribió el cliente, o null si no mencionó ninguna cantidad con unidad). "
@@ -204,7 +219,7 @@ export async function extractIntent(chatHistoryText: string, productTypes: strin
           }]
         },
         contents: [{ role: "user", parts: [{ text: chatHistoryText }] }],
-        generationConfig: { maxOutputTokens: 300, temperature: 0.2, responseMimeType: "application/json" }
+        generationConfig: { maxOutputTokens: 800, temperature: 0.2, responseMimeType: "application/json" }
       }
     }));
 
