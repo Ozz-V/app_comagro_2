@@ -225,15 +225,31 @@ Deno.serve(async (req: Request) => {
     const hasWaterContext = /\b(agua|pozo|bomba|bombeo|sumergible)\b/i.test(lastMessage);
     const blockSubmersible = isMotorQuery && !hasWaterContext;
 
-    const isRepuestoQuery = /\b(repuest|accesori|pieza|parte|impulsor|filtro|bujia|carburador|cable|aceite)\b/i.test(lastMessage);
+    const isRepuestoQuery = /\b(repuest|accesori|pieza|parte|impulsor|filtro|bujia|carburador|cable|aceite|ats\b|tablero de transferencia|panel de transferencia|transferencia automatica)\b/i.test(lastMessage);
     const blockRepuestos = !isRepuestoQuery;
+
+    // Patrón de "esto es un accesorio/repuesto vendido aparte, no la máquina
+    // principal". Antes solo se buscaba la palabra literal "repuesto" en la
+    // descripción, y por eso se colaban productos como los ATS (Tableros de
+    // Transferencia Automática) cuando alguien pedía "generador" a secas: la
+    // ficha del ATS no dice la palabra "repuesto", así que pasaba el filtro
+    // sin problema aunque no sea un generador. Se amplía para cubrir esos
+    // casos por nombre/categoría, no solo por esa única palabra.
+    const ACCESSORY_PATTERN = /\b(repuesto|accesorio|pieza suelta|tablero de transferencia|panel de transferencia|transferencia automatica)\b/i;
+    // Los SKUs de tableros de transferencia en tu catálogo van pegados como
+    // prefijo, ej. "ATS6000CESW", "ATS15000CES3W" -- por eso el chequeo de
+    // SKU va aparte con ^ (empieza con "ats"), un \b normal no detecta esto
+    // porque letras y números son ambos "caracteres de palabra" para regex
+    // y no hay borde entre "ATS" y "6000".
+    const ACCESSORY_SKU_PREFIX = /^ats/i;
 
     // deno-lint-ignore no-explicit-any
     const dedupedContext = combinedContext.filter((item: any) => {
       if (seenSkus.has(item.sku)) return false;
       if (/^TEST-|-DELETE-ME$/i.test(item.sku || '')) return false;
       if (blockSubmersible && item.sales_pitch?.toLowerCase().includes('sumergible')) return false;
-      if (blockRepuestos && item.sales_pitch?.toLowerCase().includes('repuesto')) return false;
+      if (blockRepuestos && ACCESSORY_PATTERN.test(item.sales_pitch || '')) return false;
+      if (blockRepuestos && ACCESSORY_SKU_PREFIX.test(item.sku || '')) return false;
       seenSkus.add(item.sku);
       return true;
     });
