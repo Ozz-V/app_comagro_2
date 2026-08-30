@@ -121,6 +121,27 @@ function convertQuantity(qty: Quantity, ctx: ConversionContext): { variants: str
   const unit = qty.unit.toLowerCase().trim();
   const v = qty.value;
 
+  // PASS-THROUGH: si el cliente ya dio el número en la unidad nativa del
+  // catálogo (kva, kw, bar, kg, m3/h), no hay ninguna conversión que hacer.
+  // Esto faltaba: sin este caso, "generador de 6 kva" no generaba NINGÚN
+  // target ni variante con el número, y la búsqueda quedaba igual de
+  // genérica que si el cliente no hubiera dado ninguna cifra.
+  if (/^kva$/.test(unit)) {
+    return { variants: [`generador ${v} kva`, `generador ${Math.ceil(v)} kva`], target: { value: v, unit: "kva" } };
+  }
+  if (/^kw$/.test(unit)) {
+    return { variants: [`${v} kw`, `${Math.ceil(v)} kw`], target: { value: v, unit: "kw" } };
+  }
+  if (/^bar$/.test(unit)) {
+    return { variants: [`${v} bar`, `${Math.ceil(v)} bar`], target: { value: v, unit: "bar" } };
+  }
+  if (/^kg$/.test(unit)) {
+    return { variants: [`${v} kg`, `${Math.ceil(v)} kg`], target: { value: v, unit: "kg" } };
+  }
+  if (/^(m3\/h|m3h)$/.test(unit)) {
+    return { variants: [`bomba ${v} m3/h`, `bomba ${Math.ceil(v)} m3/h`], target: { value: v, unit: "m3h" } };
+  }
+
   if (/^(a|amp|amper|amperio|amperios|amps)$/.test(unit)) return ampsToKva(v, ctx);
   if (/^(psi|libra.?pulgada)$/.test(unit)) return psiToBar(v);
   if (/^(lb|libra|libras)$/.test(unit)) return lbToKg(v);
@@ -226,7 +247,7 @@ export async function getEmbedding(text: string, supaAdmin: any): Promise<{ embe
 export async function vectorSearch(supabase: any, queryEmbedding: number[]): Promise<{ products: any[]; knowledge: any[] }> {
   try {
     const [vRes, kRes] = await Promise.all([
-      supabase.rpc('buscar_productos_ia', { query_embedding: queryEmbedding, match_threshold: 0.45, match_count: 10 }),
+      supabase.rpc('buscar_productos_ia', { query_embedding: queryEmbedding, match_threshold: 0.45, match_count: 20 }),
       supabase.rpc('buscar_conocimiento_ia', { query_embedding: queryEmbedding, match_threshold: 0.45, match_count: 3 })
     ]);
     if (vRes.error) console.error(JSON.stringify({ event: "vector_rpc_error", error: vRes.error }));
@@ -307,7 +328,7 @@ export async function keywordSearch(supabase: any, phrases: string[]): Promise<a
       .from('productos_ai_data')
       .select('sku, sales_pitch')
       .or(orFilter)
-      .limit(6);
+      .limit(12);
 
     const { data, error } = await query;
 
