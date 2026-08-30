@@ -159,7 +159,33 @@ function convertQuantity(qty: Quantity, ctx: ConversionContext): { variants: str
   return { variants: [], target: null };
 }
 
-export async function extractIntent(chatHistoryText: string): Promise<IntentGroup[] | null> {
+// Cache en memoria de la lista real de "Tipo de Producto" del catálogo
+// (se refresca cada 30 min). Evita pegarle a la base en cada mensaje del
+// chat, pero igual se mantiene al día automáticamente cuando se cargan
+// productos nuevos -- sin tocar código ni prompts.
+let productTypesCache: { list: string[]; fetchedAt: number } | null = null;
+const PRODUCT_TYPES_TTL_MS = 30 * 60 * 1000;
+
+// deno-lint-ignore no-explicit-any
+export async function getProductTypes(supaAdmin: any): Promise<string[]> {
+  const now = Date.now();
+  if (productTypesCache && (now - productTypesCache.fetchedAt) < PRODUCT_TYPES_TTL_MS) {
+    return productTypesCache.list;
+  }
+  try {
+    const { data, error } = await supaAdmin.rpc('obtener_tipos_producto');
+    if (error) throw error;
+    // deno-lint-ignore no-explicit-any
+    const list = (data || []).map((r: any) => r.tipo).filter(Boolean);
+    productTypesCache = { list, fetchedAt: now };
+    return list;
+  } catch (e) {
+    console.error(JSON.stringify({ event: "product_types_fetch_failed", error: String(e) }));
+    return productTypesCache?.list || [];
+  }
+}
+
+export async function extractIntent(chatHistoryText: string, productTypes: string[]): Promise<IntentGroup[] | null> {
   try {
     const data = await fetchGeminiWithRotation(() => ({
       url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`,
@@ -167,8 +193,9 @@ export async function extractIntent(chatHistoryText: string): Promise<IntentGrou
         systemInstruction: {
           parts: [{
             text: "Eres el motor de búsqueda interno. Tu trabajo es leer el historial de chat y deducir EXACTAMENTE qué productos está buscando el usuario en su ÚLTIMO mensaje. ¡OJO CON EL HISTORIAL! Usa el historial solo para entender el contexto, pero NO MEZCLES características de productos anteriores con el nuevo pedido. Si pide una 'bomba' y un 'motor' en el MISMO mensaje, debes buscar ambos. REGLA DE ORO: Si el usuario escribe en PLURAL, INCLUYE obligatoriamente la versión en SINGULAR. IMPORTANTE SOBRE PEDIDOS MÚLTIPLES: Cada vez que detectes un producto DISTINTO solicitado, debes crearle un GRUPO independiente con sus propias 3 a 5 variantes y sinónimos. "
-              + "REGLA DE ACCESORIOS SUELTOS: si el usuario pide un accesorio o repuesto suelto (arnés, correa, chaleco, funda, cable, etc.) PARA una máquina, generá el grupo enfocado en el accesorio en sí (ej. 'arnes', 'arnes de seguridad', 'chaleco reflectante') y NO repitas el nombre de la máquina en cada variante. CATEGORÍAS RELACIONADAS: algunos términos de máquinas se superponen mucho en la jerga del rubro sin ser exactamente lo mismo (ej. podadora, desmalezadora, bordeadora y motoguadaña son categorías cercanas que suelen confundirse). Cuando el pedido sea sobre un accesorio, repuesto, o la máquina en sí de una de estas categorías, agregá TAMBIÉN al mismo grupo las variantes de las categorías cercanas. SINÓNIMOS OBLIGATORIOS DEL RUBRO: no te quedes solo con variaciones de plural/singular de la frase que escribió el cliente. Referencia (no es una lista cerrada, es un piso mínimo): generador eléctrico = generador de luz = generador de energia = planta eléctrica = grupo electrogeno. cortacésped = cortador de pasto = cortapasto = maquina cortapasto = cortadora de cesped. desmalezadora = bordeadora = desbrozadora = motoguadaña = orilladora. motobomba = bomba a combustion = bomba a nafta para agua = bomba a gasoil para agua. compresor = compresor de aire = motocompresor. Para CUALQUIER producto que no esté en esta lista, pensá igual en los nombres técnico, comercial y coloquial con los que un cliente paraguayo lo llamaría antes de armar el grupo. "
-              + "REGLA DE UNIDADES (MUY IMPORTANTE): Si el usuario menciona una cantidad con unidad de medida (amperios, PSI, libras, litros por minuto, pies cúbicos, caballos de fuerza, kVA, kW, bar, kg, m3/h, o cualquier otra), tenés PROHIBIDO convertirla vos mismo. Tu único trabajo con eso es reportarla TAL CUAL la escribió el cliente en el campo 'quantity' del grupo correspondiente (value: número, unit: la unidad tal cual la escribió, ej. 'amperios', 'psi', 'hp'). La conversión matemática la hace otro sistema después. NO agregues variantes de búsqueda ya convertidas a otra unidad -- eso ya no es tu trabajo. "
+              + `REGLA DE CATEGORÍA REAL (LA MÁS IMPORTANTE DE TODAS): esta es la lista COMPLETA y REAL de valores de 'Tipo de Producto' que existen ahora mismo en nuestro catálogo -- no es una lista de ejemplos, es el vocabulario oficial y no hay otras categorías fuera de esta lista: ${productTypes.join(' | ')}. Tu trabajo es, usando sentido común general de ferretería/agro (no necesitás que te dé ejemplos caso por caso), identificar cuál o cuáles de ESTAS categorías reales resuelve lo que pide el cliente -- incluso si lo cuenta como una necesidad y no nombra el producto (ej. si pide algo para "hacer hoyos y poner postes", buscá en la lista cuál categoría real corresponde a eso). Si el pedido podría resolverse razonablemente con más de una categoría real de la lista, generá un grupo separado por cada una (no elijas una sola a ciegas). NUNCA inventes ni uses una categoría que no esté literalmente en esta lista. Para cada grupo, el primer término de 'terms' debe ser el nombre EXACTO de la categoría elegida tal como aparece en la lista, seguido de sinónimos/plurales/variantes coloquiales de esa palabra que un cliente paraguayo usaría. `
+              + `REGLA DE ACCESORIO/REPUESTO PARA UNA MÁQUINA ESPECÍFICA: en la lista de categorías reales vas a encontrar variantes con calificador, tipo "REPUESTOS PARA X", "ACCESORIOS PARA X", "ATS PARA X". Si el cliente pide explícitamente un repuesto, accesorio, pieza o ATS (con esas palabras o similares) PARA una máquina puntual que nombró, elegí la categoría real con calificador que corresponda (ej. "REPUESTOS PARA GENERADOR") en vez de la categoría de la máquina completa. Si el cliente NO usó ninguna palabra de accesorio/repuesto (solo describió una necesidad o pidió la máquina en sí), NUNCA elijas una categoría con calificador "PARA X" -- elegí la categoría de la máquina completa. Si pide el accesorio suelto sin nombrar ninguna máquina (ej. "necesito un arnés" a secas), buscá en la lista real cuál categoría con calificador podría aplicar, sin asumir una máquina específica. `
+              + `REGLA DE UNIDADES (MUY IMPORTANTE): Si el usuario menciona una cantidad con unidad de medida (amperios, PSI, libras, litros por minuto, pies cúbicos, caballos de fuerza, kVA, kW, bar, kg, m3/h, o cualquier otra), tenés PROHIBIDO convertirla vos mismo. Tu único trabajo con eso es reportarla TAL CUAL la escribió el cliente en el campo 'quantity' del grupo correspondiente (value: número, unit: la unidad tal cual la escribió, ej. 'amperios', 'psi', 'hp'). La conversión matemática la hace otro sistema después. NO agregues variantes de búsqueda ya convertidas a otra unidad -- eso ya no es tu trabajo. `
               + "Responde ÚNICAMENTE con un array JSON de objetos, cada uno con 'terms' (array de strings con sinónimos/variantes de búsqueda, SIN conversiones de unidad) y 'quantity' (objeto {value, unit} tal cual lo escribió el cliente, o null si no mencionó ninguna cantidad con unidad). "
               + "Ejemplo para 1 producto sin cantidad: [{\"terms\":[\"panel solar\",\"paneles solares\"],\"quantity\":null}]. "
               + "Ejemplo con cantidad (generador por amperios): pedido 'generador de 50 A para mi casa' -> [{\"terms\":[\"generador\",\"generadores\",\"grupo electrogeno\",\"planta electrica\"],\"quantity\":{\"value\":50,\"unit\":\"amperios\"}}]. "
