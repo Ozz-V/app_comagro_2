@@ -2,25 +2,29 @@ import { fetchGeminiWithRotation } from "./gemini.ts";
 
 // ─────────────────────────────────────────────────────────────────────────
 // CONVERSIÓN DE UNIDADES — determinística, en código, NO en el LLM.
+// (ver historial de cambios: antes el LLM adivinaba mono/trifásico y hacía
+// la aritmética él mismo -- ahora solo extrae {value, unit} tal cual lo
+// escribió el cliente, y acá abajo se calcula todo con fórmulas reales).
 //
-// Antes: le pedíamos al modelo (gemini-3.1-flash-lite) que hiciera la
-// aritmética Y que "adivinara" el escenario más común (mono/trifásico,
-// 220V/380V) para convertir, por ejemplo, amperios a kVA. Un modelo chico
-// no es confiable para eso: terminaba generando variantes de generadores
-// de 45-88 kVA trifásicos para un cliente que pedía electricidad para su
-// CASA. El LLM es bueno reconociendo patrones de texto (qué número, qué
-// unidad, qué categoría de producto), pero malo haciendo matemática y
-// razonando sobre "qué escenario es típico" sin contexto explícito.
-//
-// Ahora: el LLM SOLO extrae { valor, unidad } tal cual los escribió el
-// cliente (extracción de texto, su fuerte). Toda la conversión y la
-// decisión mono/trifásico las hace este módulo con fórmulas reales y
-// reglas de contexto explícitas y auditables.
+// v2: además de generar las variantes de texto para buscar, exponemos el
+// "target" (el número + unidad ya convertidos, ej. {value: 11, unit: "kva"})
+// como dato estructurado. Esto es necesario para dos cosas que en v1 no
+// pasaban:
+//   1. keywordSearch ya NO descarta este número como si fuera el crudo del
+//      cliente (ver REGLA_UNIDAD_CONVERTIDA más abajo).
+//   2. index.ts puede pasarle el target explícito al LLM asesor final y
+//      ordenar/filtrar candidatos por cercanía real a ese número, en vez de
+//      dejar que el modelo elija "a ojo" entre productos de tamaños muy
+//      distintos sin saber cuál es el objetivo.
 // ─────────────────────────────────────────────────────────────────────────
 
 type Quantity = { value: number; unit: string } | null;
 
+export type Target = { value: number; unit: "kva" | "bar" | "kg" | "kw" | "m3h" } | null;
+
 type ParsedGroup = { terms: string[]; quantity: Quantity };
+
+export type IntentGroup = { terms: string[]; target: Target };
 
 type ConversionContext = {
   isResidential: boolean;
@@ -41,7 +45,6 @@ function detectContext(chatHistoryText: string): ConversionContext {
     ? "mono"
     : null;
 
-  // Detecta un voltaje mencionado explícitamente por el usuario (ej. "220v", "380 v")
   const voltMatch = lower.match(/(\d{3})\s*v\b/);
   const explicitVoltage = voltMatch ? parseInt(voltMatch[1], 10) : null;
 
@@ -52,13 +55,15 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
-// Eléctrico: amperios -> kVA. Genera variantes SOLO para las ramas que el
-// contexto sugiere. Si no hay ninguna pista de contexto, usamos monofásico
-// 220V como default (el caso más común: particular / uso doméstico),
-// evitando el default anterior de "generar los 2-3 escenarios típicos"
-// que terminaba metiendo trifásico donde no correspondía.
-function ampsToKvaVariants(amps: number, ctx: ConversionContext): string[] {
+// Cada convertidor devuelve tanto las variantes de texto (para la búsqueda
+// de palabras) como UN target numérico principal (para el filtro/orden por
+// cercanía en index.ts). Cuando hay más de una rama posible (mono/tri),
+// el target apunta a la rama que el contexto indicó como más probable --
+// las otras ramas quedan como variantes de texto nomás, no como target
+// "oficial" (evita mandar dos objetivos contradictorios a index.ts).
+function ampsToKva(amps: number, ctx: ConversionContext): { variants: string[]; target: Target } {
   const variants: string[] = [];
+  let target: Target = null;
 
   const wantsMono = ctx.explicitPhase === "mono" || (!ctx.explicitPhase && !ctx.isIndustrial);
   const wantsTri = ctx.explicitPhase === "tri" || ctx.isIndustrial;
@@ -67,75 +72,66 @@ function ampsToKvaVariants(amps: number, ctx: ConversionContext): string[] {
     const v = ctx.explicitVoltage && ctx.explicitVoltage < 300 ? ctx.explicitVoltage : 220;
     const kva = round1((v * amps) / 1000);
     variants.push(`generador ${kva} kva`, `generador ${Math.ceil(kva)} kva`);
+    if (!target) target = { value: kva, unit: "kva" };
   }
 
   if (wantsTri) {
     const v = ctx.explicitVoltage && ctx.explicitVoltage >= 300 ? ctx.explicitVoltage : 380;
     const kva = round1((Math.sqrt(3) * v * amps) / 1000);
     variants.push(`generador ${kva} kva trifasico`, `generador ${Math.ceil(kva)} kva trifasico`);
+    if (!target || ctx.explicitPhase === "tri") target = { value: kva, unit: "kva" };
   }
 
-  // Red de seguridad: si por alguna razón ninguna rama se activó, no dejamos
-  // la búsqueda vacía -- default a monofásico 220V (caso más frecuente).
   if (variants.length === 0) {
     const kva = round1((220 * amps) / 1000);
     variants.push(`generador ${kva} kva`);
+    target = { value: kva, unit: "kva" };
   }
 
-  return variants;
+  return { variants, target };
 }
 
-function psiToBarVariants(psi: number): string[] {
+function psiToBar(psi: number): { variants: string[]; target: Target } {
   const bar = round1(psi / 14.5038);
-  return [`compresor ${bar} bar`, `compresor ${Math.ceil(bar)} bar`];
+  return { variants: [`compresor ${bar} bar`, `compresor ${Math.ceil(bar)} bar`], target: { value: bar, unit: "bar" } };
 }
 
-function lbToKgVariants(lb: number): string[] {
+function lbToKg(lb: number): { variants: string[]; target: Target } {
   const kg = round1(lb / 2.20462);
-  return [`${kg} kg`, `${Math.ceil(kg)} kg`];
+  return { variants: [`${kg} kg`, `${Math.ceil(kg)} kg`], target: { value: kg, unit: "kg" } };
 }
 
-function hpToKwVariants(hp: number): string[] {
+function hpToKw(hp: number): { variants: string[]; target: Target } {
   const kw = round1(hp * 0.7457);
-  return [`motor ${kw} kw`, `motor ${Math.ceil(kw)} kw`];
+  return { variants: [`motor ${kw} kw`, `motor ${Math.ceil(kw)} kw`], target: { value: kw, unit: "kw" } };
 }
 
-// litros por minuto o pies cúbicos por minuto -> m3/h (caudal de bombas)
-function lpmToM3hVariants(lpm: number): string[] {
+function lpmToM3h(lpm: number): { variants: string[]; target: Target } {
   const m3h = round1((lpm * 60) / 1000);
-  return [`bomba ${m3h} m3/h`, `bomba ${Math.ceil(m3h)} m3/h`];
+  return { variants: [`bomba ${m3h} m3/h`, `bomba ${Math.ceil(m3h)} m3/h`], target: { value: m3h, unit: "m3h" } };
 }
 
-function cfmToM3hVariants(cfm: number): string[] {
+function cfmToM3h(cfm: number): { variants: string[]; target: Target } {
   const m3h = round1(cfm * 1.699);
-  return [`bomba ${m3h} m3/h`, `compresor ${m3h} m3/h`];
+  return { variants: [`bomba ${m3h} m3/h`, `compresor ${m3h} m3/h`], target: { value: m3h, unit: "m3h" } };
 }
 
-// Detecta qué tipo de conversión aplica según la unidad que extrajo el LLM.
-// Devuelve null si la unidad no es reconocida (no forzamos conversión).
-function convertQuantity(qty: Quantity, ctx: ConversionContext): string[] {
-  if (!qty) return [];
+function convertQuantity(qty: Quantity, ctx: ConversionContext): { variants: string[]; target: Target } {
+  if (!qty) return { variants: [], target: null };
   const unit = qty.unit.toLowerCase().trim();
   const v = qty.value;
 
-  if (/^(a|amp|amper|amperio|amperios|amps)$/.test(unit)) return ampsToKvaVariants(v, ctx);
-  if (/^(psi|libra.?pulgada)$/.test(unit)) return psiToBarVariants(v);
-  if (/^(lb|libra|libras)$/.test(unit)) return lbToKgVariants(v);
-  if (/^(hp|caballo|caballos|caballo.?de.?fuerza)$/.test(unit)) return hpToKwVariants(v);
-  if (/^(l\/min|lpm|litro.?por.?minuto|litros.?por.?minuto)$/.test(unit)) return lpmToM3hVariants(v);
-  if (/^(cfm|pie.?c[uú]bico|pies.?c[uú]bicos)$/.test(unit)) return cfmToM3hVariants(v);
+  if (/^(a|amp|amper|amperio|amperios|amps)$/.test(unit)) return ampsToKva(v, ctx);
+  if (/^(psi|libra.?pulgada)$/.test(unit)) return psiToBar(v);
+  if (/^(lb|libra|libras)$/.test(unit)) return lbToKg(v);
+  if (/^(hp|caballo|caballos|caballo.?de.?fuerza)$/.test(unit)) return hpToKw(v);
+  if (/^(l\/min|lpm|litro.?por.?minuto|litros.?por.?minuto)$/.test(unit)) return lpmToM3h(v);
+  if (/^(cfm|pie.?c[uú]bico|pies.?c[uú]bicos)$/.test(unit)) return cfmToM3h(v);
 
-  return []; // unidad no reconocida: no inventamos nada, seguimos solo con los términos normales
+  return { variants: [], target: null };
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// EXTRACCIÓN DE INTENCIÓN
-// El LLM ahora SOLO hace lo que hace bien: reconocer categoría de producto,
-// generar sinónimos/plurales, y extraer el número+unidad TAL CUAL los
-// escribió el cliente (sin convertir nada). La conversión ocurre después,
-// en convertQuantity(), con matemática real.
-// ─────────────────────────────────────────────────────────────────────────
-export async function extractIntent(chatHistoryText: string): Promise<string[][] | null> {
+export async function extractIntent(chatHistoryText: string): Promise<IntentGroup[] | null> {
   try {
     const data = await fetchGeminiWithRotation(() => ({
       url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`,
@@ -167,8 +163,6 @@ export async function extractIntent(chatHistoryText: string): Promise<string[][]
 
         // deno-lint-ignore no-explicit-any
         const groups: ParsedGroup[] = (parsed as any[]).map((g) => {
-          // Compat: si el modelo devolviera un array plano de strings (formato viejo)
-          // o un string suelto, lo normalizamos igual sin romper.
           if (Array.isArray(g)) return { terms: g.filter(Boolean), quantity: null };
           if (typeof g === "string") return { terms: [g], quantity: null };
           return {
@@ -179,12 +173,10 @@ export async function extractIntent(chatHistoryText: string): Promise<string[][]
           };
         });
 
-        // Acá es donde se hace la conversión REAL, con fórmulas y no con
-        // "buen criterio" de un modelo chico.
-        return groups.map((g) => {
-          const convertedVariants = convertQuantity(g.quantity, ctx);
-          const merged = [...new Set([...g.terms, ...convertedVariants])];
-          return merged;
+        return groups.map((g): IntentGroup => {
+          const { variants, target } = convertQuantity(g.quantity, ctx);
+          const terms = [...new Set([...g.terms, ...variants])];
+          return { terms, target };
         });
       } catch (_err) { /* ignore parse error */ }
     }
@@ -198,7 +190,6 @@ export async function extractIntent(chatHistoryText: string): Promise<string[][]
 export async function getEmbedding(text: string, supaAdmin: any): Promise<{ embedding: number[] | null; cacheHit: boolean }> {
   const cacheKey = text.toLowerCase().trim();
 
-  // Try cache first
   try {
     const { data: cacheHitData } = await supaAdmin
       .from('search_embeddings_cache')
@@ -211,7 +202,6 @@ export async function getEmbedding(text: string, supaAdmin: any): Promise<{ embe
     }
   } catch (_) { /* Cache miss or table doesn't exist */ }
 
-  // Call Gemini API (con rotación automática de keys)
   try {
     const data = await fetchGeminiWithRotation(() => ({
       url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent`,
@@ -248,25 +238,18 @@ export async function vectorSearch(supabase: any, queryEmbedding: number[]): Pro
   }
 }
 
-// Búsqueda de texto literal, usando todas las variantes/sinónimos de un mismo
-// grupo de búsqueda (generadas por extractIntent). Sirve de red de seguridad cuando
-// el embedding semántico no encuentra bien un producto, pero el texto sí coincide.
-// Palabras vacías: si las dejáramos, un match por "de" o "para" haría que
-// prácticamente cualquier producto del catálogo entre como candidato.
 const STOPWORDS = new Set([
   'a', 'de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'unos', 'unas',
   'y', 'o', 'en', 'con', 'sin', 'para', 'por', 'que', 'al', 'su', 'sus'
 ]);
 
-// Compuerta de relevancia real para los resultados de vectorSearch: el
-// embedding puede traer candidatos que "suenan parecido" (ej. buscar
-// "chaleco de seguridad" y traer un tablero eléctrico, porque el
-// match_threshold de 0.45 es permisivo) sin compartir ni una palabra real
-// con lo pedido. Como extractIntent ya genera 3-5 sinónimos por grupo
-// justamente para cubrir variaciones de vocabulario, exigir que el
-// candidato contenga al menos UNA palabra significativa de AL MENOS UNO de
-// esos sinónimos filtra el ruido semántico puro sin exigir coincidencia
-// literal exacta.
+// Unidades del catálogo que, si aparecen PEGADAS a un número dentro de la
+// misma frase (ej. "11 kva", "6.2 bar"), confirman que ese número es una
+// especificación real y no una cantidad cruda del cliente (como el "50" de
+// "50 A", que sí seguimos excluyendo). Esto es lo que faltaba: v1 tiraba
+// CUALQUIER número suelto, incluido el que nosotros mismos convertimos.
+const CATALOG_UNIT_TOKENS = new Set(['kva', 'kw', 'bar', 'kg', 'hp', 'm3/h', 'm3h']);
+
 export function groupMatchesText(group: string[], text: string): boolean {
   if (!text) return false;
   const lowerText = text.toLowerCase();
@@ -283,33 +266,31 @@ export function groupMatchesText(group: string[], text: string): boolean {
 // deno-lint-ignore no-explicit-any
 export async function keywordSearch(supabase: any, phrases: string[]): Promise<any[]> {
   try {
-    // IMPORTANTE: no buscamos cada frase completa y pegada ("motobomba a combustion").
-    // En la ficha real del producto las palabras casi nunca aparecen juntas y en ese
-    // orden exacto (ej: "Motobomba Diesel... Tipo de Producto: BOMBA A COMBUSTIÓN",
-    // en partes distintas del texto). Por eso partimos cada frase en palabras sueltas
-    // significativas y buscamos cualquiera de ellas por separado — esto generaliza
-    // solo, sin necesidad de mapear categorías de producto a mano.
     const andGroups: string[] = [];
 
     phrases.slice(0, 4).forEach(phrase => {
+      const rawWords = phrase.trim().toLowerCase().split(/\s+/);
       const words = new Set<string>();
-      phrase
-        .trim()
-        .toLowerCase()
-        .split(/\s+/)
-        .forEach(w => {
-          const clean = w.replace(/[^a-záéíóúñ0-9.\/-]/gi, '');
-          // Los números sueltos (ej. el "10" de "10 A", el "40" de "40 amper")
-          // casi siempre son una cantidad con una unidad que el usuario mencionó
-          // (amperios, voltios, litros, PSI...), no un término de texto real que
-          // vaya a aparecer igual en la ficha del producto (que usa otra unidad,
-          // ej. kVA). Meterlo como término AND obligatorio filtra afuera productos
-          // válidos que no tienen esa cifra exacta de casualidad en su descripción.
-          // Sí dejamos pasar números que parecen modelo/medida de producto (con
-          // formato tipo "22kva", "1.5", "3/4") porque esos no son ambiguos.
-          const isBareNumber = /^[0-9]+(\.[0-9]+)?$/.test(clean);
-          if (clean.length > 1 && !STOPWORDS.has(clean) && !isBareNumber) words.add(clean);
-        });
+
+      rawWords.forEach((w, i) => {
+        const clean = w.replace(/[^a-záéíóúñ0-9.\/-]/gi, '');
+        const isBareNumber = /^[0-9]+(\.[0-9]+)?$/.test(clean);
+
+        if (isBareNumber) {
+          // REGLA_UNIDAD_CONVERTIDA: si el número está pegado (antes o
+          // después) a una unidad reconocida del catálogo (ej. "11 kva"),
+          // NO es la cantidad cruda ambigua del cliente -- es un valor que
+          // NUESTRO propio código ya convirtió a la unidad del catálogo
+          // (ver search.ts / convertQuantity). Ese sí lo dejamos pasar.
+          const neighbor = (rawWords[i - 1] || '').replace(/[^a-z0-9./]/gi, '') || (rawWords[i + 1] || '').replace(/[^a-z0-9./]/gi, '');
+          if (CATALOG_UNIT_TOKENS.has(neighbor)) {
+            words.add(clean);
+          }
+          return; // número crudo sin unidad de catálogo al lado: se sigue descartando, como antes
+        }
+
+        if (clean.length > 1 && !STOPWORDS.has(clean)) words.add(clean);
+      });
 
       const terms = Array.from(words).slice(0, 6);
       if (terms.length > 0) {
