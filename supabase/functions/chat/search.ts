@@ -20,7 +20,7 @@ import { fetchGeminiWithRotation } from "./gemini.ts";
 
 type Quantity = { value: number; unit: string } | null;
 
-export type Target = { value: number; unit: "kva" | "bar" | "kg" | "kw" | "m3h" } | null;
+export type Target = { value: number; unit: "kva" | "bar" | "kg" | "kw" | "m3h"; estimated?: boolean; sizeBias?: "closest" | "smallest" } | null;
 
 type ParsedGroup = { terms: string[]; quantity: Quantity };
 
@@ -36,7 +36,7 @@ type ConversionContext = {
 function detectContext(chatHistoryText: string): ConversionContext {
   const lower = chatHistoryText.toLowerCase();
 
-  const isResidential = /\b(casa|hogar|vivienda|domicilio|departamento|apartamento|mi casa)\b/.test(lower);
+  const isResidential = /\b(casa|hogar|vivienda|domicilio|departamento|apartamento|residencia|residencial|morada|mi casa)\b/.test(lower);
   const isIndustrial = /\b(f[aá]brica|industria|planta|empresa|comercio|negocio|galp[oó]n|local)\b/.test(lower);
 
   const explicitPhase = /\btrif[aá]sico\b/.test(lower)
@@ -53,6 +53,13 @@ function detectContext(chatHistoryText: string): ConversionContext {
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+// Detecta si un grupo de términos es sobre generadores (para poder asignar
+// una estimación por defecto cuando el cliente no da ningún número --
+// ver ESTIMACIÓN_RESIDENCIAL_POR_DEFECTO más abajo).
+function isGeneratorGroup(terms: string[]): boolean {
+  return terms.some(t => /generador|planta el[eé]ctrica|grupo electr[oó]geno/i.test(t));
 }
 
 // Cada convertidor devuelve tanto las variantes de texto (para la búsqueda
@@ -195,8 +202,42 @@ export async function extractIntent(chatHistoryText: string): Promise<IntentGrou
         });
 
         return groups.map((g): IntentGroup => {
-          const { variants, target } = convertQuantity(g.quantity, ctx);
-          const terms = [...new Set([...g.terms, ...variants])];
+          const { variants, target: convertedTarget } = convertQuantity(g.quantity, ctx);
+          let target = convertedTarget;
+          let terms = [...new Set([...g.terms, ...variants])];
+
+          // TARGET_POR_DEFECTO: si el cliente pide un generador SIN dar
+          // ningún número, nunca dejamos target en null ni le preguntamos
+          // nada -- se le asigna una estimación (residencial ~20kVA, o
+          // "priorizar el más chico" si no hay ni siquiera contexto de
+          // casa/fábrica) para que el filtro de cercanía en index.ts tenga
+          // con qué trabajar. Esto es lo que faltaba: sin esto, el filtro
+          // nunca se activaba sin cifra, y la búsqueda quedaba "sin timón"
+          // mostrando lo primero que trajera la base de datos (que resultó
+          // ser siempre los mismos generadores industriales).
+          // NUNCA se le pregunta al cliente por su consumo -- siempre se le
+          // asigna un objetivo (real, estimado, o "priorizar el más chico")
+          // para que el filtro de cercanía de index.ts tenga con qué
+          // trabajar y la recomendación salga directa, sin rebotarle una
+          // pregunta.
+          if (!target && !ctx.isIndustrial && isGeneratorGroup(g.terms)) {
+            if (ctx.isResidential) {
+              // Pidió para "casa/hogar/vivienda/residencia" pero sin dar
+              // ningún número -- una casa normal ronda 15-25 kVA, se estima
+              // el centro de ese rango (20 kVA) directo, sin preguntar nada.
+              target = { value: 20, unit: "kva", estimated: true, sizeBias: "closest" };
+              terms = [...new Set([...terms, "generador 20 kva", "generador 18 kva", "generador 22 kva", "generador 25 kva", "generador 15 kva"])];
+            } else {
+              // Pedido totalmente genérico ("quiero un generador" a secas,
+              // sin casa/hogar ni fábrica/industria): en vez de preguntar,
+              // se prioriza la opción de MENOR potencia disponible como
+              // recomendación principal (la más accesible), y se deja que
+              // el prompt final mencione la de mayor potencia solo como
+              // referencia de lo que existe en el otro extremo.
+              target = { value: 0, unit: "kva", estimated: true, sizeBias: "smallest" };
+            }
+          }
+
           return { terms, target };
         });
       } catch (_err) { /* ignore parse error */ }
@@ -247,7 +288,7 @@ export async function getEmbedding(text: string, supaAdmin: any): Promise<{ embe
 export async function vectorSearch(supabase: any, queryEmbedding: number[]): Promise<{ products: any[]; knowledge: any[] }> {
   try {
     const [vRes, kRes] = await Promise.all([
-      supabase.rpc('buscar_productos_ia', { query_embedding: queryEmbedding, match_threshold: 0.45, match_count: 20 }),
+      supabase.rpc('buscar_productos_ia', { query_embedding: queryEmbedding, match_threshold: 0.45, match_count: 40 }),
       supabase.rpc('buscar_conocimiento_ia', { query_embedding: queryEmbedding, match_threshold: 0.45, match_count: 3 })
     ]);
     if (vRes.error) console.error(JSON.stringify({ event: "vector_rpc_error", error: vRes.error }));
@@ -328,7 +369,15 @@ export async function keywordSearch(supabase: any, phrases: string[]): Promise<a
       .from('productos_ai_data')
       .select('sku, sales_pitch')
       .or(orFilter)
-      .limit(12);
+      // Antes en 12: con un pedido genérico ("generador" a secas, sin
+      // número), esta consulta matchea decenas de productos y, al no tener
+      // ORDER BY, Postgres corta arbitrariamente en los primeros 12 que
+      // encuentra -- que resultaron ser siempre los mismos industriales.
+      // Las opciones chicas ni siquiera llegaban a esta lista para que el
+      // filtro de cercanía en index.ts pudiera rescatarlas. Se sube el
+      // límite para traer un pool más completo y dejar que el ordenamiento
+      // por especificación real (en index.ts) haga el trabajo de elegir.
+      .limit(40);
 
     const { data, error } = await query;
 
