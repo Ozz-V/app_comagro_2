@@ -24,6 +24,30 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+// Extrae el campo estructurado "Tipo de Producto" del bloque de
+// especificaciones técnicas dentro de sales_pitch (viene generado a partir
+// de los datos reales del catálogo/Plytix, ej. "**Tipo de Producto:**
+// GENERADOR" o "**Tipo de Producto:** ATS PARA GENERADOR"). Es un dato
+// estructurado y confiable -- a diferencia de intentar adivinar la
+// categoría leyendo palabras sueltas en toda la descripción libre.
+function extractProductType(text: string): string | null {
+  if (!text) return null;
+  const m = text.match(/\*\*Tipo de Producto:\*\*\s*([^\n*]+)/i);
+  return m ? m[1].trim() : null;
+}
+
+// Normaliza una palabra para comparar sin acentos, mayúsculas ni plural
+// simple (ej. "Generadores" y "generador" deben compararse iguales).
+function normalizeWord(s: string): string {
+  const clean = s
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  if (clean.endsWith('es')) return clean.slice(0, -2);
+  if (clean.endsWith('s')) return clean.slice(0, -1);
+  return clean;
+}
+
 function extractSpecValue(text: string, unit: NonNullable<Target>["unit"]): number | null {
   if (!text) return null;
   const lower = text.toLowerCase();
@@ -182,23 +206,37 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // groupCategoryWords: set de palabras "válidas" para el filtro de Tipo
+    // de Producto, derivado de TODOS los sinónimos que ya generó
+    // extractIntent para ese grupo -- no solo el primer término. Esto es
+    // importante porque el LLM no siempre lista el nombre canónico
+    // primero (ej. para "quiero cortar mi pasto" podría listar "cortador
+    // de pasto" antes que "cortacésped"), y extractIntent ya agrupa
+    // sinónimos y categorías relacionadas (cortacésped, desmalezadora +
+    // bordeadora + desbrozadora + motoguadaña, etc.) -- reusamos esa
+    // cobertura en vez de depender de un solo término elegido a dedo.
+    const groupCategoryWords: Set<string>[] = queryGroups.map(g =>
+      new Set(g.map(t => normalizeWord((t.split(/\s+/)[0] || ''))).filter(Boolean))
+    );
+
     const embedPromises = queryGroups.map(g => getEmbedding(g.join(' '), supaAdmin));
     const embedResults = await Promise.all(embedPromises);
     searchQueriesUsed = queryGroups.map(g => g.join(' | '));
     cacheHit = embedResults.some(r => r.cacheHit);
 
     const gruposConEmbedding = queryGroups
-      .map((g, i) => ({ group: g, embedding: embedResults[i].embedding, target: groupTargets[i] }))
+      .map((g, i) => ({ group: g, embedding: embedResults[i].embedding, target: groupTargets[i], categoryWords: groupCategoryWords[i] }))
       .filter(x => x.embedding);
 
     const vectorPromises = gruposConEmbedding
-      .map(x => vectorSearch(supaAdmin, x.embedding!).then(res => ({ ...res, group: x.group, target: x.target })));
+      .map(x => vectorSearch(supaAdmin, x.embedding!).then(res => ({ ...res, group: x.group, target: x.target, categoryWords: x.categoryWords })));
 
-    // La búsqueda de texto también propaga el target de su grupo a cada
-    // producto que encuentra (__target), para poder compararlo más abajo.
+    // La búsqueda de texto también propaga el target Y el set de palabras
+    // de categoría de su grupo a cada producto que encuentra (__target,
+    // __categoryWords), para poder compararlos más abajo.
     const keywordPromises = queryGroups.map((g, i) =>
       // deno-lint-ignore no-explicit-any
-      keywordSearch(supaAdmin, g).then((rows: any[]) => rows.map(r => ({ ...r, __target: groupTargets[i] })))
+      keywordSearch(supaAdmin, g).then((rows: any[]) => rows.map(r => ({ ...r, __target: groupTargets[i], __categoryWords: groupCategoryWords[i] })))
     );
 
     const [vResults, kwResults] = await Promise.all([
@@ -214,7 +252,7 @@ Deno.serve(async (req: Request) => {
       // deno-lint-ignore no-explicit-any
       const relevantes = (v.products || []).filter((p: any) => groupMatchesText(v.group, p.sales_pitch || ''));
       // deno-lint-ignore no-explicit-any
-      const tagged = relevantes.slice(0, 12).map((p: any) => ({ ...p, __target: v.target }));
+      const tagged = relevantes.slice(0, 12).map((p: any) => ({ ...p, __target: v.target, __categoryWords: v.categoryWords }));
       vectorData.push(...tagged);
       if (v.knowledge) knowledgeData.push(...v.knowledge);
     });
@@ -229,26 +267,54 @@ Deno.serve(async (req: Request) => {
     const hasWaterContext = /\b(agua|pozo|bomba|bombeo|sumergible)\b/i.test(lastMessage);
     const blockSubmersible = isMotorQuery && !hasWaterContext;
 
-    // NOTA: acá ANTES había un blocklist de accesorios/repuestos basado en
-    // listas de palabras clave (isRepuestoQuery / ACCESSORY_PATTERN). Se
-    // sacó a propósito: un arnés puede ser el producto que alguien busca,
-    // o un accesorio de otra máquina, o directamente lo que resuelve un
-    // pedido -- tratar de adivinar eso con una lista de palabras en código
-    // es frágil y termina bloqueando resultados legítimos que ni sabíamos
-    // que existían en el catálogo (pasó con "chaleco para desmalezadora").
-    // Ahora esta función solo trae y deduplica candidatos; la decisión de
-    // si un candidato realmente sirve para lo que pidió el cliente (¿es la
-    // máquina completa? ¿es un accesorio de OTRA máquina? ¿es válido como
-    // alternativa?) la toma el LLM asesor más abajo, que tiene el nombre y
-    // SKU real de cada producto para razonar con contexto -- no una regla
-    // ciega. Ver REGLA CRÍTICA DE FIDELIDAD DE TIPO DE PRODUCTO en el
-    // prompt final, reforzada con el caso concreto del ATS.
+    // FILTRO_POR_TIPO_DE_PRODUCTO: acá antes había un blocklist de
+    // accesorios/repuestos basado en listas de palabras clave -- se sacó
+    // porque era frágil (bloqueaba resultados legítimos, como pasó con
+    // "chaleco para desmalezadora"). Pero sacarlo del todo también se pasó
+    // de largo para el otro lado: sin ningún filtro, "generador" traía
+    // ATS, repuestos y tableros de transferencia mezclados con generadores
+    // reales, porque el ranking semántico/de texto los considera
+    // "parecidos" sin entender que son categorías distintas.
+    //
+    // La solución real: sales_pitch tiene un campo estructurado y
+    // confiable, "**Tipo de Producto:** GENERADOR" (o "...ATS PARA
+    // GENERADOR", "...REPUESTO PARA GENERADOR"), generado desde los datos
+    // reales del catálogo -- no hay que adivinarlo con palabras sueltas.
+    // Regla: si el cliente pidió la MÁQUINA en sí (no mencionó ningún
+    // accesorio/repuesto/parte explícitamente), solo pasan productos cuyo
+    // Tipo de Producto es EXACTO a la categoría pedida (sin calificador
+    // "X PARA Y" -- ese calificador siempre indica que es un accesorio de
+    // otra cosa, no la máquina). Si el cliente SÍ pidió un accesorio o
+    // repuesto explícitamente, no filtramos por tipo acá -- dejamos que
+    // la relevancia textual (ya filtrada por groupMatchesText/keywordSearch)
+    // y el LLM asesor decidan con el nombre real de cada candidato.
+    const isAccessoryRequest = /\b(repuest|accesori|pieza|parte|impulsor|filtro|bujia|carburador|cable|aceite|arnes|arn[eé]s|chaleco|correa|funda|cintur[oó]n|ats\b|tablero de transferencia|panel de transferencia|transferencia automatica)\b/i.test(lastMessage);
 
     // deno-lint-ignore no-explicit-any
     const dedupedContext = combinedContext.filter((item: any) => {
       if (seenSkus.has(item.sku)) return false;
       if (/^TEST-|-DELETE-ME$/i.test(item.sku || '')) return false;
       if (blockSubmersible && item.sales_pitch?.toLowerCase().includes('sumergible')) return false;
+
+      if (!isAccessoryRequest && item.__categoryWords && item.__categoryWords.size > 0) {
+        const tipo = extractProductType(item.sales_pitch || '');
+        if (tipo) {
+          const tieneCalificador = / para /i.test(tipo); // "ATS PARA GENERADOR", "REPUESTO PARA GENERADOR", etc.
+          if (tieneCalificador) return false;
+          const tipoPrimeraPalabra = normalizeWord(tipo.split(/\s+/)[0] || '');
+          // Pasa si el Tipo de Producto coincide con CUALQUIERA de los
+          // sinónimos que ya generó extractIntent para este grupo (no solo
+          // el primero) -- así "cortador de pasto", "cortacésped" o
+          // "cortapasto" listados en cualquier orden igual reconocen
+          // correctamente una ficha que diga "Tipo de Producto: CORTACESPED".
+          if (!item.__categoryWords.has(tipoPrimeraPalabra)) return false;
+        }
+        // Si no se pudo extraer "Tipo de Producto" (ficha con formato viejo
+        // o distinto), no filtramos por las dudas -- mejor dejarlo pasar y
+        // que el LLM lo evalúe, a perder un producto válido por un dato
+        // faltante.
+      }
+
       seenSkus.add(item.sku);
       return true;
     });
