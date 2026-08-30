@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getDefaultMetrics, checkBan, resetCountersIfNeeded, checkQuotaExceeded, processStrike } from "./metrics.ts";
-import { extractIntent, getEmbedding, vectorSearch, keywordSearch, groupMatchesText, Target } from "./search.ts";
+import { extractIntent, getEmbedding, vectorSearch, keywordSearch, groupMatchesText, getProductTypes, Target } from "./search.ts";
 import { generateResponse, parseLearnTag, saveLearnedRule, stripHallucinatedSkus } from "./ai.ts";
 import { GEMINI_KEYS, checkGeminiHealth } from "./gemini.ts";
 
@@ -181,7 +181,12 @@ Deno.serve(async (req: Request) => {
     let cacheHit = false;
     let searchQueriesUsed: string[] = [];
 
-    const intents = await extractIntent(chatHistoryText);
+    // Lista real de categorías (Tipo de Producto) del catálogo, cacheada
+    // 30 min -- se la pasamos al extractor de intención para que elija la
+    // categoría exacta en vez de que nosotros le escribamos ejemplos a
+    // mano por cada producto.
+    const productTypes = await getProductTypes(supaAdmin);
+    const intents = await extractIntent(chatHistoryText, productTypes);
     // queryGroups: un grupo (array de variantes/sinónimos) por cada producto detectado.
     // groupTargets: el objetivo numérico ya convertido para ese grupo (o null si el
     // pedido no tenía ninguna cantidad con unidad), en el mismo orden que queryGroups.
@@ -215,8 +220,12 @@ Deno.serve(async (req: Request) => {
     // sinónimos y categorías relacionadas (cortacésped, desmalezadora +
     // bordeadora + desbrozadora + motoguadaña, etc.) -- reusamos esa
     // cobertura en vez de depender de un solo término elegido a dedo.
+    const STOPWORDS_CAT = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'y', 'o', 'en', 'con', 'para', 'por', 'que', 'al']);
     const groupCategoryWords: Set<string>[] = queryGroups.map(g =>
-      new Set(g.map(t => normalizeWord((t.split(/\s+/)[0] || ''))).filter(Boolean))
+      new Set(
+        g.flatMap(t => t.split(/\s+/).map(w => normalizeWord(w)))
+          .filter(w => w.length > 2 && !STOPWORDS_CAT.has(w))
+      )
     );
 
     const embedPromises = queryGroups.map(g => getEmbedding(g.join(' '), supaAdmin));
@@ -296,18 +305,24 @@ Deno.serve(async (req: Request) => {
       if (/^TEST-|-DELETE-ME$/i.test(item.sku || '')) return false;
       if (blockSubmersible && item.sales_pitch?.toLowerCase().includes('sumergible')) return false;
 
-      if (!isAccessoryRequest && item.__categoryWords && item.__categoryWords.size > 0) {
+      if (item.__categoryWords && item.__categoryWords.size > 0) {
         const tipo = extractProductType(item.sales_pitch || '');
         if (tipo) {
-          const tieneCalificador = / para /i.test(tipo); // "ATS PARA GENERADOR", "REPUESTO PARA GENERADOR", etc.
-          if (tieneCalificador) return false;
-          const tipoPrimeraPalabra = normalizeWord(tipo.split(/\s+/)[0] || '');
-          // Pasa si el Tipo de Producto coincide con CUALQUIERA de los
-          // sinónimos que ya generó extractIntent para este grupo (no solo
-          // el primero) -- así "cortador de pasto", "cortacésped" o
-          // "cortapasto" listados en cualquier orden igual reconocen
-          // correctamente una ficha que diga "Tipo de Producto: CORTACESPED".
-          if (!item.__categoryWords.has(tipoPrimeraPalabra)) return false;
+          const paraMatch = tipo.match(/^(.*?)\s+para\s+(.*)$/i);
+          if (paraMatch) {
+            // Tipo = "<accesorio/repuesto/ATS> PARA <maquina>". Solo es
+            // válido si el cliente pidió explícitamente un accesorio.
+            if (!isAccessoryRequest) return false;
+            const maquinaPrimeraPalabra = normalizeWord(paraMatch[2].trim().split(/\s+/)[0] || '');
+            const ACC_GENERICAS = new Set(['repuesto', 'repuestos', 'accesorio', 'accesorios', 'pieza', 'piezas', 'parte', 'partes', 'ats']);
+            const mencionaMaquinaEspecifica = [...item.__categoryWords].some((w: string) => !ACC_GENERICAS.has(w));
+            if (mencionaMaquinaEspecifica && !item.__categoryWords.has(maquinaPrimeraPalabra)) return false;
+          } else {
+            // Tipo sin "PARA": es la máquina/producto completo en sí.
+            if (isAccessoryRequest) return false;
+            const tipoPrimeraPalabra = normalizeWord(tipo.split(/\s+/)[0] || '');
+            if (!item.__categoryWords.has(tipoPrimeraPalabra)) return false;
+          }
         }
         // Si no se pudo extraer "Tipo de Producto" (ficha con formato viejo
         // o distinto), no filtramos por las dudas -- mejor dejarlo pasar y
