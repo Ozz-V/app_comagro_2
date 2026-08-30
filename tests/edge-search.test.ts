@@ -18,6 +18,12 @@ describe('Edge Function: search', () => {
   });
 
   describe('extractIntent', () => {
+    // Lista de categorías real usada en los tests -- extractIntent ahora
+    // requiere este segundo argumento (ver getProductTypes en search.ts,
+    // que en producción lo trae de la base cacheado 30 min). Acá se mockea
+    // directo, sin pegarle a Supabase.
+    const mockProductTypes = ['GENERADOR', 'BOMBA DE AGUA', 'COMPRESOR', 'REPUESTOS PARA GENERADOR'];
+
     it('returns parsed intent from Gemini', async () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
@@ -26,17 +32,13 @@ describe('Edge Function: search', () => {
         })
       });
 
-      const res = await extractIntent('Quiero una bomba de agua');
-      // Contrato nuevo: cada grupo es { terms, target } (antes era un array
-      // plano de strings). extractIntent sigue aceptando el formato viejo
-      // de Gemini (array de strings sueltos, sin 'quantity') por
-      // compatibilidad -- lo envuelve como { terms: [...], target: null }.
+      const res = await extractIntent('Quiero una bomba de agua', mockProductTypes);
       expect(res).toEqual([{ terms: ['bomba de agua'], target: null }]);
     });
 
     it('returns null on fetch error or invalid json', async () => {
       global.fetch = jest.fn().mockResolvedValue({ ok: false, text: async () => 'error' });
-      const res = await extractIntent('bad request');
+      const res = await extractIntent('bad request', mockProductTypes);
       expect(res).toBeNull();
     });
 
@@ -60,20 +62,13 @@ describe('Edge Function: search', () => {
       });
 
       const res = await extractIntent(
-        'user: Necesito alimentar con energia mi casa y me dijeron que necesito mas o menos 50 A'
+        'user: Necesito alimentar con energia mi casa y me dijeron que necesito mas o menos 50 A',
+        mockProductTypes
       );
 
       expect(res).toHaveLength(1);
       const [group] = res;
-
-      // El target debe quedar en kVA monofásico (50A * 220V / 1000 = 11kVA),
-      // NO trifásico -- porque el contexto dice "mi casa" (residencial) y
-      // no menciona nada de fábrica/industria/trifásico.
       expect(group.target).toEqual({ value: 11, unit: 'kva' });
-
-      // Las variantes de texto para la búsqueda deben incluir el valor
-      // convertido, y NO deben inventar una rama trifásica sin que el
-      // contexto la pida.
       expect(group.terms).toEqual(expect.arrayContaining(['generador 11 kva']));
       expect(group.terms.some((t: string) => t.includes('trifasico'))).toBe(false);
     });
@@ -98,13 +93,25 @@ describe('Edge Function: search', () => {
       });
 
       const res = await extractIntent(
-        'user: Necesito un generador de 50 A para mi fabrica, es trifasico'
+        'user: Necesito un generador de 50 A para mi fabrica, es trifasico',
+        mockProductTypes
       );
 
       const [group] = res;
-      // 50A * 380V * sqrt(3) / 1000 ≈ 32.9 kVA
       expect(group.target.unit).toBe('kva');
       expect(group.target.value).toBeCloseTo(32.9, 1);
+    });
+
+    it('no explota si productTypes viene vacío (catálogo sin datos todavía)', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: '["bomba de agua"]' }] } }]
+        })
+      });
+
+      const res = await extractIntent('Quiero una bomba de agua', []);
+      expect(res).toEqual([{ terms: ['bomba de agua'], target: null }]);
     });
   });
 
