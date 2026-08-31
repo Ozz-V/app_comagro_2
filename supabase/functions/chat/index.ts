@@ -320,7 +320,13 @@ Deno.serve(async (req: Request) => {
     // repuesto explícitamente, no filtramos por tipo acá -- dejamos que
     // la relevancia textual (ya filtrada por groupMatchesText/keywordSearch)
     // y el LLM asesor decidan con el nombre real de cada candidato.
-    const isAccessoryRequest = /\b(repuest|accesori|pieza|parte|impulsor|filtro|bujia|carburador|cable|aceite|arnes|arn[eé]s|chaleco|correa|funda|cintur[oó]n|ats\b|tablero de transferencia|panel de transferencia|transferencia automatica)\b/i.test(lastMessage);
+    // isAccessoryRequest: true si el usuario pidió explícitamente un repuesto/accesorio.
+    // Chequeamos TANTO el mensaje crudo (para detección directa) COMO los queryGroups
+    // generados por la IA (que autocorrige typos como "respuesto" -> "repuesto" y que
+    // puede incluir términos como "REPUESTO PARA BOMBA" si la IA detectó que era un accesorio).
+    const accessoryRegex = /\b(repuest|accesori|pieza|parte|impulsor|filtro|bujia|carburador|cable|aceite|arnes|arn[eé]s|chaleco|correa|funda|cintur[oó]n|ats\b|tablero de transferencia|panel de transferencia|transferencia automatica)\b/i;
+    const isAccessoryRequest = accessoryRegex.test(lastMessage)
+      || queryGroups.some(g => g.some(term => accessoryRegex.test(term) || /\bpara\b/i.test(term)));
 
     // deno-lint-ignore no-explicit-any
     const dedupedContext = combinedContext.filter((item: any) => {
@@ -336,10 +342,23 @@ Deno.serve(async (req: Request) => {
             // Tipo = "<accesorio/repuesto/ATS> PARA <maquina>". Solo es
             // válido si el cliente pidió explícitamente un accesorio.
             if (!isAccessoryRequest) return false;
-            const maquinaPrimeraPalabra = normalizeWord(paraMatch[2].trim().split(/\s+/)[0] || '');
+            // Verificar que la máquina del repuesto sea compatible con lo pedido.
+            // Usamos match parcial: si el cliente pidió "bomba", acepta
+            // "REPUESTO PARA BOMBA A COMBUSTIÓN", "REPUESTO PARA MOTOBOMBA", etc.
+            // Solo bloqueamos si la máquina del repuesto es completamente distinta
+            // (ej. el cliente pidió repuesto para bomba pero el tipo es "REPUESTO PARA GENERADOR").
+            const maquinaDelRepuesto = normalizeWord(paraMatch[2].trim().split(/\s+/)[0] || '');
             const ACC_GENERICAS = new Set(['repuesto', 'repuestos', 'accesorio', 'accesorios', 'pieza', 'piezas', 'parte', 'partes', 'ats']);
             const mencionaMaquinaEspecifica = [...item.__categoryWords].some((w: string) => !ACC_GENERICAS.has(w));
-            if (mencionaMaquinaEspecifica && !item.__categoryWords.has(maquinaPrimeraPalabra)) return false;
+            // Si el usuario especificó una máquina (no sólo "accesorio" genérico),
+            // verificar que el repuesto sea para esa familia de máquina.
+            // Usamos contains en vez de solo primera palabra para cubrir familias.
+            if (mencionaMaquinaEspecifica) {
+              // ¿Alguna de las palabras del tipo de la máquina del repuesto aparece en __categoryWords?
+              const maquinaWords = paraMatch[2].trim().toLowerCase().split(/\s+/).map(normalizeWord);
+              const matchFound = maquinaWords.some((w: string) => !ACC_GENERICAS.has(w) && item.__categoryWords.has(w));
+              if (!matchFound) return false;
+            }
           } else {
             // Tipo sin "PARA": es la máquina/producto completo en sí.
             if (isAccessoryRequest) return false;
@@ -356,6 +375,7 @@ Deno.serve(async (req: Request) => {
       seenSkus.add(item.sku);
       return true;
     });
+
 
 
 
