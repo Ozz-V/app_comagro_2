@@ -62,11 +62,30 @@ function extractSpecValue(text: string, unit: NonNullable<Target>["unit"]): numb
     const primaryRe = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*k?${primarySuffix}\\b`, "i");
     const fallbackRe = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*k?${fallbackSuffix}\\b`, "i");
     const m = lower.match(primaryRe) || lower.match(fallbackRe);
-    if (!m) return null;
-    const val = parseFloat(m[1]);
-    // Si el número es muy grande, probablemente está expresado en VA/W
-    // sueltos (ej. "9000 W") en vez de kVA/kW -- normalizamos.
-    return val > 1000 ? val / 1000 : val;
+    if (m) {
+      const val = parseFloat(m[1]);
+      // Si el número es muy grande, probablemente está expresado en VA/W
+      // sueltos (ej. "9000 W") en vez de kVA/kW -- normalizamos.
+      return val > 1000 ? val / 1000 : val;
+    }
+    // FIX 2026-08-30: la mayoría de motores/bombas del catálogo expresan
+    // la potencia SOLO en HP (ej. "Motor Eléctrico 5.5 HP"), sin mencionar
+    // kW/kVA en ningún lado del texto. Sin este fallback, extractSpecValue
+    // devolvía null para TODOS esos productos (no hay "w"/"va" que
+    // matchear) -- __sortKey quedaba null para todos por igual, así que
+    // un motor de 5 HP exacto y uno de 5.5 HP quedaban empatados como
+    // "sin dato" ante un pedido de "motor de 5 hp", y cuál se mostraba
+    // primero era prácticamente azar (no había comparación real). Acá se
+    // admite HP como unidad del texto y se convierte a kW con el mismo
+    // factor que usa hpToKw() en la extracción de intención (0.7457) para
+    // poder compararlo de igual a igual contra el objetivo, que también
+    // llega convertido a kW. Acepta coma decimal ("5,5 hp") además de punto.
+    const hpMatch = lower.match(/(\d+(?:[.,]\d+)?)\s*hp\b/i);
+    if (hpMatch) {
+      const hp = parseFloat(hpMatch[1].replace(',', '.'));
+      return round1(hp * 0.7457);
+    }
+    return null;
   }
   if (unit === "bar") {
     const m = lower.match(/(\d+(?:\.\d+)?)\s*bar\b/);
@@ -185,8 +204,10 @@ Deno.serve(async (req: Request) => {
     // 30 min -- se la pasamos al extractor de intención para que elija la
     // categoría exacta en vez de que nosotros le escribamos ejemplos a
     // mano por cada producto.
+    const t_intent_start = Date.now();
     const productTypes = await getProductTypes(supaAdmin);
     const intents = await extractIntent(chatHistoryText, productTypes);
+    const t_intent_ms = Date.now() - t_intent_start;
     // queryGroups: un grupo (array de variantes/sinónimos) por cada producto detectado.
     // groupTargets: el objetivo numérico ya convertido para ese grupo (o null si el
     // pedido no tenía ninguna cantidad con unidad), en el mismo orden que queryGroups.
@@ -228,6 +249,7 @@ Deno.serve(async (req: Request) => {
       )
     );
 
+    const t_search_start = Date.now();
     const embedPromises = queryGroups.map(g => getEmbedding(g.join(' '), supaAdmin));
     const embedResults = await Promise.all(embedPromises);
     searchQueriesUsed = queryGroups.map(g => g.join(' | '));
@@ -252,6 +274,7 @@ Deno.serve(async (req: Request) => {
       Promise.all(vectorPromises),
       Promise.all(keywordPromises)
     ]);
+    const t_search_ms = Date.now() - t_search_start;
 
     kwResults.forEach(rows => {
       vectorData.push(...rows);
@@ -438,7 +461,8 @@ Deno.serve(async (req: Request) => {
       dbContextText += `\n\nATENCIÓN: Búsqueda de productos en la base de datos:\n\n`;
       // deno-lint-ignore no-explicit-any
       finalContext.forEach((item: any, index: number) => {
-        dbContextText += `${index + 1}. SKU: ${item.sku} | Descripción: ${item.sales_pitch || 'Sin descripción'}${item.__specNote || ''}\n`;
+        const tipoReal = extractProductType(item.sales_pitch || '') || 'N/D';
+        dbContextText += `${index + 1}. SKU: ${item.sku} | Tipo: ${tipoReal} | Descripción: ${item.sales_pitch || 'Sin descripción'}${item.__specNote || ''}\n`;
       });
       dbContextText += `\nREGLA DE SUGERENCIA Y ALTERNATIVAS: Revisa la lista de productos encontrados. Si encuentras el producto exacto o alternativas lógicas y viables, ofrécelos. Si los productos de la lista NO tienen ninguna relación lógica con lo que pidió el usuario (ej. ofrecer un motor cuando pide un medidor láser), NO los ofrezcas. En ese caso, simplemente dile amablemente que no contamos con ese producto específico por el momento. RECUERDA: pon TODAS las etiquetas [SKU: XXX] juntas al final de tu respuesta, sin intercalar.`;
     }
@@ -468,6 +492,7 @@ REGLA DE DISTRIBUCIÓN EQUITATIVA: Si el usuario pide VARIOS tipos de productos 
 REGLA CRÍTICA DE LÍMITE: NUNCA muestres más de 4 productos (4 tags [SKU: ...]).
 REGLA CRÍTICA ANTI-INVENCIÓN: Un tag [SKU: XXX] SOLO puede usar un código que aparezca LITERALMENTE en la sección "Búsqueda de productos en la base de datos". Tenés PROHIBIDO inventar SKUs. Si el usuario te hace una pregunta sobre un producto que SÍ está en la lista de la base de datos, respóndele naturalmente y SIEMPRE incluye su [SKU: XXX] al final para confirmar. SOLO en el caso de que el usuario pida un producto que DE VERDAD NO ESTÁ en la lista, dile amablemente que no lo encontraste. Nunca digas "No encontré" si el producto sí aparece en el contexto que te pasé.
 REGLA CRÍTICA DE FIDELIDAD DE TIPO DE PRODUCTO (usá el nombre/SKU como evidencia, con criterio, no con una lista de palabras): antes de ofrecer un producto de la lista, fijate si su Descripción/nombre/SKU corresponde REALMENTE a lo que pidió el usuario -- pero un accesorio SÍ puede ser exactamente lo que el cliente busca. Ejemplo: si el cliente pide "arnés" o "chaleco para desmalezadora" y en la lista aparece un producto llamado "Arnés Wasko MG7431C" o cuya ficha dice "ACCESORIO PARA DESBROZADORA", ESO SÍ es una respuesta válida y correcta a su pedido -- el nombre te dice para qué máquina es, y coincide con lo que pidió. Lo que SÍ tenés prohibido es lo contrario: si el usuario pidió un accesorio suelto y el único candidato de la lista es en realidad una MÁQUINA COMPLETA distinta (ej. una desmalezadora entera) que solo MENCIONA esa palabra de pasada (porque el accesorio viene incluido con la máquina), no ofrezcas esa máquina completa como si fuera el accesorio suelto pedido, ni le inventes características de accesorio que no estén escritas en su Descripción real. Usá el nombre y la Descripción real de cada candidato para razonar cuál de las dos situaciones es -- no hay una lista fija de palabras que lo decida por vos, es cuestión de leer cada caso.
+REGLA DE PRIORIDAD DE CATEGORÍA EXACTA: cada candidato trae su "Tipo:" real. Cuando el cliente nombra el producto tal cual coincide con un Tipo real (ej. dijo "bomba de agua" y hay candidatos con Tipo: BOMBA DE AGUA), priorizá y liderá con esos por sobre otros Tipos relacionados que trajo la misma búsqueda (ej. ELECTROBOMBA, CUERPO SUMERGIBLE, MOTOBOMBA), siempre que exista uno de esa categoría razonablemente cerca de lo pedido. Solo si esa categoría exacta no tiene nada cercano, recién ahí pasá a una relacionada (ver REGLA DE CATEGORÍAS RELACIONADAS).
 REGLA DE TAMAÑO/CAPACIDAD (sin corte fijo, usá criterio según la situación): los productos con target vienen con una nota mostrando la especificación real detectada de CADA candidato, el objetivo (real o estimado), y cuántas veces más grande o más chico es uno respecto al otro (ej. "2.3x el objetivo"). Vienen ordenados de más cercano a más lejano. Priorizá siempre lo más cercano cuando haya opciones parecidas disponibles. Qué tan "razonable" es una diferencia depende del tipo de producto y de la situación -- no hay un multiplicador fijo que aplique siempre igual. Si las opciones cercanas son escasas o inexistentes y solo tenés algo mucho más grande o más chico, ofrecelo igual (mejor eso que dejar al cliente sin nada) pero contale la diferencia real en números para que decida con esa información (ej. "lo más cercano que tengo es bastante más grande de lo que pediste: son X kVA contra los Y kVA que necesitás").
 REGLA DE NO PREGUNTAR NUNCA POR CAPACIDAD (CRÍTICA): TENÉS TERMINANTEMENTE PROHIBIDO preguntarle al cliente cuánto consume, qué potencia necesita, qué aparatos quiere respaldar, o cualquier otro dato antes de recomendar un generador (u otro producto). SIEMPRE recomendá algo concreto de la lista en tu primera respuesta, aunque el cliente no haya dado ningún dato. Si la nota de un producto dice "objetivo estimado", podés mencionar de pasada que es una estimación general (ej. "para una casa típica"), pero JAMÁS termines tu respuesta pidiéndole más información -- siempre tiene que terminar con una recomendación concreta y sus tags [SKU: XXX].
 REGLA DE PEDIDO SIN NINGÚN CONTEXTO (cuando la nota dice "potencia detectada" SIN decir "objetivo"): esto pasa cuando el cliente pidió un generador totalmente en general (ej. "quiero un generador"), sin mencionar casa, fábrica, ni ningún número. En ese caso la lista viene ordenada de MENOR a MAYOR potencia. Recomendá como opción principal la de MENOR potencia (suele ser la más accesible), y mencioná en la misma respuesta, en una sola frase y sin ofrecerla como recomendación, que también tenés opciones bastante más grandes para uso industrial o de gran escala (podés nombrar la de mayor potencia de la lista como ejemplo). Nunca le preguntes nada para elegir entre ellas.
@@ -495,7 +520,9 @@ REGLA SOBRE "TODO EL CATÁLOGO": la lista de productos que te paso es una MUESTR
       };
     });
 
+    const t_response_start = Date.now();
     let reply = await generateResponse(finalPrompt, geminiHistory);
+    const t_response_ms = Date.now() - t_response_start;
 
     // Parse tags
     reply = processStrike(reply, metrics);
@@ -537,7 +564,10 @@ REGLA SOBRE "TODO EL CATÁLOGO": la lista de productos que te paso es una MUESTR
       cache_hit: cacheHit,
       hallucinated_skus_blocked: hallucinated.length,
       strike: reply.includes("suspendido"),
-      duration_ms: Date.now() - startTime
+      duration_ms: Date.now() - startTime,
+      t_intent_ms,
+      t_search_ms,
+      t_response_ms
     }));
 
     return new Response(JSON.stringify({ reply }), {
