@@ -347,7 +347,7 @@ Deno.serve(async (req: Request) => {
             // "REPUESTO PARA BOMBA A COMBUSTIÓN", "REPUESTO PARA MOTOBOMBA", etc.
             // Solo bloqueamos si la máquina del repuesto es completamente distinta
             // (ej. el cliente pidió repuesto para bomba pero el tipo es "REPUESTO PARA GENERADOR").
-            const maquinaDelRepuesto = normalizeWord(paraMatch[2].trim().split(/\s+/)[0] || '');
+            const _maquinaDelRepuesto = normalizeWord(paraMatch[2].trim().split(/\s+/)[0] || '');
             const ACC_GENERICAS = new Set(['repuesto', 'repuestos', 'accesorio', 'accesorios', 'pieza', 'piezas', 'parte', 'partes', 'ats']);
             const mencionaMaquinaEspecifica = [...item.__categoryWords].some((w: string) => !ACC_GENERICAS.has(w));
             // Si el usuario especificó una máquina (no sólo "accesorio" genérico),
