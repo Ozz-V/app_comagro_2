@@ -315,11 +315,7 @@ Deno.serve(async (req: Request) => {
     // Regla: si el cliente pidió la MÁQUINA en sí (no mencionó ningún
     // accesorio/repuesto/parte explícitamente), solo pasan productos cuyo
     // Tipo de Producto es EXACTO a la categoría pedida (sin calificador
-    // "X PARA Y" -- ese calificador siempre indica que es un accesorio de
-    // otra cosa, no la máquina). Si el cliente SÍ pidió un accesorio o
-    // repuesto explícitamente, no filtramos por tipo acá -- dejamos que
-    // la relevancia textual (ya filtrada por groupMatchesText/keywordSearch)
-    // y el LLM asesor decidan con el nombre real de cada candidato.
+    // FILTRO_POR_TIPO_DE_PRODUCTO
     const isAccessoryRequest = /\b(repuest|accesori|pieza|parte|impulsor|filtro|bujia|carburador|cable|aceite|arnes|arn[eé]s|chaleco|correa|funda|cintur[oó]n|ats\b|tablero de transferencia|panel de transferencia|transferencia automatica)\b/i.test(lastMessage);
 
     // deno-lint-ignore no-explicit-any
@@ -331,7 +327,9 @@ Deno.serve(async (req: Request) => {
       if (item.__categoryWords && item.__categoryWords.size > 0) {
         const tipo = extractProductType(item.sales_pitch || '');
         if (tipo) {
+          const isTipoAccesorio = /\b(repuest|accesori|pieza|parte|ats|lubricante|aceite|filtro|bujia|carburador|arnes|arn[eé]s|chaleco|correa|funda|cintur[oó]n)\b/i.test(tipo);
           const paraMatch = tipo.match(/^(.*?)\s+para\s+(.*)$/i);
+          
           if (paraMatch) {
             // Tipo = "<accesorio/repuesto/ATS> PARA <maquina>". Solo es
             // válido si el cliente pidió explícitamente un accesorio.
@@ -340,8 +338,11 @@ Deno.serve(async (req: Request) => {
             const ACC_GENERICAS = new Set(['repuesto', 'repuestos', 'accesorio', 'accesorios', 'pieza', 'piezas', 'parte', 'partes', 'ats']);
             const mencionaMaquinaEspecifica = [...item.__categoryWords].some((w: string) => !ACC_GENERICAS.has(w));
             if (mencionaMaquinaEspecifica && !item.__categoryWords.has(maquinaPrimeraPalabra)) return false;
+          } else if (isTipoAccesorio) {
+            // Es un repuesto genérico (ej. "REPUESTOS VARIOS", "LUBRICANTES") sin "PARA X" en el nombre.
+            if (!isAccessoryRequest) return false;
           } else {
-            // Tipo sin "PARA": es la máquina/producto completo en sí.
+            // Tipo sin "PARA" y sin palabras clave de repuesto: es la máquina completa.
             if (isAccessoryRequest) return false;
             const tipoPrimeraPalabra = normalizeWord(tipo.split(/\s+/)[0] || '');
             if (!item.__categoryWords.has(tipoPrimeraPalabra)) return false;
