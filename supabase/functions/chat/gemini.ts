@@ -183,12 +183,12 @@ export async function fetchGeminiWithRotation(
     const keyHint = key.length > 4 ? `...${key.slice(-4)}` : '(muy corta)';
 
     let res: Response;
-    // Timeout defensivo, bajado de 12s a 6s: con el bloqueo persistido ya
-    // no dependemos tanto de este valor para "salvarnos" de una key mala
-    // (eso ahora lo evita loadKeyHealth de entrada), así que lo bajamos
-    // para que un hipo puntual de red cueste menos si igual llega a pasar.
+    // Timeout defensivo: volvemos a 12s (el valor original). Un valor más
+    // corto (probé 6s) generaba falsos positivos -- Gemini a veces tarda
+    // más de 6s en responder pero SÍ responde bien, y cortarlo antes de
+    // tiempo lo hacía ver como "falla" sin serlo.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     try {
       res = await fetch(url, {
         method: 'POST',
@@ -197,14 +197,16 @@ export async function fetchGeminiWithRotation(
         signal: controller.signal,
       });
     } catch (networkErr) {
-      // Error de red O timeout (AbortError): también rotamos. Bloqueamos
-      // esta key por poco tiempo (5 min) -- puede ser un hipo transitorio,
-      // no necesariamente que la key esté agotada, así que no la
-      // castigamos 24h por esto.
+      // Error de red O timeout (AbortError): rotamos a la siguiente key
+      // para ESTE mensaje nada más. A propósito NO persistimos un bloqueo
+      // acá -- un timeout no es una señal confiable de que la key esté
+      // agotada/inválida (puede ser Gemini lento en general, o un hipo de
+      // red puntual), así que castigarla 5 min en la DB podía terminar
+      // bloqueando las 4 keys en cascada por pura lentitud pasajera de
+      // Google, no por un problema real de las keys.
       lastErrorText = String(networkErr);
       lastStatus = 0;
-      console.warn(`Gemini key #${idx + 1}/${GEMINI_KEYS.length} (${keyHint}) falló por red o timeout (6s). Rotando a la siguiente...`);
-      markKeyBlocked(idx, 5 * 60 * 1000);
+      console.warn(`Gemini key #${idx + 1}/${GEMINI_KEYS.length} (${keyHint}) falló por red o timeout (12s). Rotando a la siguiente...`);
       continue;
     } finally {
       clearTimeout(timeoutId);
@@ -220,16 +222,14 @@ export async function fetchGeminiWithRotation(
     lastErrorText = await res.text();
     console.warn(`Gemini key #${idx + 1}/${GEMINI_KEYS.length} (${keyHint}) falló (status ${res.status}). Rotando a la siguiente...`);
 
-    // 429 (cuota agotada) o 403 (permiso/credencial inválida): esto no se
-    // arregla solo en el próximo segundo -- bloqueamos 24h (la cuota de
-    // Gemini se resetea diario) para que NINGÚN cold start futuro vuelva a
-    // perder tiempo probando esta key hasta entonces.
+    // SOLO 429 (cuota agotada) o 403 (permiso/credencial inválida) son
+    // señales confiables y explícitas de Google de que la key no sirve por
+    // un buen rato -- estas SÍ se persisten 24h (la cuota se resetea
+    // diario). Cualquier otro status (500 de Google, etc.) es
+    // probablemente transitorio y NO se persiste, para evitar el mismo
+    // efecto cascada explicado arriba.
     if (lastStatus === 429 || lastStatus === 403) {
       markKeyBlocked(idx, 24 * 60 * 60 * 1000);
-    } else {
-      // Otro error (500 de Google, etc.): bloqueo corto, probablemente
-      // transitorio.
-      markKeyBlocked(idx, 5 * 60 * 1000);
     }
   }
 
