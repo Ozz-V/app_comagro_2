@@ -113,7 +113,7 @@ function markKeyBlocked(idx: number, ms: number): void {
     key_index: idx,
     blocked_until: new Date(Date.now() + ms).toISOString(),
     updated_at: new Date().toISOString(),
-  }).then().catch(() => {});
+  }).then(() => {}, () => {});
 }
 
 function clearKeyBlock(idx: number): void {
@@ -122,7 +122,7 @@ function clearKeyBlock(idx: number): void {
     key_index: idx,
     blocked_until: null,
     updated_at: new Date().toISOString(),
-  }).then().catch(() => {});
+  }).then(() => {}, () => {});
 }
 
 // Hace un POST a Gemini probando la key actual. Si esa key falla por
