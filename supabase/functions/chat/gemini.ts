@@ -1,5 +1,3 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
 // Módulo compartido de rotación de API keys de Gemini para la función de
 // chat. Lo usan search.ts (extractIntent, getEmbedding) y ai.ts
 // (generateResponse, saveLearnedRule) para que TODAS las llamadas a Gemini
@@ -74,10 +72,18 @@ const HEALTH_CACHE_TTL_MS = 60_000;
 
 let healthCache: { blockedUntil: Map<number, number>; fetchedAt: number } | null = null;
 
-function getAdminClient() {
-  const url = Deno.env.get('SUPABASE_URL') ?? '';
-  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  return createClient(url, key);
+// NOTA: acá NO usamos el cliente de @supabase/supabase-js a propósito -- este
+// archivo se importa también desde tests con Jest/Node (no Deno), que no
+// puede resolver imports por URL como "https://esm.sh/...". El resto del
+// archivo ya evita cualquier import externo y solo usa fetch nativo; hacemos
+// lo mismo acá pegándole directo a la API REST (PostgREST) que expone
+// Supabase, sin librería de por medio.
+function restHeaders(serviceKey: string): Record<string, string> {
+  return {
+    'apikey': serviceKey,
+    'Authorization': `Bearer ${serviceKey}`,
+    'Content-Type': 'application/json',
+  };
 }
 
 async function loadKeyHealth(): Promise<Map<number, number>> {
@@ -87,13 +93,19 @@ async function loadKeyHealth(): Promise<Map<number, number>> {
   }
   const map = new Map<number, number>();
   try {
-    const admin = getAdminClient();
-    const { data } = await admin.from(KEY_HEALTH_TABLE).select('key_index, blocked_until');
-    // deno-lint-ignore no-explicit-any
-    for (const row of (data || []) as any[]) {
-      if (row.blocked_until) {
-        const t = new Date(row.blocked_until).getTime();
-        if (t > now) map.set(row.key_index, t);
+    const url = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const res = await fetch(
+      `${url}/rest/v1/${KEY_HEALTH_TABLE}?select=key_index,blocked_until`,
+      { headers: restHeaders(serviceKey) },
+    );
+    if (res.ok) {
+      const rows = await res.json() as { key_index: number; blocked_until: string | null }[];
+      for (const row of rows) {
+        if (row.blocked_until) {
+          const t = new Date(row.blocked_until).getTime();
+          if (t > now) map.set(row.key_index, t);
+        }
       }
     }
   } catch (_e) {
@@ -104,25 +116,30 @@ async function loadKeyHealth(): Promise<Map<number, number>> {
   return map;
 }
 
+function upsertKeyHealth(idx: number, blockedUntilIso: string | null): void {
+  const url = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  // Fire-and-forget: esto no debe sumar latencia a la respuesta del chat.
+  fetch(`${url}/rest/v1/${KEY_HEALTH_TABLE}?on_conflict=key_index`, {
+    method: 'POST',
+    headers: { ...restHeaders(serviceKey), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify([{
+      key_index: idx,
+      blocked_until: blockedUntilIso,
+      updated_at: new Date().toISOString(),
+    }]),
+  }).then(() => {}, () => {});
+}
+
 function markKeyBlocked(idx: number, ms: number): void {
   if (!healthCache) healthCache = { blockedUntil: new Map(), fetchedAt: Date.now() };
   healthCache.blockedUntil.set(idx, Date.now() + ms);
-
-  // Fire-and-forget: esto no debe sumar latencia a la respuesta del chat.
-  getAdminClient().from(KEY_HEALTH_TABLE).upsert({
-    key_index: idx,
-    blocked_until: new Date(Date.now() + ms).toISOString(),
-    updated_at: new Date().toISOString(),
-  }).then(() => {}, () => {});
+  upsertKeyHealth(idx, new Date(Date.now() + ms).toISOString());
 }
 
 function clearKeyBlock(idx: number): void {
   if (healthCache?.blockedUntil.has(idx)) healthCache.blockedUntil.delete(idx);
-  getAdminClient().from(KEY_HEALTH_TABLE).upsert({
-    key_index: idx,
-    blocked_until: null,
-    updated_at: new Date().toISOString(),
-  }).then(() => {}, () => {});
+  upsertKeyHealth(idx, null);
 }
 
 // Hace un POST a Gemini probando la key actual. Si esa key falla por
