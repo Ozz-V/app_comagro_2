@@ -199,6 +199,177 @@ export async function getProductTypes(supaAdmin: any): Promise<string[]> {
   return await refreshProductTypes(supaAdmin);
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// FILTRO SEMÁNTICO DE "TIPO DE PRODUCTO" ANTES DE extractIntent
+// (feature flag, APAGADO por defecto -- ver PRODUCT_TYPE_FILTER_MODE)
+//
+// Motivo: con ~200 categorías reales, la lista COMPLETA se manda entera en
+// TODAS las consultas dentro del prompt de extractIntent (ver más abajo,
+// "REGLA DE CATEGORÍA REAL"), inflando el input y sumando latencia. La idea
+// es recortar esa lista a las categorías semánticamente más cercanas al
+// mensaje ANTES de llamar al modelo grande -- pero sin LLM de por medio acá
+// (solo similitud de coseno entre embeddings), y con salvaguardas para
+// nunca sacrificar recall:
+//
+//   1. MODO SOMBRA POR DEFECTO: mientras PRODUCT_TYPE_FILTER_MODE no sea
+//      "active", el filtro se calcula y se loguea (para poder medir si
+//      hubiera fallado) pero NUNCA cambia la lista real que recibe
+//      extractIntent -- el comportamiento de hoy queda intacto.
+//   2. FALLBACK DE CONFIANZA: si ni la categoría más parecida supera un
+//      piso mínimo de similitud, asumimos que el pedido es oblicuo/de uso
+//      (ej. "algo para hacer hoyos y poner postes", que no se parece
+//      textualmente a ninguna categoría) y NO filtramos -- se manda la
+//      lista completa, igual que si el filtro no existiera.
+//   3. Umbral de similitud BAJO + tope generoso (no top-K chico): la meta
+//      es sacar la cola larga de categorías obviamente irrelevantes, no
+//      podar agresivo.
+//
+// Antes de poner PRODUCT_TYPE_FILTER_MODE=active en producción: correr en
+// "shadow" un tiempo y revisar en los logs (evento
+// product_type_filter_shadow) que "would_have_dropped" venga vacío en
+// tráfico real -- si alguna vez la categoría que el LLM SÍ eligió con la
+// lista completa quedaba fuera del recorte propuesto, es señal de que el
+// umbral está muy agresivo para ese tipo de pedido.
+// ─────────────────────────────────────────────────────────────────────────
+
+const RAW_FILTER_MODE = Deno.env.get('PRODUCT_TYPE_FILTER_MODE')?.toLowerCase();
+const PRODUCT_TYPE_FILTER_MODE: 'off' | 'shadow' | 'active' = RAW_FILTER_MODE === 'active' || RAW_FILTER_MODE === 'shadow' ? RAW_FILTER_MODE : 'off';
+
+// Piso mínimo de similitud del MEJOR candidato para siquiera confiar en el
+// filtro para este mensaje. Por debajo de esto, se asume pedido oblicuo/de
+// uso y se manda la lista completa sin filtrar.
+const FILTER_CONFIDENCE_MIN = parseFloat(Deno.env.get('PRODUCT_TYPE_FILTER_CONFIDENCE_MIN') ?? '0.40');
+// Piso de similitud para que una categoría individual sobreviva al recorte.
+const FILTER_MIN_SCORE = parseFloat(Deno.env.get('PRODUCT_TYPE_FILTER_MIN_SCORE') ?? '0.28');
+// Tope duro de categorías a mandar, aunque más de N superen el piso.
+const FILTER_MAX_TYPES = parseInt(Deno.env.get('PRODUCT_TYPE_FILTER_MAX_TYPES') ?? '80', 10);
+// Si el catálogo tiene menos categorías que esto, ni vale la pena filtrar.
+const FILTER_MIN_CATALOG_SIZE = 100;
+
+let typeEmbeddingsCache: { key: string; embeddings: Map<string, number[]>; fetchedAt: number } | null = null;
+const TYPE_EMBEDDINGS_TTL_MS = PRODUCT_TYPES_TTL_MS; // mismo ciclo de vida que la lista de tipos
+
+function cosineSim(a: number[], b: number[]): number {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  const denom = Math.sqrt(na) * Math.sqrt(nb);
+  return denom === 0 ? 0 : dot / denom;
+}
+
+// Calcula (y cachea 1h) el embedding de CADA categoría real del catálogo.
+// Usa batchEmbedContents para pedir las N categorías en UNA sola llamada a
+// Gemini en vez de N llamadas sueltas. Si el cache previo ya tenía algunas
+// de estas categorías (catálogo sin cambios grandes), solo pide las nuevas.
+async function getTypeEmbeddings(types: string[]): Promise<Map<string, number[]>> {
+  const now = Date.now();
+  const cacheKey = types.join('|');
+  if (typeEmbeddingsCache && typeEmbeddingsCache.key === cacheKey && (now - typeEmbeddingsCache.fetchedAt) < TYPE_EMBEDDINGS_TTL_MS) {
+    return typeEmbeddingsCache.embeddings;
+  }
+
+  const existing = (typeEmbeddingsCache?.key === cacheKey ? typeEmbeddingsCache.embeddings : null) ?? new Map<string, number[]>();
+  const missing = types.filter(t => !existing.has(t));
+
+  if (missing.length > 0) {
+    try {
+      const data = await fetchGeminiWithRotation(() => ({
+        url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents`,
+        body: {
+          requests: missing.map(t => ({
+            model: 'models/gemini-embedding-2',
+            content: { parts: [{ text: t }] },
+            outputDimensionality: 768,
+            taskType: "RETRIEVAL_DOCUMENT",
+          })),
+        },
+      }));
+      // deno-lint-ignore no-explicit-any
+      const embeddings = data?.embeddings ?? [];
+      missing.forEach((t, i) => {
+        const vals = embeddings[i]?.values;
+        if (vals) existing.set(t, vals);
+      });
+    } catch (e) {
+      console.error(JSON.stringify({ event: "type_embeddings_failed", error: String(e), missing_count: missing.length }));
+      // Si falla, seguimos con lo que ya teníamos en cache (puede quedar
+      // incompleto -- getTypeEmbeddings.size más abajo maneja ese caso).
+    }
+  }
+
+  typeEmbeddingsCache = { key: cacheKey, embeddings: existing, fetchedAt: now };
+  return existing;
+}
+
+export type ProductTypeFilterResult = {
+  filteredTypes: string[];       // la lista que REALMENTE se le pasa a extractIntent
+  candidateTypes: string[];      // lo que el filtro HABRÍA usado (para loguear en modo sombra)
+  mode: 'off' | 'shadow' | 'active';
+  applied: boolean;               // true solo si mode === 'active' y hubo confianza suficiente
+  confident: boolean | null;      // null si el filtro directamente no corrió (modo off / catálogo chico)
+  topScore: number | null;
+};
+
+// Punto de entrada: dado el último mensaje del cliente y la lista real de
+// categorías, decide (sin gastar una llamada al LLM grande) cuáles son
+// candidatas relevantes por similitud semántica. NUNCA modifica lo que se
+// usa de verdad salvo que PRODUCT_TYPE_FILTER_MODE=active Y haya confianza.
+// deno-lint-ignore no-explicit-any
+export async function filterProductTypesForQuery(
+  queryText: string,
+  productTypes: string[],
+  supaAdmin: any,
+): Promise<ProductTypeFilterResult> {
+  const noop = (mode: ProductTypeFilterResult['mode']): ProductTypeFilterResult => ({
+    filteredTypes: productTypes,
+    candidateTypes: productTypes,
+    mode,
+    applied: false,
+    confident: null,
+    topScore: null,
+  });
+
+  if (PRODUCT_TYPE_FILTER_MODE === 'off') return noop('off');
+  if (productTypes.length < FILTER_MIN_CATALOG_SIZE) return noop(PRODUCT_TYPE_FILTER_MODE);
+
+  try {
+    const [{ embedding: queryEmbedding }, typeEmbeddings] = await Promise.all([
+      getEmbedding(queryText, supaAdmin),
+      getTypeEmbeddings(productTypes),
+    ]);
+
+    if (!queryEmbedding || typeEmbeddings.size === 0) return noop(PRODUCT_TYPE_FILTER_MODE);
+
+    const scored = productTypes
+      .map(t => ({ type: t, score: typeEmbeddings.has(t) ? cosineSim(queryEmbedding, typeEmbeddings.get(t)!) : -1 }))
+      .sort((a, b) => b.score - a.score);
+
+    const topScore = scored[0]?.score ?? null;
+    const confident = topScore != null && topScore >= FILTER_CONFIDENCE_MIN;
+
+    if (!confident) {
+      // Pedido oblicuo/de uso, sin ninguna categoría claramente parecida --
+      // no confiamos en el recorte, se usa la lista completa igual.
+      return { filteredTypes: productTypes, candidateTypes: productTypes, mode: PRODUCT_TYPE_FILTER_MODE, applied: false, confident, topScore };
+    }
+
+    const kept = scored.filter(s => s.score >= FILTER_MIN_SCORE).map(s => s.type).slice(0, FILTER_MAX_TYPES);
+    const candidateTypes = kept.length > 0 ? kept : productTypes;
+    const applied = PRODUCT_TYPE_FILTER_MODE === 'active';
+
+    return {
+      filteredTypes: applied ? candidateTypes : productTypes,
+      candidateTypes,
+      mode: PRODUCT_TYPE_FILTER_MODE,
+      applied,
+      confident,
+      topScore,
+    };
+  } catch (e) {
+    console.error(JSON.stringify({ event: "product_type_filter_failed", error: String(e) }));
+    return noop(PRODUCT_TYPE_FILTER_MODE);
+  }
+}
+
 export async function extractIntent(chatHistoryText: string, productTypes: string[]): Promise<IntentGroup[] | null> {
   try {
     const data = await fetchGeminiWithRotation(() => ({
