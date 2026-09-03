@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getDefaultMetrics, checkBan, resetCountersIfNeeded, checkQuotaExceeded, processStrike } from "./metrics.ts";
-import { extractIntent, getEmbedding, vectorSearch, keywordSearch, groupMatchesText, getProductTypes, Target } from "./search.ts";
+import { extractIntent, getEmbedding, vectorSearch, keywordSearch, groupMatchesText, getProductTypes, filterProductTypesForQuery, Target } from "./search.ts";
 import { generateResponse, parseLearnTag, saveLearnedRule, stripHallucinatedSkus } from "./ai.ts";
 import { GEMINI_KEYS, checkGeminiHealth } from "./gemini.ts";
 
@@ -206,8 +206,42 @@ Deno.serve(async (req: Request) => {
     // mano por cada producto.
     const t_intent_start = Date.now();
     const productTypes = await getProductTypes(supaAdmin);
-    const intents = await extractIntent(chatHistoryText, productTypes);
+
+    // Filtro semántico de categorías (feature flag PRODUCT_TYPE_FILTER_MODE,
+    // "off" por defecto -- ver search.ts). En "off" esto es un no-op
+    // instantáneo (mismo resultado que antes, sin llamadas extra). En
+    // "shadow"/"active" gasta un embedding del último mensaje (cacheado en
+    // search_embeddings_cache, así que en pedidos repetidos no vuelve a
+    // pagar el costo) para recortar o simplemente medir el recorte, nunca
+    // para bloquear el pedido.
+    const t_typefilter_start = Date.now();
+    const typeFilter = await filterProductTypesForQuery(lastMessage, productTypes, supaAdmin);
+    const t_typefilter_ms = Date.now() - t_typefilter_start;
+
+    const intents = await extractIntent(chatHistoryText, typeFilter.filteredTypes);
     const t_intent_ms = Date.now() - t_intent_start;
+
+    if (typeFilter.mode !== 'off') {
+      // deno-lint-ignore no-explicit-any
+      const chosenCategories = (intents || []).map((i: any) => i.terms?.[0]).filter(Boolean);
+      const wouldHaveDropped = chosenCategories.filter((c: string) => !typeFilter.candidateTypes.includes(c));
+      console.log(JSON.stringify({
+        event: "product_type_filter_shadow",
+        user_id,
+        mode: typeFilter.mode,
+        applied: typeFilter.applied,
+        confident: typeFilter.confident,
+        top_score: typeFilter.topScore,
+        full_count: productTypes.length,
+        candidate_count: typeFilter.candidateTypes.length,
+        t_typefilter_ms,
+        chosen_categories: chosenCategories,
+        // Si esto NO viene vacío alguna vez, el filtro habría descartado
+        // una categoría que el LLM sí eligió con la lista completa -- señal
+        // de que el umbral está muy agresivo para ese tipo de pedido.
+        would_have_dropped: wouldHaveDropped,
+      }));
+    }
     // queryGroups: un grupo (array de variantes/sinónimos) por cada producto detectado.
     // groupTargets: el objetivo numérico ya convertido para ese grupo (o null si el
     // pedido no tenía ninguna cantidad con unidad), en el mismo orden que queryGroups.
