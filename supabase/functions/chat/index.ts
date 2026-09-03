@@ -320,13 +320,39 @@ Deno.serve(async (req: Request) => {
     // repuesto explícitamente, no filtramos por tipo acá -- dejamos que
     // la relevancia textual (ya filtrada por groupMatchesText/keywordSearch)
     // y el LLM asesor decidan con el nombre real de cada candidato.
-    // isAccessoryRequest: true si el usuario pidió explícitamente un repuesto/accesorio.
-    // Chequeamos TANTO el mensaje crudo (para detección directa) COMO los queryGroups
-    // generados por la IA (que autocorrige typos como "respuesto" -> "repuesto" y que
-    // puede incluir términos como "REPUESTO PARA BOMBA" si la IA detectó que era un accesorio).
+    // isAccessoryRequest: true SOLO en dos casos legítimos --
+    //   (1) el cliente pidió explícitamente un repuesto/accesorio/pieza, o
+    //   (2) el contexto es claramente de reparación/rotura (ahí sí tiene
+    //       sentido ofrecer un repuesto en vez de la máquina completa).
+    // Chequeamos TANTO el mensaje crudo (para detección directa) COMO los
+    // queryGroups generados por la IA (que autocorrige typos como
+    // "respuesto" -> "repuesto" y que puede incluir términos como
+    // "REPUESTO PARA BOMBA" si la IA detectó que era un accesorio).
+    //
+    // FIX 2026-09-03: antes había acá también un `|| /\bpara\b/i.test(term)`
+    // que disparaba con CUALQUIER término que tuviera la palabra "para" --
+    // incluidos sinónimos totalmente normales que genera extractIntent para
+    // describir el USO de una máquina completa (ej. "motor PARA ascensor",
+    // "bomba PARA riego", "panel PARA casa"). Eso apagaba el filtro de tipo
+    // exacto y dejaba pasar candidatos "REPUESTO PARA X" / "ACCESORIO PARA
+    // X" para pedidos donde el cliente jamás mencionó nada de repuestos --
+    // exactamente el bug reportado (pidió "motor y reductor para un
+    // ascensor" y el bot devolvió un repuesto de motor como si fuera el
+    // motor completo). Se saca ese gancho: el término "para" por sí solo YA
+    // NO cuenta como señal de repuesto/accesorio.
     const accessoryRegex = /\b(repuest|accesori|pieza|parte|impulsor|filtro|bujia|carburador|cable|aceite|arnes|arn[eé]s|chaleco|correa|funda|cintur[oó]n|ats\b|tablero de transferencia|panel de transferencia|transferencia automatica)\b/i;
+
+    // Contexto de reparación/rotura: única otra señal válida para permitir
+    // repuestos/accesorios sin que el cliente use la palabra literal
+    // "repuesto" o "accesorio" (ej. "se dañó mi podadora y quiero
+    // repararla", "se me rompió el motor", "no arranca", "cambiar la
+    // bujía"). Revisamos el HISTORIAL reciente (chatHistoryText), no solo
+    // el último mensaje, porque el cliente suele contar el daño en un
+    // mensaje y pedir el repuesto en el siguiente.
+    const repairContextRegex = /\b(dañ[oó]|dañad[oa]|se\s+da[ñn]|romp[ií][oó]|se\s+rompi[oó]|rot[oa]|averiad[oa]|aver[ií]a|malogr[oó]|se\s+malogr|repar(ar|aci[oó]n|ando)?|arregl(ar|o)?|cambiar\s+(la|el|un|una)|reemplaz(ar|o)|no\s+(arranca|enciende|funciona|prende)|dej[oó]\s+de\s+funcionar|se\s+quem[oó]|quemad[oa]|falla(ndo)?|se\s+desgast)\b/i;
     const isAccessoryRequest = accessoryRegex.test(lastMessage)
-      || queryGroups.some(g => g.some(term => accessoryRegex.test(term) || /\bpara\b/i.test(term)));
+      || repairContextRegex.test(chatHistoryText)
+      || queryGroups.some(g => g.some(term => accessoryRegex.test(term)));
 
     // deno-lint-ignore no-explicit-any
     const dedupedContext = combinedContext.filter((item: any) => {
@@ -505,7 +531,7 @@ INSTRUCCIÓN CRÍTICA DE APRENDIZAJE: Si el usuario te enseña una regla, DEBES 
     finalPrompt += `\n\nREGLA CRÍTICA DE BREVEDAD (PRIORIDAD MÁXIMA, SIEMPRE): Contestá SIEMPRE corto. El texto antes de los tags [SKU: XXX] tiene que ser 1 sola oración corta para TODA la respuesta, no una oración por producto. PROHIBIDO justificar cada producto ("es ideal para...", "una opción robusta para...", "para un respaldo eficiente..."): eso lo lee el cliente en "Ver Ficha Técnica". Ejemplo correcto ante generador + bomba + taladro + panel solar: "Te paso estas opciones:" y ahí nomás los tags. Si algo no tiene stock, sumalo en esa MISMA oración corta (ej. "de panel solar no tengo stock por ahora"), nunca en un párrafo aparte.`;
     finalPrompt += `\n\nINSTRUCCIÓN SOBRE ALTERNATIVAS (MUY IMPORTANTE): Si el usuario pide un producto con una especificación exacta (ej. "motor 300 hp" o "bomba a nafta") y en la lista de productos encontrados NO hay uno exactamente igual, DEBES OFRECER la alternativa más cercana que tengamos en esa misma categoría (ej. "No tengo de 300 HP, pero te ofrezco este de 200 HP", o "No me queda a nafta, pero tengo esta opción a diésel o eléctrica"). NUNCA digas "Tenemos estas opciones" sin poner los tags [SKU: XXX] al final. Si decides no ofrecer nada, di "No tengo" y NO digas "tenemos estas opciones".
 REGLA DE CATEGORÍAS RELACIONADAS: Si lo único disponible pertenece a una categoría de máquina DISTINTA pero cercana en el rubro a la que pidió el usuario (ej. pidió algo para "podadora" y lo que hay en la lista es para "desmalezadora"), SÍ podés ofrecerlo como alternativa, pero DEBES aclarar explícitamente y sin ambigüedad que es de esa otra categoría (ej. "Para podadora no tengo, pero tengo esto para desmalezadora, podría servirte"). Tenés PROHIBIDO presentarlo como si fuera exactamente para la máquina que pidió el usuario.
-REGLA CRÍTICA SOBRE MÁQUINAS Y REPUESTOS: Si el usuario pide comprar una máquina principal (ej. "bomba", "motor", "cortacésped", "panel solar", "generador"), TIENES TOTALMENTE PROHIBIDO ofrecer REPUESTOS, ACCESORIOS o partes sueltas que sirvan de acompañamiento a esa máquina (ej. un tablero de transferencia automática -ATS- junto a un generador, impulsores, bujías, conectores, repuestos para bomba). Ofrécele ÚNICAMENTE la máquina completa. Ejemplo concreto: si el cliente pide "un generador" y en la lista aparece un producto tipo "ATS" o "Tablero de Transferencia Automática", ESE PRODUCTO NO ES UN GENERADOR -- es un accesorio que se instala junto a un generador para que cambie de luz de red a luz del generador solo. No lo ofrezcas como si fuera el generador que pidió, aunque su ficha mencione kVA o esté en la misma categoría de búsqueda.
+REGLA CRÍTICA SOBRE MÁQUINAS Y REPUESTOS (NUNCA por defecto): Tenés PROHIBIDO ofrecer un REPUESTO, ACCESORIO o parte suelta en lugar de la máquina completa que pidió el cliente, SALVO que se cumpla al menos UNA de estas dos condiciones explícitas: (1) el cliente usó la palabra repuesto/accesorio/pieza/parte, o nombró la pieza puntual (bujía, impulsor, filtro, correa, cable, arnés, etc.), o (2) el cliente contó que la máquina se dañó/rompió/no funciona y quiere repararla o cambiarle una pieza. Si NINGUNA de las dos se cumple, ofrecé SIEMPRE la máquina completa, nunca un repuesto, aunque el único candidato encontrado en la lista sea un repuesto -- en ese caso decile que no tenés esa máquina completa en stock, no le muestres el repuesto como si fuera la máquina. Ejemplo concreto: si el cliente pide "un generador" y en la lista aparece un producto tipo "ATS" o "Tablero de Transferencia Automática", ESE PRODUCTO NO ES UN GENERADOR -- es un accesorio que se instala junto a un generador para que cambie de luz de red a luz del generador solo. No lo ofrezcas como si fuera el generador que pidió, aunque su ficha mencione kVA o esté en la misma categoría de búsqueda. Mismo criterio para pedidos de varias máquinas juntas (ej. "motor y reductor para un ascensor"): motor y reductor son máquinas/componentes principales que el cliente quiere comprar para armar algo, NO son repuestos entre sí -- ofrecé el motor completo y el reductor completo, nunca un repuesto de motor.
 REGLA DE DEDUCCIÓN AGRÍCOLA: Si el cliente escribe palabras separadas con errores tipográficos (ej. "moto bomba"), asume su significado real en el contexto agrícola ("motobomba" = bomba de agua).
 REGLA DE VARIEDAD Y NO REPETICIÓN: Si el usuario pide "más opciones", no repitas los productos que ya le mostraste; intenta ofrecerle productos variados de la lista (diferente potencia, marca o precio) para darle amplitud. SIN EMBARGO, si el usuario pide comparar o te hace preguntas sobre productos que YA le sugeriste, SÍ puedes (y debes) volver a mencionarlos con sus respectivos tags [SKU: XXX].
 REGLA DE DISTRIBUCIÓN EQUITATIVA: Si el usuario pide VARIOS tipos de productos distintos en un mismo mensaje (ej. pide un motor, una bomba y un soldador), DEBES sugerir EXACTAMENTE UN (1) producto por cada tipo solicitado para abarcar todo su pedido. No acapares tu límite de 4 sugerencias ofreciendo múltiples opciones de un solo tipo mientras dejas los otros tipos sin responder.
