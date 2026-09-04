@@ -176,7 +176,7 @@ Deno.serve(async (req: Request) => {
     const exactSearchPromises = potentialSkus.map((pSku: string) => {
       const cleanSku = pSku.replace(/[^a-zA-Z0-9/-]/g, '');
       if (cleanSku.length > 2) {
-        return supaAdmin.from('productos_ai_data').select('sku, sales_pitch').ilike('sku', `%${cleanSku}%`).limit(4);
+        return supaAdmin.from('productos_ai_data').select('sku, sales_pitch').ilike('sku', `%${cleanSku}%`).order('sku', { ascending: true }).limit(16);
       }
       return null;
     }).filter(Boolean);
@@ -545,6 +545,19 @@ Deno.serve(async (req: Request) => {
         dbContextText += `${index + 1}. SKU: ${item.sku} | Tipo: ${tipoReal} | Descripción: ${item.sales_pitch || 'Sin descripción'}${item.__specNote || ''}\n`;
       });
       dbContextText += `\nREGLA DE SUGERENCIA Y ALTERNATIVAS: Revisa la lista de productos encontrados. Si encuentras el producto exacto o alternativas lógicas y viables, ofrécelos. Si los productos de la lista NO tienen ninguna relación lógica con lo que pidió el usuario (ej. ofrecer un motor cuando pide un medidor láser), NO los ofrezcas. En ese caso, simplemente dile amablemente que no contamos con ese producto específico por el momento. RECUERDA: pon TODAS las etiquetas [SKU: XXX] juntas al final de tu respuesta, sin intercalar.`;
+
+      // REGLA DE VARIANTES: cuando el cliente escribe un código/modelo exacto
+      // (ej. "WME6210M2") y ese código coincide con MÁS de 4 productos
+      // distintos (variantes/repuestos de esa misma familia, típicamente
+      // separadas por "/" o "-" en el SKU), no hay forma de mostrarlas
+      // todas en un solo mensaje (límite de 4). Antes esto se resolvía
+      // eligiendo 4 al azar y perdiendo el resto sin avisar -- ahora se le
+      // avisa al modelo la cantidad real para que ofrezca ver el resto.
+      // deno-lint-ignore no-explicit-any
+      const exactMatches = finalContext.filter((item: any) => item.__groupIndex === -1);
+      if (exactMatches.length > 4) {
+        dbContextText += `\n\nREGLA DE VARIANTES DEL MISMO CÓDIGO (MUY IMPORTANTE): el código que escribió el cliente coincide con ${exactMatches.length} productos distintos de la lista de arriba (son variantes/repuestos de la misma familia), pero tu límite es 4 productos por mensaje. Mostrale las primeras 4 variantes de esa lista, en el mismo orden en que aparecen arriba, y cerrá tu respuesta preguntándole si quiere ver las demás variantes disponibles para ese código. Fijate en tu propio mensaje anterior del historial: si ya le mostraste algunas de estas variantes y el usuario ahora te está confirmando que quiere ver más ("sí", "dale", "mostrame", "quiero ver más", etc.), mostrale las siguientes 4 que NO le hayas mostrado todavía (nunca repitas una que ya le pasaste), y volvé a preguntar si quiere ver más SOLO si todavía quedan variantes sin mostrar. Si ya le mostraste todas las que había, no vuelvas a preguntar ni digas que hay más.`;
+      }
     }
 
     let aiPrompt = `Eres el asesor experto de ventas de Comagro. Manten una conversación fluida, amable y corta.
