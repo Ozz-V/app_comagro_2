@@ -15,7 +15,7 @@ const PX_SAFETY   = 14;   // margen de seguridad
 const MIN_IMG_H   = 80;   // altura mínima aceptable de la imagen
 const TEXT_H      = 77;   // altura aproximada del bloque de texto
 
-export function generarHtmlFicha(specs: [string, string][], base64Images: string[], logoBase64: string, modalProd: ParsedProduct) {
+export function generarHtmlFicha(specs: [string, string][], base64Images: string[], logoBase64: string, modalProd: ParsedProduct, includeCurve: boolean = false) {
   const numSpecs = specs.length;
 
   const fs1  = numSpecs > 22 ? '8.5pt' : numSpecs > 16 ? '9pt'  : '10pt';
@@ -90,7 +90,12 @@ export function generarHtmlFicha(specs: [string, string][], base64Images: string
      }
   }
   
-  const showCurve = isPumpType && !isExcluded && maxQ > 0 && maxH > 0;
+  // La curva de rendimiento NUNCA se incluye en el PDF/imagen que se comparte:
+  // no cuenta con todos los datos del fabricante y no sería fiel a la curva real.
+  // Solo se muestra dentro de la app al presionar "Ver Curva de Rendimiento",
+  // desde donde el usuario puede compartirla de forma explícita y opcional
+  // (ver generarHtmlCurva / generateAndShareCurvaPdf más abajo).
+  const showCurve = includeCurve && isPumpType && !isExcluded && maxQ > 0 && maxH > 0;
   let svgCurveHtml = '';
   
   if (showCurve) {
@@ -317,6 +322,138 @@ export function generarHtmlFicha(specs: [string, string][], base64Images: string
     </body>
     </html>
   `;
+}
+
+// ── Exportación opcional y explícita de la Curva de Rendimiento ─────────
+// Esta plantilla es completamente independiente de la ficha del producto.
+// Solo se genera cuando el usuario, ya dentro del modal "Ver Curva de
+// Rendimiento", decide compartirla de forma manual (nunca automáticamente).
+export interface CurvaData {
+  maxQ: number;
+  maxH: number;
+  qTicks: number[];
+  hTicks: number[];
+}
+
+export function generarHtmlCurva(curveData: CurvaData, modalProd: ParsedProduct, logoBase64: string) {
+  const { maxQ: finalQ, maxH, qTicks, hTicks } = curveData;
+  const maxTickQ = qTicks[qTicks.length - 1];
+  const maxTickH = hTicks[hTicks.length - 1];
+
+  let pathD = '';
+  const curvePad = 6;
+  for (let i = 0; i <= 50; i++) {
+    const q = finalQ * (i / 50);
+    const hp = maxH * (1 - Math.pow(q / finalQ, 2));
+    const px = 50 + curvePad + (q / maxTickQ) * (240 - curvePad * 2);
+    const py = 280 - curvePad - (hp / maxTickH) * (240 - curvePad * 2);
+    pathD += `${i === 0 ? 'M' : 'L'} ${px} ${py} `;
+  }
+
+  const qGrid = qTicks.map(t => {
+    const px = 50 + (t / maxTickQ) * 240;
+    return `<line x1="${px}" y1="40" x2="${px}" y2="280" stroke="#e4eaf4" stroke-width="1" />
+            <text x="${px}" y="295" font-size="10" fill="#555" text-anchor="middle" font-family="Arial">${t}</text>`;
+  }).join('');
+
+  const hGrid = hTicks.map(t => {
+    const py = 280 - (t / maxTickH) * 240;
+    return `<line x1="50" y1="${py}" x2="290" y2="${py}" stroke="#e4eaf4" stroke-width="1" />
+            <text x="42" y="${py + 3}" font-size="10" fill="#555" text-anchor="end" font-family="Arial">${t}</text>`;
+  }).join('');
+
+  const svgCurveHtml = `
+    <svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg">
+      ${qGrid}
+      ${hGrid}
+      <line x1="50" y1="40" x2="50" y2="280" stroke="#555" stroke-width="2" />
+      <line x1="50" y1="280" x2="290" y2="280" stroke="#555" stroke-width="2" />
+      <text x="170" y="315" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial">Caudal (m³/h)</text>
+      <text x="15" y="160" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial" transform="rotate(-90, 15, 160)">Altura MCA (m)</text>
+      <path d="${pathD.trim()}" stroke="#0d8a39" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  `;
+
+  const escapeHtml = (unsafe: string) => {
+    return (unsafe || '').toString()
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; padding: 24px; }
+        .hdr { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #0d8a39; padding-bottom: 14px; margin-bottom: 18px; }
+        .hdr-logo img { max-width: 130px; max-height: 60px; object-fit: contain; }
+        .hdr-sep { width: 2px; height: 46px; background: #dce4f0; }
+        .hdr-text { flex: 1; }
+        .hdr-title { font-size: 15pt; font-weight: bold; color: #0a2566; text-transform: uppercase; letter-spacing: 0.5px; }
+        .hdr-sub { font-size: 9pt; color: #555; margin-top: 2px; }
+        .prod-line { font-size: 10pt; color: #2d3748; margin-top: 4px; }
+        .prod-line b { color: #0a2566; }
+        .curve-wrap { display: flex; flex-direction: column; align-items: center; margin: 10px 0 18px; }
+        .curve-title { font-size: 12pt; font-weight: bold; color: #0a2566; text-transform: uppercase; margin-bottom: 6px; }
+        .warning-box { background: #fff4e5; border: 1.5px solid #f0a93a; border-radius: 8px; padding: 12px 16px; font-size: 9.5pt; color: #7a4a05; line-height: 1.4; }
+        .warning-box b { display: block; margin-bottom: 4px; font-size: 10pt; }
+      </style>
+    </head>
+    <body>
+      <div class="hdr">
+        <div class="hdr-logo"><img src="${logoBase64}" onerror="this.style.display='none'" /></div>
+        <div class="hdr-sep"></div>
+        <div class="hdr-text">
+          <div class="hdr-title">Curva de Rendimiento (Estimada)</div>
+          <div class="hdr-sub">${escapeHtml(modalProd?.marca || '')} &middot; ${escapeHtml(modalProd?.subcategoria || '')}</div>
+          <div class="prod-line"><b>SKU / Modelo:</b> ${escapeHtml(modalProd?.modelo || '')}</div>
+        </div>
+      </div>
+      <div class="curve-wrap">
+        <div class="curve-title">Caudal vs. Altura Manométrica (MCA)</div>
+        ${svgCurveHtml}
+      </div>
+      <div class="warning-box">
+        <b>Importante: gráfica estimativa, no oficial del fabricante</b>
+        Esta curva es una aproximación teórica generada a partir de los datos técnicos cargados para este producto (caudal y altura/presión máximos). No representa necesariamente la curva real publicada por el fabricante, ya que no se cuenta con la totalidad de los puntos de su curva oficial. Para datos técnicos exactos y curvas de eficiencia, consultá siempre la ficha oficial del fabricante o a un asesor de Comagro.
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+export async function generateAndShareCurvaPdf(curveData: CurvaData, modalProd: ParsedProduct, logoBase64: string) {
+  const htmlContent = generarHtmlCurva(curveData, modalProd, logoBase64);
+  const { uri } = await Print.printToFileAsync({ html: htmlContent });
+
+  let finalUriToShare = uri;
+  try {
+    const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+    const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+    const newFileName = `CURVA_${safeMarca}_${safeModelo}.pdf`;
+    const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
+
+    const fileInfo = await FileSystem.getInfoAsync(newUri);
+    if (fileInfo.exists) {
+      await FileSystem.deleteAsync(newUri);
+    }
+    await FileSystem.copyAsync({ from: uri, to: newUri });
+    finalUriToShare = newUri;
+  } catch {
+    // console removed
+  }
+
+  await Sharing.shareAsync(finalUriToShare, {
+    dialogTitle: `Curva de Rendimiento ${modalProd?.modelo}`,
+    mimeType: 'application/pdf',
+    UTI: 'com.adobe.pdf'
+  });
 }
 
 export async function fetchImageBase64(url: string): Promise<string> {
