@@ -17,7 +17,7 @@ import Svg, { Path, Line, Text as SvgText, G } from 'react-native-svg';
 import { COLORS, FONTS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { generarHtmlFicha, fetchImageBase64, generateAndSharePdf } from '../utils/pdfService';
+import { generarHtmlFicha, fetchImageBase64, generateAndSharePdf, generateAndShareCurvaPdf } from '../utils/pdfService';
 import { searchProducts } from '../utils/database';
 import { findSimilarProducts } from '../utils/productLogic';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -124,6 +124,9 @@ export default function ProductDetailModal({
   const [compartiendo, setCompartiendo] = useState(false);
   const [contentReady, setContentReady] = useState(false);
   const [showCurveModal, setShowCurveModal] = useState(false);
+  const [sharingCurvaPdf, setSharingCurvaPdf] = useState(false);
+  const [sharingCurvaImagen, setSharingCurvaImagen] = useState(false);
+  const curveCaptureRef = useRef<View>(null);
 
   const curveData = useMemo(() => {
     if (!modalProd) return null;
@@ -394,6 +397,69 @@ export default function ProductDetailModal({
         setCompartiendo(false);
         setHtmlForImage(null);
       }
+    }
+  };
+
+  // Compartir la Curva de Rendimiento es una acción explícita y opcional que
+  // el usuario solo encuentra dentro del modal "Ver Curva de Rendimiento".
+  // Nunca se adjunta automáticamente al compartir la ficha del producto.
+  const compartirCurvaPdf = async () => {
+    if (!modalProd || !curveData) return;
+    try {
+      setSharingCurvaPdf(true);
+      let logoB64 = pdfCache?.logoBase64;
+      if (!logoB64) {
+        const marcaSlug = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+        const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg`;
+        logoB64 = await fetchImageBase64(logoUrl).catch(() => '');
+      }
+      await generateAndShareCurvaPdf(curveData, modalProd, logoB64 || '');
+      logProductAction('share_curva_pdf');
+    } catch (e: unknown) {
+      Sentry.captureException(e);
+      showAlert('Error', 'No se pudo generar el PDF de la curva.');
+    } finally {
+      if (isMounted.current) setSharingCurvaPdf(false);
+    }
+  };
+
+  const compartirCurvaImagen = async () => {
+    if (!modalProd) return;
+    try {
+      setSharingCurvaImagen(true);
+      const imgUri = await captureRef(curveCaptureRef, {
+        format: 'png',
+        quality: 1.0,
+        result: 'tmpfile'
+      });
+
+      let finalUriToShare = imgUri;
+      try {
+        const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+        const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+        const newFileName = `CURVA_${safeMarca}_${safeModelo}.png`;
+        const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
+
+        const fileInfo = await FileSystem.getInfoAsync(newUri);
+        if (fileInfo.exists) {
+          await FileSystem.deleteAsync(newUri);
+        }
+        await FileSystem.copyAsync({ from: imgUri, to: newUri });
+        finalUriToShare = newUri;
+      } catch {
+        // Si falla el renombrado, se comparte con el nombre original
+      }
+
+      await Sharing.shareAsync(finalUriToShare, {
+        dialogTitle: `Curva de Rendimiento ${modalProd?.modelo}`,
+        mimeType: 'image/png',
+      });
+      logProductAction('share_curva_image');
+    } catch (e: unknown) {
+      Sentry.captureException(e);
+      showAlert('Error', 'No se pudo compartir la imagen de la curva.');
+    } finally {
+      if (isMounted.current) setSharingCurvaImagen(false);
     }
   };
 
@@ -712,8 +778,22 @@ export default function ProductDetailModal({
         {curveData && (
           <Modal visible={showCurveModal} transparent animationType="fade" onRequestClose={() => setShowCurveModal(false)}>
             <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center'}}>
-              <View style={{width: '90%', backgroundColor: '#fff', borderRadius: 12, padding: 20, alignItems: 'center'}}>
-                 <Text style={{fontSize: 18, fontWeight: 'bold', color: COLORS.navy, marginBottom: 20}}>Curva de Rendimiento</Text>
+              <View style={{width: '90%', maxHeight: '90%', backgroundColor: '#fff', borderRadius: 12, padding: 20, alignItems: 'center'}}>
+               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
+                 <View ref={curveCaptureRef} collapsable={false} style={{ alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 4 }}>
+                   <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', borderBottomWidth: 3, borderBottomColor: COLORS.green, paddingBottom: 10, marginBottom: 14, gap: 10 }}>
+                     <Image
+                       source={{ uri: `${LOGO_BASE}${(modalProd?.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}
+                       style={{ width: 90, height: 42 }}
+                       contentFit="contain"
+                     />
+                     <View style={{ width: 1.5, height: 34, backgroundColor: '#dce4f0' }} />
+                     <View style={{ flex: 1 }}>
+                       <Text style={{ fontSize: 15, fontWeight: 'bold', color: COLORS.navy, textTransform: 'uppercase' }}>Curva de Rendimiento</Text>
+                       <Text style={{ fontSize: 11, color: '#555', marginTop: 1 }}>{modalProd?.marca} · {modalProd?.subcategoria}</Text>
+                       <Text style={{ fontSize: 11, color: COLORS.navy, fontWeight: '600', marginTop: 1 }}>SKU: {modalProd?.modelo}</Text>
+                     </View>
+                   </View>
                  <View style={{width: 320, height: 320}}>
                     <Svg width="320" height="320">
                       {curveData.qTicks.map((t: number) => {
@@ -757,12 +837,57 @@ export default function ProductDetailModal({
                       />
                     </Svg>
                  </View>
-                 <Text style={{fontSize: 10, color: '#8492a6', textAlign: 'center', marginTop: 15, paddingHorizontal: 10}}>
-                   Nota: Curva de rendimiento teórica aproximada de referencia. Consulte con un asesor para datos exactos.
+                 <View style={{ backgroundColor: '#fff4e5', borderWidth: 1.5, borderColor: '#f0a93a', borderRadius: 8, padding: 12, marginTop: 16, width: '100%' }}>
+                    <Text style={{ fontSize: 11.5, fontWeight: 'bold', color: '#7a4a05', marginBottom: 4 }}>
+                       ⚠ Gráfica estimativa, no oficial del fabricante
+                    </Text>
+                    <Text style={{ fontSize: 10.5, color: '#7a4a05', lineHeight: 15 }}>
+                       Esta curva es una aproximación teórica calculada a partir de los datos técnicos cargados (caudal y altura/presión máximos). Puede no coincidir con la curva real publicada por el fabricante, ya que no se dispone de todos sus puntos oficiales. Para datos exactos, consultá siempre la ficha del fabricante o a un asesor.
+                    </Text>
+                 </View>
+                 </View>
+
+                 <Text style={{fontSize: 10, color: '#8492a6', textAlign: 'center', marginTop: 12}}>
+                   Compartir esta curva es opcional: solo se envía si vos lo elegís.
                  </Text>
-                 <TouchableOpacity style={[styles.actionBtn, {marginTop: 20, width: '100%', backgroundColor: COLORS.navy}]} onPress={() => setShowCurveModal(false)}>
+
+                 <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 12 }}>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { flex: 1 }, sharingCurvaPdf && styles.actionBtnDisabled]}
+                      onPress={compartirCurvaPdf}
+                      disabled={sharingCurvaPdf || sharingCurvaImagen}
+                      activeOpacity={0.8}
+                    >
+                      {sharingCurvaPdf ? (
+                        <ActivityIndicator size="small" color={COLORS.white} />
+                      ) : (
+                        <View style={styles.actionBtnContent}>
+                          <SvgIcon name="descarga" size={16} color="#fff" />
+                          <Text style={styles.actionBtnText}>PDF</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { flex: 1, backgroundColor: COLORS.green }, sharingCurvaImagen && styles.actionBtnDisabled]}
+                      onPress={compartirCurvaImagen}
+                      disabled={sharingCurvaPdf || sharingCurvaImagen}
+                      activeOpacity={0.8}
+                    >
+                      {sharingCurvaImagen ? (
+                        <ActivityIndicator size="small" color={COLORS.white} />
+                      ) : (
+                        <View style={styles.actionBtnContent}>
+                          <SvgIcon name="share" size={16} color="#fff" />
+                          <Text style={styles.actionBtnText}>Imagen</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                 </View>
+
+                 <TouchableOpacity style={[styles.actionBtn, {marginTop: 10, width: '100%', backgroundColor: COLORS.navy}]} onPress={() => setShowCurveModal(false)}>
                     <Text style={{color: '#fff', fontWeight: 'bold'}}>Cerrar</Text>
                  </TouchableOpacity>
+               </ScrollView>
               </View>
             </View>
           </Modal>
