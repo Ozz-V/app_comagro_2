@@ -1,4 +1,4 @@
-import { generarHtmlFicha, generateAndSharePdf } from '../src/utils/pdfService';
+import { generarHtmlFicha, generateAndSharePdf, generarHtmlCurva, generateAndShareCurvaPdf, CurvaData } from '../src/utils/pdfService';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -98,6 +98,73 @@ describe('pdfService', () => {
       expect(Print.printToFileAsync).toHaveBeenCalled();
       expect(FileSystem.copyAsync).toHaveBeenCalled();
       expect(Sharing.shareAsync).toHaveBeenCalled();
+    });
+  });
+
+  describe('generarHtmlFicha - curva de rendimiento', () => {
+    const pumpProduct: ParsedProduct = {
+      modelo: 'MotoBomba X',
+      marca: 'Amana',
+      subcategoria: 'Motobomba',
+      imagen: '',
+      imagenOriginal: '',
+      specs: [['Caudal', '10 m3/h'], ['Altura Manométrica', '20 mca']],
+      sales_pitch: 'Description',
+    };
+
+    it('never includes the curve when includeCurve is omitted (share PDF/imagen)', () => {
+      const html = generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct);
+      expect(html).not.toContain('CURVA DE RENDIMIENTO');
+    });
+
+    it('never includes the curve even if includeCurve is explicitly false', () => {
+      const html = generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct, false);
+      expect(html).not.toContain('CURVA DE RENDIMIENTO');
+    });
+
+    it('only draws the curve when includeCurve is explicitly true and product is a pump with valid data', () => {
+      const html = generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct, true);
+      expect(html).toContain('CURVA DE RENDIMIENTO');
+    });
+  });
+
+  describe('generarHtmlCurva', () => {
+    const curveData: CurvaData = {
+      maxQ: 10,
+      maxH: 20,
+      qTicks: [0, 5, 10],
+      hTicks: [0, 10, 20],
+    };
+
+    it('generates a standalone HTML page with brand header, SKU and disclaimer', () => {
+      const html = generarHtmlCurva(curveData, mockProduct, 'logoBase64');
+
+      expect(html).toContain('<!DOCTYPE html>');
+      expect(html).toContain('Curva de Rendimiento (Estimada)');
+      expect(html).toContain(mockProduct.marca);
+      expect(html).toContain(mockProduct.modelo);
+      expect(html).toContain('logoBase64');
+      expect(html).toContain('no oficial del fabricante');
+      expect(html).toContain('<svg');
+    });
+  });
+
+  describe('generateAndShareCurvaPdf', () => {
+    const curveData: CurvaData = {
+      maxQ: 10,
+      maxH: 20,
+      qTicks: [0, 5, 10],
+      hTicks: [0, 10, 20],
+    };
+
+    it('prints and shares a PDF file named after the curve', async () => {
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: false });
+
+      await generateAndShareCurvaPdf(curveData, mockProduct, 'logoBase64');
+
+      expect(Print.printToFileAsync).toHaveBeenCalled();
+      expect(FileSystem.copyAsync).toHaveBeenCalledWith({ from: 'file:///mock/pdf/file.pdf', to: 'file:///mock/cache/CURVA_AMANA_BOMBA.pdf' });
+      expect(Sharing.shareAsync).toHaveBeenCalledWith('file:///mock/cache/CURVA_AMANA_BOMBA.pdf', expect.objectContaining({ mimeType: 'application/pdf' }));
     });
   });
 });
