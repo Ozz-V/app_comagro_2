@@ -10,7 +10,6 @@ import { estimateGenerador, estimateMotor } from '../utils/CapacityEstimator';
 import { ParsedProduct, CalcProduct, PumpWizardState, SpecTuple } from '../types';
 import { FRICCION_DIAMS, FIT_HEADERS, FIT_ROWS, interpolateFriction } from '../utils/frictionLogic';
 
-
 import { useRules } from '../hooks/useRules';
 import { DEFAULT_RULES } from '../services/rulesService';
 
@@ -24,7 +23,7 @@ type ExtendedCalcProduct = CalcProduct & {
   score?: number;
   displayValue?: string;
   isSinAltura?: boolean;
-  pairedSku?: string; // SKU asociado
+  pairedSku?: string;
 };
 
 type RulesCategory = typeof DEFAULT_RULES.categorias[0];
@@ -50,12 +49,12 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   const [motorResultTitle, setMotorResultTitle] = useState('Motores Sugeridos (Eje Libre):');
   const [hasCalculated, setHasCalculated] = useState(false);
   const [waitingForCatalog, setWaitingForCatalog] = useState(false);
+  
   const [showDiamPicker, setShowDiamPicker] = useState(false);
   const [showMotorHpPicker, setShowMotorHpPicker] = useState(false);
   const [showMotorPolosPicker, setShowMotorPolosPicker] = useState(false);
   const [showPumpHpPicker, setShowPumpHpPicker] = useState(false);
   
-  // Pre-read stats
   const [motorWarning, setMotorWarning] = useState<string | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [availableHps, setAvailableHps] = useState<number[]>([]);
@@ -71,7 +70,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       setWizardStep(1);
       setMotorState({ hp: '', polos: '', fase: '' });
       setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '', hp: '' });
-      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' });      setMotorWarning(null);
+      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' });      
+      setMotorWarning(null);
       setWaitingForCatalog(false);
     }
   }, [visible]);
@@ -83,32 +83,24 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     return parseFloat(m[1].replace(',', '.'));
   }
 
-  // Devuelve la tensión numérica de un producto leyendo sus specs.
-  // Regla: < 300V = monofásico, >= 300V = trifásico, null = sin dato (se muestra siempre)
   function getProductTension(p: ParsedProduct): number | null {
     if (!p.specs) return null;
     for (const s of p.specs) {
       const k = String(s[0]).toUpperCase();
       if (k.includes('TENSI') || k.includes('VOLTAJE') || k.includes('TENSION')) {
         const v = String(s[1]).toUpperCase();
-        
-        // Detección directa por texto (ignora barras y espacios como "230 / 400V")
-        if (v.includes('380') || v.includes('400') || v.includes('415') || v.includes('440') || v.includes('660')) return 380; // Trifásico
-        if (v.includes('220') || v.includes('230') || v.includes('240')) return 220; // Monofásico
-        
-        // Fallback numérico
+        if (v.includes('380') || v.includes('400') || v.includes('415') || v.includes('440') || v.includes('660')) return 380;
+        if (v.includes('220') || v.includes('230') || v.includes('240')) return 220; 
         const n = extractNum(v);
-        if (n && n > 50) return n; // ignorar valores ridículos tipo "0" o "1"
+        if (n && n > 50) return n; 
       }
     }
     return null;
   }
 
-  // Devuelve true si el producto es compatible con la fase seleccionada.
-  // Si no tiene tensión cargada, siempre es compatible (no excluir fichas incompletas).
   function matchesFase(p: ParsedProduct, fase: '220v' | '380v'): boolean {
     const tension = getProductTension(p);
-    if (tension === null) return true; // sin dato → siempre mostrar
+    if (tension === null) return true;
     if (fase === '220v') return tension < 300;
     return tension >= 300;
   }
@@ -119,7 +111,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     const lRecta = parseFloat(adv.lRecta) || 0;
     const hGeo = parseFloat(adv.hGeo) || 0;
     
-    // Si el caudal es tan alto que NINGÚN diámetro lo soporta, no calculamos fricción (quedaría por las nubes)
     const allDiamsInvalid = q > 0 && FRICCION_DIAMS.every((_, idx) => {
       const s = interpolateFriction(q, idx).status;
       return s === 'above' || s === 'sin-datos';
@@ -140,7 +131,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     return { hTotal: hTot, perdida: pFric, lTotal: lTot, status };
   }, [adv, bombaTab]);
 
-  // Extract specs accurately
   function parsePumpSpecs(p: ParsedProduct) {
      let maxCaudalLpm = 0;
      let maxAlturaMca = 0;
@@ -166,14 +156,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
             if (nums) {
                const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
-               // La unidad puede venir escrita en el VALOR ("180 L/MIN") o en
-               // el propio nombre de la columna de Plytix ("Caudal (m3/h)"),
-               // según cómo esté cargado cada producto. Miramos los dos
-               // lugares para no asumir L/min por error cuando en realidad
-               // es m3/h o L/h (eso hacía que bombas quedaran mal calculadas
-               // por un factor de hasta 60x).
                const unitHint = valStr + ' ' + key;
-               let valLpm = maxNum; // default: L/min (o sin unidad detectada)
+               let valLpm = maxNum; 
                if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M^3/H') || unitHint.includes('M3H')) {
                   valLpm = (maxNum * 1000) / 60;
                } else if (unitHint.includes('L/H') || unitHint.includes('LT/H') || unitHint.includes('LTS/H')) {
@@ -198,6 +182,19 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             if (valStr.includes('220') || valStr.includes('MONO')) is220 = true;
          }
        });
+       
+       // SOLUCIÓN 3: Detectar el HP requerido para cuerpos sumergibles que no tienen motor propio
+       let cuerpoHpReq = 0;
+       p.specs.forEach((s: SpecTuple) => {
+           const match = String(s[1]).match(/PARA\s+MOTOR\s+([\d.,]+)\s*HP/i);
+           if (match) {
+               const m = parseFloat(match[1].replace(',', '.'));
+               if (m > cuerpoHpReq) cuerpoHpReq = m;
+           }
+       });
+       if (hpVal === 0 && cuerpoHpReq > 0) {
+           hpVal = cuerpoHpReq;
+       }
      }
      
       let isEjeLibreOrCombustion = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR');
@@ -221,23 +218,23 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380, isEjeLibre };
   }
 
-  // Pre-read stats effect
+  // Pre-read stats para rellenar opciones HP
   useEffect(() => {
     if (wizardStep === 2 && calcMode === 'bomba' && pumpWizard.uso) {
       setStatsLoading(true);
       const usoConf = reglas.categorias.find((u: any) => u.id === pumpWizard.uso);
       getProductsBySubcategory('BOMBA', true).then(dbProducts => {
-         let mxQ = 0;
-         let mxH = 0;
+         // SOLUCIÓN 2: Aplicar las limitaciones de categoría para que no salgan en el Picker
          const hpSet = new Set<number>();
          dbProducts.forEach(p => {
             const sub = String(p.subcategoria).toUpperCase();
             const nom = String(p.modelo).toUpperCase();
             if (usoConf && usoConf.tipos.some(t => sub.includes(t) || nom.includes(t))) {
                const specs = parsePumpSpecs(p as ParsedProduct);
-               if (specs.maxCaudalLpm > mxQ) mxQ = specs.maxCaudalLpm;
-               if (specs.maxAlturaMca > mxH) mxH = specs.maxAlturaMca;
-               if (specs.hpVal > 0) hpSet.add(specs.hpVal);
+               let skipHp = false;
+               if (pumpWizard.uso === 'vivienda' && specs.hpVal > (reglas?.filtros?.vivienda?.maxHp || 3)) skipHp = true;
+               
+               if (!skipHp && specs.hpVal > 0) hpSet.add(specs.hpVal);
             }
          });
          setAvailableHps(Array.from(hpSet).sort((a, b) => a - b));
@@ -420,7 +417,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           const displayValue = ampers ? `${val} KVA (Corriente: ${ampers}A)` : `${val} KVA`;
           return { ...p, calcVal: val, displayValue };
         }).filter((p: ExtendedCalcProduct) => p.calcVal > 0)
-        .filter((p: ExtendedCalcProduct) => matchesFase(p, genFase)) // filtrar por tensión
+        .filter((p: ExtendedCalcProduct) => matchesFase(p, genFase))
         .sort((a: ExtendedCalcProduct, b: ExtendedCalcProduct) => {
           const aSuf = a.calcVal >= targetKva;
           const bSuf = b.calcVal >= targetKva;
@@ -482,11 +479,10 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            reqFase = pumpWizard.fase;
            targetCaudalLpm = getTargetCaudalLpm();
         } else {
-           // Modo avanzado: convertir caudal a L/min según unidad seleccionada
            const advCaudalRaw = parseFloat(adv.caudal) || 0;
            if (adv.unidadCaudal === 'm3/h') targetCaudalLpm = advCaudalRaw * (1000 / 60);
            else if (adv.unidadCaudal === 'l/h') targetCaudalLpm = advCaudalRaw / 60;
-           else targetCaudalLpm = advCaudalRaw; // L/min por defecto
+           else targetCaudalLpm = advCaudalRaw; 
            targetCaudalInput = targetCaudalLpm;
            targetAlturaInput = hTotal;
            reqFase = '';
@@ -495,19 +491,16 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         let targetHp = (targetCaudalLpm * targetAlturaInput) / reglas.matematica.divisorHpTeorico;
         if (targetHp > 0 && targetHp < 0.5) targetHp = 0.5;
         
-        // Pool de bombas: traer BOMBA + CUERPO SUMERGIBLE en una sola query unificada
         const [dbBombas, dbCuerpos] = await Promise.all([
            getProductsBySubcategory('BOMBA', true),
            getProductsBySubcategory('CUERPO SUMERGIBLE', true),
         ]);
-        // Unir evitando duplicados por SKU
         const skuSet = new Set(dbBombas.map(p => p.modelo));
         const dbProducts = [...dbBombas, ...dbCuerpos.filter(c => !skuSet.has(c.modelo))];
 
         let pool = dbProducts;
         const usoConf = reglas.categorias.find((u: any) => u.id === pumpWizard.uso);
         
-        // ── FILTRO POR CATEGORÍA ──────────────────────────────────────────────
         const targetHpInput = parseFloat(pumpWizard.hp || '0') || 0;
 
         if (usoConf) {
@@ -515,27 +508,23 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               const sub = String(p.subcategoria).toUpperCase();
               const nom = String(p.modelo).toUpperCase();
 
-              // Solo pasan los tipos definidos en la categoría
               if (!usoConf.tipos.some(t => sub.includes(t) || nom.includes(t))) return false;
 
-              // ── FILTRO POR HP SELECCIONADO ──
               const specs = parsePumpSpecs(p as ParsedProduct);
+              
+              // SOLUCIÓN 2: Restricciones firmes por categoría, antes de evaluar si hizo match explícito
+              if (pumpWizard.uso === 'vivienda') {
+                 if (specs.hpVal > (reglas?.filtros?.vivienda?.maxHp || 3)) return false;
+              }
+              if (pumpWizard.uso === 'riego_presion') {
+                 if (specs.hpVal > 0 && specs.hpVal < (reglas?.filtros?.industrial?.minHp || 3)) return false;
+              }
+
               if (targetHpInput > 0) {
                  if (specs.hpVal !== targetHpInput) return false;
               } else {
-                 // Si no hay HP seleccionado explícitamente, aplican las reglas normales de la categoría
-                 // ── VIVIENDA: doble barrera (HP + Caudal como fallback) ──
                  if (pumpWizard.uso === 'vivienda') {
-                    // Si tiene HP explícito → debe ser <= 3 HP
-                    if (specs.hpVal > reglas.filtros.vivienda.maxHp) return false;
-                    // Si no tiene HP pero tiene caudal → caudal máx 165 L/min (~10 m³/h)
-                    if (specs.hpVal === 0 && specs.maxCaudalLpm > reglas.filtros.vivienda.maxCaudalLpm) return false;
-                 }
-
-                 // ── INDUSTRIAL: piso de 3 HP (excluir domésticas explícitas) ──
-                 if (pumpWizard.uso === 'riego_presion') {
-                    // Si tiene HP explícito y es < 3 → excluir
-                    if (specs.hpVal > 0 && specs.hpVal < reglas.filtros.industrial.minHp) return false;
+                    if (specs.hpVal === 0 && specs.maxCaudalLpm > (reglas?.filtros?.vivienda?.maxCaudalLpm || 165)) return false;
                  }
               }
 
@@ -543,7 +532,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            });
         }
         
-        // Strict fuel filter
         if (usoConf?.forzarCombustible) {
            pool = pool.filter(p => {
              const sub = String(p.subcategoria).toUpperCase();
@@ -587,31 +575,24 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            return { ...p, calcVal: specs.hpVal, score, displayValue: displayVal, isSinAltura: specs.maxAlturaMca === 0, _q: specs.maxCaudalLpm, _h: specs.maxAlturaMca, _is220: specs.is220, _is380: specs.is380, _isEjeLibre: specs.isEjeLibre } as any;
         });
 
-        // 75% Filter
         let conAltura = mapped.filter(p => !p.isSinAltura);
         let sinAltura = mapped.filter(p => p.isSinAltura);
 
-        const tolCurva = reglas.matematica.toleranciaCurva || 1.15; // 15% de margen extra por si acaso
+        const tolCurva = reglas.matematica.toleranciaCurva || 1.15; 
         const minCaudalTol = reglas.matematica.toleranciaCaudalMinimo || 0.85;
 
-        // Si el usuario seleccionó HP manualmente, NOS SALTAMOS el filtrado de la curva teórica y caudal máximo.
-        // Solo ordenamos para que los que se acercan más a los datos de caudal/altura extra (si los puso) queden arriba.
         if (targetHpInput > 0) {
-           // Solo ordenamos por score (si puso Q/H se calcula en base a cuan cerca están)
         } else if (targetCaudalLpm > 0 && targetAlturaInput > 0) {
            const maxMultiplo = reglas.matematica.maxMultiploCaudalPermitido ?? 8;
            conAltura = conAltura.filter(p => {
               const qmax = (p as any)._q;
               const hmax = (p as any)._h;
-              // Nunca sugerir bombas con caudal máximo > N veces lo requerido
               if (qmax > targetCaudalLpm * maxMultiplo) return false;
               if (qmax < targetCaudalLpm * minCaudalTol || hmax < targetAlturaInput) return false;
-              // Verificar si el punto de operación cae bajo la curva teórica (H = Hmax * (1 - (Q/Qmax)^2))
               const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
               return curvaH >= targetAlturaInput && curvaH <= targetAlturaInput * (tolCurva + 0.5);
            });
            
-           // Ordenar por qué tan cerca está la curva de lo requerido (score dinámico basado en la física)
            const pesoExcesoH    = reglas.matematica.pesoExcesoH    ?? 1.0;
            const pesoExcesoQmax = reglas.matematica.pesoExcesoQmax ?? 0.5;
            const pesoExcesoHmax = reglas.matematica.pesoExcesoHmax ?? 0.2;
@@ -637,7 +618,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            sinAltura = sinAltura.filter(p => (p as any)._q >= targetCaudalLpm * minCaudalTol || ((p as any)._q === 0 && (p as any)._isEjeLibre));
         }
         
-        // Fase Filter
         if (reqFase === 'sinelec') {
            conAltura = conAltura.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
            sinAltura = sinAltura.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
@@ -647,7 +627,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         } else if (reqFase === '380v') {
            conAltura = conAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
            sinAltura = sinAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
-}
+        }
 
         conAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
         sinAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
@@ -671,8 +651,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         setMotorWarning(null);
         if (hasEjeLibre) {
             const ejeLibrePumps = filtered.filter(checkNeedsMotor);
-            // Traer SOLO motores eléctricos reales: eléctricos de superficie Y sumergibles
-            // La query %MOTOR% trae llaves motorizadas y otros accesorios - aquí los excluimos
             const [dbMotoresElec, dbMotoresSub] = await Promise.all([
                getProductsBySubcategory('MOTOR ELÉCTRICO', true),
                getProductsBySubcategory('MOTOR SUMERGIBLE', true),
@@ -693,9 +671,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                 
                 const pumpTargetHp = (pump.calcVal > 0 && rawHp === pump.calcVal) ? rawHp : rawHp * reglas.matematica.margenSeguridadMotor;
                 
-                // Si faltan datos y el HP calculado es 0, no podemos saber el target,
-                // pero por la "Regla Universal" DEBEMOS sugerir un motor. Asignamos un número inalcanzable
-                // para que caiga en el bloque de 'Plan B' (sugerir el mayor posible).
                 const searchHp = pumpTargetHp === 0 ? 999999 : pumpTargetHp;
                 
                 if (pumpTargetHp > highestTargetHp) highestTargetHp = pumpTargetHp;
@@ -707,7 +682,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                     const mMod = String(m.modelo).toUpperCase();
                     const isMotorSumergible = mSub.includes('SUMERGIBLE') || mMod.includes('SUMERGIBLE') || mMod.includes('4PD') || mMod.includes('6PD');
                     const tipoOk = isPumpSumergible ? isMotorSumergible : !isMotorSumergible;
-                    // Filtrar también por tensión si el vendedor la seleccionó
                     const faseOk = pumpWizard.fase === '220v' || pumpWizard.fase === '380v'
                        ? matchesFase(m, pumpWizard.fase as '220v' | '380v')
                        : true;
@@ -723,13 +697,11 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                          }
                       });
                    }
-                   // Excluir motores con 0 HP asignándoles score alto
                    return { ...m, calcVal: mHp, score: (mHp > 0 && mHp >= searchHp) ? mHp - searchHp : 9999 };
                 });
 
                 let selectedMotors = validMotors.filter(m => m.calcVal > 0 && m.calcVal >= searchHp && m.calcVal <= searchHp * 1.20);
                 
-                // Si no hay motores en ese rango (ej: la bomba pide 2500 HP y el mayor es 500 HP)
                 if (selectedMotors.length === 0) {
                     const maxCatalogHp = Math.max(...validMotors.map((m: any) => m.calcVal || 0), 0);
                     selectedMotors = validMotors.filter(m => m.calcVal === maxCatalogHp && maxCatalogHp > 0);
@@ -743,7 +715,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                             m.displayValue = `Máx cap. ${maxCatalogHp} HP`;
                             if (pumpTargetHp > highestTargetHp) {
                                 if (targetAlturaInput > 0 && targetCaudalLpm > 0) {
-                                    // Calcular limitación real si mantenemos el caudal constante
                                     const maxMCA = (maxCatalogHp * reglas.matematica.divisorHpBomba) / targetCaudalLpm;
                                     setMotorWarning(`⚠️ Requiere ~${Math.round(pumpTargetHp)} HP. Con este motor máximo (${maxCatalogHp} HP), solo elevará hasta ${maxMCA.toFixed(0)} MCA.`);
                                 } else {
@@ -773,9 +744,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             setMotorResultTitle('Motores Sugeridos:');
         }
 
-        // Caso inverso: si el resultado principal es un MOTOR SUMERGIBLE
-        // suelto (sin cuerpo), no sirve de nada solo — hace falta sugerir
-        // el cuerpo sumergible que le corresponde.
         if (mResults.length === 0) {
            const motorSumergibleSolo = filtered.find(p => {
               const sub = String(p.subcategoria).toUpperCase();
@@ -811,7 +779,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            }
         }
 
-        // Sugerencia de Paneles Solares para Bombas Solares
         if (mResults.length === 0) {
            const bombaSolar = filtered.find(p => {
               const sub = String(p.subcategoria).toUpperCase();
@@ -820,7 +787,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            });
 
            if (bombaSolar && bombaSolar.calcVal > 0) {
-               // Reparar lectura de Watts de la bomba (para que "350 W" no se multiplique por 745 como si fueran HP)
                let pumpWatts = 0;
                if (bombaSolar.specs) {
                    for (const s of bombaSolar.specs) {
@@ -829,17 +795,16 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                        if (k.includes('POTENCIA')) {
                            const n = extractNum(v);
                            if (n) {
-                               if (v.includes('W') && !v.includes('KW')) pumpWatts = n; // Esta en Watts puros
+                               if (v.includes('W') && !v.includes('KW')) pumpWatts = n; 
                                else if (v.includes('KW')) pumpWatts = n * 1000;
-                               else pumpWatts = n * 745.7; // Asumir HP
+                               else pumpWatts = n * 745.7; 
                            }
                        }
                    }
                }
-               // Fallback por si no lo encontramos
                if (pumpWatts === 0) pumpWatts = bombaSolar.calcVal * 745.7; 
 
-               const targetPanelWatts = pumpWatts * 1.4; // 40% margin recommended for solar
+               const targetPanelWatts = pumpWatts * 1.4; 
 
                const dbPaneles = await getProductsBySubcategory('PANEL SOLAR', true);
                const validPaneles = dbPaneles.map((p: ParsedProduct): ExtendedCalcProduct => {
@@ -847,7 +812,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                    if (p.specs) {
                       for (const s of p.specs) {
                          const k = String(s[0]).toUpperCase();
-                         // Ignorar atributos que digan VOLTAJE o TENSION para no pisar la potencia real
                          if ((k.includes('POTENCIA') || k.includes('WATT')) && !k.includes('VOLTAJE') && !k.includes('TENSIÓN')) {
                              const n = extractNum(String(s[1]));
                              if (n && n > 10) panelWatts = n;
@@ -859,7 +823,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                        if (match) panelWatts = parseInt(match[1]);
                    }
                    return { ...p, calcVal: panelWatts, score: panelWatts > 0 ? 1 : 9999 };
-               }).filter(p => p.calcVal > 0).sort((a,b) => b.calcVal - a.calcVal); // prefer bigger panels
+               }).filter(p => p.calcVal > 0).sort((a,b) => b.calcVal - a.calcVal); 
 
                if (validPaneles.length > 0) {
                    const bestPanel = validPaneles[0];
@@ -1027,7 +991,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         ))}
                       </View>
 
-                      {/* ── Textos dinámicos desde Supabase (fallback offline) ── */}
                       {(() => {
                         const tx = (reglas as any)?.textos ?? {};
                         const tCaudal   = tx.label_caudal   ?? 'Caudal (m\u00b3/h)';
@@ -1040,7 +1003,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         const tAvisoDiamBloq   = tx.aviso_diametro_bloqueado    ?? 'Rango supera tabla de fricci\u00f3n';
                         const tAvisoSinCaudal  = tx.aviso_sin_caudal            ?? 'Ingres\u00e1 el caudal para buscar';
 
-                        // ── Validación de diámetro ──
                         const advQ = parseFloat(adv.caudal) || 0;
                         const currentDiamSt = advQ > 0 ? interpolateFriction(advQ, adv.diamIdx).status : 'ok';
                         const currentDiamInvalid = currentDiamSt === 'above' || currentDiamSt === 'sin-datos';
@@ -1287,11 +1249,9 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                                kva380 = (genValInput * 380 * 1.732) / 1000;
                            }
                            
-                           // Disable if input falls way out of real bounds (30% margin)
                            const is220Disabled = genValInput > 0 && genStats.max220 > 0 && kva220 > genStats.max220 * 1.3;
                            const is380Disabled = genValInput > 0 && genStats.min380 > 0 && kva380 < genStats.min380 * 0.7;
 
-                           // Auto-correct phase selection if disabled
                            if (is220Disabled && genFase === '220v') setTimeout(() => setGenFase('380v'), 0);
                            if (is380Disabled && genFase === '380v') setTimeout(() => setGenFase('220v'), 0);
 
@@ -1493,7 +1453,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       showsHorizontalScrollIndicator={false}
                       keyExtractor={(item, index) => item.modelo + index}
                       renderItem={({ item }) => {
-                        // The motor is paired TO a pump. The pump's sku is item.pairedSku
                         const parentColor = item.pairedSku ? pumpColorMap.get(item.pairedSku) : null;
                         const borderColor = parentColor || COLORS.green;
                         return (
@@ -1535,6 +1494,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           </ScrollView>
         </View>
 
+        {/* SOLUCIÓN 1: Se agregó style={{ flexShrink: 1, width: '100%' }} a todos los ScrollView de los Modales */}
         <Modal visible={showDiamPicker} transparent animationType="fade" onRequestClose={() => setShowDiamPicker(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
             <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 20, maxHeight: '80%' }}>
@@ -1542,7 +1502,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               <Text style={{ fontSize: 12, color: COLORS.gray3, marginBottom: 15, textAlign: 'center' }}>
                 {parseFloat(adv.caudal) > 0 ? `Para ${adv.caudal} ${adv.unidadCaudal} — los grises no son válidos` : 'Ingresá el caudal primero para ver opciones válidas'}
               </Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flexShrink: 1, width: '100%' }} showsVerticalScrollIndicator={true}>
                 {FRICCION_DIAMS.map((d, index) => {
                   const qRaw = parseFloat(adv.caudal) || 0;
                   let qM3h = qRaw;
@@ -1578,7 +1538,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
             <View style={{ width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 20, maxHeight: '75%' }}>
               <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 15, textAlign: 'center' }}>Seleccionar Potencia (HP)</Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flexShrink: 1, width: '100%' }} showsVerticalScrollIndicator={true}>
                 {motorState.hp !== '' && (
                   <TouchableOpacity
                     style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' }}
@@ -1614,7 +1574,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
             <View style={{ width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 20, maxHeight: '75%' }}>
               <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 15, textAlign: 'center' }}>Seleccionar Polos</Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flexShrink: 1, width: '100%' }} showsVerticalScrollIndicator={true}>
                 {motorState.polos !== '' && (
                   <TouchableOpacity
                     style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' }}
@@ -1650,7 +1610,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
             <View style={{ width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 20, maxHeight: '75%' }}>
               <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 15, textAlign: 'center' }}>Seleccionar Potencia (HP)</Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flexShrink: 1, width: '100%' }} showsVerticalScrollIndicator={true}>
                 {pumpWizard.hp !== '' && (
                   <TouchableOpacity
                     style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' }}
@@ -2111,4 +2071,3 @@ const styles = StyleSheet.create({
     color: COLORS.navy
   }
 });
-
