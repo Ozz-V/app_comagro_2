@@ -1,8 +1,7 @@
 import * as Sentry from '@sentry/react-native';
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
-import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -30,6 +29,7 @@ interface DashboardData {
   brands?: AnalyticsRankItem[];
   users?: (AnalyticsRankItem & { user_email: string })[];
 }
+
 function getPeriodDate(p: string): string | null {
   if (p === 'today') {
     const d = new Date();
@@ -40,6 +40,7 @@ function getPeriodDate(p: string): string | null {
   if (p === '30d') return new Date(Date.now() - 30 * 86400000).toISOString();
   return null;
 }
+
 function getPrevPeriodDate(p: string): string | null {
   if (p === 'today') {
     const d = new Date();
@@ -71,117 +72,6 @@ function getTrend(cur: number, prev: number): string {
   return '→';
 }
 
-function ProgressBar({ value, max, color }: { value: number, max: number, color: string }) {
-  const w = max > 0 ? Math.max(8, (value / max) * 100) : 0;
-  return (
-    <View style={s.progressBarTrack}>
-      <View style={[s.progressBarFill, { width: `${w}%`, backgroundColor: color }]} />
-    </View>
-  );
-}
-
-function MiniBar({ label, count, max, color }: { label: string, count: number, max: number, color: string }) {
-  const w = max > 0 ? Math.max(5, (count / max) * 100) : 0;
-  return (
-    <View style={s.miniBarWrap}>
-      <View style={s.miniBarTop}>
-        <Text style={s.miniBarLabel} numberOfLines={1}>{label}</Text>
-        <Text style={s.miniBarCount}>{count}</Text>
-      </View>
-      <View style={s.miniBarTrack}>
-        <View style={[s.miniBarFill, { width: `${w}%`, backgroundColor: color }]} />
-      </View>
-    </View>
-  );
-}
-
-function RankItem({ item, maxCount, color, imageMap, navigation }: { item: AnalyticsRankItem, maxCount: number, color: string, imageMap: Record<string, string>, navigation: any }) {
-  const modelOrSku = item.modelo || item.marca || '';
-  const imgUrl = imageMap[modelOrSku] || null;
-  const [sessionKey] = useState(() => Date.now().toString());
-  const logoUrl = `${LOGO_BASE}${(item.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg?v=${sessionKey}`;
-  const handleProductPress = (it: AnalyticsRankItem) => {
-    navigation.navigate('ProductViewer', { sku: it.modelo || it.marca });
-  };
-  return (
-    <TouchableOpacity style={s.rankItem} activeOpacity={0.7} onPress={() => handleProductPress(item)}>
-      <Image source={{ uri: imgUrl || logoUrl }} style={s.rankImg} contentFit="contain" />
-      <View style={s.rankItemTextContainer}>
-        <Text style={s.rankModelo} numberOfLines={1}>{item.modelo}</Text>
-        <Text style={s.rankMarca}>{item.marca}</Text>
-        <ProgressBar value={item.count} max={maxCount} color={color} />
-      </View>
-      <Text style={[s.rankCount, { color }]}>{item.count}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function BrandBar({ marca, count, maxCount }: { marca: string, count: number, maxCount: number }) {
-  const w = maxCount > 0 ? Math.max(8, (count / maxCount) * 100) : 0;
-  return (
-    <View style={s.brandRow}>
-      <Text style={s.brandName} numberOfLines={1}>{marca}</Text>
-      <View style={s.brandProgressBarTrack}>
-        <View style={[s.brandProgressBarFill, { width: `${w}%` }]} />
-      </View>
-      <Text style={s.brandCount}>{count}</Text>
-    </View>
-  );
-}
-
-function UserBar({ email, count, maxCount, onUserClick }: { email: string, count: number, maxCount: number, onUserClick?: (e: string) => void }) {
-  const w = maxCount > 0 ? Math.max(8, (count / maxCount) * 100) : 0;
-  const short = email.split('@')[0];
-  return (
-    <TouchableOpacity style={s.brandRow} activeOpacity={0.7} onPress={() => onUserClick && onUserClick(email)}>
-      <Text style={s.brandName} numberOfLines={1}>{short}</Text>
-      <View style={s.brandProgressBarTrack}>
-        <View style={[s.userProgressBarFill, { width: `${w}%` }]} />
-      </View>
-      <Text style={s.brandCount}>{count}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function AnalyticsCard({ title, items, color, iconName, emptyText, isExpanded, onExpand, isWide, type, imageMap, navigation, onUserClick }: any) {
-  if (!items) return null;
-  const max = items[0]?.count || 1;
-  return (
-    <TouchableOpacity style={[s.gridCard, (isWide || isExpanded) && s.gridCardWide]} onPress={onExpand} activeOpacity={0.8}>
-      <View style={s.gridCardHeader}>
-        <View style={[s.cardIconBg, { backgroundColor: color + '1A' }]}>
-          <SvgIcon name={iconName} size={16} color={color} />
-        </View>
-        <Text style={s.cardChevron}>{isExpanded ? '∨' : '›'}</Text>
-      </View>
-      <Text style={s.gridCardTitle}>{title}</Text>
-      
-      <View style={s.gridCardContent}>
-        {!isExpanded ? (
-          items.length === 0 ? <Text style={s.cardEmpty}>{emptyText}</Text> : (
-            <View style={s.miniBarsContainer}>
-              {items.slice(0, 3).map((it: any, i: number) => (
-                <MiniBar key={i} label={it.modelo || it.user_email || it.marca || 'Desc.'} count={it.count} max={max} color={color} />
-              ))}
-            </View>
-          )
-        ) : (
-          items.length === 0 ? <Text style={s.cardEmpty}>{emptyText}</Text> : (
-            <View style={s.expandedList}>
-              {items.map((it: any, i: number) => {
-                if (type === 'product') return <RankItem key={i} item={it} maxCount={max} color={color} imageMap={imageMap} navigation={navigation} />;
-                if (type === 'brand') return <BrandBar key={i} marca={it.marca || ''} count={it.count} maxCount={max} />;
-                if (type === 'user') return <UserBar key={i} email={it.user_email} count={it.count} maxCount={max} onUserClick={onUserClick} />;
-                return null;
-              })}
-            </View>
-          )
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 export default function DashboardAnalytics({ navigation, onUserClick, onTabChange }: { navigation: any, onUserClick?: (email: string) => void, onTabChange?: (tab: 'mine' | 'general') => void }) {
   const [tab, setTab] = useState<'mine' | 'general'>('mine');
   const [period, setPeriod] = useState('all');
@@ -200,7 +90,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
 
   useEffect(() => {
     onTabChange?.(tab);
-    setExpandedCard(null); // Cerrar tarjetas al cambiar pestaña
+    setExpandedCard(null); 
   }, [tab, onTabChange]);
 
   const isMounted = React.useRef(true);
@@ -426,27 +316,6 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
             <div class="kpi-card"><div class="kpi-title">Compartidos</div><div class="kpi-val" style="color: #0D8A39;">${cleanText(d.shares)}</div></div>
             ${tab === 'general' ? `<div class="kpi-card"><div class="kpi-title">Usuarios Activos</div><div class="kpi-val" style="color: #6A1B9A;">${d.users?.length || 0}</div></div>` : ''}
         </div>
-        <div class="chart-box">
-            <div class="kpi-title" style="margin-bottom: 2px;">Historial de Uso (${pLabel})</div>
-            <svg viewBox="0 0 500 60" preserveAspectRatio="none" style="width: 100%; height: 100%;">
-                <defs>
-                    <linearGradient id="gpdf" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stop-color="#007db8" stop-opacity="0.2"/><stop offset="100%" stop-color="#007db8" stop-opacity="0"/>
-                    </linearGradient>
-                </defs>
-                <line x1="0" y1="12" x2="500" y2="12" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3" />
-                <line x1="0" y1="28" x2="500" y2="28" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3" />
-                <path d="M0,45 L0,35 Q75,15 150,25 T300,12 T450,20 L500,15 L500,45 Z" fill="url(#gpdf)"/>
-                <path d="M0,35 Q75,15 150,25 T300,12 T450,20 L500,15" fill="none" stroke="#007db8" stroke-width="2" stroke-linecap="round"/>
-                <circle cx="0" cy="35" r="2.5" fill="#fff" stroke="#007db8" stroke-width="1.5"/>
-                <circle cx="500" cy="15" r="2.5" fill="#fff" stroke="#007db8" stroke-width="1.5"/>
-                <text x="0" y="56" font-size="8" fill="#6B778C" text-anchor="start">${period === 'today' ? '00:00' : period === '7d' ? '-7d' : period === '30d' ? '-30d' : 'Inicio'}</text>
-                <text x="125" y="56" font-size="8" fill="#6B778C" text-anchor="middle">${period === 'today' ? '06:00' : period === '7d' ? '-5d' : period === '30d' ? '-20d' : ''}</text>
-                <text x="250" y="56" font-size="8" fill="#6B778C" text-anchor="middle">${period === 'today' ? '12:00' : period === '7d' ? '-3d' : period === '30d' ? '-10d' : 'Medio'}</text>
-                <text x="375" y="56" font-size="8" fill="#6B778C" text-anchor="middle">${period === 'today' ? '18:00' : period === '7d' ? '-1d' : period === '30d' ? '-5d' : ''}</text>
-                <text x="500" y="56" font-size="8" fill="#6B778C" text-anchor="end">${period === 'today' ? '23:59' : 'Hoy'}</text>
-            </svg>
-        </div>
         <div class="grid-2x2">
             ${d.topV.length > 0 ? `<div class="list-card"><div class="list-title">Top Productos Más Vistos</div><div class="list-items">${renderList(d.topV, maxV, 'vistas')}</div></div>` : ''}
             ${d.topSh.length > 0 ? `<div class="list-card"><div class="list-title">Top Productos Compartidos</div><div class="list-items">${renderList(d.topSh, maxSh, 'compartidos')}</div></div>` : ''}
@@ -549,39 +418,31 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
       {loading && !data.views ? (
         <ActivityIndicator size="large" color={COLORS.navy} style={s.loader} />
       ) : (
-        <ScrollView style={s.contentArea} contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+        <View style={s.contentArea}>
+          
           <View style={s.rowTotals}>
              <View style={s.cardTotal}>
                 <Text style={s.cardTitle}>Vistas Totales</Text>
-                <Text style={s.totalValue}>{cleanText(data.views)}</Text>
+                <View style={s.kpiRow}>
+                  <Text style={s.totalValue}>{cleanText(data.views)}</Text>
+                  {period !== 'all' && (
+                    <Text style={[s.trendText, { color: (data.views >= (data.prevViews || 0)) ? COLORS.green : '#E53935' }]}>
+                      {getTrend(data.views, data.prevViews || 0)}
+                    </Text>
+                  )}
+                </View>
              </View>
              <View style={s.cardTotal}>
                 <Text style={s.cardTitle}>Compartidos</Text>
-                <Text style={s.totalValue}>{cleanText(data.shares)}</Text>
+                <View style={s.kpiRow}>
+                  <Text style={s.totalValue}>{cleanText(data.shares)}</Text>
+                  {period !== 'all' && (
+                    <Text style={[s.trendText, { color: (data.shares >= (data.prevShares || 0)) ? COLORS.green : '#E53935' }]}>
+                      {getTrend(data.shares, data.prevShares || 0)}
+                    </Text>
+                  )}
+                </View>
              </View>
-          </View>
-
-          <View style={s.cardChart}>
-            <Text style={[s.cardTitle, { marginBottom: 2 }]}>Historial de Uso</Text>
-            <Svg viewBox="0 0 300 80" preserveAspectRatio="none" style={s.svgChart}>
-                <Defs>
-                    <LinearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                        <Stop offset="0%" stopColor={COLORS.celeste || '#007db8'} stopOpacity="0.3"/>
-                        <Stop offset="100%" stopColor={COLORS.celeste || '#007db8'} stopOpacity="0"/>
-                    </LinearGradient>
-                </Defs>
-                <Line x1="0" y1="15" x2="300" y2="15" stroke="#E8ECF0" strokeWidth="1" strokeDasharray="2,2" />
-                <Line x1="0" y1="35" x2="300" y2="35" stroke="#E8ECF0" strokeWidth="1" strokeDasharray="2,2" />
-                <Path d="M0,50 L0,40 Q30,20 60,30 T120,15 T180,25 T240,10 T300,20 L300,50 Z" fill="url(#grad)"/>
-                <Path d="M0,40 Q30,20 60,30 T120,15 T180,25 T240,10 T300,20" fill="none" stroke={COLORS.celeste || '#007db8'} strokeWidth="2" strokeLinecap="round" />
-                <Circle cx="0" cy="40" r="2.5" fill="#fff" stroke={COLORS.celeste || '#007db8'} strokeWidth="1.5"/>
-                <Circle cx="300" cy="20" r="2.5" fill="#fff" stroke={COLORS.celeste || '#007db8'} strokeWidth="1.5"/>
-                <SvgText x="0" y="72" fontSize="9" fill="#6B778C" textAnchor="start">{period === 'today' ? '00:00' : period === '7d' ? '-7d' : period === '30d' ? '-30d' : 'Inicio'}</SvgText>
-                <SvgText x="75" y="72" fontSize="9" fill="#6B778C" textAnchor="middle">{period === 'today' ? '06:00' : period === '7d' ? '-5d' : period === '30d' ? '-20d' : 'Hace 60d'}</SvgText>
-                <SvgText x="150" y="72" fontSize="9" fill="#6B778C" textAnchor="middle">{period === 'today' ? '12:00' : period === '7d' ? '-3d' : period === '30d' ? '-10d' : 'Hace 30d'}</SvgText>
-                <SvgText x="225" y="72" fontSize="9" fill="#6B778C" textAnchor="middle">{period === 'today' ? '18:00' : period === '7d' ? '-1d' : period === '30d' ? '-5d' : 'Hace 15d'}</SvgText>
-                <SvgText x="300" y="72" fontSize="9" fill="#6B778C" textAnchor="end">{period === 'today' ? '23:59' : 'Hoy'}</SvgText>
-            </Svg>
           </View>
 
           <View style={s.row}>
@@ -617,7 +478,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
                 <View style={[s.cardList, {backgroundColor: 'transparent', elevation: 0, borderWidth: 0, shadowOpacity: 0}]} />
              )}
           </View>
-        </ScrollView>
+        </View>
       )}
     </View>
   );
@@ -638,54 +499,27 @@ const s = StyleSheet.create({
   filterPillText: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4 },
   filterPillTextActive: { color: COLORS.white },
   loader: { marginTop: 40 },
+  
   contentArea: { flex: 1, paddingHorizontal: 10 },
   rowTotals: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  row: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  row: { flexDirection: 'row', gap: 10, marginBottom: 10, flex: 1 },
+  
   cardTotal: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
-  cardChart: { height: 115, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, paddingBottom: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, marginBottom: 10 },
-  cardList: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, paddingBottom: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
-  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 0.5 },
-  totalValue: { fontFamily: FONTS.heading, fontSize: 20, fontWeight: '800', color: COLORS.navy },
-  svgChart: { width: '100%', height: '100%', marginTop: 2 },
-  listContainer: { flex: 1, justifyContent: 'flex-start', gap: 6 },
+  kpiRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  trendText: { fontFamily: FONTS.bodySemi, fontSize: 11 },
+  
+  cardList: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 8, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, overflow: 'hidden' },
+  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 9, color: COLORS.gray4, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 0.5 },
+  totalValue: { fontFamily: FONTS.heading, fontSize: 22, fontWeight: '800', color: COLORS.navy },
+  
+  listContainer: { flex: 1, justifyContent: 'space-evenly' },
   listItem: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 },
-  itemImg: { width: 24, height: 24, borderRadius: 4, backgroundColor: '#F0F4F8' },
-  itemAvatar: { borderRadius: 12 },
-  itemBrand: { borderRadius: 6, borderWidth: 1, borderColor: '#eee' },
+  itemImg: { width: 20, height: 20, borderRadius: 4, backgroundColor: '#F0F4F8' },
+  itemAvatar: { borderRadius: 10 },
+  itemBrand: { borderRadius: 4, borderWidth: 1, borderColor: '#eee' },
   itemInfo: { flex: 1, minWidth: 0 },
   itemName: { fontFamily: FONTS.bodySemi, fontSize: 9, color: COLORS.navy, marginBottom: 2 },
   itemCount: { fontFamily: FONTS.heading, fontSize: 10, fontWeight: '800', width: 25, textAlign: 'right' },
   progressBg: { height: 3, backgroundColor: '#E8ECF0', borderRadius: 1.5, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 1.5 },
-  // Legacy styles used by AnalyticsCard sub-components
-  progressBarTrack: { flex: 1, height: 6, backgroundColor: '#E8ECF0', borderRadius: 3, marginHorizontal: 8 },
-  progressBarFill: { height: 6, borderRadius: 3 },
-  miniBarWrap: { width: '100%' },
-  miniBarTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  miniBarLabel: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.navy, flex: 1, paddingRight: 8 },
-  miniBarCount: { fontFamily: FONTS.heading, fontSize: 12, fontWeight: '700', color: COLORS.navy },
-  miniBarTrack: { height: 4, backgroundColor: '#E8ECF0', borderRadius: 2, width: '100%' },
-  miniBarFill: { height: 4, borderRadius: 2 },
-  miniBarsContainer: { gap: 8 },
-  expandedList: { paddingTop: 4 },
-  gridCard: { width: '48%', backgroundColor: COLORS.white, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: COLORS.border, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 },
-  gridCardWide: { width: '100%' },
-  gridCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  cardIconBg: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  cardChevron: { fontFamily: FONTS.heading, fontSize: 16, color: COLORS.gray4, fontWeight: 'bold' },
-  gridCardTitle: { fontFamily: FONTS.heading, fontSize: 14, fontWeight: '700', color: COLORS.navy, marginBottom: 12 },
-  gridCardContent: { minHeight: 40 },
-  cardEmpty: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, fontStyle: 'italic', textAlign: 'center', marginTop: 10 },
-  rankItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F7F8FA', borderRadius: 8, padding: 8, marginBottom: 6 },
-  rankImg: { width: 40, height: 40, borderRadius: 6, backgroundColor: '#fff', marginRight: 8 },
-  rankItemTextContainer: { flex: 1 },
-  rankModelo: { fontFamily: FONTS.heading, fontSize: 13, fontWeight: '600', color: COLORS.navy },
-  rankMarca: { fontFamily: FONTS.body, fontSize: 10, color: COLORS.gray4 },
-  rankCount: { fontFamily: FONTS.heading, fontSize: 14, fontWeight: '700', minWidth: 28, textAlign: 'right' },
-  brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, paddingVertical: 4 },
-  brandName: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.navy, width: 80 },
-  brandCount: { fontFamily: FONTS.heading, fontSize: 13, fontWeight: '700', color: COLORS.navy, minWidth: 28, textAlign: 'right' },
-  brandProgressBarTrack: { flex: 1, height: 8, backgroundColor: '#E8ECF0', borderRadius: 4, marginHorizontal: 8 },
-  brandProgressBarFill: { height: 8, backgroundColor: COLORS.navy, borderRadius: 4 },
-  userProgressBarFill: { height: 8, backgroundColor: COLORS.celeste || '#007db8', borderRadius: 4 },
 });
