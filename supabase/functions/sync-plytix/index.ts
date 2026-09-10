@@ -432,9 +432,6 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      const targetDebugSkus = ['DACS1500N', 'DACS1800N'];
-      const foundDebugRows = targetDebugSkus.map(s => ({ sku: s, data: existingData.get(s) }));
-      console.warn(`[DEBUG DIAGNOSTIC] Map entries for DACS1500N/DACS1800N:`, JSON.stringify(foundDebugRows));
 
       if (upsertQueueData.length > 0) {
         const chunkSize = 1000;

@@ -1207,47 +1207,23 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                           onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} 
                        />
                     </View>
-                    <View style={{ flex: 1, position: 'relative' }}>
-                       {Platform.OS === 'ios' ? (
-                          <TextInput
-                             style={[styles.textInputSmall, { marginHorizontal: 0, paddingRight: 30 }]}
-                             placeholder="HP"
-                             placeholderTextColor={COLORS.gray4}
-                             value={pumpWizard.hp || ''}
-                             editable={false}
-                          />
-                       ) : (
-                          <View style={[styles.textInputSmall, { marginHorizontal: 0, padding: 0, overflow: 'hidden', justifyContent: 'center' }]}>
-                             <select
-                                style={{ width: '100%', height: '100%', border: 'none', background: 'transparent', outline: 'none', paddingLeft: 10, color: COLORS.navy, fontFamily: 'Inter_500Medium' } as any}
-                                value={pumpWizard.hp || ''}
-                                onChange={(e) => setPumpWizard({...pumpWizard, hp: e.target.value})}
-                             >
-                                <option value="">Sin HP (Auto)</option>
-                                {availableHps.map(hp => (
-                                   <option key={hp} value={hp.toString()}>{hp} HP</option>
-                                ))}
-                             </select>
-                          </View>
-                       )}
-                       {Platform.OS === 'ios' && (
-                          <View style={{ position: 'absolute', right: 10, top: 12, pointerEvents: 'none' }}>
-                             <SvgIcon name="chevron-down" size={16} color={COLORS.gray4} />
-                          </View>
-                       )}
-                       {Platform.OS === 'ios' && (
-                          <select
-                             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0 } as any}
-                             value={pumpWizard.hp || ''}
-                             onChange={(e) => setPumpWizard({...pumpWizard, hp: e.target.value})}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 5 }}>
+                       <TouchableOpacity
+                          style={[styles.unitTabBtn, !pumpWizard.hp && styles.unitTabBtnActive, { marginRight: 6, paddingHorizontal: 12 }]}
+                          onPress={() => setPumpWizard({...pumpWizard, hp: ''})}
+                       >
+                          <Text style={[styles.unitTabTxt, !pumpWizard.hp && styles.unitTabTxtActive]}>Sin HP (Auto)</Text>
+                       </TouchableOpacity>
+                       {availableHps.map(hp => (
+                          <TouchableOpacity
+                             key={hp}
+                             style={[styles.unitTabBtn, pumpWizard.hp === hp.toString() && styles.unitTabBtnActive, { marginRight: 6, paddingHorizontal: 12 }]}
+                             onPress={() => setPumpWizard({...pumpWizard, hp: hp.toString()})}
                           >
-                             <option value="">Sin HP (Auto)</option>
-                             {availableHps.map(hp => (
-                                <option key={hp} value={hp.toString()}>{hp} HP</option>
-                             ))}
-                          </select>
-                       )}
-                    </View>
+                             <Text style={[styles.unitTabTxt, pumpWizard.hp === hp.toString() && styles.unitTabTxtActive]}>{hp} HP</Text>
+                          </TouchableOpacity>
+                       ))}
+                    </ScrollView>
                  </View>
               </View>
                            </View>
@@ -1350,82 +1326,46 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   {calcMode === 'motor' && (
                     <View style={{ marginBottom: 15 }}>
                       <Text style={styles.inputTitleSmall}>Potencia (HP)</Text>
-                      <View style={{ position: 'relative', marginBottom: 15 }}>
-                         {Platform.OS === 'ios' ? (
-                            <TextInput
-                               style={[styles.textInputSmall, { marginHorizontal: 0, paddingRight: 30 }]}
-                               placeholder="Cualquier HP"
-                               placeholderTextColor={COLORS.gray4}
-                               value={motorState.hp || ''}
-                               editable={false}
-                            />
-                         ) : (
-                            <View style={[styles.textInputSmall, { marginHorizontal: 0, padding: 0, overflow: 'hidden', justifyContent: 'center' }]}>
-                               <select
-                                  style={{ width: '100%', height: '100%', border: 'none', background: 'transparent', outline: 'none', paddingLeft: 10, color: COLORS.navy, fontFamily: 'Inter_500Medium' } as any}
-                                  value={motorState.hp || ''}
-                                  onChange={(e) => {setMotorState({...motorState, hp: e.target.value}); setHasCalculated(false);}}
-                               >
-                                  <option value="">Cualquier HP</option>
-                                  {availMotorProps.hps.map(hp => (
-                                     <option key={hp} value={hp.toString()}>{hp} HP</option>
-                                  ))}
-                               </select>
-                            </View>
-                         )}
-                         {Platform.OS === 'ios' && (
-                            <select
-                               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0 } as any}
-                               value={motorState.hp || ''}
-                               onChange={(e) => {setMotorState({...motorState, hp: e.target.value}); setHasCalculated(false);}}
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 15 }}>
+                         <TouchableOpacity
+                            style={[styles.unitTabBtn, !motorState.hp && styles.unitTabBtnActive, { marginRight: 6, paddingHorizontal: 12 }]}
+                            onPress={() => {setMotorState({...motorState, hp: ''}); setHasCalculated(false);}}
+                         >
+                            <Text style={[styles.unitTabTxt, !motorState.hp && styles.unitTabTxtActive]}>Cualquier HP</Text>
+                         </TouchableOpacity>
+                         {availMotorProps.hps.map(hp => (
+                            <TouchableOpacity
+                               key={hp}
+                               style={[styles.unitTabBtn, motorState.hp === hp.toString() && styles.unitTabBtnActive, { marginRight: 6, paddingHorizontal: 12 }]}
+                               onPress={() => {setMotorState({...motorState, hp: hp.toString()}); setHasCalculated(false);}}
                             >
-                               <option value="">Cualquier HP</option>
-                               {availMotorProps.hps.map(hp => (
-                                  <option key={hp} value={hp.toString()}>{hp} HP</option>
-                               ))}
-                            </select>
-                         )}
-                      </View>
+                               <Text style={[styles.unitTabTxt, motorState.hp === hp.toString() && styles.unitTabTxtActive]}>{hp} HP</Text>
+                            </TouchableOpacity>
+                         ))}
+                      </ScrollView>
 
                       <Text style={styles.inputTitleSmall}>Polos / Velocidad</Text>
-                      <View style={{ position: 'relative', marginBottom: 15 }}>
-                         {Platform.OS === 'ios' ? (
-                            <TextInput
-                               style={[styles.textInputSmall, { marginHorizontal: 0, paddingRight: 30 }]}
-                               placeholder="Cualquier Velocidad"
-                               placeholderTextColor={COLORS.gray4}
-                               value={motorState.polos ? `${motorState.polos} Polos` : ''}
-                               editable={false}
-                            />
-                         ) : (
-                            <View style={[styles.textInputSmall, { marginHorizontal: 0, padding: 0, overflow: 'hidden', justifyContent: 'center' }]}>
-                               <select
-                                  style={{ width: '100%', height: '100%', border: 'none', background: 'transparent', outline: 'none', paddingLeft: 10, color: COLORS.navy, fontFamily: 'Inter_500Medium' } as any}
-                                  value={motorState.polos || ''}
-                                  onChange={(e) => {setMotorState({...motorState, polos: e.target.value}); setHasCalculated(false);}}
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 15 }}>
+                         <TouchableOpacity
+                            style={[styles.unitTabBtn, !motorState.polos && styles.unitTabBtnActive, { marginRight: 6, paddingHorizontal: 12 }]}
+                            onPress={() => {setMotorState({...motorState, polos: ''}); setHasCalculated(false);}}
+                         >
+                            <Text style={[styles.unitTabTxt, !motorState.polos && styles.unitTabTxtActive]}>Cualquier Velocidad</Text>
+                         </TouchableOpacity>
+                         {availMotorProps.polos.map(polo => {
+                            const rpmDesc = polo === 2 ? ' (~3000 RPM)' : polo === 4 ? ' (~1500 RPM)' : polo === 6 ? ' (~1000 RPM)' : polo === 8 ? ' (~750 RPM)' : '';
+                            const isSelected = motorState.polos === polo.toString();
+                            return (
+                               <TouchableOpacity
+                                  key={polo}
+                                  style={[styles.unitTabBtn, isSelected && styles.unitTabBtnActive, { marginRight: 6, paddingHorizontal: 12 }]}
+                                  onPress={() => {setMotorState({...motorState, polos: polo.toString()}); setHasCalculated(false);}}
                                >
-                                  <option value="">Cualquier Velocidad</option>
-                                  {availMotorProps.polos.map(polo => {
-                                     const rpmDesc = polo === 2 ? ' (~3000 RPM)' : polo === 4 ? ' (~1500 RPM)' : polo === 6 ? ' (~1000 RPM)' : polo === 8 ? ' (~750 RPM)' : '';
-                                     return <option key={polo} value={polo.toString()}>{polo} Polos {rpmDesc}</option>;
-                                  })}
-                               </select>
-                            </View>
-                         )}
-                         {Platform.OS === 'ios' && (
-                            <select
-                               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0 } as any}
-                               value={motorState.polos || ''}
-                               onChange={(e) => {setMotorState({...motorState, polos: e.target.value}); setHasCalculated(false);}}
-                            >
-                               <option value="">Cualquier Velocidad</option>
-                               {availMotorProps.polos.map(polo => {
-                                  const rpmDesc = polo === 2 ? ' (~3000 RPM)' : polo === 4 ? ' (~1500 RPM)' : polo === 6 ? ' (~1000 RPM)' : polo === 8 ? ' (~750 RPM)' : '';
-                                  return <option key={polo} value={polo.toString()}>{polo} Polos {rpmDesc}</option>;
-                               })}
-                            </select>
-                         )}
-                      </View>
+                                  <Text style={[styles.unitTabTxt, isSelected && styles.unitTabTxtActive]}>{polo} Polos{rpmDesc}</Text>
+                               </TouchableOpacity>
+                            );
+                         })}
+                      </ScrollView>
 
                       <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
                       <View style={styles.unitTabs}>

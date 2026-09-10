@@ -30,7 +30,6 @@ interface DashboardData {
   brands?: AnalyticsRankItem[];
   users?: (AnalyticsRankItem & { user_email: string })[];
 }
-
 function getPeriodDate(p: string): string | null {
   if (p === 'today') {
     const d = new Date();
@@ -192,9 +191,12 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
   const { showToast } = useCustomAlert();
   const { isOnline } = useOfflineSync();
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
+  const [productBrandMap, setProductBrandMap] = useState<Record<string, string>>({});
   const [myData, setMyData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [] });
   const [globalData, setGlobalData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
   const [isAdmin, setIsAdmin] = useState(false);
+
+  const cleanText = (val: any) => String(val ?? '').replace(/^\$+/, '');
 
   useEffect(() => {
     onTabChange?.(tab);
@@ -214,12 +216,17 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
     try {
       const rows = await getAllProducts();
       const m: Record<string, string> = {};
+      const bm: Record<string, string> = {};
       rows.forEach((r: any) => {
         const sku = r.modelo;
         const img = r.imagen || r.imagenOriginal;
         if (sku && img) m[sku] = img;
+        if (sku && r.marca) bm[sku] = r.marca;
       });
-      if (isMounted.current) setImageMap(m);
+      if (isMounted.current) {
+        setImageMap(m);
+        setProductBrandMap(bm);
+      }
     } catch (e: unknown) {
       Sentry.captureException(e);
     }
@@ -296,7 +303,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
           prevShares: prevShares.length,
           topV: countByKey(views, i => i.sku || i.modelo, limit),
           topSh: countByKey(shares, i => i.sku || i.modelo, limit),
-          brands: countByKey(currItems, i => i.marca, brandLimit) // Opción A: cálculo sobre mis marcas
+          brands: countByKey(currItems, i => productBrandMap[i.sku || i.modelo] || i.marca, brandLimit)
         };
       };
 
@@ -336,7 +343,8 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
       const renderList = (items: any[], max: number, type: string) => {
          return (items || []).slice(0, 10).map((i: any, idx: number) => {
            const w = max > 0 ? Math.max(5, (i.count / max) * 100) : 0;
-           let name = type === 'marcas' ? i.marca : type === 'usuarios' ? i.user_email : (i.modelo || i.marca || 'Desc.');
+           const rawName = type === 'marcas' ? (productBrandMap[i.sku || i.modelo] || i.marca) : type === 'usuarios' ? i.user_email : (i.modelo || i.marca || 'Desc.');
+           let name = cleanText(rawName);
            const color = type === 'vistas' ? '#007db8' : type === 'compartidos' ? '#0D8A39' : type === 'marcas' ? '#F37021' : '#6A1B9A';
            
            let imgTag = '';
@@ -360,7 +368,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
                     <div class="item-name">${name}</div>
                     <div class="progress-track"><div class="progress-fill" style="width: ${w}%; background: ${color};"></div></div>
                 </div>
-                <div class="item-count" style="color: ${color};">${i.count}</div>
+                <div class="item-count" style="color: ${color};">${cleanText(i.count)}</div>
             </div>`;
          }).join('');
       };
@@ -375,33 +383,33 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
 <head>
     <meta charset="UTF-8">
     <style>
-        @page { size: A4 portrait; margin: 10mm; }
+        @page { size: A4 portrait; margin: 6mm; }
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-        body { display: flex; justify-content: center; padding: 0; background: white; }
-        .a4-page { width: 21cm; height: 29.7cm; padding: 1cm 1.5cm; display: flex; flex-direction: column; overflow: hidden; }
-        .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #0D8A39; padding-bottom: 10px; margin-bottom: 15px; }
-        .header-title { font-size: 20px; font-weight: 800; color: #1A2530; margin-bottom: 2px; }
-        .header-subtitle { font-size: 12px; font-weight: 600; color: #6B778C; }
-        .logo { font-size: 20px; font-weight: 800; color: #0D8A39; letter-spacing: -1px; }
-        .kpi-row { display: flex; gap: 15px; margin-bottom: 15px; }
-        .kpi-card { flex: 1; background: #F4F6F8; border-radius: 8px; padding: 12px; text-align: center; border: 1px solid #DFE1E6; }
-        .kpi-title { font-size: 10px; font-weight: 600; color: #6B778C; text-transform: uppercase; margin-bottom: 6px; }
-        .kpi-val { font-size: 28px; font-weight: 800; }
-        .chart-box { background: #F4F6F8; border-radius: 8px; padding: 10px 15px; margin-bottom: 15px; height: 90px; border: 1px solid #DFE1E6; display: flex; flex-direction: column; }
-        .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: 1; min-height: 0; }
-        .list-card { background: #FFFFFF; border: 1px solid #DFE1E6; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; }
-        .list-title { font-size: 12px; font-weight: 700; color: #1A2530; border-bottom: 1px solid #DFE1E6; padding-bottom: 8px; margin-bottom: 10px; text-transform: uppercase; }
-        .list-items { display: flex; flex-direction: column; gap: 6px; flex: 1; justify-content: space-between; }
-        .item { display: flex; align-items: center; gap: 8px; }
-        .item-rank { font-size: 10px; font-weight: 700; color: #6B778C; width: 12px; text-align: center; }
-        .item-img { width: 22px; height: 22px; border-radius: 4px; background: #E8ECF0; object-fit: contain; }
+        body { background: white; padding: 0; }
+        .a4-page { width: 100%; height: 100%; padding: 10px 15px; display: flex; flex-direction: column; }
+        .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #0D8A39; padding-bottom: 6px; margin-bottom: 10px; }
+        .header-title { font-size: 18px; font-weight: 800; color: #1A2530; margin-bottom: 2px; }
+        .header-subtitle { font-size: 11px; font-weight: 600; color: #6B778C; }
+        .logo { font-size: 18px; font-weight: 800; color: #0D8A39; letter-spacing: -1px; }
+        .kpi-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .kpi-card { flex: 1; background: #F4F6F8; border-radius: 6px; padding: 8px; text-align: center; border: 1px solid #DFE1E6; }
+        .kpi-title { font-size: 9px; font-weight: 600; color: #6B778C; text-transform: uppercase; margin-bottom: 4px; }
+        .kpi-val { font-size: 22px; font-weight: 800; }
+        .chart-box { background: #F4F6F8; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; height: 75px; border: 1px solid #DFE1E6; display: flex; flex-direction: column; }
+        .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: 1; min-height: 0; }
+        .list-card { background: #FFFFFF; border: 1px solid #DFE1E6; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; }
+        .list-title { font-size: 11px; font-weight: 700; color: #1A2530; border-bottom: 1px solid #DFE1E6; padding-bottom: 4px; margin-bottom: 6px; text-transform: uppercase; }
+        .list-items { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .item { display: flex; align-items: center; gap: 6px; }
+        .item-rank { font-size: 9px; font-weight: 700; color: #6B778C; width: 10px; text-align: center; }
+        .item-img { width: 18px; height: 18px; border-radius: 3px; background: #E8ECF0; object-fit: contain; }
         .item-info { flex: 1; min-width: 0; }
-        .item-name { font-size: 10px; font-weight: 600; color: #1A2530; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .item-name { font-size: 9px; font-weight: 600; color: #1A2530; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .progress-track { height: 3px; background: #E8ECF0; border-radius: 1.5px; }
         .progress-fill { height: 100%; border-radius: 1.5px; }
-        .item-count { font-size: 11px; font-weight: 800; width: 35px; text-align: right; }
-        .footer { margin-top: auto; padding-top: 10px; border-top: 1px solid #DFE1E6; text-align: center; font-size: 9px; color: #6B778C; }
+        .item-count { font-size: 10px; font-weight: 800; width: 30px; text-align: right; }
+        .footer { margin-top: 8px; padding-top: 6px; border-top: 1px solid #DFE1E6; text-align: center; font-size: 8px; color: #6B778C; }
     </style>
 </head>
 <body>
@@ -414,26 +422,29 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
             <div class="logo">COMAGRO</div>
         </div>
         <div class="kpi-row">
-            <div class="kpi-card"><div class="kpi-title">Vistas Totales</div><div class="kpi-val" style="color: #007db8;">${d.views}</div></div>
-            <div class="kpi-card"><div class="kpi-title">Compartidos</div><div class="kpi-val" style="color: #0D8A39;">${d.shares}</div></div>
+            <div class="kpi-card"><div class="kpi-title">Vistas Totales</div><div class="kpi-val" style="color: #007db8;">${cleanText(d.views)}</div></div>
+            <div class="kpi-card"><div class="kpi-title">Compartidos</div><div class="kpi-val" style="color: #0D8A39;">${cleanText(d.shares)}</div></div>
             ${tab === 'general' ? `<div class="kpi-card"><div class="kpi-title">Usuarios Activos</div><div class="kpi-val" style="color: #6A1B9A;">${d.users?.length || 0}</div></div>` : ''}
         </div>
         <div class="chart-box">
             <div class="kpi-title" style="margin-bottom: 2px;">Historial de Uso (${pLabel})</div>
-            <svg viewBox="0 0 500 70" preserveAspectRatio="none" style="width: 100%; height: 100%;">
+            <svg viewBox="0 0 500 60" preserveAspectRatio="none" style="width: 100%; height: 100%;">
                 <defs>
                     <linearGradient id="gpdf" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stop-color="#007db8" stop-opacity="0.2"/><stop offset="100%" stop-color="#007db8" stop-opacity="0"/>
                     </linearGradient>
                 </defs>
-                <line x1="0" y1="15" x2="500" y2="15" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3" />
-                <line x1="0" y1="35" x2="500" y2="35" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3" />
-                <path d="M0,50 L0,40 Q50,20 100,30 T200,15 T300,25 T400,10 T500,20 L500,50 Z" fill="url(#gpdf)"/>
-                <path d="M0,40 Q50,20 100,30 T200,15 T300,25 T400,10 T500,20" fill="none" stroke="#007db8" stroke-width="2.5" stroke-linecap="round"/>
-                <circle cx="0" cy="40" r="3" fill="#fff" stroke="#007db8" stroke-width="2"/>
-                <circle cx="500" cy="20" r="3" fill="#fff" stroke="#007db8" stroke-width="2"/>
-                <text x="0" y="65" font-size="10" fill="#6B778C" text-anchor="start">Inicio</text>
-                <text x="500" y="65" font-size="10" fill="#6B778C" text-anchor="end">Fin</text>
+                <line x1="0" y1="12" x2="500" y2="12" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3" />
+                <line x1="0" y1="28" x2="500" y2="28" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3" />
+                <path d="M0,45 L0,35 Q75,15 150,25 T300,12 T450,20 L500,15 L500,45 Z" fill="url(#gpdf)"/>
+                <path d="M0,35 Q75,15 150,25 T300,12 T450,20 L500,15" fill="none" stroke="#007db8" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="0" cy="35" r="2.5" fill="#fff" stroke="#007db8" stroke-width="1.5"/>
+                <circle cx="500" cy="15" r="2.5" fill="#fff" stroke="#007db8" stroke-width="1.5"/>
+                <text x="0" y="56" font-size="8" fill="#6B778C" text-anchor="start">${period === 'today' ? '00:00' : period === '7d' ? '-7d' : period === '30d' ? '-30d' : 'Inicio'}</text>
+                <text x="125" y="56" font-size="8" fill="#6B778C" text-anchor="middle">${period === 'today' ? '06:00' : period === '7d' ? '-5d' : period === '30d' ? '-20d' : ''}</text>
+                <text x="250" y="56" font-size="8" fill="#6B778C" text-anchor="middle">${period === 'today' ? '12:00' : period === '7d' ? '-3d' : period === '30d' ? '-10d' : 'Medio'}</text>
+                <text x="375" y="56" font-size="8" fill="#6B778C" text-anchor="middle">${period === 'today' ? '18:00' : period === '7d' ? '-1d' : period === '30d' ? '-5d' : ''}</text>
+                <text x="500" y="56" font-size="8" fill="#6B778C" text-anchor="end">${period === 'today' ? '23:59' : 'Hoy'}</text>
             </svg>
         </div>
         <div class="grid-2x2">
@@ -466,7 +477,8 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
 
   const renderListItem = (item: any, max: number, type: 'vistas'|'compartidos'|'marcas'|'usuarios') => {
      const w = max > 0 ? Math.max(5, (item.count / max) * 100) : 0;
-     let name = type === 'marcas' ? item.marca : type === 'usuarios' ? item.user_email : (item.modelo || item.marca || 'Desc.');
+     const rawName = type === 'marcas' ? (productBrandMap[item.sku || item.modelo] || item.marca) : type === 'usuarios' ? item.user_email : (item.modelo || item.marca || 'Desc.');
+     let name = cleanText(rawName);
      const color = type === 'vistas' ? COLORS.navy : type === 'compartidos' ? COLORS.green : type === 'marcas' ? '#F37021' : (COLORS.celeste || '#007db8');
      
      let imgSrc: any = null;
@@ -498,7 +510,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
                    <View style={[s.progressFill, { width: `${w}%`, backgroundColor: color }]} />
                 </View>
             </View>
-            <Text style={[s.itemCount, { color }]}>{item.count}</Text>
+            <Text style={[s.itemCount, { color }]}>{cleanText(item.count)}</Text>
         </TouchableOpacity>
      );
   };
@@ -537,15 +549,15 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
       {loading && !data.views ? (
         <ActivityIndicator size="large" color={COLORS.navy} style={s.loader} />
       ) : (
-        <ScrollView style={s.contentArea} contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+        <ScrollView style={s.contentArea} contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
           <View style={s.rowTotals}>
              <View style={s.cardTotal}>
                 <Text style={s.cardTitle}>Vistas Totales</Text>
-                <Text style={s.totalValue}>{data.views}</Text>
+                <Text style={s.totalValue}>{cleanText(data.views)}</Text>
              </View>
              <View style={s.cardTotal}>
                 <Text style={s.cardTitle}>Compartidos</Text>
-                <Text style={s.totalValue}>{data.shares}</Text>
+                <Text style={s.totalValue}>{cleanText(data.shares)}</Text>
              </View>
           </View>
 
@@ -564,8 +576,11 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
                 <Path d="M0,40 Q30,20 60,30 T120,15 T180,25 T240,10 T300,20" fill="none" stroke={COLORS.celeste || '#007db8'} strokeWidth="2" strokeLinecap="round" />
                 <Circle cx="0" cy="40" r="2.5" fill="#fff" stroke={COLORS.celeste || '#007db8'} strokeWidth="1.5"/>
                 <Circle cx="300" cy="20" r="2.5" fill="#fff" stroke={COLORS.celeste || '#007db8'} strokeWidth="1.5"/>
-                <SvgText x="0" y="65" fontSize="9" fill="#6B778C" textAnchor="start">{period === 'today' ? '00:00' : period === '7d' ? '-7 Días' : period === '30d' ? '-30 Días' : 'Inicio'}</SvgText>
-                <SvgText x="300" y="65" fontSize="9" fill="#6B778C" textAnchor="end">{period === 'today' ? 'Ahora' : 'Hoy'}</SvgText>
+                <SvgText x="0" y="65" fontSize="8" fill="#6B778C" textAnchor="start">{period === 'today' ? '00:00' : period === '7d' ? '-7d' : period === '30d' ? '-30d' : 'Inicio'}</SvgText>
+                <SvgText x="75" y="65" fontSize="8" fill="#6B778C" textAnchor="middle">{period === 'today' ? '06:00' : period === '7d' ? '-5d' : period === '30d' ? '-20d' : ''}</SvgText>
+                <SvgText x="150" y="65" fontSize="8" fill="#6B778C" textAnchor="middle">{period === 'today' ? '12:00' : period === '7d' ? '-3d' : period === '30d' ? '-10d' : 'Medio'}</SvgText>
+                <SvgText x="225" y="65" fontSize="8" fill="#6B778C" textAnchor="middle">{period === 'today' ? '18:00' : period === '7d' ? '-1d' : period === '30d' ? '-5d' : ''}</SvgText>
+                <SvgText x="300" y="65" fontSize="8" fill="#6B778C" textAnchor="end">{period === 'today' ? '23:59' : 'Hoy'}</SvgText>
             </Svg>
           </View>
 
@@ -623,9 +638,9 @@ const s = StyleSheet.create({
   filterPillText: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4 },
   filterPillTextActive: { color: COLORS.white },
   loader: { marginTop: 40 },
-  contentArea: { flex: 1, flexDirection: 'column', gap: 10, paddingHorizontal: 10, overflow: 'hidden' },
-  rowTotals: { flexDirection: 'row', gap: 10 },
-  row: { flexDirection: 'row', gap: 10, flex: 1.2 },
+  contentArea: { flex: 1, paddingHorizontal: 10 },
+  rowTotals: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  row: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   cardTotal: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
   cardChart: { height: 90, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
   cardList: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
