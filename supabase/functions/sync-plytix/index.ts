@@ -359,21 +359,15 @@ Deno.serve(async (req: Request) => {
         .map(p => ({ sku: String(p.SKU).trim().toUpperCase(), raw_data: sanitizeUnicode(p) }));
 
       const existingData = new Map<string, { hash: string, status: string }>();
-      const skuLookupChunkSize = 50;
-      const allSkusInFeed = sanitizedProducts.map(p => p.sku);
-      for (let i = 0; i < allSkusInFeed.length; i += skuLookupChunkSize) {
-        const skuChunk = allSkusInFeed.slice(i, i + skuLookupChunkSize);
-        const { data: existingRows, error: lookupError } = await supaAdmin
-          .from('plytix_queue')
-          .select('sku, content_hash, status')
-          .in('sku', skuChunk);
-        if (lookupError) {
-          console.error('Error consultando hashes existentes:', lookupError.message);
-          throw new Error(`Fallo al consultar hashes: ${lookupError.message}`);
-        }
-        for (const row of existingRows || []) {
-          if (row.content_hash) existingData.set(row.sku, { hash: row.content_hash, status: row.status || 'completed' });
-        }
+      const { data: existingRows, error: lookupError } = await supaAdmin
+        .from('plytix_queue')
+        .select('sku, content_hash, status');
+      if (lookupError) {
+        console.error('Error consultando hashes existentes:', lookupError.message);
+        throw new Error(`Fallo al consultar hashes: ${lookupError.message}`);
+      }
+      for (const row of existingRows || []) {
+        if (row.content_hash) existingData.set(row.sku, { hash: row.content_hash, status: row.status || 'completed' });
       }
 
       const upsertQueueData = [];
