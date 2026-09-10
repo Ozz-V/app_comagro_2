@@ -12,9 +12,6 @@ import UserProfileModal from '../components/UserProfileModal';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
 
-// Mismo sistema que estaba en ConfigScreen: DashboardAnalytics resuelve solo
-// (vía profiles.role) si el usuario es admin. Si lo es, ve "Mi actividad" y
-// "General (Empresa)"; si no, solo ve su propia actividad.
 export default function EstadisticasScreen({ navigation }: { navigation: { navigate: (s: string, p?: unknown) => void; goBack: () => void; [key: string]: unknown } }) {
   const { isOnline } = useOfflineSync();
   const [analyticsTab, setAnalyticsTab] = useState<'mine' | 'general'>('mine');
@@ -154,5 +151,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700',
     color: COLORS.navy, textAlign: 'center', marginTop: 4, marginBottom: 20,
   },
-  content: { padding: 24, paddingBottom: 100 },
+  // Se modificó para quitar el paddingBottom excesivo y usar flex adecuadamente
+  content: { flex: 1, paddingHorizontal: 0, paddingBottom: 10 },
 });
