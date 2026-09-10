@@ -363,12 +363,23 @@ Deno.serve(async (req: Request) => {
       const lookupChunkSize = 100;
       for (let i = 0; i < allFeedSkus.length; i += lookupChunkSize) {
         const skuChunk = allFeedSkus.slice(i, i + lookupChunkSize);
-        const { data: chunkRows, error: lookupError } = await supaAdmin
-          .from('plytix_queue')
-          .select('sku, content_hash, status')
-          .in('sku', skuChunk);
+        let chunkRows: any = null;
+        let lookupError: any = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const res = await supaAdmin
+            .from('plytix_queue')
+            .select('sku, content_hash, status')
+            .in('sku', skuChunk);
+          chunkRows = res.data;
+          lookupError = res.error;
+          if (!lookupError) break;
+          if (attempt < 3) {
+            console.warn(`[RETRY ${attempt}/3] Error consultando hashes (${lookupError.message}). Reintentando en 1s...`);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
         if (lookupError) {
-          console.error('Error consultando hashes existentes:', lookupError.message);
+          console.error('Error consultando hashes existentes tras 3 intentos:', lookupError.message);
           throw new Error(`Fallo al consultar hashes: ${lookupError.message}`);
         }
         for (const row of chunkRows || []) {
