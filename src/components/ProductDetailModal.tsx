@@ -127,6 +127,10 @@ export default function ProductDetailModal({
   const [sharingCurvaPdf, setSharingCurvaPdf] = useState(false);
   const [sharingCurvaImagen, setSharingCurvaImagen] = useState(false);
   const curveCaptureRef = useRef<View>(null);
+  // Ancho de la gráfica limitado al espacio real disponible dentro del modal
+  // (90% de pantalla, menos el padding del card y del área capturada),
+  // para que nunca se recorte horizontalmente en teléfonos angostos.
+  const curveSize = Math.max(220, Math.min(300, Math.round(screenWidth * 0.9 - 64)));
 
   const curveData = useMemo(() => {
     if (!modalProd) return null;
@@ -790,11 +794,14 @@ export default function ProductDetailModal({
                 maxHeight: screenHeight - insets.top - insets.bottom - 32,
                 backgroundColor: '#fff',
                 borderRadius: 12,
-                padding: 20,
-                paddingBottom: (insets.bottom || 0) + 20,
-                alignItems: 'center'
+                overflow: 'hidden',
               }}>
-               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center', paddingBottom: 4 }}>
+               {/* Zona con scroll: solo el gráfico + aviso. Los botones de abajo quedan
+                   siempre fijos y visibles, sin necesidad de deslizar para llegar a ellos. */}
+               <ScrollView
+                 showsVerticalScrollIndicator={false}
+                 contentContainerStyle={{ alignItems: 'center', padding: 20, paddingBottom: 16 }}
+               >
                  <View ref={curveCaptureRef} collapsable={false} style={{ alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 4, paddingBottom: 18 }}>
                    <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', borderBottomWidth: 3, borderBottomColor: COLORS.green, paddingBottom: 10, marginBottom: 14, gap: 10 }}>
                      <Image
@@ -809,8 +816,8 @@ export default function ProductDetailModal({
                        <Text style={{ fontSize: 11, color: COLORS.navy, fontWeight: '600', marginTop: 1 }}>SKU: {modalProd?.modelo}</Text>
                      </View>
                    </View>
-                 <View style={{width: 320, height: 320}}>
-                    <Svg width="320" height="320">
+                 <View style={{width: curveSize, height: curveSize}}>
+                    <Svg width={curveSize} height={curveSize} viewBox="0 0 320 320">
                       {curveData.qTicks.map((t: number) => {
                          const px = 50 + (t / curveData.qTicks[curveData.qTicks.length - 1]) * 240;
                          return (
@@ -861,12 +868,22 @@ export default function ProductDetailModal({
                     </Text>
                  </View>
                  </View>
+               </ScrollView>
 
-                 <Text style={{fontSize: 10, color: '#8492a6', textAlign: 'center', marginTop: 12}}>
+               {/* Pie fijo: siempre visible, no se scrollea. */}
+               <View style={{
+                 paddingHorizontal: 20,
+                 paddingTop: 12,
+                 paddingBottom: (insets.bottom || 0) + 16,
+                 borderTopWidth: 1,
+                 borderTopColor: '#eef1f6',
+                 backgroundColor: '#fff',
+               }}>
+                 <Text style={{fontSize: 10, color: '#8492a6', textAlign: 'center', marginBottom: 10}}>
                    Compartir esta curva es opcional: solo se envía si vos lo elegís.
                  </Text>
 
-                 <View style={{ flexDirection: 'row', gap: 10, width: '100%', marginTop: 12 }}>
+                 <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
                     <TouchableOpacity
                       style={[styles.actionBtn, { flex: 1 }, sharingCurvaPdf && styles.actionBtnDisabled]}
                       onPress={compartirCurvaPdf}
@@ -902,7 +919,7 @@ export default function ProductDetailModal({
                  <TouchableOpacity style={[styles.actionBtn, {marginTop: 10, width: '100%', backgroundColor: COLORS.navy}]} onPress={() => setShowCurveModal(false)}>
                     <Text style={{color: '#fff', fontWeight: 'bold'}}>Cerrar</Text>
                  </TouchableOpacity>
-               </ScrollView>
+               </View>
               </View>
             </View>
           </Modal>
