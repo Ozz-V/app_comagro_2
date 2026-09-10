@@ -361,13 +361,16 @@ Deno.serve(async (req: Request) => {
       const existingData = new Map<string, { hash: string, status: string }>();
       const { data: existingRows, error: lookupError } = await supaAdmin
         .from('plytix_queue')
-        .select('sku, content_hash, status');
+        .select('sku, content_hash, status')
+        .limit(50000);
       if (lookupError) {
         console.error('Error consultando hashes existentes:', lookupError.message);
         throw new Error(`Fallo al consultar hashes: ${lookupError.message}`);
       }
       for (const row of existingRows || []) {
-        if (row.content_hash) existingData.set(row.sku, { hash: row.content_hash, status: row.status || 'completed' });
+        if (row.sku && row.content_hash) {
+          existingData.set(String(row.sku).trim().toUpperCase(), { hash: row.content_hash, status: row.status || 'completed' });
+        }
       }
 
       const upsertQueueData = [];
@@ -400,20 +403,19 @@ Deno.serve(async (req: Request) => {
         const oldHash = oldData?.hash;
         
         if (oldHash === newHash) {
-          // El texto no cambió, NO disparamos la IA.
-          // Pero SÍ guardamos el raw_data actualizado por si cambiaron solo las fotos.
           upsertQueueData.push({
             sku: item.sku,
-            raw_data: item.raw_data, // Tiene las fotos nuevas
+            raw_data: item.raw_data,
             content_hash: newHash,
-            status: oldData?.status || 'completed', // Mantenemos su estado actual (no lo volvemos pending)
+            status: oldData?.status || 'completed',
             updated_at: new Date().toISOString()
           });
-          continue; 
+          continue;
         }
+
+        console.warn(`[HASH CHANGE] SKU=${item.sku} oldHash=${oldHash?.substring(0,8) ?? 'NULL/NUEVO'} newHash=${newHash.substring(0,8)}`);
         
-        // Si el hash cambió, significa que el texto cambió.
-        // Lo mandamos a pending para que la IA regenere el Sales Pitch.
+        // Producto NUEVO o EXISTENTE CON CAMBIO REAL: se encola como 'pending' para generar IA y notificar.
         upsertQueueData.push({
           sku: item.sku,
           raw_data: item.raw_data,
