@@ -337,7 +337,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
          return (items || []).slice(0, 10).map((i: any, idx: number) => {
            const w = max > 0 ? Math.max(5, (i.count / max) * 100) : 0;
            let name = i.modelo || i.marca || i.user_email || 'Desc.';
-           let color = type === 'vistas' ? '#007db8' : type === 'compartidos' ? '#0D8A39' : type === 'marcas' ? '#F37021' : '#6A1B9A';
+           const color = type === 'vistas' ? '#007db8' : type === 'compartidos' ? '#0D8A39' : type === 'marcas' ? '#F37021' : '#6A1B9A';
            
            let imgTag = '';
            if (type === 'usuarios') {
@@ -466,7 +466,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
   const renderListItem = (item: any, max: number, type: 'vistas'|'compartidos'|'marcas'|'usuarios') => {
      const w = max > 0 ? Math.max(5, (item.count / max) * 100) : 0;
      let name = item.modelo || item.marca || item.user_email || 'Desc.';
-     let color = type === 'vistas' ? COLORS.navy : type === 'compartidos' ? COLORS.green : type === 'marcas' ? '#F37021' : (COLORS.celeste || '#007db8');
+     const color = type === 'vistas' ? COLORS.navy : type === 'compartidos' ? COLORS.green : type === 'marcas' ? '#F37021' : (COLORS.celeste || '#007db8');
      
      let imgSrc: any = null;
      if (type === 'usuarios') {
