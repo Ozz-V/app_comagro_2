@@ -563,7 +563,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
 
           <View style={s.cardChart}>
             <Text style={[s.cardTitle, { marginBottom: 2 }]}>Historial de Uso</Text>
-            <Svg viewBox="0 0 300 70" preserveAspectRatio="none" style={s.svgChart}>
+            <Svg viewBox="0 0 300 80" preserveAspectRatio="none" style={s.svgChart}>
                 <Defs>
                     <LinearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
                         <Stop offset="0%" stopColor={COLORS.celeste || '#007db8'} stopOpacity="0.3"/>
@@ -576,11 +576,11 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
                 <Path d="M0,40 Q30,20 60,30 T120,15 T180,25 T240,10 T300,20" fill="none" stroke={COLORS.celeste || '#007db8'} strokeWidth="2" strokeLinecap="round" />
                 <Circle cx="0" cy="40" r="2.5" fill="#fff" stroke={COLORS.celeste || '#007db8'} strokeWidth="1.5"/>
                 <Circle cx="300" cy="20" r="2.5" fill="#fff" stroke={COLORS.celeste || '#007db8'} strokeWidth="1.5"/>
-                <SvgText x="0" y="65" fontSize="8" fill="#6B778C" textAnchor="start">{period === 'today' ? '00:00' : period === '7d' ? '-7d' : period === '30d' ? '-30d' : 'Inicio'}</SvgText>
-                <SvgText x="75" y="65" fontSize="8" fill="#6B778C" textAnchor="middle">{period === 'today' ? '06:00' : period === '7d' ? '-5d' : period === '30d' ? '-20d' : ''}</SvgText>
-                <SvgText x="150" y="65" fontSize="8" fill="#6B778C" textAnchor="middle">{period === 'today' ? '12:00' : period === '7d' ? '-3d' : period === '30d' ? '-10d' : 'Medio'}</SvgText>
-                <SvgText x="225" y="65" fontSize="8" fill="#6B778C" textAnchor="middle">{period === 'today' ? '18:00' : period === '7d' ? '-1d' : period === '30d' ? '-5d' : ''}</SvgText>
-                <SvgText x="300" y="65" fontSize="8" fill="#6B778C" textAnchor="end">{period === 'today' ? '23:59' : 'Hoy'}</SvgText>
+                <SvgText x="0" y="72" fontSize="9" fill="#6B778C" textAnchor="start">{period === 'today' ? '00:00' : period === '7d' ? '-7d' : period === '30d' ? '-30d' : 'Inicio'}</SvgText>
+                <SvgText x="75" y="72" fontSize="9" fill="#6B778C" textAnchor="middle">{period === 'today' ? '06:00' : period === '7d' ? '-5d' : period === '30d' ? '-20d' : 'Hace 60d'}</SvgText>
+                <SvgText x="150" y="72" fontSize="9" fill="#6B778C" textAnchor="middle">{period === 'today' ? '12:00' : period === '7d' ? '-3d' : period === '30d' ? '-10d' : 'Hace 30d'}</SvgText>
+                <SvgText x="225" y="72" fontSize="9" fill="#6B778C" textAnchor="middle">{period === 'today' ? '18:00' : period === '7d' ? '-1d' : period === '30d' ? '-5d' : 'Hace 15d'}</SvgText>
+                <SvgText x="300" y="72" fontSize="9" fill="#6B778C" textAnchor="end">{period === 'today' ? '23:59' : 'Hoy'}</SvgText>
             </Svg>
           </View>
 
@@ -642,13 +642,13 @@ const s = StyleSheet.create({
   rowTotals: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   row: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   cardTotal: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
-  cardChart: { height: 90, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
-  cardList: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
+  cardChart: { height: 115, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, paddingBottom: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, marginBottom: 10 },
+  cardList: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, paddingBottom: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
   cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 0.5 },
   totalValue: { fontFamily: FONTS.heading, fontSize: 20, fontWeight: '800', color: COLORS.navy },
   svgChart: { width: '100%', height: '100%', marginTop: 2 },
-  listContainer: { flex: 1, justifyContent: 'space-evenly', gap: 6 },
-  listItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  listContainer: { flex: 1, justifyContent: 'flex-start', gap: 6 },
+  listItem: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 },
   itemImg: { width: 24, height: 24, borderRadius: 4, backgroundColor: '#F0F4F8' },
   itemAvatar: { borderRadius: 12 },
   itemBrand: { borderRadius: 6, borderWidth: 1, borderColor: '#eee' },
