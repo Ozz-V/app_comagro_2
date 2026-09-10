@@ -1,170 +1,546 @@
-import { generarHtmlFicha, generateAndSharePdf, generarHtmlCurva, generateAndShareCurvaPdf, CurvaData } from '../src/utils/pdfService';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import { ParsedProduct } from '../src/types/models';
+import { Image as ExpoImage } from 'expo-image';
+import { ParsedProduct } from '../types/models';
 
-jest.mock('expo-print', () => ({
-  printToFileAsync: jest.fn().mockResolvedValue({ uri: 'file:///mock/pdf/file.pdf' }),
-}));
+// ── Constantes de página (px a 96dpi, A4 portrait = 297mm ≈ 1122px) ─────
+const PX_PAGE     = 1108; // alto total usable
+const PX_HDR      = 96;   // header
+const PX_TMARG    = 12;   // margin-top del bloque superior
+const PX_GAP      = 12;   // espacio entre bloque superior y specs
+const PX_SPEC_HDR = 34;   // cabecera azul "ESPECIFICACIONES TÉCNICAS"
+const PX_FOOT     = 34;   // footer
+const PX_SAFETY   = 14;   // margen de seguridad
+const MIN_IMG_H   = 80;   // altura mínima aceptable de la imagen
+const TEXT_H      = 77;   // altura aproximada del bloque de texto
 
-jest.mock('expo-sharing', () => ({
-  shareAsync: jest.fn().mockResolvedValue(undefined),
-}));
+export function generarHtmlFicha(specs: [string, string][], base64Images: string[], logoBase64: string, modalProd: ParsedProduct, includeCurve: boolean = false) {
+  const numSpecs = specs.length;
 
-jest.mock('expo-image', () => ({
-  Image: {
-    getCachePathAsync: jest.fn().mockResolvedValue(null),
-  },
-}));
+  const fs1  = numSpecs > 22 ? '8.5pt' : numSpecs > 16 ? '9pt'  : '10pt';
+  const pad1 = numSpecs > 22 ? '4px'   : numSpecs > 16 ? '5px'  : '6px';
+  const row1 = numSpecs > 22 ? 26      : numSpecs > 16 ? 27     : 29; 
 
-jest.mock('expo-file-system/legacy', () => ({
-  cacheDirectory: 'file:///mock/cache/',
-  getInfoAsync: jest.fn(),
-  deleteAsync: jest.fn(),
-  copyAsync: jest.fn(),
-}));
+  const specsH1  = numSpecs > 0 ? PX_SPEC_HDR + numSpecs * row1 : 0;
+  const topH1    = PX_PAGE - PX_HDR - PX_TMARG - PX_GAP - specsH1 - PX_FOOT - PX_SAFETY;
+  const imgH1    = topH1 - TEXT_H;
 
-describe('pdfService', () => {
-  const mockProduct: ParsedProduct = {
-      modelo: 'Bomba',
-      marca: 'Amana',
-      subcategoria: 'Bombas',
-      imagen: '',
-      imagenOriginal: '',
-      specs: [['Power', '2hp'], ['Voltage', '220v']],
-      sales_pitch: 'Description',
+  let doubleCols, topBlockH, specFs, specPad;
+
+  if (imgH1 >= MIN_IMG_H) {
+    doubleCols = false;
+    topBlockH  = Math.max(MIN_IMG_H + TEXT_H, topH1);
+    specFs     = fs1;
+    specPad    = pad1;
+  } else {
+    doubleCols = true;
+    const numRows2 = Math.ceil(numSpecs / 2);
+    const fs2   = numRows2 > 18 ? '8pt'  : numRows2 > 12 ? '8.5pt' : '9.5pt';
+    const pad2  = numRows2 > 18 ? '4px'  : numRows2 > 12 ? '5px'   : '6px';
+    const row2  = numRows2 > 18 ? 24     : numRows2 > 12 ? 25      : 27;
+    const specsH2 = numSpecs > 0 ? PX_SPEC_HDR + numRows2 * row2 : 0;
+    const topH2   = PX_PAGE - PX_HDR - PX_TMARG - PX_GAP - specsH2 - PX_FOOT - PX_SAFETY;
+    topBlockH  = Math.max(MIN_IMG_H + TEXT_H, topH2);
+    specFs     = fs2;
+    specPad    = pad2;
+  }
+
+  const subcatStr = (modalProd?.subcategoria || '').toUpperCase();
+  const isPumpType = subcatStr.includes('BOMBA') || subcatStr.includes('MOTOBOMBA') || subcatStr.includes('CUERPO') || subcatStr.includes('ACHIQUE') || subcatStr.includes('DRENAJE');
+  const isExcluded = (subcatStr.includes('PARA ') && !subcatStr.includes('PISCINA')) || subcatStr.includes('VACIO') || subcatStr.includes('REPUESTO') || subcatStr.includes('ACCESORIO') || subcatStr.includes('TABLERO') || subcatStr.includes('PRESURIZADOR') || subcatStr.includes('CONTROL');
+  
+  let maxQ = 0, maxH = 0, maxBar = 0;
+  if (isPumpType && !isExcluded) {
+     specs.forEach(s => {
+        const k = String(s[0]).toUpperCase();
+        const v = String(s[1]).toUpperCase();
+        if (k.includes('CAUDAL') || k.includes('FLUJO')) {
+           const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
+           if (nums) {
+              const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+              const unitHint = v + ' ' + k;
+              let valLpm = maxNum;
+              if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M^3/H') || unitHint.includes('M3H')) {
+                 valLpm = (maxNum * 1000) / 60;
+              } else if (unitHint.includes('L/H') || unitHint.includes('LT/H') || unitHint.includes('LTS/H')) {
+                 valLpm = maxNum / 60;
+              } else if (unitHint.includes('L/S')) {
+                 valLpm = maxNum * 60;
+              }
+              if (valLpm > maxQ) maxQ = valLpm;
+           }
+        }
+        if (k.includes('ALTURA') || k.includes('ELEVACIÓN') || k.includes('MCA')) {
+           const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
+           if (nums) {
+              const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+              if (maxNum > maxH) maxH = maxNum;
+           }
+        } else if (k.includes('BAR') || k.includes('PRESIÓN') || k.includes('PRESION')) {
+           const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
+           if (nums) {
+              const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+              if (maxNum > maxBar) maxBar = maxNum;
+           }
+        }
+     });
+     if (maxH === 0 && maxBar > 0) {
+        maxH = maxBar * 10.197;
+     }
+  }
+  
+  // La curva de rendimiento NUNCA se incluye en el PDF/imagen que se comparte:
+  // no cuenta con todos los datos del fabricante y no sería fiel a la curva real.
+  // Solo se muestra dentro de la app al presionar "Ver Curva de Rendimiento",
+  // desde donde el usuario puede compartirla de forma explícita y opcional
+  // (ver generarHtmlCurva / generateAndShareCurvaPdf más abajo).
+  const showCurve = includeCurve && isPumpType && !isExcluded && maxQ > 0 && maxH > 0;
+  let svgCurveHtml = '';
+  
+  if (showCurve) {
+    const finalQ = maxQ * 60 / 1000;
+    const getTicks = (max: number) => {
+       if (max <= 0) return [0, 1];
+       let step = Math.pow(10, Math.floor(Math.log10(max)));
+       const m = max / step;
+       if (m <= 2) step *= 0.2;
+       else if (m <= 5) step *= 0.5;
+       const ticks = [];
+       const count = Math.ceil(max / step);
+       for (let idx = 0; idx <= count; idx++) {
+          ticks.push(Math.round(idx * step * 100) / 100);
+       }
+       if (ticks[ticks.length - 1] < max) {
+          ticks.push(Math.round((ticks[ticks.length - 1] + step) * 100) / 100);
+       }
+       return ticks;
     };
+    
+    const qTicks = getTicks(finalQ);
+    const hTicks = getTicks(maxH);
+    const maxTickQ = qTicks[qTicks.length - 1];
+    const maxTickH = hTicks[hTicks.length - 1];
+    
+    let pathD = '';
+    const curvePad = 6;
+    for (let i = 0; i <= 50; i++) {
+       const q = finalQ * (i / 50);
+       const hp = maxH * (1 - Math.pow(q / finalQ, 2));
+       const px = 50 + curvePad + (q / maxTickQ) * (240 - curvePad * 2);
+       const py = 280 - curvePad - (hp / maxTickH) * (240 - curvePad * 2);
+       pathD += `${i === 0 ? 'M' : 'L'} ${px} ${py} `;
+    }
+    
+    const qGrid = qTicks.map(t => {
+       const px = 50 + (t / maxTickQ) * 240;
+       return `<line x1="${px}" y1="40" x2="${px}" y2="280" stroke="#e4eaf4" stroke-width="1" />
+               <text x="${px}" y="295" font-size="10" fill="#555" text-anchor="middle" font-family="Arial">${t}</text>`;
+    }).join('');
+    
+    const hGrid = hTicks.map(t => {
+       const py = 280 - (t / maxTickH) * 240;
+       return `<line x1="50" y1="${py}" x2="290" y2="${py}" stroke="#e4eaf4" stroke-width="1" />
+               <text x="42" y="${py + 3}" font-size="10" fill="#555" text-anchor="end" font-family="Arial">${t}</text>`;
+    }).join('');
+    
+    svgCurveHtml = `
+      <svg width="100%" height="100%" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg">
+        ${qGrid}
+        ${hGrid}
+        <line x1="50" y1="40" x2="50" y2="280" stroke="#555" stroke-width="2" />
+        <line x1="50" y1="280" x2="290" y2="280" stroke="#555" stroke-width="2" />
+        <text x="170" y="315" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial">Caudal (m³/h)</text>
+        <text x="15" y="160" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial" transform="rotate(-90, 15, 160)">Altura MCA (m)</text>
+        <path d="${pathD.trim()}" stroke="#0d8a39" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    `;
+  }
+  
+  const escapeHtml = (unsafe: string) => {
+    return (unsafe || '').toString()
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  let rowsHtml = '';
+  if (doubleCols) {
+    for (let i = 0; i < numSpecs; i += 2) {
+      const a = specs[i], b = specs[i + 1] || null;
+      const bg = (Math.floor(i / 2)) % 2 === 0 ? '#ffffff' : '#f2f5fb';
+      rowsHtml += `<tr style="background:${bg}">
+        <td class="sn">${escapeHtml(a[0])}</td><td class="sv">${escapeHtml(a[1])}</td>
+        ${b ? `<td class="sn sep">${escapeHtml(b[0])}</td><td class="sv">${escapeHtml(b[1])}</td>` : `<td class="sep"></td><td></td>`}
+      </tr>`;
+    }
+  } else {
+    for (let i = 0; i < numSpecs; i++) {
+      const bg = i % 2 === 0 ? '#ffffff' : '#f2f5fb';
+      rowsHtml += `<tr style="background:${bg}">
+        <td class="sn">${escapeHtml(specs[i][0])}</td><td class="sv">${escapeHtml(specs[i][1])}</td>
+      </tr>`;
+    }
+  }
+
+  const colgroup = doubleCols
+    ? `<colgroup><col style="width:22%"/><col style="width:28%"/><col style="width:22%"/><col style="width:28%"/></colgroup>`
+    : `<colgroup><col style="width:34%"/><col style="width:66%"/></colgroup>`;
+
+  const specsHtml = numSpecs > 0
+    ? `<div class="stitle">ESPECIFICACIONES TÉCNICAS</div>
+       <table class="stbl">${colgroup}<tbody>${rowsHtml}</tbody></table>`
+    : '';
+
+  return `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=794, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <style>
+        @page { margin: 0; size: A4 portrait; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1a1a1a; background: #fff; margin: 0; }
+        .page { width: 794px; height: 1123px; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        .hdr { display: flex; align-items: center; padding: 14px 26px 0 26px; flex-shrink: 0; }
+        .hdr-logo { height: 70px; display: flex; align-items: center; flex-shrink: 0; }
+        .hdr-logo img { max-height: 70px; max-width: 234px; object-fit: contain; }
+        .hdr-sep { width: 2px; height: 46px; background: #c4ccd8; margin: 0 16px; flex-shrink: 0; }
+        .hdr-text { flex: 1; }
+        .hdr-title { font-size: 19pt; font-weight: bold; color: #0a2566; letter-spacing: 1px; line-height: 1; }
+        .hdr-sub { font-size: 7.5pt; color: #8492a6; letter-spacing: 2px; text-transform: uppercase; margin-top: 3px; }
+        .green-line { height: 5px; background: linear-gradient(90deg, #0d8a39, #09c24f); margin-top: 10px; flex-shrink: 0; }
+        .top-block { display: flex; flex-direction: row; margin: ${PX_TMARG}px 26px 0 26px; height: ${topBlockH}px; gap: 12px; flex-shrink: 0; }
+        .img-col { flex: ${showCurve ? '1' : '1'}; min-height: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+        .img-box { width: 100%; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; align-content: center; }
+        .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+        .img-grid-item { flex: 1 1 ${base64Images.length > 2 ? '45%' : '100%'}; min-width: 0; height: ${base64Images.length > 2 ? '48%' : (base64Images.length === 2 ? '48%' : '100%')}; display: flex; align-items: center; justify-content: center; }
+        .img-grid-item img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+        .curve-col { flex: 1; display: flex; flex-direction: column; padding: 10px; }
+        .curve-title { font-size: 10pt; font-weight: bold; color: #0a2566; text-align: center; margin-bottom: 6px; }
+        .curve-wrapper { flex: 1; position: relative; }
+        .curve-disclaimer { font-size: 6pt; color: #8492a6; text-align: center; margin-top: 4px; line-height: 1.1; }
+        .info-box { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; }
+        .p-marca  { font-size: 11pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; letter-spacing: 0.5px; }
+        .p-modelo { font-size: 20pt; font-weight: bold; color: #0a2566; line-height: 1.1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .p-subcat { font-size: 8.5pt; color: #8492a6; text-transform: uppercase; letter-spacing: 1px; }
+        .specs-block { margin: ${PX_GAP}px 26px 0 26px; flex-shrink: 0; }
+        .stitle { background: #0a2566; color: #fff; font-size: 9pt; font-weight: bold; letter-spacing: 1px; padding: 6px 14px; border-radius: 6px 6px 0 0; }
+        .stbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        td { vertical-align: middle; word-break: break-word; overflow-wrap: break-word; line-height: 1.25; }
+        .sn  { padding: ${specPad} 8px ${specPad} 12px; font-size: ${specFs}; font-weight: bold; color: #0a2566; text-transform: uppercase; border-bottom: 1px solid #e4eaf4; }
+        .sv  { padding: ${specPad} 12px ${specPad} 6px; font-size: ${specFs}; color: #2d3748; border-bottom: 1px solid #e4eaf4; }
+        .sep { border-left: 2px solid #dce4f0; }
+        .footer { position: absolute; bottom: 0; left: 0; right: 0; height: ${PX_FOOT}px; background: #0a2566; display: flex; align-items: center; padding: 0 26px; gap: 10px; }
+        .ft { color: rgba(255,255,255,0.6); font-size: 7pt; }
+        .fd { color: rgba(255,255,255,0.22); font-size: 9pt; }
+      </style>
+    </head>
+    <body>
+      <div class="page">
+        <div class="hdr">
+          <div class="hdr-logo"><img src="${logoBase64}" onerror="this.style.display='none'" /></div>
+          <div class="hdr-sep"></div>
+          <div class="hdr-text">
+            <div class="hdr-title">FICHA T&#201;CNICA</div>
+            <div class="hdr-sub">Detalle de Producto</div>
+            <div class="green-line"></div>
+          </div>
+        </div>
+        <div class="top-block">
+          <div class="img-col">
+            <div class="img-box">
+              ${base64Images.map(img => `<div class="img-grid-item"><img class="prod-img" src="${img}" alt="Producto" /></div>`).join('')}
+            </div>
+            <div class="info-box">
+              <span class="p-marca">${escapeHtml(modalProd?.marca || '')}</span>
+              <span class="p-modelo">${escapeHtml(modalProd?.modelo || '')}</span>
+              <span class="p-subcat">${escapeHtml(modalProd?.subcategoria || '')}</span>
+            </div>
+          </div>
+          ${showCurve ? `
+          <div class="curve-col">
+             <div class="curve-title">CURVA DE RENDIMIENTO</div>
+             <div class="curve-wrapper">
+                ${svgCurveHtml}
+             </div>
+             <div class="curve-disclaimer">Nota: Curva de rendimiento teórica aproximada de referencia. Para datos técnicos exactos y curvas de eficiencia, consulte siempre la ficha oficial del fabricante o a un asesor.</div>
+          </div>
+          ` : ''}
+        </div>
+        <div class="specs-block">${specsHtml}</div>
+        <div class="footer">
+          <span class="ft">${modalProd?.marca ?? ''}</span>
+          <span class="fd">&#xB7;</span>
+          <span class="ft">${modalProd?.modelo ?? ''}</span>
+          <span class="fd">&#xB7;</span>
+          <span class="ft">${(modalProd?.subcategoria ?? '').toUpperCase()}</span>
+        </div>
+      </div>
+      <script>
+        (function(){
+          var imgs = document.querySelectorAll('.prod-img');
+          imgs.forEach(function(imgEl) {
+            var img = new Image();
+            img.onload = function() {
+              try {
+                var tmp = document.createElement('canvas');
+                var w = img.width, h = img.height;
+                tmp.width = w; tmp.height = h;
+                var ctx = tmp.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                var idata = ctx.getImageData(0,0,w,h);
+                var d = idata.data;
+                var top = h, bottom = 0, left = w, right = 0;
+                for (var y = 0; y < h; y++) {
+                  for (var x = 0; x < w; x++) {
+                    var i4 = (y * w + x) * 4;
+                    if (d[i4+3] > 10 && !(d[i4] >= 245 && d[i4+1] >= 245 && d[i4+2] >= 245)) {
+                      if (x < left) left = x;  if (x > right) right = x;
+                      if (y < top)  top  = y;  if (y > bottom) bottom = y;
+                    }
+                  }
+                }
+                if (right < left || bottom < top) return;
+                var p = 8;
+                left = Math.max(0, left-p); top = Math.max(0, top-p);
+                right = Math.min(w-1, right+p); bottom = Math.min(h-1, bottom+p);
+                var cw = right-left+1, ch = bottom-top+1;
+                var out = document.createElement('canvas');
+                out.width = cw; out.height = ch;
+                out.getContext('2d').drawImage(tmp, left, top, cw, ch, 0, 0, cw, ch);
+                imgEl.src = out.toDataURL('image/png');
+              } catch(e) {}
+            };
+            img.src = imgEl.src;
+          });
+        })();
+      </script>
+    </body>
+    </html>
+  `;
+}
+
+// ── Exportación opcional y explícita de la Curva de Rendimiento ─────────
+// Esta plantilla es completamente independiente de la ficha del producto.
+// Solo se genera cuando el usuario, ya dentro del modal "Ver Curva de
+// Rendimiento", decide compartirla de forma manual (nunca automáticamente).
+export interface CurvaData {
+  maxQ: number;
+  maxH: number;
+  qTicks: number[];
+  hTicks: number[];
+}
+
+export function generarHtmlCurva(curveData: CurvaData, modalProd: ParsedProduct, logoBase64: string) {
+  const { maxQ: finalQ, maxH, qTicks, hTicks } = curveData;
+  const maxTickQ = qTicks[qTicks.length - 1];
+  const maxTickH = hTicks[hTicks.length - 1];
+
+  let pathD = '';
+  const curvePad = 6;
+  for (let i = 0; i <= 50; i++) {
+    const q = finalQ * (i / 50);
+    const hp = maxH * (1 - Math.pow(q / finalQ, 2));
+    const px = 50 + curvePad + (q / maxTickQ) * (240 - curvePad * 2);
+    const py = 280 - curvePad - (hp / maxTickH) * (240 - curvePad * 2);
+    pathD += `${i === 0 ? 'M' : 'L'} ${px} ${py} `;
+  }
+
+  const qGrid = qTicks.map(t => {
+    const px = 50 + (t / maxTickQ) * 240;
+    return `<line x1="${px}" y1="40" x2="${px}" y2="280" stroke="#e4eaf4" stroke-width="1" />
+            <text x="${px}" y="295" font-size="10" fill="#555" text-anchor="middle" font-family="Arial">${t}</text>`;
+  }).join('');
+
+  const hGrid = hTicks.map(t => {
+    const py = 280 - (t / maxTickH) * 240;
+    return `<line x1="50" y1="${py}" x2="290" y2="${py}" stroke="#e4eaf4" stroke-width="1" />
+            <text x="42" y="${py + 3}" font-size="10" fill="#555" text-anchor="end" font-family="Arial">${t}</text>`;
+  }).join('');
+
+  const svgCurveHtml = `
+    <svg width="320" height="320" viewBox="0 0 320 320" xmlns="http://www.w3.org/2000/svg">
+      ${qGrid}
+      ${hGrid}
+      <line x1="50" y1="40" x2="50" y2="280" stroke="#555" stroke-width="2" />
+      <line x1="50" y1="280" x2="290" y2="280" stroke="#555" stroke-width="2" />
+      <text x="170" y="315" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial">Caudal (m³/h)</text>
+      <text x="15" y="160" font-size="12" fill="#555" text-anchor="middle" font-weight="bold" font-family="Arial" transform="rotate(-90, 15, 160)">Altura MCA (m)</text>
+      <path d="${pathD.trim()}" stroke="#0d8a39" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  `;
+
+  const escapeHtml = (unsafe: string) => {
+    return (unsafe || '').toString()
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; padding: 24px; }
+        .hdr { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #0d8a39; padding-bottom: 14px; margin-bottom: 18px; }
+        .hdr-logo img { max-width: 130px; max-height: 60px; object-fit: contain; }
+        .hdr-sep { width: 2px; height: 46px; background: #dce4f0; }
+        .hdr-text { flex: 1; }
+        .hdr-title { font-size: 15pt; font-weight: bold; color: #0a2566; text-transform: uppercase; letter-spacing: 0.5px; }
+        .hdr-sub { font-size: 9pt; color: #555; margin-top: 2px; }
+        .prod-line { font-size: 10pt; color: #2d3748; margin-top: 4px; }
+        .prod-line b { color: #0a2566; }
+        .curve-wrap { display: flex; flex-direction: column; align-items: center; margin: 10px 0 18px; }
+        .curve-title { font-size: 12pt; font-weight: bold; color: #0a2566; text-transform: uppercase; margin-bottom: 6px; }
+        .warning-box { background: #fff4e5; border: 1.5px solid #f0a93a; border-radius: 8px; padding: 12px 16px; font-size: 9.5pt; color: #7a4a05; line-height: 1.4; }
+        .warning-box b { display: block; margin-bottom: 4px; font-size: 10pt; }
+      </style>
+    </head>
+    <body>
+      <div class="hdr">
+        <div class="hdr-logo"><img src="${logoBase64}" onerror="this.style.display='none'" /></div>
+        <div class="hdr-sep"></div>
+        <div class="hdr-text">
+          <div class="hdr-title">Curva de Rendimiento (Estimada)</div>
+          <div class="hdr-sub">${escapeHtml(modalProd?.marca || '')} &middot; ${escapeHtml(modalProd?.subcategoria || '')}</div>
+          <div class="prod-line"><b>SKU / Modelo:</b> ${escapeHtml(modalProd?.modelo || '')}</div>
+        </div>
+      </div>
+      <div class="curve-wrap">
+        <div class="curve-title">Caudal vs. Altura Manométrica (MCA)</div>
+        ${svgCurveHtml}
+      </div>
+      <div class="warning-box">
+        <b>Importante: gráfica estimativa, no oficial del fabricante</b>
+        Esta curva es una aproximación teórica generada a partir de los datos técnicos cargados para este producto (caudal y altura/presión máximos). No representa necesariamente la curva real publicada por el fabricante, ya que no se cuenta con la totalidad de los puntos de su curva oficial. Para datos técnicos exactos y curvas de eficiencia, consultá siempre la ficha oficial del fabricante o a un asesor de Comagro.
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+export async function generateAndShareCurvaPdf(curveData: CurvaData, modalProd: ParsedProduct, logoBase64: string) {
+  const htmlContent = generarHtmlCurva(curveData, modalProd, logoBase64);
+  const { uri } = await Print.printToFileAsync({ html: htmlContent });
+
+  let finalUriToShare = uri;
+  try {
+    const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+    const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+    const newFileName = `CURVA_${safeMarca}_${safeModelo}.pdf`;
+    const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
+
+    const fileInfo = await FileSystem.getInfoAsync(newUri);
+    if (fileInfo.exists) {
+      await FileSystem.deleteAsync(newUri);
+    }
+    await FileSystem.copyAsync({ from: uri, to: newUri });
+    finalUriToShare = newUri;
+  } catch {
+    // console removed
+  }
+
+  await Sharing.shareAsync(finalUriToShare, {
+    dialogTitle: `Curva de Rendimiento ${modalProd?.modelo}`,
+    mimeType: 'application/pdf',
+    UTI: 'com.adobe.pdf'
+  });
+}
+
+export async function fetchImageBase64(url: string): Promise<string> {
+  if (!url) return '';
+  try {
+    if (url.startsWith('file://') || url.startsWith('/')) {
+      const base64 = await FileSystem.readAsStringAsync(url, { encoding: FileSystem.EncodingType.Base64 });
+      return `data:image/jpeg;base64,${base64}`;
+    }
+
+    // 1) Intentar recuperar de la caché nativa de expo-image (Glide/SDWebImage) para soporte OFFLINE
+    try {
+      const cachedPath = await ExpoImage.getCachePathAsync(url);
+      if (cachedPath) {
+        const safePath = cachedPath.startsWith('file://') ? cachedPath : `file://${cachedPath}`;
+        const base64 = await FileSystem.readAsStringAsync(safePath, { encoding: FileSystem.EncodingType.Base64 });
+        return `data:image/jpeg;base64,${base64}`;
+      }
+    } catch {
+      // Ignorar error de caché y caer al fallback de red
+    }
+
+    // 2) Fallback si no está en caché: fetch clásico (requiere red)
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    // console removed for strict linting compliance
+    return '';
+  }
+}
+
+export async function generateAndSharePdf(modalProd: ParsedProduct, pdfCache: Record<string, string> = {}, logoRefreshKey: string = String(Date.now()), selectedImages?: string[]) {
+  const specs = modalProd?.specs || [];
+  let finalProdB64s: string[] = [];
+  let finalLogoB64 = pdfCache?.logoBase64;
+  
+  const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
+  const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg?v=${logoRefreshKey}`;
+  
+  let timeoutId: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('timeout')), 10000);
   });
 
-  describe('generarHtmlFicha', () => {
-    it('generates HTML string with 2 columns layout when specs > 0 and image is small', () => {
-      // Force many specs to trigger double columns
-      const manySpecs = Array.from({ length: 30 }, (_, i) => [`Spec${i}`, `Val${i}`]) as [string, string][];
-      const html = generarHtmlFicha(manySpecs, ['base64Img'], 'logoBase64', mockProduct);
-      
-      expect(html).toContain('<!DOCTYPE html>');
-      expect(html).toContain('ESPECIFICACIONES TÉCNICAS');
-      expect(html).toContain('Spec0');
-      expect(html).toContain('Val0');
-      expect(html).toContain('base64Img');
-      expect(html).toContain('logoBase64');
-      // Should have double columns colgroup
-      expect(html).toContain('width:22%');
-    });
+  const urlsToFetch = selectedImages && selectedImages.length > 0 
+    ? selectedImages 
+    : [modalProd?.imagenOriginal || modalProd?.imagen || ''];
 
-    it('generates HTML string with 1 column layout when specs are few', () => {
-      const html = generarHtmlFicha(mockProduct.specs || [], ['base64Img'], 'logoBase64', mockProduct);
-      
-      expect(html).toContain('<!DOCTYPE html>');
-      expect(html).toContain('Power');
-      expect(html).toContain('2hp');
-      expect(html).toContain('width:34%'); // Single column colgroup
-    });
+  if (!finalLogoB64) {
+    finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => '') as string;
+  }
+
+  // Fetch all selected images
+  finalProdB64s = await Promise.all(
+    urlsToFetch.map(url => Promise.race([fetchImageBase64(url), timeoutPromise]).catch(() => '') as Promise<string>)
+  );
+  
+  clearTimeout(timeoutId);
+
+  const htmlContent = generarHtmlFicha(specs, finalProdB64s, finalLogoB64, modalProd);
+  const { uri } = await Print.printToFileAsync({ html: htmlContent });
+  
+  let finalUriToShare = uri;
+  try {
+    const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+    const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+    const newFileName = `${safeMarca}_${safeModelo}.pdf`;
+    const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
+    
+    const fileInfo = await FileSystem.getInfoAsync(newUri);
+    if (fileInfo.exists) {
+      await FileSystem.deleteAsync(newUri);
+    }
+    await FileSystem.copyAsync({ from: uri, to: newUri });
+    finalUriToShare = newUri;
+  } catch {
+    // console removed
+  }
+  
+  await Sharing.shareAsync(finalUriToShare, {
+    dialogTitle: `Ficha ${modalProd?.modelo}`,
+    mimeType: 'application/pdf',
+    UTI: 'com.adobe.pdf'
   });
-
-  describe('generateAndSharePdf', () => {
-    it('uses cached base64 and shares PDF successfully', async () => {
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true });
-      
-      const pdfCache = { prodBase64: 'cachedProd', logoBase64: 'cachedLogo' };
-      
-      await generateAndSharePdf(mockProduct, pdfCache, '1234');
-      
-      expect(Print.printToFileAsync).toHaveBeenCalled();
-      expect(FileSystem.getInfoAsync).toHaveBeenCalledWith('file:///mock/cache/AMANA_BOMBA.pdf');
-      expect(FileSystem.deleteAsync).toHaveBeenCalledWith('file:///mock/cache/AMANA_BOMBA.pdf');
-      expect(FileSystem.copyAsync).toHaveBeenCalledWith({ from: 'file:///mock/pdf/file.pdf', to: 'file:///mock/cache/AMANA_BOMBA.pdf' });
-      expect(Sharing.shareAsync).toHaveBeenCalledWith('file:///mock/cache/AMANA_BOMBA.pdf', expect.any(Object));
-    });
-
-    it('fetches images if not in cache (mocks fetchImageBase64 timeout)', async () => {
-      // We will let the promise race timeout or mock fetch.
-      // Since fetchImageBase64 is internal to the module and uses global.fetch, we can mock global.fetch
-      global.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        blob: async () => new Blob(['a'], { type: 'image/jpeg' })
-      });
-      
-      // Need a mock for FileReader to avoid errors, or just let it timeout.
-      // The timeout logic handles rejects and returns ''.
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: false });
-      
-      await generateAndSharePdf(mockProduct, {}, '1234');
-      
-      expect(Print.printToFileAsync).toHaveBeenCalled();
-      expect(FileSystem.copyAsync).toHaveBeenCalled();
-      expect(Sharing.shareAsync).toHaveBeenCalled();
-    });
-  });
-
-  describe('generarHtmlFicha - curva de rendimiento', () => {
-    const pumpProduct: ParsedProduct = {
-      modelo: 'MotoBomba X',
-      marca: 'Amana',
-      subcategoria: 'Motobomba',
-      imagen: '',
-      imagenOriginal: '',
-      specs: [['Caudal', '10 m3/h'], ['Altura Manométrica', '20 mca']],
-      sales_pitch: 'Description',
-    };
-
-    it('never includes the curve when includeCurve is omitted (share PDF/imagen)', () => {
-      const html = generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct);
-      expect(html).not.toContain('CURVA DE RENDIMIENTO');
-    });
-
-    it('never includes the curve even if includeCurve is explicitly false', () => {
-      const html = generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct, false);
-      expect(html).not.toContain('CURVA DE RENDIMIENTO');
-    });
-
-    it('only draws the curve when includeCurve is explicitly true and product is a pump with valid data', () => {
-      const html = generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct, true);
-      expect(html).toContain('CURVA DE RENDIMIENTO');
-    });
-  });
-
-  describe('generarHtmlCurva', () => {
-    const curveData: CurvaData = {
-      maxQ: 10,
-      maxH: 20,
-      qTicks: [0, 5, 10],
-      hTicks: [0, 10, 20],
-    };
-
-    it('generates a standalone HTML page with brand header, SKU and disclaimer', () => {
-      const html = generarHtmlCurva(curveData, mockProduct, 'logoBase64');
-
-      expect(html).toContain('<!DOCTYPE html>');
-      expect(html).toContain('Curva de Rendimiento (Estimada)');
-      expect(html).toContain(mockProduct.marca);
-      expect(html).toContain(mockProduct.modelo);
-      expect(html).toContain('logoBase64');
-      expect(html).toContain('no oficial del fabricante');
-      expect(html).toContain('<svg');
-    });
-  });
-
-  describe('generateAndShareCurvaPdf', () => {
-    const curveData: CurvaData = {
-      maxQ: 10,
-      maxH: 20,
-      qTicks: [0, 5, 10],
-      hTicks: [0, 10, 20],
-    };
-
-    it('prints and shares a PDF file named after the curve', async () => {
-      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: false });
-
-      await generateAndShareCurvaPdf(curveData, mockProduct, 'logoBase64');
-
-      expect(Print.printToFileAsync).toHaveBeenCalled();
-      expect(FileSystem.copyAsync).toHaveBeenCalledWith({ from: 'file:///mock/pdf/file.pdf', to: 'file:///mock/cache/CURVA_AMANA_BOMBA.pdf' });
-      expect(Sharing.shareAsync).toHaveBeenCalledWith('file:///mock/cache/CURVA_AMANA_BOMBA.pdf', expect.objectContaining({ mimeType: 'application/pdf' }));
-    });
-  });
-});
+}
