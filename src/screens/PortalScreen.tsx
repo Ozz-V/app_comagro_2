@@ -206,9 +206,12 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
   }, [showTutorial]);
 
   useEffect(() => {
-    applyCachedProfileStatus();
-    syncAnalyticsQueue();
-    checkProfile();
+    const init = async () => {
+      await applyCachedProfileStatus();
+      syncAnalyticsQueue();
+      checkProfile();
+    };
+    init();
   }, []);
 
   return (

@@ -33,7 +33,8 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
 
   useEffect(() => {
     let cancelled = false;
-    setPdfCache({ prodBase64: '', logoBase64: '' });
+    const init = async () => {
+      setPdfCache({ prodBase64: '', logoBase64: '' });
     if (modalProd) {
       const marcaSlug = (modalProd.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
       const logoUrl = `${APP_CONSTANTS.LOGO_BASE_BRANDS_2025}${marcaSlug}.jpg?v=${logoRefreshKey}`;
@@ -42,6 +43,8 @@ export default function ProductViewerScreen({ route, navigation }: { route: any;
         if (!cancelled) setPdfCache({ prodBase64, logoBase64 });
       });
     }
+    };
+    init();
     return () => { cancelled = true; };
   }, [modalProd, logoRefreshKey]);
 

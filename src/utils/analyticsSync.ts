@@ -35,6 +35,6 @@ export async function syncAnalyticsQueue() {
       await AsyncStorage.removeItem('@analytics_queue');
     }
   } catch (err) {
-    console.log("Error syncAnalyticsQueue:", err);
+    // silently ignore sync errors in production
   }
 }
