@@ -359,17 +359,22 @@ Deno.serve(async (req: Request) => {
         .map(p => ({ sku: String(p.SKU).trim().toUpperCase(), raw_data: sanitizeUnicode(p) }));
 
       const existingData = new Map<string, { hash: string, status: string }>();
-      const { data: existingRows, error: lookupError } = await supaAdmin
-        .from('plytix_queue')
-        .select('sku, content_hash, status')
-        .limit(50000);
-      if (lookupError) {
-        console.error('Error consultando hashes existentes:', lookupError.message);
-        throw new Error(`Fallo al consultar hashes: ${lookupError.message}`);
-      }
-      for (const row of existingRows || []) {
-        if (row.sku && row.content_hash) {
-          existingData.set(String(row.sku).trim().toUpperCase(), { hash: row.content_hash, status: row.status || 'completed' });
+      const allFeedSkus = sanitizedProducts.map(p => p.sku);
+      const lookupChunkSize = 100;
+      for (let i = 0; i < allFeedSkus.length; i += lookupChunkSize) {
+        const skuChunk = allFeedSkus.slice(i, i + lookupChunkSize);
+        const { data: chunkRows, error: lookupError } = await supaAdmin
+          .from('plytix_queue')
+          .select('sku, content_hash, status')
+          .in('sku', skuChunk);
+        if (lookupError) {
+          console.error('Error consultando hashes existentes:', lookupError.message);
+          throw new Error(`Fallo al consultar hashes: ${lookupError.message}`);
+        }
+        for (const row of chunkRows || []) {
+          if (row.sku && row.content_hash) {
+            existingData.set(String(row.sku).trim().toUpperCase(), { hash: row.content_hash, status: row.status || 'completed' });
+          }
         }
       }
 
@@ -428,8 +433,8 @@ Deno.serve(async (req: Request) => {
       }
 
       const targetDebugSkus = ['DACS1500N', 'DACS1800N'];
-      const foundDebugRows = (existingRows || []).filter(r => targetDebugSkus.includes(String(r.sku).trim().toUpperCase()));
-      console.warn(`[DEBUG DIAGNOSTIC] Found ${foundDebugRows.length} rows for DACS1500N/DACS1800N in DB:`, JSON.stringify(foundDebugRows));
+      const foundDebugRows = targetDebugSkus.map(s => ({ sku: s, data: existingData.get(s) }));
+      console.warn(`[DEBUG DIAGNOSTIC] Map entries for DACS1500N/DACS1800N:`, JSON.stringify(foundDebugRows));
 
       if (upsertQueueData.length > 0) {
         const chunkSize = 1000;
