@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -336,7 +336,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
       const renderList = (items: any[], max: number, type: string) => {
          return (items || []).slice(0, 10).map((i: any, idx: number) => {
            const w = max > 0 ? Math.max(5, (i.count / max) * 100) : 0;
-           let name = i.modelo || i.marca || i.user_email || 'Desc.';
+           let name = type === 'marcas' ? i.marca : type === 'usuarios' ? i.user_email : (i.modelo || i.marca || 'Desc.');
            const color = type === 'vistas' ? '#007db8' : type === 'compartidos' ? '#0D8A39' : type === 'marcas' ? '#F37021' : '#6A1B9A';
            
            let imgTag = '';
@@ -344,10 +344,11 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
              imgTag = `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${color.replace('#','')}&color=fff" class="item-img" style="border-radius:14px;">`;
              name = name.split('@')[0];
            } else if (type === 'marcas') {
-             imgTag = `<img src="https://via.placeholder.com/60/FFFFFF/1A2530?text=${name.substring(0,1)}" class="item-img" style="border-radius:4px; border:1px solid #DFE1E6;">`;
+             const marcaSlug = (name || '').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+             imgTag = `<img src="${APP_CONSTANTS.LOGO_BASE_BRANDS_2025}${marcaSlug}.jpg" class="item-img" style="border-radius:4px; border:1px solid #DFE1E6;">`;
            } else {
              const mSku = i.modelo || i.marca;
-             const imgSrc = imageMap[mSku] || `https://via.placeholder.com/60/E8ECF0/1A2530?text=${name.substring(0,1)}`;
+             const imgSrc = imageMap[mSku] || `https://ui-avatars.com/api/?name=${encodeURIComponent(name.substring(0,2))}&background=E8ECF0&color=1A2530`;
              imgTag = `<img src="${imgSrc}" class="item-img">`;
            }
 
@@ -465,7 +466,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
 
   const renderListItem = (item: any, max: number, type: 'vistas'|'compartidos'|'marcas'|'usuarios') => {
      const w = max > 0 ? Math.max(5, (item.count / max) * 100) : 0;
-     let name = item.modelo || item.marca || item.user_email || 'Desc.';
+     let name = type === 'marcas' ? item.marca : type === 'usuarios' ? item.user_email : (item.modelo || item.marca || 'Desc.');
      const color = type === 'vistas' ? COLORS.navy : type === 'compartidos' ? COLORS.green : type === 'marcas' ? '#F37021' : (COLORS.celeste || '#007db8');
      
      let imgSrc: any = null;
@@ -473,10 +474,11 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
          imgSrc = { uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${(color||'').replace('#','')}&color=fff` };
          name = name.split('@')[0];
      } else if (type === 'marcas') {
-         imgSrc = { uri: `https://via.placeholder.com/60/FFFFFF/1A2530?text=${name.substring(0,1)}` };
+         const marcaSlug = (name || '').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
+         imgSrc = { uri: `${APP_CONSTANTS.LOGO_BASE_BRANDS_2025}${marcaSlug}.jpg` };
      } else {
          const modelSku = item.modelo || item.marca;
-         imgSrc = imageMap[modelSku] ? { uri: imageMap[modelSku] } : { uri: `https://via.placeholder.com/60/E8ECF0/1A2530?text=${name.substring(0,1)}` };
+         imgSrc = imageMap[modelSku] ? { uri: imageMap[modelSku] } : { uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(name.substring(0,2))}&background=E8ECF0&color=1A2530` };
      }
 
      return (
@@ -491,12 +493,12 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
         >
             <Image source={imgSrc} style={[s.itemImg, type === 'usuarios' && s.itemAvatar, type === 'marcas' && s.itemBrand]} contentFit="contain" />
             <View style={s.itemInfo}>
-                <Text style={s.itemName} numberOfLines={1} ellipsizeMode="tail">${name}</Text>
+                <Text style={s.itemName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
                 <View style={s.progressBg}>
                    <View style={[s.progressFill, { width: `${w}%`, backgroundColor: color }]} />
                 </View>
             </View>
-            <Text style={[s.itemCount, { color }]}>${item.count}</Text>
+            <Text style={[s.itemCount, { color }]}>{item.count}</Text>
         </TouchableOpacity>
      );
   };
@@ -532,10 +534,10 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
          ))}
       </View>
 
-      {loading ? (
+      {loading && !data.views ? (
         <ActivityIndicator size="large" color={COLORS.navy} style={s.loader} />
       ) : (
-        <View style={s.contentArea}>
+        <ScrollView style={s.contentArea} contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
           <View style={s.rowTotals}>
              <View style={s.cardTotal}>
                 <Text style={s.cardTitle}>Vistas Totales</Text>
@@ -562,8 +564,8 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
                 <Path d="M0,40 Q30,20 60,30 T120,15 T180,25 T240,10 T300,20" fill="none" stroke={COLORS.celeste || '#007db8'} strokeWidth="2" strokeLinecap="round" />
                 <Circle cx="0" cy="40" r="2.5" fill="#fff" stroke={COLORS.celeste || '#007db8'} strokeWidth="1.5"/>
                 <Circle cx="300" cy="20" r="2.5" fill="#fff" stroke={COLORS.celeste || '#007db8'} strokeWidth="1.5"/>
-                <SvgText x="0" y="65" fontSize="9" fill="#6B778C" textAnchor="start">Inicio</SvgText>
-                <SvgText x="300" y="65" fontSize="9" fill="#6B778C" textAnchor="end">Fin</SvgText>
+                <SvgText x="0" y="65" fontSize="9" fill="#6B778C" textAnchor="start">{period === 'today' ? '00:00' : period === '7d' ? '-7 Días' : period === '30d' ? '-30 Días' : 'Inicio'}</SvgText>
+                <SvgText x="300" y="65" fontSize="9" fill="#6B778C" textAnchor="end">{period === 'today' ? 'Ahora' : 'Hoy'}</SvgText>
             </Svg>
           </View>
 
@@ -600,7 +602,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
                 <View style={[s.cardList, {backgroundColor: 'transparent', elevation: 0, borderWidth: 0, shadowOpacity: 0}]} />
              )}
           </View>
-        </View>
+        </ScrollView>
       )}
     </View>
   );

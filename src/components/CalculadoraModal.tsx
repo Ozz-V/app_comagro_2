@@ -1549,7 +1549,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                           ) : (
                             <View style={styles.suggestedImgPlaceholder} />
                           )}
-                          {item.pairedSku && (
+                          {!!item.pairedSku && (
                             <View style={[styles.pairedBadge, { backgroundColor: borderColor }]}>
                               <Text style={styles.pairedBadgeText}>🔗 Requiere componente</Text>
                             </View>
@@ -1593,7 +1593,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                           ) : (
                             <View style={styles.suggestedImgPlaceholder} />
                           )}
-                          {item.pairedSku && (
+                          {!!item.pairedSku && (
                             <View style={[styles.pairedBadge, { backgroundColor: borderColor }]}>
                               <Text style={styles.pairedBadgeText}>🔗 Para: {item.pairedSku}</Text>
                             </View>
