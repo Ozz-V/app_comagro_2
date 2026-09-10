@@ -364,7 +364,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
 
      return (
         <TouchableOpacity 
-           key={name + item.count} 
+           key={name + item.count + type} 
            style={s.listItem} 
            activeOpacity={0.7} 
            onPress={() => {
@@ -445,39 +445,65 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
              </View>
           </View>
 
-          <View style={s.row}>
-             <View style={s.cardList}>
-                <Text style={s.cardTitle}>Más Vistos</Text>
-                <View style={s.listContainer}>
-                   {data.topV.slice(0,5).map(it => renderListItem(it, data.topV[0]?.count || 1, 'vistas'))}
-                </View>
+          {/* Renderizado Condicional: 1 Columna (Mine) vs 2 Columnas (General) */}
+          {tab === 'mine' ? (
+             <View style={{ flex: 1, gap: 10 }}>
+                 <View style={s.cardList}>
+                    <Text style={s.cardTitle}>Más Vistos</Text>
+                    <View style={s.listContainer}>
+                       {data.topV.slice(0,5).map(it => renderListItem(it, data.topV[0]?.count || 1, 'vistas'))}
+                    </View>
+                 </View>
+                 <View style={s.cardList}>
+                    <Text style={s.cardTitle}>Más Compartidos</Text>
+                    <View style={s.listContainer}>
+                       {data.topSh.slice(0,5).map(it => renderListItem(it, data.topSh[0]?.count || 1, 'compartidos'))}
+                    </View>
+                 </View>
+                 <View style={s.cardList}>
+                    <Text style={s.cardTitle}>Top Marcas</Text>
+                    <View style={s.listContainer}>
+                       {data.brands?.slice(0,5).map((it: any) => renderListItem(it, data.brands?.[0]?.count || 1, 'marcas'))}
+                    </View>
+                 </View>
              </View>
-             <View style={s.cardList}>
-                <Text style={s.cardTitle}>Más Compartidos</Text>
-                <View style={s.listContainer}>
-                   {data.topSh.slice(0,5).map(it => renderListItem(it, data.topSh[0]?.count || 1, 'compartidos'))}
-                </View>
-             </View>
-          </View>
+          ) : (
+             <View style={{ flex: 1 }}>
+                 <View style={s.row}>
+                     <View style={s.cardList}>
+                        <Text style={s.cardTitle}>Más Vistos</Text>
+                        <View style={s.listContainer}>
+                           {data.topV.slice(0,5).map(it => renderListItem(it, data.topV[0]?.count || 1, 'vistas'))}
+                        </View>
+                     </View>
+                     <View style={s.cardList}>
+                        <Text style={s.cardTitle}>Más Compartidos</Text>
+                        <View style={s.listContainer}>
+                           {data.topSh.slice(0,5).map(it => renderListItem(it, data.topSh[0]?.count || 1, 'compartidos'))}
+                        </View>
+                     </View>
+                  </View>
 
-          <View style={s.row}>
-             <View style={s.cardList}>
-                <Text style={s.cardTitle}>Top Marcas</Text>
-                <View style={s.listContainer}>
-                   {data.brands?.slice(0,5).map((it: any) => renderListItem(it, data.brands?.[0]?.count || 1, 'marcas'))}
-                </View>
+                  <View style={s.row}>
+                     <View style={s.cardList}>
+                        <Text style={s.cardTitle}>Top Marcas</Text>
+                        <View style={s.listContainer}>
+                           {data.brands?.slice(0,5).map((it: any) => renderListItem(it, data.brands?.[0]?.count || 1, 'marcas'))}
+                        </View>
+                     </View>
+                     <View style={s.cardList}>
+                       <Text style={s.cardTitle}>Usuarios Activos</Text>
+                       <View style={s.listContainer}>
+                          {data.users && data.users.length > 0 ? 
+                             data.users.slice(0,5).map((it: any) => renderListItem(it, data.users?.[0]?.count || 1, 'usuarios')) 
+                             : <Text style={{fontSize: 10, color: COLORS.gray3, fontStyle: 'italic', textAlign: 'center', marginTop: 10}}>Sin datos aún</Text>
+                          }
+                       </View>
+                     </View>
+                  </View>
              </View>
-             {tab === 'general' && data.users && data.users.length > 0 ? (
-                <View style={s.cardList}>
-                   <Text style={s.cardTitle}>Usuarios Activos</Text>
-                   <View style={s.listContainer}>
-                      {data.users.slice(0,5).map((it: any) => renderListItem(it, data.users?.[0]?.count || 1, 'usuarios'))}
-                   </View>
-                </View>
-             ) : (
-                <View style={[s.cardList, {backgroundColor: 'transparent', elevation: 0, borderWidth: 0, shadowOpacity: 0}]} />
-             )}
-          </View>
+          )}
+
         </View>
       )}
     </View>
@@ -513,7 +539,7 @@ const s = StyleSheet.create({
   totalValue: { fontFamily: FONTS.heading, fontSize: 22, fontWeight: '800', color: COLORS.navy },
   
   listContainer: { flex: 1, justifyContent: 'space-evenly' },
-  listItem: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 },
+  listItem: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2, flex: 1 },
   itemImg: { width: 20, height: 20, borderRadius: 4, backgroundColor: '#F0F4F8' },
   itemAvatar: { borderRadius: 10 },
   itemBrand: { borderRadius: 4, borderWidth: 1, borderColor: '#eee' },
