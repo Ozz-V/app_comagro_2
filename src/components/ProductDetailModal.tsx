@@ -776,11 +776,26 @@ export default function ProductDetailModal({
         )}
 
         {curveData && (
-          <Modal visible={showCurveModal} transparent animationType="fade" onRequestClose={() => setShowCurveModal(false)}>
-            <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center'}}>
-              <View style={{width: '90%', maxHeight: '90%', backgroundColor: '#fff', borderRadius: 12, padding: 20, alignItems: 'center'}}>
-               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
-                 <View ref={curveCaptureRef} collapsable={false} style={{ alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 4 }}>
+          <Modal
+            visible={showCurveModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowCurveModal(false)}
+            statusBarTranslucent
+            navigationBarTranslucent
+          >
+            <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', paddingTop: insets.top, paddingBottom: insets.bottom}}>
+              <View style={{
+                width: '90%',
+                maxHeight: screenHeight - insets.top - insets.bottom - 32,
+                backgroundColor: '#fff',
+                borderRadius: 12,
+                padding: 20,
+                paddingBottom: (insets.bottom || 0) + 20,
+                alignItems: 'center'
+              }}>
+               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center', paddingBottom: 4 }}>
+                 <View ref={curveCaptureRef} collapsable={false} style={{ alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 4, paddingBottom: 18 }}>
                    <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', borderBottomWidth: 3, borderBottomColor: COLORS.green, paddingBottom: 10, marginBottom: 14, gap: 10 }}>
                      <Image
                        source={{ uri: `${LOGO_BASE}${(modalProd?.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}
