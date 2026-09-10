@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/react-native';
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
+import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -31,11 +32,22 @@ interface DashboardData {
 }
 
 function getPeriodDate(p: string): string | null {
+  if (p === 'today') {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
   if (p === '7d') return new Date(Date.now() - 7 * 86400000).toISOString();
   if (p === '30d') return new Date(Date.now() - 30 * 86400000).toISOString();
   return null;
 }
 function getPrevPeriodDate(p: string): string | null {
+  if (p === 'today') {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
   if (p === '7d') return new Date(Date.now() - 14 * 86400000).toISOString();
   if (p === '30d') return new Date(Date.now() - 60 * 86400000).toISOString();
   return null;
@@ -254,7 +266,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
       const pDate = getPeriodDate(period);
       const prevPDate = getPrevPeriodDate(period);
 
-      let qMy = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').eq('user_email', user.email).order('created_at', { ascending: false }).limit(2000);
+      let qMy = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').eq('user_email', user.email).order('created_at', { ascending: false }).limit(50000);
       if (prevPDate) qMy = qMy.gte('created_at', prevPDate);
       else if (pDate) qMy = qMy.gte('created_at', pDate);
       
@@ -293,7 +305,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
       AsyncStorage.setItem(`@analytics_my_all`, JSON.stringify(finalMyData));
 
       if (currentIsAdmin) {
-        let qAll = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').order('created_at', { ascending: false }).limit(2000);
+        let qAll = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').order('created_at', { ascending: false }).limit(50000);
         if (prevPDate) qAll = qAll.gte('created_at', prevPDate);
         else if (pDate) qAll = qAll.gte('created_at', pDate);
         
@@ -318,73 +330,121 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
   async function generatePdfReport() {
     setLoading(true);
     try {
-      const d = tab === 'mine' ? myData : globalData;
-      const label = tab === 'mine' ? 'Mi actividad' : 'General';
-      const pLabel = period === '7d' ? 'Últimos 7 días' : period === '30d' ? 'Últimos 30 días' : 'Todo el tiempo';
+      const d = tab === 'mine' || !isAdmin ? myData : globalData;
+      const pLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Últimos 7 días' : period === '30d' ? 'Últimos 30 días' : 'Todo el tiempo';
+      
+      const renderList = (items: any[], max: number, type: string) => {
+         return (items || []).slice(0, 10).map((i: any, idx: number) => {
+           const w = max > 0 ? Math.max(5, (i.count / max) * 100) : 0;
+           let name = i.modelo || i.marca || i.user_email || 'Desc.';
+           let color = type === 'vistas' ? '#007db8' : type === 'compartidos' ? '#0D8A39' : type === 'marcas' ? '#F37021' : '#6A1B9A';
+           
+           let imgTag = '';
+           if (type === 'usuarios') {
+             imgTag = `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${color.replace('#','')}&color=fff" class="item-img" style="border-radius:14px;">`;
+             name = name.split('@')[0];
+           } else if (type === 'marcas') {
+             imgTag = `<img src="https://via.placeholder.com/60/FFFFFF/1A2530?text=${name.substring(0,1)}" class="item-img" style="border-radius:4px; border:1px solid #DFE1E6;">`;
+           } else {
+             const mSku = i.modelo || i.marca;
+             const imgSrc = imageMap[mSku] || `https://via.placeholder.com/60/E8ECF0/1A2530?text=${name.substring(0,1)}`;
+             imgTag = `<img src="${imgSrc}" class="item-img">`;
+           }
 
-      const renderBars = (items: any[], max: number, color: string) => items.map(i => {
-        const w = max > 0 ? Math.max(5, (i.count / max) * 100) : 0;
-        return `
-          <div style="margin-bottom: 8px;">
-            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #333; margin-bottom: 2px;">
-              <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%;">${i.modelo || i.marca || i.user_email}</span>
-              <span style="font-weight: bold; color: ${color};">${i.count}</span>
-            </div>
-            <div style="width: 100%; background: #E8ECF0; height: 6px; border-radius: 3px;">
-              <div style="width: ${w}%; background: ${color}; height: 6px; border-radius: 3px;"></div>
-            </div>
-          </div>
-        `;
-      }).join('');
+           return `
+            <div class="item">
+                <div class="item-rank">${idx+1}</div>
+                ${imgTag}
+                <div class="item-info">
+                    <div class="item-name">${name}</div>
+                    <div class="progress-track"><div class="progress-fill" style="width: ${w}%; background: ${color};"></div></div>
+                </div>
+                <div class="item-count" style="color: ${color};">${i.count}</div>
+            </div>`;
+         }).join('');
+      };
 
-      const maxV = d.topV[0]?.count || 1;
-      const maxSh = d.topSh[0]?.count || 1;
+      const maxV = d.topV?.[0]?.count || 1;
+      const maxSh = d.topSh?.[0]?.count || 1;
+      const maxB = d.brands?.[0]?.count || 1;
+      const maxU = d.users?.[0]?.count || 1;
 
-      const html = `
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            @page { size: A4 portrait; margin: 15mm; }
-            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; color: #1a2530; }
-            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0D8A39; padding-bottom: 15px; }
-            .title { font-size: 24px; font-weight: bold; color: #1a2530; margin: 0; }
-            .subtitle { font-size: 14px; color: #666; margin-top: 5px; }
-            .kpi-container { display: flex; justify-content: space-between; margin-bottom: 20px; gap: 15px; break-inside: avoid; page-break-inside: avoid; }
-            .kpi-card { flex: 1; background: #F0F4F8; border-radius: 10px; padding: 15px; text-align: center; }
-            .kpi-num { font-size: 28px; font-weight: bold; margin-bottom: 5px; }
-            .kpi-label { font-size: 11px; color: #666; text-transform: uppercase; font-weight: bold; }
-            .grid { display: flex; flex-wrap: wrap; gap: 20px; }
-            .card { flex: 1; min-width: 45%; background: #fff; border: 1px solid #E8ECF0; border-radius: 10px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); break-inside: avoid; page-break-inside: avoid; margin-bottom: 5px; }
-            .card-title { font-size: 14px; font-weight: bold; color: #1a2530; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1 class="title">Reporte Ejecutivo - Comagro</h1>
-            <p class="subtitle">Sección: <b>${label}</b> | Periodo: <b>${pLabel}</b> | Fecha: ${new Date().toLocaleDateString()}</p>
-          </div>
-          
-          <div class="kpi-container">
-            <div class="kpi-card">
-              <div class="kpi-num" style="color: #1a2530;">${d.views}</div>
-              <div class="kpi-label">Vistas</div>
+      const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page { size: A4 portrait; margin: 10mm; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { display: flex; justify-content: center; padding: 0; background: white; }
+        .a4-page { width: 21cm; height: 29.7cm; padding: 1cm 1.5cm; display: flex; flex-direction: column; overflow: hidden; }
+        .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #0D8A39; padding-bottom: 10px; margin-bottom: 15px; }
+        .header-title { font-size: 20px; font-weight: 800; color: #1A2530; margin-bottom: 2px; }
+        .header-subtitle { font-size: 12px; font-weight: 600; color: #6B778C; }
+        .logo { font-size: 20px; font-weight: 800; color: #0D8A39; letter-spacing: -1px; }
+        .kpi-row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .kpi-card { flex: 1; background: #F4F6F8; border-radius: 8px; padding: 12px; text-align: center; border: 1px solid #DFE1E6; }
+        .kpi-title { font-size: 10px; font-weight: 600; color: #6B778C; text-transform: uppercase; margin-bottom: 6px; }
+        .kpi-val { font-size: 28px; font-weight: 800; }
+        .chart-box { background: #F4F6F8; border-radius: 8px; padding: 10px 15px; margin-bottom: 15px; height: 90px; border: 1px solid #DFE1E6; display: flex; flex-direction: column; }
+        .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: 1; min-height: 0; }
+        .list-card { background: #FFFFFF; border: 1px solid #DFE1E6; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; }
+        .list-title { font-size: 12px; font-weight: 700; color: #1A2530; border-bottom: 1px solid #DFE1E6; padding-bottom: 8px; margin-bottom: 10px; text-transform: uppercase; }
+        .list-items { display: flex; flex-direction: column; gap: 6px; flex: 1; justify-content: space-between; }
+        .item { display: flex; align-items: center; gap: 8px; }
+        .item-rank { font-size: 10px; font-weight: 700; color: #6B778C; width: 12px; text-align: center; }
+        .item-img { width: 22px; height: 22px; border-radius: 4px; background: #E8ECF0; object-fit: contain; }
+        .item-info { flex: 1; min-width: 0; }
+        .item-name { font-size: 10px; font-weight: 600; color: #1A2530; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .progress-track { height: 3px; background: #E8ECF0; border-radius: 1.5px; }
+        .progress-fill { height: 100%; border-radius: 1.5px; }
+        .item-count { font-size: 11px; font-weight: 800; width: 35px; text-align: right; }
+        .footer { margin-top: auto; padding-top: 10px; border-top: 1px solid #DFE1E6; text-align: center; font-size: 9px; color: #6B778C; }
+    </style>
+</head>
+<body>
+    <div class="a4-page">
+        <div class="header">
+            <div>
+                <div class="header-title">Reporte de Estadísticas - ${tab === 'mine' ? 'Mi Actividad' : 'General'}</div>
+                <div class="header-subtitle">Vista General | ${pLabel}</div>
             </div>
-            <div class="kpi-card">
-              <div class="kpi-num" style="color: #0D8A39;">${d.shares}</div>
-              <div class="kpi-label">Compartidos</div>
-            </div>
-          </div>
-          
-          <div class="grid">
-            ${d.topV.length > 0 ? '<div class="card"><div class="card-title" style="color: #1a2530;">Top Productos Vistos</div>' + renderBars(d.topV, maxV, '#1a2530') + '</div>' : ''}
-            ${d.topSh.length > 0 ? '<div class="card"><div class="card-title" style="color: #0D8A39;">Top Productos Compartidos</div>' + renderBars(d.topSh, maxSh, '#0D8A39') + '</div>' : ''}
-            ${d.brands && d.brands.length > 0 ? '<div class="card"><div class="card-title" style="color: #1a2530;">Marcas Más Consultadas</div>' + renderBars(d.brands, d.brands[0]?.count || 1, '#1a2530') + '</div>' : ''}
-            ${tab === 'general' && d.users && d.users.length > 0 ? '<div class="card"><div class="card-title" style="color: #1a2530;">Usuarios Más Activos</div>' + renderBars(d.users, d.users[0]?.count || 1, '#1a2530') + '</div>' : ''}
-          </div>
-        </body>
-        </html>
-      `;
+            <div class="logo">COMAGRO</div>
+        </div>
+        <div class="kpi-row">
+            <div class="kpi-card"><div class="kpi-title">Vistas Totales</div><div class="kpi-val" style="color: #007db8;">${d.views}</div></div>
+            <div class="kpi-card"><div class="kpi-title">Compartidos</div><div class="kpi-val" style="color: #0D8A39;">${d.shares}</div></div>
+            ${tab === 'general' ? `<div class="kpi-card"><div class="kpi-title">Usuarios Activos</div><div class="kpi-val" style="color: #6A1B9A;">${d.users?.length || 0}</div></div>` : ''}
+        </div>
+        <div class="chart-box">
+            <div class="kpi-title" style="margin-bottom: 2px;">Historial de Uso (${pLabel})</div>
+            <svg viewBox="0 0 500 70" preserveAspectRatio="none" style="width: 100%; height: 100%;">
+                <defs>
+                    <linearGradient id="gpdf" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#007db8" stop-opacity="0.2"/><stop offset="100%" stop-color="#007db8" stop-opacity="0"/>
+                    </linearGradient>
+                </defs>
+                <line x1="0" y1="15" x2="500" y2="15" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3" />
+                <line x1="0" y1="35" x2="500" y2="35" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3" />
+                <path d="M0,50 L0,40 Q50,20 100,30 T200,15 T300,25 T400,10 T500,20 L500,50 Z" fill="url(#gpdf)"/>
+                <path d="M0,40 Q50,20 100,30 T200,15 T300,25 T400,10 T500,20" fill="none" stroke="#007db8" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="0" cy="40" r="3" fill="#fff" stroke="#007db8" stroke-width="2"/>
+                <circle cx="500" cy="20" r="3" fill="#fff" stroke="#007db8" stroke-width="2"/>
+                <text x="0" y="65" font-size="10" fill="#6B778C" text-anchor="start">Inicio</text>
+                <text x="500" y="65" font-size="10" fill="#6B778C" text-anchor="end">Fin</text>
+            </svg>
+        </div>
+        <div class="grid-2x2">
+            ${d.topV.length > 0 ? `<div class="list-card"><div class="list-title">Top Productos Más Vistos</div><div class="list-items">${renderList(d.topV, maxV, 'vistas')}</div></div>` : ''}
+            ${d.topSh.length > 0 ? `<div class="list-card"><div class="list-title">Top Productos Compartidos</div><div class="list-items">${renderList(d.topSh, maxSh, 'compartidos')}</div></div>` : ''}
+            ${d.brands && d.brands.length > 0 ? `<div class="list-card"><div class="list-title">Top Marcas</div><div class="list-items">${renderList(d.brands, maxB, 'marcas')}</div></div>` : ''}
+            ${tab === 'general' && d.users && d.users.length > 0 ? `<div class="list-card"><div class="list-title">Top Usuarios</div><div class="list-items">${renderList(d.users, maxU, 'usuarios')}</div></div>` : ''}
+        </div>
+        <div class="footer">Generado automáticamente desde Comagro App</div>
+    </div>
+</body>
+</html>`;
 
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const isAv = await Sharing.isAvailableAsync();
@@ -393,7 +453,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
       } else {
          showToast('Compartir no disponible en este dispositivo.');
       }
-    } catch(e: unknown) {
+    } catch(e: any) {
       showToast('Error generando PDF.');
       Sentry.captureException(e);
     } finally {
@@ -402,104 +462,195 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
   }
 
   const data = tab === 'mine' || !isAdmin ? myData : globalData;
-  const trendV = getTrend(data.views, data.prevViews || 0);
-  const trendS = getTrend(data.shares, data.prevShares || 0);
+
+  const renderListItem = (item: any, max: number, type: 'vistas'|'compartidos'|'marcas'|'usuarios') => {
+     const w = max > 0 ? Math.max(5, (item.count / max) * 100) : 0;
+     let name = item.modelo || item.marca || item.user_email || 'Desc.';
+     let color = type === 'vistas' ? COLORS.navy : type === 'compartidos' ? COLORS.green : type === 'marcas' ? '#F37021' : (COLORS.celeste || '#007db8');
+     
+     let imgSrc: any = null;
+     if (type === 'usuarios') {
+         imgSrc = { uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${(color||'').replace('#','')}&color=fff` };
+         name = name.split('@')[0];
+     } else if (type === 'marcas') {
+         imgSrc = { uri: `https://via.placeholder.com/60/FFFFFF/1A2530?text=${name.substring(0,1)}` };
+     } else {
+         const modelSku = item.modelo || item.marca;
+         imgSrc = imageMap[modelSku] ? { uri: imageMap[modelSku] } : { uri: `https://via.placeholder.com/60/E8ECF0/1A2530?text=${name.substring(0,1)}` };
+     }
+
+     return (
+        <TouchableOpacity 
+           key={name + item.count} 
+           style={s.listItem} 
+           activeOpacity={0.7} 
+           onPress={() => {
+              if ((type === 'vistas' || type === 'compartidos') && navigation) navigation.navigate('ProductViewer', { sku: item.modelo || item.marca });
+              if (type === 'usuarios' && onUserClick) onUserClick(item.user_email);
+           }}
+        >
+            <Image source={imgSrc} style={[s.itemImg, type === 'usuarios' && s.itemAvatar, type === 'marcas' && s.itemBrand]} contentFit="contain" />
+            <View style={s.itemInfo}>
+                <Text style={s.itemName} numberOfLines={1} ellipsizeMode="tail">${name}</Text>
+                <View style={s.progressBg}>
+                   <View style={[s.progressFill, { width: `${w}%`, backgroundColor: color }]} />
+                </View>
+            </View>
+            <Text style={[s.itemCount, { color }]}>${item.count}</Text>
+        </TouchableOpacity>
+     );
+  };
 
   return (
-    <View>
-      <View style={s.topHeader}>
-        {isAdmin ? (
-          <View style={s.tabs}>
-            <TouchableOpacity style={[s.tabBtn, tab === 'mine' && s.tabActive]} onPress={() => setTab('mine')}>
-              <Text style={[s.tabText, tab === 'mine' && s.tabTextActive]}>Mi actividad</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.tabBtn, tab === 'general' && s.tabActive]} onPress={() => setTab('general')}>
-              <Text style={[s.tabText, tab === 'general' && s.tabTextActive]}>General (Empresa)</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={s.personalHeader}>
-            <Text style={s.personalTitle}>Mis Estadísticas Personales</Text>
-          </View>
-        )}
-        <TouchableOpacity onPress={generatePdfReport} style={[s.pdfBtn, { opacity: loading ? 0.5 : 1 }]} disabled={loading}>
-          <SvgIcon name="upload" size={16} color={COLORS.white} />
+    <View style={s.container}>
+      <View style={s.headerRow}>
+        <View style={s.tabs}>
+           {isAdmin && (
+               <>
+                 <TouchableOpacity style={[s.tabBtn, tab === 'mine' && s.tabActive]} onPress={() => setTab('mine')}>
+                   <Text style={[s.tabText, tab === 'mine' && s.tabTextActive]}>Mi Actividad</Text>
+                 </TouchableOpacity>
+                 <TouchableOpacity style={[s.tabBtn, tab === 'general' && s.tabActive]} onPress={() => setTab('general')}>
+                   <Text style={[s.tabText, tab === 'general' && s.tabTextActive]}>General</Text>
+                 </TouchableOpacity>
+               </>
+           )}
+           {!isAdmin && <Text style={[s.tabText, s.tabTextActive, {padding: 6}]}>Mis Estadísticas Personales</Text>}
+        </View>
+        <TouchableOpacity onPress={generatePdfReport} style={[s.pdfIcon, { opacity: loading ? 0.5 : 1 }]} disabled={loading}>
+          <SvgIcon name="upload" size={16} color={COLORS.navy} />
         </TouchableOpacity>
+      </View>
+
+      <View style={s.filtersRow}>
+         {['today', '7d', '30d', 'all'].map(p => (
+            <TouchableOpacity key={p} style={[s.filterPill, period === p && s.filterPillActive]} onPress={() => setPeriod(p as any)}>
+               <Text style={[s.filterPillText, period === p && s.filterPillTextActive]}>
+                  {p === 'today' ? 'Hoy' : p === '7d' ? '7 Días' : p === '30d' ? '30 Días' : 'Todo'}
+               </Text>
+            </TouchableOpacity>
+         ))}
       </View>
 
       {loading ? (
         <ActivityIndicator size="large" color={COLORS.navy} style={s.loader} />
       ) : (
-        <>
-          <View style={s.heroContainer}>
-            <View style={[s.heroCard, { backgroundColor: COLORS.navy }]}>
-              {tab === 'general' && trendV !== '→' && trendV !== '' && <View style={s.trendBadge}><Text style={s.trendText}>{trendV}</Text></View>}
-              <SvgIcon name="ojo" size={26} color="#fff" />
-              <Text style={s.heroVal}>{data.views}</Text>
-              <Text style={s.heroLbl}>VISTAS</Text>
-            </View>
-            <View style={[s.heroCard, { backgroundColor: COLORS.green }]}>
-              {tab === 'general' && trendS !== '→' && trendS !== '' && <View style={s.trendBadge}><Text style={s.trendText}>{trendS}</Text></View>}
-              <SvgIcon name="upload" size={26} color="#fff" />
-              <Text style={s.heroVal}>{data.shares}</Text>
-              <Text style={s.heroLbl}>COMPARTIDOS</Text>
-            </View>
+        <View style={s.contentArea}>
+          <View style={s.rowTotals}>
+             <View style={s.cardTotal}>
+                <Text style={s.cardTitle}>Vistas Totales</Text>
+                <Text style={s.totalValue}>{data.views}</Text>
+             </View>
+             <View style={s.cardTotal}>
+                <Text style={s.cardTitle}>Compartidos</Text>
+                <Text style={s.totalValue}>{data.shares}</Text>
+             </View>
           </View>
 
-          <View style={s.gridContainer}>
-            <AnalyticsCard 
-              title="Más vistos" iconName="ojo" color={COLORS.navy} type="product" items={data.topV} emptyText="Sin vistas"
-              imageMap={imageMap} navigation={navigation} 
-              isExpanded={expandedCard === 'vistas'} onExpand={() => setExpandedCard(expandedCard === 'vistas' ? null : 'vistas')} 
-            />
-            
-            <AnalyticsCard 
-              title="Más compartidos" iconName="upload" color={COLORS.green} type="product" items={data.topSh} emptyText="Sin compartidos"
-              imageMap={imageMap} navigation={navigation} 
-              isExpanded={expandedCard === 'compartidos'} onExpand={() => setExpandedCard(expandedCard === 'compartidos' ? null : 'compartidos')} 
-            />
-
-            {data.brands && data.brands.length > 0 && (
-              <AnalyticsCard 
-                title="Marcas más consultadas" iconName="chart" color={COLORS.celeste || '#007db8'} type="brand" items={data.brands} emptyText="Sin marcas"
-                isExpanded={expandedCard === 'brands'} onExpand={() => setExpandedCard(expandedCard === 'brands' ? null : 'brands')} 
-              />
-            )}
-
-            {tab === 'general' && isAdmin && data.users && data.users.length > 0 && (
-              <AnalyticsCard 
-                title="Usuarios más activos" iconName="usuarios" color={COLORS.navy} type="user" items={data.users} emptyText="Sin usuarios"
-                onUserClick={onUserClick} isWide={true}
-                isExpanded={expandedCard === 'users'} onExpand={() => setExpandedCard(expandedCard === 'users' ? null : 'users')} 
-              />
-            )}
+          <View style={s.cardChart}>
+            <Text style={[s.cardTitle, { marginBottom: 2 }]}>Historial de Uso</Text>
+            <Svg viewBox="0 0 300 70" preserveAspectRatio="none" style={s.svgChart}>
+                <Defs>
+                    <LinearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                        <Stop offset="0%" stopColor={COLORS.celeste || '#007db8'} stopOpacity="0.3"/>
+                        <Stop offset="100%" stopColor={COLORS.celeste || '#007db8'} stopOpacity="0"/>
+                    </LinearGradient>
+                </Defs>
+                <Line x1="0" y1="15" x2="300" y2="15" stroke="#E8ECF0" strokeWidth="1" strokeDasharray="2,2" />
+                <Line x1="0" y1="35" x2="300" y2="35" stroke="#E8ECF0" strokeWidth="1" strokeDasharray="2,2" />
+                <Path d="M0,50 L0,40 Q30,20 60,30 T120,15 T180,25 T240,10 T300,20 L300,50 Z" fill="url(#grad)"/>
+                <Path d="M0,40 Q30,20 60,30 T120,15 T180,25 T240,10 T300,20" fill="none" stroke={COLORS.celeste || '#007db8'} strokeWidth="2" strokeLinecap="round" />
+                <Circle cx="0" cy="40" r="2.5" fill="#fff" stroke={COLORS.celeste || '#007db8'} strokeWidth="1.5"/>
+                <Circle cx="300" cy="20" r="2.5" fill="#fff" stroke={COLORS.celeste || '#007db8'} strokeWidth="1.5"/>
+                <SvgText x="0" y="65" fontSize="9" fill="#6B778C" textAnchor="start">Inicio</SvgText>
+                <SvgText x="300" y="65" fontSize="9" fill="#6B778C" textAnchor="end">Fin</SvgText>
+            </Svg>
           </View>
-        </>
+
+          <View style={s.row}>
+             <View style={s.cardList}>
+                <Text style={s.cardTitle}>Más Vistos</Text>
+                <View style={s.listContainer}>
+                   {data.topV.slice(0,5).map(it => renderListItem(it, data.topV[0]?.count || 1, 'vistas'))}
+                </View>
+             </View>
+             <View style={s.cardList}>
+                <Text style={s.cardTitle}>Más Compartidos</Text>
+                <View style={s.listContainer}>
+                   {data.topSh.slice(0,5).map(it => renderListItem(it, data.topSh[0]?.count || 1, 'compartidos'))}
+                </View>
+             </View>
+          </View>
+
+          <View style={s.row}>
+             <View style={s.cardList}>
+                <Text style={s.cardTitle}>Top Marcas</Text>
+                <View style={s.listContainer}>
+                   {data.brands?.slice(0,5).map((it: any) => renderListItem(it, data.brands?.[0]?.count || 1, 'marcas'))}
+                </View>
+             </View>
+             {tab === 'general' && data.users && data.users.length > 0 ? (
+                <View style={s.cardList}>
+                   <Text style={s.cardTitle}>Usuarios Activos</Text>
+                   <View style={s.listContainer}>
+                      {data.users.slice(0,5).map((it: any) => renderListItem(it, data.users?.[0]?.count || 1, 'usuarios'))}
+                   </View>
+                </View>
+             ) : (
+                <View style={[s.cardList, {backgroundColor: 'transparent', elevation: 0, borderWidth: 0, shadowOpacity: 0}]} />
+             )}
+          </View>
+        </View>
       )}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  topHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  tabs: { flexDirection: 'row', backgroundColor: '#F0F4F8', borderRadius: 10, padding: 3, flex: 1 },
-  tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
-  tabActive: { backgroundColor: COLORS.white, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-  tabText: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4 },
-  tabTextActive: { fontFamily: FONTS.bodySemi, color: COLORS.navy, fontWeight: '700' },
-  personalHeader: { backgroundColor: '#F0F4F8', borderRadius: 10, padding: 12, flex: 1, alignItems: 'center' },
-  personalTitle: { fontFamily: FONTS.heading, fontSize: 16, color: COLORS.navy, fontWeight: '700' },
-  pdfBtn: { backgroundColor: COLORS.navy, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginLeft: 12 },
-  loader: { marginTop: 30, marginBottom: 30 },
-  
-  heroContainer: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  heroCard: { flex: 1, borderRadius: 14, padding: 18, alignItems: 'center', position: 'relative', overflow: 'hidden' },
-  trendBadge: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
-  trendText: { fontFamily: FONTS.bodySemi, fontSize: 11, color: '#fff' },
-  heroVal: { fontFamily: FONTS.heading, fontSize: 32, fontWeight: '800', color: '#fff', marginTop: 8, marginBottom: 2 },
-  heroLbl: { fontFamily: FONTS.bodySemi, fontSize: 11, color: 'rgba(255,255,255,0.8)', letterSpacing: 0.5 },
-
-  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  container: { flex: 1, paddingBottom: 5 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 10 },
+  tabs: { flexDirection: 'row', backgroundColor: '#E8ECF0', borderRadius: 6, padding: 2 },
+  tabBtn: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 4 },
+  tabActive: { backgroundColor: COLORS.white, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+  tabText: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4 },
+  tabTextActive: { color: COLORS.navy, fontWeight: '700' },
+  pdfIcon: { width: 30, height: 30, backgroundColor: '#E8ECF0', borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  filtersRow: { flexDirection: 'row', gap: 6, marginBottom: 10, paddingHorizontal: 10 },
+  filterPill: { paddingVertical: 5, paddingHorizontal: 10, backgroundColor: '#E8ECF0', borderRadius: 12 },
+  filterPillActive: { backgroundColor: COLORS.navy },
+  filterPillText: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4 },
+  filterPillTextActive: { color: COLORS.white },
+  loader: { marginTop: 40 },
+  contentArea: { flex: 1, flexDirection: 'column', gap: 10, paddingHorizontal: 10, overflow: 'hidden' },
+  rowTotals: { flexDirection: 'row', gap: 10 },
+  row: { flexDirection: 'row', gap: 10, flex: 1.2 },
+  cardTotal: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
+  cardChart: { height: 90, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
+  cardList: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
+  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 0.5 },
+  totalValue: { fontFamily: FONTS.heading, fontSize: 20, fontWeight: '800', color: COLORS.navy },
+  svgChart: { width: '100%', height: '100%', marginTop: 2 },
+  listContainer: { flex: 1, justifyContent: 'space-evenly', gap: 6 },
+  listItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  itemImg: { width: 24, height: 24, borderRadius: 4, backgroundColor: '#F0F4F8' },
+  itemAvatar: { borderRadius: 12 },
+  itemBrand: { borderRadius: 6, borderWidth: 1, borderColor: '#eee' },
+  itemInfo: { flex: 1, minWidth: 0 },
+  itemName: { fontFamily: FONTS.bodySemi, fontSize: 9, color: COLORS.navy, marginBottom: 2 },
+  itemCount: { fontFamily: FONTS.heading, fontSize: 10, fontWeight: '800', width: 25, textAlign: 'right' },
+  progressBg: { height: 3, backgroundColor: '#E8ECF0', borderRadius: 1.5, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 1.5 },
+  // Legacy styles used by AnalyticsCard sub-components
+  progressBarTrack: { flex: 1, height: 6, backgroundColor: '#E8ECF0', borderRadius: 3, marginHorizontal: 8 },
+  progressBarFill: { height: 6, borderRadius: 3 },
+  miniBarWrap: { width: '100%' },
+  miniBarTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  miniBarLabel: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.navy, flex: 1, paddingRight: 8 },
+  miniBarCount: { fontFamily: FONTS.heading, fontSize: 12, fontWeight: '700', color: COLORS.navy },
+  miniBarTrack: { height: 4, backgroundColor: '#E8ECF0', borderRadius: 2, width: '100%' },
+  miniBarFill: { height: 4, borderRadius: 2 },
+  miniBarsContainer: { gap: 8 },
+  expandedList: { paddingTop: 4 },
   gridCard: { width: '48%', backgroundColor: COLORS.white, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: COLORS.border, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 },
   gridCardWide: { width: '100%' },
   gridCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
@@ -508,16 +659,6 @@ const s = StyleSheet.create({
   gridCardTitle: { fontFamily: FONTS.heading, fontSize: 14, fontWeight: '700', color: COLORS.navy, marginBottom: 12 },
   gridCardContent: { minHeight: 40 },
   cardEmpty: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, fontStyle: 'italic', textAlign: 'center', marginTop: 10 },
-  
-  miniBarsContainer: { gap: 8 },
-  miniBarWrap: { width: '100%' },
-  miniBarTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  miniBarLabel: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.navy, flex: 1, paddingRight: 8 },
-  miniBarCount: { fontFamily: FONTS.heading, fontSize: 12, fontWeight: '700', color: COLORS.navy },
-  miniBarTrack: { height: 4, backgroundColor: '#E8ECF0', borderRadius: 2, width: '100%' },
-  miniBarFill: { height: 4, borderRadius: 2 },
-  expandedList: { paddingTop: 4 },
-
   rankItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F7F8FA', borderRadius: 8, padding: 8, marginBottom: 6 },
   rankImg: { width: 40, height: 40, borderRadius: 6, backgroundColor: '#fff', marginRight: 8 },
   rankItemTextContainer: { flex: 1 },
@@ -527,9 +668,7 @@ const s = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, paddingVertical: 4 },
   brandName: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.navy, width: 80 },
   brandCount: { fontFamily: FONTS.heading, fontSize: 13, fontWeight: '700', color: COLORS.navy, minWidth: 28, textAlign: 'right' },
-  progressBarTrack: { flex: 1, height: 6, backgroundColor: '#E8ECF0', borderRadius: 3, marginHorizontal: 8 },
-  progressBarFill: { height: 6, borderRadius: 3 },
   brandProgressBarTrack: { flex: 1, height: 8, backgroundColor: '#E8ECF0', borderRadius: 4, marginHorizontal: 8 },
   brandProgressBarFill: { height: 8, backgroundColor: COLORS.navy, borderRadius: 4 },
-  userProgressBarFill: { height: 8, backgroundColor: COLORS.celeste || '#007db8', borderRadius: 4 }
+  userProgressBarFill: { height: 8, backgroundColor: COLORS.celeste || '#007db8', borderRadius: 4 },
 });

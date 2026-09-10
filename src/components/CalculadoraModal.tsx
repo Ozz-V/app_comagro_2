@@ -1,4 +1,4 @@
-﻿import * as Sentry from '@sentry/react-native';
+import * as Sentry from '@sentry/react-native';
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard, Alert } from 'react-native';
 import { Image } from 'expo-image';
@@ -9,6 +9,10 @@ import { isCatalogSyncing, subscribeToCatalogUpdates } from '../services/catalog
 import { estimateGenerador, estimateMotor } from '../utils/CapacityEstimator';
 import { ParsedProduct, CalcProduct, PumpWizardState, SpecTuple } from '../types';
 import { FRICCION_DIAMS, FIT_HEADERS, FIT_ROWS, interpolateFriction } from '../utils/frictionLogic';
+
+
+import { useRules } from '../hooks/useRules';
+import { DEFAULT_RULES } from '../services/rulesService';
 
 interface CalculadoraModalProps {
   visible: boolean;
@@ -25,20 +29,19 @@ type ExtendedCalcProduct = CalcProduct & {
 
 type RulesCategory = typeof DEFAULT_RULES.categorias[0];
 
-
-import { useRules } from '../hooks/useRules';
-import { DEFAULT_RULES } from '../services/rulesService';
-
 export default function CalculadoraModal({ visible, onClose, navigation }: CalculadoraModalProps) {
   const reglas = useRules();
   const [calcMode, setCalcMode] = useState('');
   const [calcInput, setCalcInput] = useState('');
   const [bombaTab, setBombaTab] = useState<'guiado' | 'avanzado'>('guiado');
   const [wizardStep, setWizardStep] = useState(1);
-  const [pumpWizard, setPumpWizard] = useState<PumpWizardState>({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
+  const [pumpWizard, setPumpWizard] = useState<PumpWizardState & { hp?: string }>({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '', hp: '' });
   
   const [genUnit, setGenUnit] = useState<'KVA'|'AMPER'>('KVA');
   const [genFase, setGenFase] = useState<'220v'|'380v'>('380v');
+  const [genStats, setGenStats] = useState({ min380: 0, max220: 0 });
+  const [motorState, setMotorState] = useState({ hp: '', polos: '', fase: '' });
+  const [motorCatalog, setMotorCatalog] = useState<any[]>([]);
 
   const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' as 'l/min' | 'm3/h' | 'l/h' });
 
@@ -52,6 +55,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   // Pre-read stats
   const [motorWarning, setMotorWarning] = useState<string | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [availableHps, setAvailableHps] = useState<number[]>([]);
 
   useEffect(() => {
     if (!visible) {
@@ -62,7 +66,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       setCalcMode('');
       setBombaTab('guiado');
       setWizardStep(1);
-      setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '' });
+      setMotorState({ hp: '', polos: '', fase: '' });
+      setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '', hp: '' });
       setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' });      setMotorWarning(null);
       setWaitingForCatalog(false);
     }
@@ -221,6 +226,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       getProductsBySubcategory('BOMBA', true).then(dbProducts => {
          let mxQ = 0;
          let mxH = 0;
+         const hpSet = new Set<number>();
          dbProducts.forEach(p => {
             const sub = String(p.subcategoria).toUpperCase();
             const nom = String(p.modelo).toUpperCase();
@@ -228,14 +234,121 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                const specs = parsePumpSpecs(p as ParsedProduct);
                if (specs.maxCaudalLpm > mxQ) mxQ = specs.maxCaudalLpm;
                if (specs.maxAlturaMca > mxH) mxH = specs.maxAlturaMca;
+               if (specs.hpVal > 0) hpSet.add(specs.hpVal);
             }
-         });         setStatsLoading(false);
+         });
+         setAvailableHps(Array.from(hpSet).sort((a, b) => a - b));
+         setStatsLoading(false);
       }).catch(e => {
          setStatsLoading(false);
          console.error(e);
       });
     }
   }, [wizardStep, pumpWizard.uso, calcMode]);
+
+  // Pre-read stats for generators
+  useEffect(() => {
+    if (calcMode === 'gen') {
+       getProductsBySubcategory('GENERADOR', true).then(dbProducts => {
+          let m380 = Infinity;
+          let m220 = 0;
+          dbProducts.forEach(p => {
+              const parsed = p as ParsedProduct;
+              let hasFuel = false;
+              const sub = String(p.subcategoria).toUpperCase();
+              if (sub.includes('NAFTA') || sub.includes('DIESEL') || sub.includes('DIÉSEL') || sub.includes('GASOLINA')) hasFuel = true;
+              if (p.specs) {
+                const allSpecs = JSON.stringify(p.specs).toUpperCase();
+                if (allSpecs.includes('NAFTA') || allSpecs.includes('DIESEL') || allSpecs.includes('DIÉSEL') || allSpecs.includes('GASOLINA')) hasFuel = true;
+              }
+              if (!hasFuel) return;
+
+              let val = 0;
+              if (p.specs) {
+                p.specs.forEach((s: SpecTuple) => {
+                  const k = String(s[0]).toUpperCase();
+                  if (k.includes('POTENCIA') || k.includes('KVA')) {
+                    const n = extractNum(String(s[1]));
+                    if (n) val = n;
+                  }
+                });
+              }
+              if (val > 0) {
+                 const is380 = matchesFase(parsed, '380v');
+                 const is220 = matchesFase(parsed, '220v');
+                 if (is380 && !is220) {
+                    if (val < m380) m380 = val;
+                 } else if (is220 && !is380) {
+                    if (val > m220) m220 = val;
+                 }
+              }
+          });
+          if (m380 === Infinity) m380 = 0;
+          setGenStats({ min380: m380, max220: m220 });
+       }).catch(console.error);
+    }
+  }, [calcMode]);
+
+  // Pre-read stats for motors
+  useEffect(() => {
+    if (calcMode === 'motor') {
+        getProductsBySubcategory('MOTOR', true).then(dbProducts => {
+            const parsedMotors = dbProducts
+                .filter(p => {
+                   const sub = String(p.subcategoria).toUpperCase();
+                   return sub.includes('ELÉC') || sub.includes('ELEC');
+                })
+                .map(p => {
+                    let hp = 0;
+                    let rpm = 0;
+                    let polos = 0;
+                    const parsed = p as ParsedProduct;
+                    const tension = getProductTension(parsed);
+                    const fase = tension === null ? null : (tension >= 300 ? '380v' : '220v');
+
+                    if (p.specs) {
+                        p.specs.forEach((s: SpecTuple) => {
+                            const k = String(s[0]).toUpperCase();
+                            const v = String(s[1]).toUpperCase();
+                            if (k.includes('HP') || k.includes('POTENCIA')) {
+                                const n = extractNum(v);
+                                if (n) hp = n;
+                            }
+                            if (k.includes('RPM') || k.includes('VELOCIDAD')) {
+                                const n = extractNum(v);
+                                if (n) rpm = n;
+                            }
+                            if (k.includes('POLO')) {
+                                const n = extractNum(v);
+                                if (n) polos = n;
+                            }
+                        });
+                    }
+                    if (rpm > 0 && polos === 0) {
+                        if (rpm > 2500) polos = 2;
+                        else if (rpm > 1200) polos = 4;
+                        else if (rpm > 800) polos = 6;
+                        else if (rpm > 600) polos = 8;
+                    }
+                    return { sku: p.modelo, hp, fase, polos, rpm };
+                });
+            setMotorCatalog(parsedMotors);
+        }).catch(console.error);
+    }
+  }, [calcMode]);
+
+  const availMotorProps = useMemo(() => {
+    let valid = motorCatalog;
+    if (motorState.hp) valid = valid.filter(m => m.hp === parseFloat(motorState.hp));
+    if (motorState.fase) valid = valid.filter(m => m.fase === motorState.fase || m.fase === null);
+    if (motorState.polos) valid = valid.filter(m => m.polos === parseInt(motorState.polos));
+
+    const hps = Array.from(new Set(valid.filter(m => m.hp > 0).map(m => m.hp))).sort((a,b)=>a-b);
+    const polos = Array.from(new Set(valid.filter(m => m.polos > 0).map(m => m.polos))).sort((a,b)=>a-b);
+    const fases = Array.from(new Set(valid.filter(m => m.fase).map(m => m.fase)));
+
+    return { hps, polos, fases };
+  }, [motorCatalog, motorState]);
 
   const handleUnitChange = (newUnit: 'l/min' | 'm3/h' | 'l/h') => {
     const currentVal = parseFloat(pumpWizard.caudal);
@@ -313,25 +426,45 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           return Math.abs(a.calcVal - targetKva) - Math.abs(b.calcVal - targetKva);
         }).slice(0, 5);
       } else if (calcMode === 'motor') {
-        const target = parseFloat(calcInput) || 0;
+        const targetHp = parseFloat(motorState.hp) || 0;
+        const targetFase = motorState.fase;
+        const targetPolos = parseInt(motorState.polos) || 0;
+
         const dbProducts = await getProductsBySubcategory('MOTOR', true);
-        filtered = dbProducts.filter((p: ParsedProduct) => {
+        filtered = (dbProducts as any[]).filter((p: any) => {
           const sub = String(p.subcategoria).toUpperCase();
-          return sub.includes('ELEC') || sub.includes('ELÉC');
-        }).map((p: ParsedProduct): ExtendedCalcProduct => {
-          let val = 0;
+          if (!sub.includes('ELEC') && !sub.includes('ELÉC')) return false;
+
+          let hp = 0, rpm = 0, polos = 0;
+          const tension = getProductTension(p);
+          const fase = tension === null ? null : (tension >= 300 ? '380v' : '220v');
+
           if (p.specs) {
             p.specs.forEach((s: SpecTuple) => {
               const k = String(s[0]).toUpperCase();
-              if (k.includes('HP') || k.includes('POTENCIA')) {
-                const n = extractNum(s[1]);
-                if (n) val = n;
-              }
+              const v = String(s[1]).toUpperCase();
+              if (k.includes('HP') || k.includes('POTENCIA')) { const n = extractNum(v); if (n) hp = n; }
+              if (k.includes('RPM') || k.includes('VELOCIDAD')) { const n = extractNum(v); if (n) rpm = n; }
+              if (k.includes('POLO')) { const n = extractNum(v); if (n) polos = n; }
             });
           }
-          return { ...p, calcVal: val };
-        }).filter((p: ExtendedCalcProduct) => p.calcVal > 0)
-        .sort((a: ExtendedCalcProduct, b: ExtendedCalcProduct) => Math.abs(a.calcVal - target) - Math.abs(b.calcVal - target)).slice(0, 5);
+          if (rpm > 0 && polos === 0) {
+              if (rpm > 2500) polos = 2;
+              else if (rpm > 1200) polos = 4;
+              else if (rpm > 800) polos = 6;
+              else if (rpm > 600) polos = 8;
+          }
+
+          if (targetHp > 0 && hp !== targetHp) return false;
+          if (targetFase && fase && fase !== targetFase) return false;
+          if (targetPolos > 0 && polos > 0 && polos !== targetPolos) return false;
+
+          (p as any).calcVal = hp;
+          return true;
+        }).sort((a: any, b: any) => {
+           if (targetHp > 0) return Math.abs(a.calcVal - targetHp) - Math.abs(b.calcVal - targetHp);
+           return a.calcVal - b.calcVal;
+        }).slice(0, 5);
       } else if (calcMode === 'bomba') {
         let targetCaudalInput = 0;
         let targetAlturaInput = 0;
@@ -370,6 +503,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const usoConf = reglas.categorias.find((u: any) => u.id === pumpWizard.uso);
         
         // ── FILTRO POR CATEGORÍA ──────────────────────────────────────────────
+        const targetHpInput = parseFloat(pumpWizard.hp || '0') || 0;
+
         if (usoConf) {
            pool = pool.filter(p => {
               const sub = String(p.subcategoria).toUpperCase();
@@ -378,20 +513,25 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               // Solo pasan los tipos definidos en la categoría
               if (!usoConf.tipos.some(t => sub.includes(t) || nom.includes(t))) return false;
 
-              // ── VIVIENDA: doble barrera (HP + Caudal como fallback) ──
-              if (pumpWizard.uso === 'vivienda') {
-                 const specs = parsePumpSpecs(p as ParsedProduct);
-                 // Si tiene HP explícito → debe ser <= 3 HP
-                 if (specs.hpVal > reglas.filtros.vivienda.maxHp) return false;
-                 // Si no tiene HP pero tiene caudal → caudal máx 165 L/min (~10 m³/h)
-                 if (specs.hpVal === 0 && specs.maxCaudalLpm > reglas.filtros.vivienda.maxCaudalLpm) return false;
-              }
+              // ── FILTRO POR HP SELECCIONADO ──
+              const specs = parsePumpSpecs(p as ParsedProduct);
+              if (targetHpInput > 0) {
+                 if (specs.hpVal !== targetHpInput) return false;
+              } else {
+                 // Si no hay HP seleccionado explícitamente, aplican las reglas normales de la categoría
+                 // ── VIVIENDA: doble barrera (HP + Caudal como fallback) ──
+                 if (pumpWizard.uso === 'vivienda') {
+                    // Si tiene HP explícito → debe ser <= 3 HP
+                    if (specs.hpVal > reglas.filtros.vivienda.maxHp) return false;
+                    // Si no tiene HP pero tiene caudal → caudal máx 165 L/min (~10 m³/h)
+                    if (specs.hpVal === 0 && specs.maxCaudalLpm > reglas.filtros.vivienda.maxCaudalLpm) return false;
+                 }
 
-              // ── INDUSTRIAL: piso de 3 HP (excluir domésticas explícitas) ──
-              if (pumpWizard.uso === 'riego_presion') {
-                 const specs = parsePumpSpecs(p as ParsedProduct);
-                 // Si tiene HP explícito y es < 3 → excluir
-                 if (specs.hpVal > 0 && specs.hpVal < reglas.filtros.industrial.minHp) return false;
+                 // ── INDUSTRIAL: piso de 3 HP (excluir domésticas explícitas) ──
+                 if (pumpWizard.uso === 'riego_presion') {
+                    // Si tiene HP explícito y es < 3 → excluir
+                    if (specs.hpVal > 0 && specs.hpVal < reglas.filtros.industrial.minHp) return false;
+                 }
               }
 
               return true;
@@ -449,7 +589,11 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const tolCurva = reglas.matematica.toleranciaCurva || 1.15; // 15% de margen extra por si acaso
         const minCaudalTol = reglas.matematica.toleranciaCaudalMinimo || 0.85;
 
-        if (targetCaudalLpm > 0 && targetAlturaInput > 0) {
+        // Si el usuario seleccionó HP manualmente, NOS SALTAMOS el filtrado de la curva teórica y caudal máximo.
+        // Solo ordenamos para que los que se acercan más a los datos de caudal/altura extra (si los puso) queden arriba.
+        if (targetHpInput > 0) {
+           // Solo ordenamos por score (si puso Q/H se calcula en base a cuan cerca están)
+        } else if (targetCaudalLpm > 0 && targetAlturaInput > 0) {
            const maxMultiplo = reglas.matematica.maxMultiploCaudalPermitido ?? 8;
            conAltura = conAltura.filter(p => {
               const qmax = (p as any)._q;
@@ -1050,10 +1194,63 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                                 </View>
                              </View>
               <View style={styles.colListRow}>
-                                <Text style={styles.inputTitleSmall}>Altura (mca)</Text>
-                                <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="Ej: 20" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} maxLength={3} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
-                             </View>
+                 <Text style={styles.inputTitleSmall}>Altura y/o Potencia</Text>
+                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                       <TextInput 
+                          style={[styles.textInputSmall, { marginHorizontal: 0 }]} 
+                          keyboardType="numeric" 
+                          placeholder="mca (Ej: 20)" 
+                          placeholderTextColor={COLORS.gray4} 
+                          value={pumpWizard.altura} 
+                          maxLength={3} 
+                          onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} 
+                       />
+                    </View>
+                    <View style={{ flex: 1, position: 'relative' }}>
+                       {Platform.OS === 'ios' ? (
+                          <TextInput
+                             style={[styles.textInputSmall, { marginHorizontal: 0, paddingRight: 30 }]}
+                             placeholder="HP"
+                             placeholderTextColor={COLORS.gray4}
+                             value={pumpWizard.hp || ''}
+                             editable={false}
+                          />
+                       ) : (
+                          <View style={[styles.textInputSmall, { marginHorizontal: 0, padding: 0, overflow: 'hidden', justifyContent: 'center' }]}>
+                             <select
+                                style={{ width: '100%', height: '100%', border: 'none', background: 'transparent', outline: 'none', paddingLeft: 10, color: COLORS.navy, fontFamily: 'Inter_500Medium' } as any}
+                                value={pumpWizard.hp || ''}
+                                onChange={(e) => setPumpWizard({...pumpWizard, hp: e.target.value})}
+                             >
+                                <option value="">Sin HP (Auto)</option>
+                                {availableHps.map(hp => (
+                                   <option key={hp} value={hp.toString()}>{hp} HP</option>
+                                ))}
+                             </select>
                           </View>
+                       )}
+                       {Platform.OS === 'ios' && (
+                          <View style={{ position: 'absolute', right: 10, top: 12, pointerEvents: 'none' }}>
+                             <SvgIcon name="chevron-down" size={16} color={COLORS.gray4} />
+                          </View>
+                       )}
+                       {Platform.OS === 'ios' && (
+                          <select
+                             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0 } as any}
+                             value={pumpWizard.hp || ''}
+                             onChange={(e) => setPumpWizard({...pumpWizard, hp: e.target.value})}
+                          >
+                             <option value="">Sin HP (Auto)</option>
+                             {availableHps.map(hp => (
+                                <option key={hp} value={hp.toString()}>{hp} HP</option>
+                             ))}
+                          </select>
+                       )}
+                    </View>
+                 </View>
+              </View>
+                           </View>
 
                           <Text style={{fontSize: 12, marginBottom: 10, textAlign: 'center', color: COLORS.gray4}}>
                             * Ingresa al menos uno de los valores para calcular
@@ -1080,8 +1277,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                           )}
 
                           <TouchableOpacity 
-                            style={[styles.calculateBtn, {paddingVertical: 10, marginBottom: 5}, (!pumpWizard.caudal && !pumpWizard.altura) && { backgroundColor: COLORS.gray4 }]} 
-                            disabled={!pumpWizard.caudal && !pumpWizard.altura}
+                            style={[styles.calculateBtn, {paddingVertical: 10, marginBottom: 5}, (!pumpWizard.caudal && !pumpWizard.altura && !pumpWizard.hp) && { backgroundColor: COLORS.gray4 }]} 
+                            disabled={!pumpWizard.caudal && !pumpWizard.altura && !pumpWizard.hp}
                             onPress={handleCalculate}
                           >
                             <Text style={styles.calculateBtnText}>Ver Recomendaciones</Text>
@@ -1107,35 +1304,172 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
 
                       <View style={{ marginBottom: 15 }}>
                         <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
-                        <View style={styles.unitTabs}>
-                          <TouchableOpacity style={[styles.unitTabBtn, genFase === '220v' && styles.unitTabBtnActive]} onPress={() => {setGenFase('220v'); setHasCalculated(false);}}>
-                            <Text style={[styles.unitTabTxt, genFase === '220v' && styles.unitTabTxtActive]}>220V</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={[styles.unitTabBtn, genFase === '380v' && styles.unitTabBtnActive]} onPress={() => {setGenFase('380v'); setHasCalculated(false);}}>
-                            <Text style={[styles.unitTabTxt, genFase === '380v' && styles.unitTabTxtActive]}>380V</Text>
-                          </TouchableOpacity>
-                        </View>
+                        
+                        {(() => {
+                           const genValInput = parseFloat(calcInput) || 0;
+                           let kva220 = genValInput;
+                           let kva380 = genValInput;
+                           if (genUnit === 'AMPER') {
+                               kva220 = (genValInput * 220) / 1000;
+                               kva380 = (genValInput * 380 * 1.732) / 1000;
+                           }
+                           
+                           // Disable if input falls way out of real bounds (30% margin)
+                           const is220Disabled = genValInput > 0 && genStats.max220 > 0 && kva220 > genStats.max220 * 1.3;
+                           const is380Disabled = genValInput > 0 && genStats.min380 > 0 && kva380 < genStats.min380 * 0.7;
+
+                           // Auto-correct phase selection if disabled
+                           if (is220Disabled && genFase === '220v') setTimeout(() => setGenFase('380v'), 0);
+                           if (is380Disabled && genFase === '380v') setTimeout(() => setGenFase('220v'), 0);
+
+                           return (
+                             <>
+                               <View style={styles.unitTabs}>
+                                 <TouchableOpacity 
+                                   disabled={is220Disabled}
+                                   style={[styles.unitTabBtn, genFase === '220v' && styles.unitTabBtnActive, is220Disabled && { opacity: 0.3 }]} 
+                                   onPress={() => {setGenFase('220v'); setHasCalculated(false);}}
+                                 >
+                                   <Text style={[styles.unitTabTxt, genFase === '220v' && styles.unitTabTxtActive]}>220V</Text>
+                                 </TouchableOpacity>
+                                 <TouchableOpacity 
+                                   disabled={is380Disabled}
+                                   style={[styles.unitTabBtn, genFase === '380v' && styles.unitTabBtnActive, is380Disabled && { opacity: 0.3 }]} 
+                                   onPress={() => {setGenFase('380v'); setHasCalculated(false);}}
+                                 >
+                                   <Text style={[styles.unitTabTxt, genFase === '380v' && styles.unitTabTxtActive]}>380V</Text>
+                                 </TouchableOpacity>
+                               </View>
+                             </>
+                           );
+                        })()}
                       </View>
                     </View>
                   )}
 
-                  <Text style={styles.inputTitleSmall}>
-                    {calcMode === 'gen' ? (genUnit === 'KVA' ? 'Valor en KVA' : 'Valor en Amperes') : 'Ingresá el valor (1 a 500 HP)'}
-                  </Text>
-                  
-                  <View style={styles.inputRow}>
-                    <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; if (current > 1) { setCalcInput(String(current - 1)); setHasCalculated(false); } }}>
-                      <Text style={styles.counterBtnText}>-</Text>
-                    </TouchableOpacity>
-                    <TextInput style={styles.textInput} keyboardType="numeric" placeholder="Ej: 50" placeholderTextColor={COLORS.gray4} value={calcInput} onChangeText={(t) => { setCalcInput(t); setHasCalculated(false); }} />
-                    <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; const max = calcMode === 'gen' ? (genUnit === 'KVA' ? 3000 : 5000) : 500; if (current < max) { setCalcInput(String(current + 1)); setHasCalculated(false); } }}>
-                      <Text style={styles.counterBtnText}>+</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {calcMode === 'motor' && (
+                    <View style={{ marginBottom: 15 }}>
+                      <Text style={styles.inputTitleSmall}>Potencia (HP)</Text>
+                      <View style={{ position: 'relative', marginBottom: 15 }}>
+                         {Platform.OS === 'ios' ? (
+                            <TextInput
+                               style={[styles.textInputSmall, { marginHorizontal: 0, paddingRight: 30 }]}
+                               placeholder="Cualquier HP"
+                               placeholderTextColor={COLORS.gray4}
+                               value={motorState.hp || ''}
+                               editable={false}
+                            />
+                         ) : (
+                            <View style={[styles.textInputSmall, { marginHorizontal: 0, padding: 0, overflow: 'hidden', justifyContent: 'center' }]}>
+                               <select
+                                  style={{ width: '100%', height: '100%', border: 'none', background: 'transparent', outline: 'none', paddingLeft: 10, color: COLORS.navy, fontFamily: 'Inter_500Medium' } as any}
+                                  value={motorState.hp || ''}
+                                  onChange={(e) => {setMotorState({...motorState, hp: e.target.value}); setHasCalculated(false);}}
+                               >
+                                  <option value="">Cualquier HP</option>
+                                  {availMotorProps.hps.map(hp => (
+                                     <option key={hp} value={hp.toString()}>{hp} HP</option>
+                                  ))}
+                               </select>
+                            </View>
+                         )}
+                         {Platform.OS === 'ios' && (
+                            <select
+                               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0 } as any}
+                               value={motorState.hp || ''}
+                               onChange={(e) => {setMotorState({...motorState, hp: e.target.value}); setHasCalculated(false);}}
+                            >
+                               <option value="">Cualquier HP</option>
+                               {availMotorProps.hps.map(hp => (
+                                  <option key={hp} value={hp.toString()}>{hp} HP</option>
+                               ))}
+                            </select>
+                         )}
+                      </View>
 
-                  <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
-                    <Text style={styles.calculateBtnText}>Calcular y Ver Equipos</Text>
-                  </TouchableOpacity>
+                      <Text style={styles.inputTitleSmall}>Polos / Velocidad</Text>
+                      <View style={{ position: 'relative', marginBottom: 15 }}>
+                         {Platform.OS === 'ios' ? (
+                            <TextInput
+                               style={[styles.textInputSmall, { marginHorizontal: 0, paddingRight: 30 }]}
+                               placeholder="Cualquier Velocidad"
+                               placeholderTextColor={COLORS.gray4}
+                               value={motorState.polos ? `${motorState.polos} Polos` : ''}
+                               editable={false}
+                            />
+                         ) : (
+                            <View style={[styles.textInputSmall, { marginHorizontal: 0, padding: 0, overflow: 'hidden', justifyContent: 'center' }]}>
+                               <select
+                                  style={{ width: '100%', height: '100%', border: 'none', background: 'transparent', outline: 'none', paddingLeft: 10, color: COLORS.navy, fontFamily: 'Inter_500Medium' } as any}
+                                  value={motorState.polos || ''}
+                                  onChange={(e) => {setMotorState({...motorState, polos: e.target.value}); setHasCalculated(false);}}
+                               >
+                                  <option value="">Cualquier Velocidad</option>
+                                  {availMotorProps.polos.map(polo => {
+                                     const rpmDesc = polo === 2 ? ' (~3000 RPM)' : polo === 4 ? ' (~1500 RPM)' : polo === 6 ? ' (~1000 RPM)' : polo === 8 ? ' (~750 RPM)' : '';
+                                     return <option key={polo} value={polo.toString()}>{polo} Polos {rpmDesc}</option>;
+                                  })}
+                               </select>
+                            </View>
+                         )}
+                         {Platform.OS === 'ios' && (
+                            <select
+                               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0 } as any}
+                               value={motorState.polos || ''}
+                               onChange={(e) => {setMotorState({...motorState, polos: e.target.value}); setHasCalculated(false);}}
+                            >
+                               <option value="">Cualquier Velocidad</option>
+                               {availMotorProps.polos.map(polo => {
+                                  const rpmDesc = polo === 2 ? ' (~3000 RPM)' : polo === 4 ? ' (~1500 RPM)' : polo === 6 ? ' (~1000 RPM)' : polo === 8 ? ' (~750 RPM)' : '';
+                                  return <option key={polo} value={polo.toString()}>{polo} Polos {rpmDesc}</option>;
+                               })}
+                            </select>
+                         )}
+                      </View>
+
+                      <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
+                      <View style={styles.unitTabs}>
+                        <TouchableOpacity 
+                          disabled={!availMotorProps.fases.includes('220v')}
+                          style={[styles.unitTabBtn, motorState.fase === '220v' && styles.unitTabBtnActive, !availMotorProps.fases.includes('220v') && { opacity: 0.3 }]} 
+                          onPress={() => {setMotorState({...motorState, fase: motorState.fase === '220v' ? '' : '220v'}); setHasCalculated(false);}}
+                        >
+                          <Text style={[styles.unitTabTxt, motorState.fase === '220v' && styles.unitTabTxtActive]}>220V</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          disabled={!availMotorProps.fases.includes('380v')}
+                          style={[styles.unitTabBtn, motorState.fase === '380v' && styles.unitTabBtnActive, !availMotorProps.fases.includes('380v') && { opacity: 0.3 }]} 
+                          onPress={() => {setMotorState({...motorState, fase: motorState.fase === '380v' ? '' : '380v'}); setHasCalculated(false);}}
+                        >
+                          <Text style={[styles.unitTabTxt, motorState.fase === '380v' && styles.unitTabTxtActive]}>380V</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <TouchableOpacity style={[styles.calculateBtn, {marginTop: 20}]} onPress={handleCalculate}>
+                        <Text style={styles.calculateBtnText}>Buscar Motores</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {calcMode === 'gen' && (
+                    <View>
+                      <Text style={styles.inputTitleSmall}>Valor en {genUnit === 'KVA' ? 'KVA' : 'Amperes'}</Text>
+                      
+                      <View style={styles.inputRow}>
+                        <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; if (current > 1) { setCalcInput(String(current - 1)); setHasCalculated(false); } }}>
+                          <Text style={styles.counterBtnText}>-</Text>
+                        </TouchableOpacity>
+                        <TextInput style={styles.textInput} keyboardType="numeric" placeholder="Ej: 50" placeholderTextColor={COLORS.gray4} value={calcInput} onChangeText={(t) => { setCalcInput(t); setHasCalculated(false); }} />
+                        <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; const max = genUnit === 'KVA' ? 3000 : 5000; if (current < max) { setCalcInput(String(current + 1)); setHasCalculated(false); } }}>
+                          <Text style={styles.counterBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
+                        <Text style={styles.calculateBtnText}>Calcular y Ver Equipos</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               )}
 

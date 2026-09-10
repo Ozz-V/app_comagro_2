@@ -122,12 +122,9 @@ export default function EstadisticasScreen({ navigation }: { navigation: { navig
       </View>
       <View style={styles.topBorder} />
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.titulo}>Estadísticas</Text>
-
+      <View style={[styles.content, { flex: 1, paddingHorizontal: 0 }]}>
         <DashboardAnalytics navigation={navigation} onUserClick={handleUserClick} onTabChange={setAnalyticsTab} />
-
-      </ScrollView>
+      </View>
 
       <UserProfileModal
         visible={showUserModal}
