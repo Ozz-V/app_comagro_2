@@ -427,6 +427,10 @@ Deno.serve(async (req: Request) => {
         });
       }
 
+      const targetDebugSkus = ['DACS1500N', 'DACS1800N'];
+      const foundDebugRows = (existingRows || []).filter(r => targetDebugSkus.includes(String(r.sku).trim().toUpperCase()));
+      console.warn(`[DEBUG DIAGNOSTIC] Found ${foundDebugRows.length} rows for DACS1500N/DACS1800N in DB:`, JSON.stringify(foundDebugRows));
+
       if (upsertQueueData.length > 0) {
         const chunkSize = 1000;
         for (let i = 0; i < upsertQueueData.length; i += chunkSize) {
@@ -436,6 +440,7 @@ Deno.serve(async (req: Request) => {
             .upsert(chunk, { onConflict: 'sku' });
           if (queueError) {
             console.error('Error insertando en plytix_queue:', queueError.message);
+            throw new Error(`Error en upsert plytix_queue: ${queueError.message}`);
           }
         }
       }
