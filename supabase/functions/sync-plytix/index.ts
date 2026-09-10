@@ -375,7 +375,22 @@ Deno.serve(async (req: Request) => {
         // Clonamos el objeto crudo para quitarle columnas irrelevantes antes de comparar
         const relevantData = { ...item.raw_data };
         for (const key of Object.keys(relevantData)) {
-          if (key.toLowerCase().includes('imagen') || key.toLowerCase().includes('manual')) {
+          const keyLower = key.toLowerCase();
+          if (
+            keyLower.includes('imagen') ||
+            keyLower.includes('image') ||
+            keyLower.includes('manual') ||
+            keyLower.includes('fecha') ||
+            keyLower.includes('date') ||
+            keyLower.includes('timestamp') ||
+            keyLower.includes('updated') ||
+            keyLower.includes('created') ||
+            keyLower.includes('modified') ||
+            keyLower.includes('sync') ||
+            keyLower.includes('version') ||
+            keyLower === 'updatedatetime' ||
+            keyLower === 'createddatetime'
+          ) {
             delete relevantData[key];
           }
         }
