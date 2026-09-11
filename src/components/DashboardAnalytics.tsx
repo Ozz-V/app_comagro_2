@@ -11,6 +11,7 @@ import { supabase } from '../supabase';
 import { syncAnalyticsQueue } from '../utils/analyticsSync';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
+import Svg, { Defs, LinearGradient, Stop, Line, Path, Circle } from 'react-native-svg';
 import { APP_CONSTANTS } from '../config/constants';
 import { AnalyticsRankItem } from '../types';
 import { getAllProducts } from '../utils/database';
@@ -446,22 +447,54 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
              </View>
           </View>
 
-          {/* Renderizado Condicional: 1 Columna (Mine) vs 2 Columnas (General) */}
+          {/* Tarjeta Historial de Uso / Gráfica SVG */}
+          <View style={s.cardChart}>
+            <Text style={s.cardTitle}>Historial de Uso</Text>
+            <View style={{ height: 50, width: '100%', marginVertical: 4 }}>
+              <Svg viewBox="0 0 300 50" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
+                <Defs>
+                  <LinearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0%" stopColor={COLORS.celeste || '#007DB8'} stopOpacity="0.35"/>
+                    <Stop offset="100%" stopColor={COLORS.celeste || '#007DB8'} stopOpacity="0"/>
+                  </LinearGradient>
+                </Defs>
+                <Line x1="0" y1="12" x2="300" y2="12" stroke="#E8ECF0" strokeWidth="1" strokeDasharray="3,3" />
+                <Line x1="0" y1="28" x2="300" y2="28" stroke="#E8ECF0" strokeWidth="1" strokeDasharray="3,3" />
+                <Path d="M0,45 L0,35 Q40,15 80,25 T160,10 T240,20 T300,12 L300,45 Z" fill="url(#chartGrad)"/>
+                <Path d="M0,35 Q40,15 80,25 T160,10 T240,20 T300,12" fill="none" stroke={COLORS.celeste || '#007DB8'} strokeWidth="2.5" strokeLinecap="round" />
+                <Circle cx="0" cy="35" r="3" fill="#ffffff" stroke={COLORS.celeste || '#007DB8'} strokeWidth="2"/>
+                <Circle cx="300" cy="12" r="3" fill="#ffffff" stroke={COLORS.celeste || '#007DB8'} strokeWidth="2"/>
+              </Svg>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4 }}>
+                {period === 'today' ? '00:00h' : period === '7d' ? 'Hace 7d' : period === '30d' ? 'Hace 30d' : 'Inicio (60d)'}
+              </Text>
+              <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4 }}>
+                {period === 'today' ? '12:00h' : period === '7d' ? 'Hace 3d' : period === '30d' ? 'Hace 15d' : 'Hace 30d'}
+              </Text>
+              <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.navy, fontWeight: '700' }}>Hoy</Text>
+            </View>
+          </View>
+
+          {/* Renderizado Condicional: Mi Actividad vs General */}
           {tab === 'mine' ? (
-             <View style={{ gap: 12 }}>
-                 <View style={s.cardList}>
-                    <Text style={s.cardTitle}>Más Vistos</Text>
-                    <View style={s.listContainer}>
-                       {data.topV.slice(0,5).map(it => renderListItem(it, data.topV[0]?.count || 1, 'vistas'))}
-                    </View>
+             <View style={{ gap: 12, marginTop: 12 }}>
+                 <View style={s.row}>
+                     <View style={s.cardList}>
+                        <Text style={s.cardTitle}>Más Vistos</Text>
+                        <View style={s.listContainer}>
+                           {data.topV.slice(0,5).map(it => renderListItem(it, data.topV[0]?.count || 1, 'vistas'))}
+                        </View>
+                     </View>
+                     <View style={s.cardList}>
+                        <Text style={s.cardTitle}>Más Compartidos</Text>
+                        <View style={s.listContainer}>
+                           {data.topSh.slice(0,5).map(it => renderListItem(it, data.topSh[0]?.count || 1, 'compartidos'))}
+                        </View>
+                     </View>
                  </View>
-                 <View style={s.cardList}>
-                    <Text style={s.cardTitle}>Más Compartidos</Text>
-                    <View style={s.listContainer}>
-                       {data.topSh.slice(0,5).map(it => renderListItem(it, data.topSh[0]?.count || 1, 'compartidos'))}
-                    </View>
-                 </View>
-                 <View style={s.cardList}>
+                 <View style={s.cardListFull}>
                     <Text style={s.cardTitle}>Top Marcas</Text>
                     <View style={s.listContainer}>
                        {data.brands?.slice(0,5).map((it: any) => renderListItem(it, data.brands?.[0]?.count || 1, 'marcas'))}
@@ -469,7 +502,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
                  </View>
              </View>
           ) : (
-             <View style={{ gap: 12 }}>
+             <View style={{ gap: 12, marginTop: 12 }}>
                  <View style={s.row}>
                      <View style={s.cardList}>
                         <Text style={s.cardTitle}>Más Vistos</Text>
@@ -538,6 +571,8 @@ const s = StyleSheet.create({
   cardTotal: { flex: 1, borderRadius: 12, padding: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 3 },
   cardTotalViews: { backgroundColor: COLORS.navy },
   cardTotalShares: { backgroundColor: COLORS.celeste || '#007DB8' },
+
+  cardChart: { backgroundColor: COLORS.white, borderRadius: 12, padding: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, borderWidth: 1, borderColor: '#E8ECF0' },
   
   cardTitleLight: { fontFamily: FONTS.bodySemi, fontSize: 11, color: 'rgba(255, 255, 255, 0.85)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: 0.5 },
   totalValueLight: { fontFamily: FONTS.heading, fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
@@ -545,6 +580,7 @@ const s = StyleSheet.create({
   kpiRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   
   cardList: { flex: 1, backgroundColor: COLORS.white, borderRadius: 12, padding: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, borderWidth: 1, borderColor: '#E8ECF0' },
+  cardListFull: { width: '100%', backgroundColor: COLORS.white, borderRadius: 12, padding: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, borderWidth: 1, borderColor: '#E8ECF0' },
   cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4, textTransform: 'uppercase', marginBottom: 10, letterSpacing: 0.5 },
   
   listContainer: { gap: 8 },

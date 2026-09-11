@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/react-native';
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard } from 'react-native';
 import { Image } from 'expo-image';
-import { COLORS } from '../theme';
+import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
 import { getProductsBySubcategory } from '../utils/database';
 import { isCatalogSyncing, subscribeToCatalogUpdates } from '../services/catalogService';
@@ -428,18 +428,21 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
 
               const specs = parsePumpSpecs(p as ParsedProduct);
               
+              // Potencia efectiva (declarada o calculada por punto hidráulico Qmax * Hmax)
+              const effectiveHp = specs.hpVal > 0 ? specs.hpVal : ((specs.maxCaudalLpm * specs.maxAlturaMca) / 3150);
+
+              if (pumpWizard.uso === 'vivienda') {
+                 // Vivienda: NUNCA cuerpos sumergibles ni eje libre / sin motor
+                 if (specs.isEjeLibre || sub.includes('CUERPO SUMERGIBLE')) return false;
+                 // Vivienda: Máximo 3 HP estricto (incluso si ingresan HP manual)
+                 if (effectiveHp > (reglas?.filtros?.vivienda?.maxHp || 3)) return false;
+                 if (specs.maxCaudalLpm > (reglas?.filtros?.vivienda?.maxCaudalLpm || 165)) return false;
+              } else if (pumpWizard.uso === 'riego_presion') {
+                 if (effectiveHp > 0 && effectiveHp < (reglas?.filtros?.industrial?.minHp || 3) && targetHpInput === 0) return false;
+              }
+
               if (targetHpInput > 0) {
-                 if (specs.hpVal > 0 && (specs.hpVal < targetHpInput * 0.5 || specs.hpVal > targetHpInput * 2)) return false;
-              } else {
-                 if (pumpWizard.uso === 'vivienda') {
-                    if (specs.hpVal > (reglas?.filtros?.vivienda?.maxHp || 3)) return false;
-                 }
-                 if (pumpWizard.uso === 'riego_presion') {
-                    if (specs.hpVal > 0 && specs.hpVal < (reglas?.filtros?.industrial?.minHp || 3)) return false;
-                 }
-                 if (pumpWizard.uso === 'vivienda') {
-                    if (specs.hpVal === 0 && specs.maxCaudalLpm > (reglas?.filtros?.vivienda?.maxCaudalLpm || 165)) return false;
-                 }
+                 if (effectiveHp > 0 && (effectiveHp < targetHpInput * 0.4 || effectiveHp > targetHpInput * 2.2)) return false;
               }
 
               return true;
@@ -562,7 +565,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            return isEjeLibre || isCuerpo;
         };
 
-        const hasEjeLibre = filtered.some(checkNeedsMotor);
+        const hasEjeLibre = pumpWizard.uso !== 'vivienda' && filtered.some(checkNeedsMotor);
         
         let mResults: ExtendedCalcProduct[] = [];
         let finalTargetHp = targetHp;
@@ -821,7 +824,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           <View style={[styles.header, { justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center' }]}>
             {calcMode ? (
                <TouchableOpacity onPress={handleBack} style={{ padding: 5 }}>
-                  <Text style={{ fontSize: 24, color: COLORS.navy }}>←</Text>
+                  <Text style={{ fontFamily: FONTS.body, fontSize: 16, color: COLORS.green }}>‹ Volver</Text>
                </TouchableOpacity>
             ) : <View style={{ width: 30 }} />}
             <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
@@ -1075,10 +1078,10 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                               <Text style={styles.inputTitleSmall}>Alimentación Eléctrica (Opcional)</Text>
                               <View style={styles.faseGrid}>
                                 <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
-                                  <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>220V</Text>
+                                  <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>Monofásico</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
-                                  <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>380V</Text>
+                                  <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>Trifásico</Text>
                                 </TouchableOpacity>
 
                                 {(!['combustion', 'drenaje'].includes(pumpWizard.uso)) && (
@@ -1142,14 +1145,14 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                                    style={[styles.unitTabBtn, genFase === '220v' && styles.unitTabBtnActive, is220Disabled && { opacity: 0.3 }]} 
                                    onPress={() => {setGenFase('220v'); setHasCalculated(false);}}
                                  >
-                                   <Text style={[styles.unitTabTxt, genFase === '220v' && styles.unitTabTxtActive]}>220V</Text>
+                                   <Text style={[styles.unitTabTxt, genFase === '220v' && styles.unitTabTxtActive]}>Monofásico</Text>
                                  </TouchableOpacity>
                                  <TouchableOpacity 
                                    disabled={is380Disabled}
                                    style={[styles.unitTabBtn, genFase === '380v' && styles.unitTabBtnActive, is380Disabled && { opacity: 0.3 }]} 
                                    onPress={() => {setGenFase('380v'); setHasCalculated(false);}}
                                  >
-                                   <Text style={[styles.unitTabTxt, genFase === '380v' && styles.unitTabTxtActive]}>380V</Text>
+                                   <Text style={[styles.unitTabTxt, genFase === '380v' && styles.unitTabTxtActive]}>Trifásico</Text>
                                  </TouchableOpacity>
                                </View>
                              </>
@@ -1175,7 +1178,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       <Text style={styles.inputTitleSmall}>Polos</Text>
                       <View style={styles.faseGrid}>
                         {[2, 4, 6].map(polo => (
-                           <TouchableOpacity key={polo} style={[styles.faseBtn, { width: '30%' }, motorState.polos === String(polo) && styles.faseBtnActive]} onPress={() => { setMotorState({...motorState, polos: motorState.polos === String(polo) ? '' : String(polo)}); setHasCalculated(false); }}>
+                           <TouchableOpacity key={polo} style={[styles.faseBtn, motorState.polos === String(polo) && styles.faseBtnActive]} onPress={() => { setMotorState({...motorState, polos: motorState.polos === String(polo) ? '' : String(polo)}); setHasCalculated(false); }}>
                               <Text style={[styles.faseBtnText, motorState.polos === String(polo) && styles.faseBtnTextActive]}>{polo} Polos</Text>
                            </TouchableOpacity>
                         ))}
@@ -1184,10 +1187,10 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
                       <View style={styles.unitTabs}>
                         <TouchableOpacity style={[styles.unitTabBtn, motorState.fase === '220v' && styles.unitTabBtnActive]} onPress={() => {setMotorState({...motorState, fase: motorState.fase === '220v' ? '' : '220v'}); setHasCalculated(false);}}>
-                          <Text style={[styles.unitTabTxt, motorState.fase === '220v' && styles.unitTabTxtActive]}>220V</Text>
+                          <Text style={[styles.unitTabTxt, motorState.fase === '220v' && styles.unitTabTxtActive]}>Monofásico</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.unitTabBtn, motorState.fase === '380v' && styles.unitTabBtnActive]} onPress={() => {setMotorState({...motorState, fase: motorState.fase === '380v' ? '' : '380v'}); setHasCalculated(false);}}>
-                          <Text style={[styles.unitTabTxt, motorState.fase === '380v' && styles.unitTabTxtActive]}>380V</Text>
+                          <Text style={[styles.unitTabTxt, motorState.fase === '380v' && styles.unitTabTxtActive]}>Trifásico</Text>
                         </TouchableOpacity>
                       </View>
 
@@ -1723,17 +1726,18 @@ const styles = StyleSheet.create({
   },
   faseGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: 8,
     marginBottom: 10
   },
   faseBtn: {
-    width: '23%',
-    padding: 8,
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
-    alignItems: 'center'
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   faseBtnActive: {
     backgroundColor: COLORS.navy,

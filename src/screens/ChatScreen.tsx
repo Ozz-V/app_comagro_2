@@ -184,9 +184,6 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backText}>‹</Text>
-          </TouchableOpacity>
           <View style={styles.avatarContainer}>
             <LottieView
               source={ANIMATION_ISO}
@@ -236,12 +233,14 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
               ? parseMessage(item.content)
               : { cleanText: item.content, skus: [] };
 
+            const isUser = item.role === 'user';
+
             return (
               <View style={[
                 styles.bubbleWrapper,
-                item.role === 'user' ? styles.bubbleUser : styles.bubbleBot
+                isUser ? styles.bubbleUser : styles.bubbleBot
               ]}>
-                <Text style={styles.bubbleText}>{cleanText}</Text>
+                <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextBot]}>{cleanText}</Text>
 
                 {/* RENDERIZADO DE TARJETAS DE PRODUCTO */}
                 {skus.length > 0 && (
@@ -254,6 +253,10 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
           }}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         />
+
+        <View style={styles.hintBanner}>
+          <Text style={styles.hintText}>💡 Tratá de ser específico e incluir el modelo, SKU o contexto para que la búsqueda sea más precisa.</Text>
+        </View>
 
         <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'android' ? Math.max(10, insets.bottom + 5) : 10 }]}>
           <TextInput
@@ -340,78 +343,97 @@ const AiProductCard = ({ sku, skusContext, navigation }: { sku: string; skusCont
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#E5DDD5' },
+  safe: { flex: 1, backgroundColor: COLORS.white },
   header: {
     backgroundColor: COLORS.navy,
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 10,
     paddingBottom: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     elevation: 4
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
-  backButton: { padding: 8, marginRight: 4 },
-  backText: { color: COLORS.white, fontSize: 32, fontWeight: 'bold', lineHeight: 32, marginTop: -4 },
   avatarContainer: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.white,
+    width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.white,
     alignItems: 'center', justifyContent: 'center', marginRight: 12, overflow: 'hidden'
   },
-  avatarLottie: { width: 50, height: 50 },
-  headerTitle: { fontSize: 17, fontWeight: 'bold', color: COLORS.white },
-  headerSubtitle: { fontSize: 12, color: COLORS.green },
-  clearButton: { padding: 8 },
-  clearText: { fontSize: 14, color: COLORS.white, fontWeight: '600' },
+  avatarLottie: { width: 46, height: 46 },
+  headerTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.white },
+  headerSubtitle: { fontSize: 11, color: COLORS.green },
+  clearButton: { padding: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 6 },
+  clearText: { fontSize: 12, color: COLORS.white, fontWeight: '600' },
 
   keyboardView: { flex: 1 },
   chatContainer: { padding: 16, gap: 12 },
 
   bubbleWrapper: {
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     maxWidth: '85%',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1, elevation: 1
+    elevation: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2
   },
   bubbleUser: {
     alignSelf: 'flex-end',
-    backgroundColor: '#DCF8C6',
+    backgroundColor: COLORS.navy,
     borderTopRightRadius: 4,
   },
   bubbleBot: {
     alignSelf: 'flex-start',
-    backgroundColor: COLORS.white,
+    backgroundColor: '#F4F6F8',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     borderTopLeftRadius: 4,
   },
-  bubbleText: { fontSize: 15, color: '#303030', lineHeight: 22 },
+  bubbleText: { fontSize: 14, lineHeight: 21 },
+  bubbleTextUser: { color: COLORS.white },
+  bubbleTextBot: { color: COLORS.navy },
 
   cardsContainer: { marginTop: 12, gap: 10 },
   productCard: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    borderWidth: 1, borderColor: '#E2E8F0',
     borderRadius: 8, padding: 8,
   },
   cardContent: { flexDirection: 'row', alignItems: 'center' },
-  cardImage: { width: 50, height: 50, marginRight: 10, borderRadius: 4 },
-  cardImagePlaceholder: { width: 50, height: 50, backgroundColor: '#E2E8F0', marginRight: 10, borderRadius: 4 },
+  cardImage: { width: 48, height: 48, marginRight: 10, borderRadius: 4 },
+  cardImagePlaceholder: { width: 48, height: 48, backgroundColor: '#E2E8F0', marginRight: 10, borderRadius: 4 },
   cardTextContainer: { flex: 1 },
-  cardBrand: { fontSize: 11, color: COLORS.gray4, fontWeight: 'bold' },
-  cardModel: { fontSize: 14, color: COLORS.navy, fontWeight: 'bold', marginBottom: 4 },
-  cardAction: { fontSize: 12, color: COLORS.green, fontWeight: 'bold' },
+  cardBrand: { fontSize: 10, color: COLORS.gray4, fontWeight: 'bold' },
+  cardModel: { fontSize: 13, color: COLORS.navy, fontWeight: 'bold', marginBottom: 2 },
+  cardAction: { fontSize: 11, color: COLORS.green, fontWeight: 'bold' },
+
+  hintBanner: {
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    alignItems: 'center'
+  },
+  hintText: {
+    fontFamily: FONTS.bodySemi,
+    fontSize: 11,
+    color: COLORS.gray4,
+    textAlign: 'center'
+  },
 
   inputContainer: {
-    backgroundColor: '#F0F0F0',
+    backgroundColor: COLORS.white,
     paddingHorizontal: 12, paddingVertical: 10,
-    flexDirection: 'row', alignItems: 'center'
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: 1, borderTopColor: '#E2E8F0'
   },
   input: {
-    flex: 1, backgroundColor: COLORS.white, borderRadius: 24,
-    paddingHorizontal: 16, paddingVertical: 10, fontSize: 15,
-    maxHeight: 100, color: '#303030'
+    flex: 1, backgroundColor: '#F4F6F8', borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 8, fontSize: 14,
+    maxHeight: 100, color: COLORS.navy, borderWidth: 1, borderColor: '#E2E8F0'
   },
   sendButton: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center', marginLeft: 10
   },
-  sendIcon: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 }
+  sendIcon: { color: COLORS.white, fontWeight: 'bold', fontSize: 15 }
 });
