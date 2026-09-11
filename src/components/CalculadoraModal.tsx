@@ -496,79 +496,95 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            return { ...p, calcVal: specs.hpVal, score, displayValue: displayVal, isSinAltura: specs.maxAlturaMca === 0, _q: specs.maxCaudalLpm, _h: specs.maxAlturaMca, _is220: specs.is220, _is380: specs.is380, _isEjeLibre: specs.isEjeLibre } as any;
         });
 
-        let conAltura = mapped.filter(p => !p.isSinAltura);
-        let sinAltura = mapped.filter(p => p.isSinAltura);
-
-        const tolCurva = reglas.matematica.toleranciaCurva || 1.15; 
+        const tolCurva = reglas.matematica.toleranciaCurva || 1.15;
         const minCaudalTol = reglas.matematica.toleranciaCaudalMinimo || 0.85;
+        // suppress unused variable warnings
+        void tolCurva; void minCaudalTol;
 
         const hasCaudal = targetCaudalLpm > 0;
         const hasAltura = targetAlturaInput > 0;
         const hasHp = targetHpInput > 0;
 
-        conAltura = conAltura.filter((p: any) => {
-           const qmax = p._q;
-           const hmax = p._h;
-           const hpVal = p.calcVal;
-           const hpEff = hpVal > 0 ? hpVal : (qmax > 0 && hmax > 0 ? ((qmax * hmax) / 3150) : 0);
+        const isBodyOrEjeLibre = (p: any) => {
+           const sub = String(p.subcategoria || '').toUpperCase();
+           const mod = String(p.modelo || '').toUpperCase();
+           return p._isEjeLibre || sub.includes('CUERPO SUMERGIBLE') || mod.includes('EJE LIBRE') || mod.includes('SIN MOTOR');
+        };
 
-           if (hasHp) {
-              if (hpEff > 0 && (hpEff < targetHpInput * 0.60 || hpEff > targetHpInput * 1.50)) return false;
-           }
-           if (hasCaudal) {
-              if (qmax > 0 && (qmax < targetCaudalLpm * 0.60 || qmax > targetCaudalLpm * 4.0)) return false;
-           }
-           if (hasAltura) {
-              if (hmax > 0 && hmax < targetAlturaInput * 0.60) return false;
-           }
-           if (hasCaudal && hasAltura && qmax > 0 && hmax > 0) {
-              if (targetCaudalLpm <= qmax) {
-                 const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
-                 if (curvaH < targetAlturaInput * 0.65) return false;
-              } else {
-                 return false;
+        // Separate into two independent pools:
+        // fullPool = complete pumps with integrated motor
+        // bodyPool = eje libre / cuerpo sumergible (need external motor)
+        const fullPoolRaw = mapped.filter(p => !isBodyOrEjeLibre(p));
+        const bodyPoolRaw = mapped.filter(p => isBodyOrEjeLibre(p));
+
+        const applyHydraulicFilter = (items: any[]): any[] => {
+           return items.filter((p: any) => {
+              const qmax = p._q;
+              const hmax = p._h;
+              const hpVal = p.calcVal;
+              const hpEff = hpVal > 0 ? hpVal : (qmax > 0 && hmax > 0 ? ((qmax * hmax) / 3150) : 0);
+
+              if (hasHp) {
+                 if (hpEff > 0 && (hpEff < targetHpInput * 0.60 || hpEff > targetHpInput * 1.50)) return false;
               }
+              if (hasCaudal) {
+                 if (qmax > 0 && (qmax < targetCaudalLpm * 0.60 || qmax > targetCaudalLpm * 4.0)) return false;
+              }
+              if (hasAltura) {
+                 if (hmax > 0 && hmax < targetAlturaInput * 0.60) return false;
+              }
+              if (hasCaudal && hasAltura && qmax > 0 && hmax > 0) {
+                 if (targetCaudalLpm <= qmax) {
+                    const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
+                    if (curvaH < targetAlturaInput * 0.65) return false;
+                 } else {
+                    return false;
+                 }
+              }
+              return true;
+           });
+        };
+
+        const applyFaseFilter = (items: any[]): any[] => {
+           if (reqFase === 'sinelec') {
+              return items.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
+           } else if (reqFase === '220v') {
+              return items.filter(p => (p as any)._is220 || (p as any)._isEjeLibre);
+           } else if (reqFase === '380v') {
+              return items.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
            }
-           return true;
-        });
-        
-        sinAltura = sinAltura.filter((p: any) => {
-           const qmax = p._q;
-           const hpVal = p.calcVal;
-           if (hasHp && hpVal > 0 && (hpVal < targetHpInput * 0.60 || hpVal > targetHpInput * 1.50)) return false;
-           if (hasCaudal && qmax > 0 && (qmax < targetCaudalLpm * 0.60 || qmax > targetCaudalLpm * 4.0)) return false;
-           return true;
-        });
-        
+           return items;
+        };
+
+        const sortByScore = (items: any[]): any[] =>
+           [...items].sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
+
+        const stripInternal = (items: any[]): any[] =>
+           items.map(p => {
+              const { _is220, _is380, ...rest } = p as any;
+              return rest;
+           });
+
+        // Apply filters to each pool independently
+        const fullPoolFiltered = sortByScore(applyFaseFilter(applyHydraulicFilter(fullPoolRaw)));
+        const bodyPoolFiltered = sortByScore(applyFaseFilter(applyHydraulicFilter(bodyPoolRaw)));
+
+        // Priority logic:
+        // sinelec (user pressed "Sin Motor") → show bodyPool only
+        // Otherwise → show fullPool first; if empty, fall back to bodyPool
+        let useBodyPool = false;
         if (reqFase === 'sinelec') {
-           conAltura = conAltura.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
-           sinAltura = sinAltura.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
-        } else if (reqFase === '220v') {
-           conAltura = conAltura.filter(p => (p as any)._is220 || (p as any)._isEjeLibre);
-           sinAltura = sinAltura.filter(p => (p as any)._is220 || (p as any)._isEjeLibre);
-        } else if (reqFase === '380v') {
-           conAltura = conAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
-           sinAltura = sinAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
+           filtered = stripInternal(bodyPoolFiltered).slice(0, 5);
+           useBodyPool = true;
+        } else if (fullPoolFiltered.length > 0) {
+           filtered = stripInternal(fullPoolFiltered).slice(0, 5);
+           useBodyPool = false;
+        } else {
+           // Fallback: no complete pumps matched — show body pool with motor suggestion
+           filtered = stripInternal(bodyPoolFiltered).slice(0, 5);
+           useBodyPool = bodyPoolFiltered.length > 0;
         }
-
-         const isBodyOrEjeLibre = (p: any) => {
-            const sub = String(p.subcategoria || '').toUpperCase();
-            const mod = String(p.modelo || '').toUpperCase();
-            return p._isEjeLibre || sub.includes('CUERPO SUMERGIBLE') || mod.includes('EJE LIBRE') || mod.includes('SIN MOTOR');
-         };
-
-         const getTierScore = (p: any) => {
-            const body = isBodyOrEjeLibre(p);
-            return reqFase === 'sinelec' ? (body ? 0 : 10) : (body ? 10 : 0);
-         };
-
-         conAltura.sort((a, b) => (getTierScore(a) * 10 + (a.score ?? 999)) - (getTierScore(b) * 10 + (b.score ?? 999)));
-         sinAltura.sort((a, b) => (getTierScore(a) * 10 + (a.score ?? 999)) - (getTierScore(b) * 10 + (b.score ?? 999)));
-
-         filtered = [...conAltura, ...sinAltura].slice(0, 5).map(p => {
-            const { _q, _h, _is220, _is380, ...rest } = p as any;
-            return rest;
-         });
+        void useBodyPool;
 
         const checkNeedsMotor = (p: any) => {
            const isEjeLibre = p._isEjeLibre || String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR');

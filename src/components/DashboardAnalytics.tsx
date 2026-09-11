@@ -31,6 +31,53 @@ interface DashboardData {
   users?: (AnalyticsRankItem & { user_email: string })[];
 }
 
+interface ChartMetrics {
+  start: number;   // views in the oldest third of the period
+  peak: number;    // max views in any single day
+  peakLabel: string; // e.g. "Hace 3d" or a date
+  today: number;   // views today only
+}
+
+const EMPTY_CHART: ChartMetrics = { start: 0, peak: 0, peakLabel: '-', today: 0 };
+
+function computeChartMetrics(items: any[]): ChartMetrics {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const views = items.filter((d: any) => d.action === 'view');
+
+  // Views today only
+  const todayIso = todayStart.toISOString();
+  const today = views.filter((d: any) => d.created_at >= todayIso).length;
+
+  // Group by day
+  const byDay: Record<string, number> = {};
+  views.forEach((d: any) => {
+    const day = String(d.created_at).substring(0, 10);
+    byDay[day] = (byDay[day] || 0) + 1;
+  });
+  const days = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b));
+
+  if (days.length === 0) return { start: 0, peak: 0, peakLabel: '-', today };
+
+  // Start: sum of oldest third of days
+  const startSlice = days.slice(0, Math.max(1, Math.floor(days.length / 3)));
+  const start = startSlice.reduce((s, [, c]) => s + c, 0);
+
+  // Peak: the day with most views
+  const peakEntry = days.reduce((best, cur) => cur[1] > best[1] ? cur : best, ['', 0]);
+  const peak = peakEntry[1];
+
+  // Convert peak date to relative label
+  let peakLabel = '-';
+  if (peakEntry[0]) {
+    const diffMs = Date.now() - new Date(peakEntry[0]).getTime();
+    const diffDays = Math.round(diffMs / 86400000);
+    peakLabel = diffDays === 0 ? 'Hoy' : `Hace ${diffDays}d`;
+  }
+
+  return { start, peak, peakLabel, today };
+}
+
 function getPeriodDate(p: string): string | null {
   if (p === 'today') {
     const d = new Date();
@@ -86,6 +133,8 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
   const [myData, setMyData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [] });
   const [globalData, setGlobalData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
   const [isAdmin, setIsAdmin] = useState(false);
+  const [myChartMetrics, setMyChartMetrics] = useState<ChartMetrics>(EMPTY_CHART);
+  const [globalChartMetrics, setGlobalChartMetrics] = useState<ChartMetrics>(EMPTY_CHART);
 
   const cleanText = (val: any) => String(val ?? '').replace(/^\$+/, '');
 
@@ -199,8 +248,16 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
       };
 
       const finalMyData = process(my, 5, 5);
-      if (isMounted.current) setMyData(finalMyData);
-      AsyncStorage.setItem(`@analytics_my_all`, JSON.stringify(finalMyData));
+      // Compute chart metrics from the raw period-filtered rows (not the aggregate)
+      let myCurrItems = my;
+      if (pDate) myCurrItems = my.filter((d: any) => d.created_at >= pDate);
+      const myMetrics = computeChartMetrics(myCurrItems);
+      if (isMounted.current) {
+        setMyData(finalMyData);
+        setMyChartMetrics(myMetrics);
+      }
+      // Fix: use period-specific cache key (bug was using @analytics_my_all always)
+      AsyncStorage.setItem(`@analytics_my_${period}`, JSON.stringify(finalMyData));
 
       if (currentIsAdmin) {
         let qAll = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').order('created_at', { ascending: false }).limit(50000);
@@ -212,10 +269,14 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
 
         const gd = process(all, 10, 8);
         let currGlobal = all;
-        if (pDate) currGlobal = all.filter(d => d.created_at >= pDate);
-        gd.users = countByKey(currGlobal.filter(i => i.user_email !== 'offline_user'), i => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
+        if (pDate) currGlobal = all.filter((d: any) => d.created_at >= pDate);
+        gd.users = countByKey(currGlobal.filter((i: any) => i.user_email !== 'offline_user'), (i: any) => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
         
-        if (isMounted.current) setGlobalData(gd);
+        const globalMetrics = computeChartMetrics(currGlobal);
+        if (isMounted.current) {
+          setGlobalData(gd);
+          setGlobalChartMetrics(globalMetrics);
+        }
         AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
       }
     } catch (e: unknown) {
@@ -269,6 +330,9 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
       const maxB = d.brands?.[0]?.count || 1;
       const maxU = d.users?.[0]?.count || 1;
 
+      const pdfMetrics = tab === 'mine' || !isAdmin ? myChartMetrics : globalChartMetrics;
+      const pPeriodLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Hace 7d' : period === '30d' ? 'Hace 30d' : 'Inicio (60d)';
+
       const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -287,7 +351,14 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
         .kpi-card { flex: 1; background: #F4F6F8; border-radius: 6px; padding: 8px; text-align: center; border: 1px solid #DFE1E6; }
         .kpi-title { font-size: 9px; font-weight: 600; color: #6B778C; text-transform: uppercase; margin-bottom: 4px; }
         .kpi-val { font-size: 22px; font-weight: 800; }
-        .chart-box { background: #F4F6F8; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; height: 75px; border: 1px solid #DFE1E6; display: flex; flex-direction: column; }
+        .chart-box { background: #F4F6F8; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; border: 1px solid #DFE1E6; }
+        .chart-header { font-size: 10px; font-weight: 700; color: #1A2530; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .chart-svg { width: 100%; height: 60px; }
+        .chart-labels { display: flex; justify-content: space-between; margin-top: 4px; }
+        .chart-label { font-size: 8px; font-weight: 700; color: #1A2530; }
+        .chart-sublabel { font-size: 7px; color: #6B778C; }
+        .chart-label-center { text-align: center; }
+        .chart-label-right { text-align: right; }
         .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: 1; min-height: 0; }
         .list-card { background: #FFFFFF; border: 1px solid #DFE1E6; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; }
         .list-title { font-size: 11px; font-weight: 700; color: #1A2530; border-bottom: 1px solid #DFE1E6; padding-bottom: 4px; margin-bottom: 6px; text-transform: uppercase; }
@@ -317,6 +388,41 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
             <div class="kpi-card"><div class="kpi-title">Compartidos</div><div class="kpi-val" style="color: #0D8A39;">${cleanText(d.shares)}</div></div>
             ${tab === 'general' ? `<div class="kpi-card"><div class="kpi-title">Usuarios Activos</div><div class="kpi-val" style="color: #6A1B9A;">${d.users?.length || 0}</div></div>` : ''}
         </div>
+        <div class="chart-box">
+          <div class="chart-header">
+            <span>Historial de Uso</span>
+            <span style="color:#007db8;">${cleanText(d.views)} vistas totales</span>
+          </div>
+          <svg class="chart-svg" viewBox="-12 -16 324 82" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#007DB8" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#007DB8" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <line x1="0" y1="12" x2="300" y2="12" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3"/>
+            <line x1="0" y1="32" x2="300" y2="32" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3"/>
+            <path d="M0,52 L0,35 Q40,15 80,25 T160,10 T240,22 T300,14 L300,52 Z" fill="url(#cg)"/>
+            <path d="M0,35 Q40,15 80,25 T160,10 T240,22 T300,14" fill="none" stroke="#007DB8" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="0" cy="35" r="4" fill="#ffffff" stroke="#007DB8" stroke-width="2"/>
+            <circle cx="160" cy="10" r="4" fill="#ffffff" stroke="#007DB8" stroke-width="2"/>
+            <circle cx="300" cy="14" r="4" fill="#ffffff" stroke="#007DB8" stroke-width="2"/>
+          </svg>
+          <div class="chart-labels">
+            <div>
+              <div class="chart-label">${pdfMetrics.start} vistas</div>
+              <div class="chart-sublabel">${pPeriodLabel}</div>
+            </div>
+            <div class="chart-label-center">
+              <div class="chart-label">Pico: ${pdfMetrics.peak} vistas</div>
+              <div class="chart-sublabel">${pdfMetrics.peakLabel}</div>
+            </div>
+            <div class="chart-label-right">
+              <div class="chart-label">${pdfMetrics.today} vistas</div>
+              <div class="chart-sublabel">Hoy</div>
+            </div>
+          </div>
+        </div>
         <div class="grid-2x2">
             ${d.topV.length > 0 ? `<div class="list-card"><div class="list-title">Top Productos Más Vistos</div><div class="list-items">${renderList(d.topV, maxV, 'vistas')}</div></div>` : ''}
             ${d.topSh.length > 0 ? `<div class="list-card"><div class="list-title">Top Productos Compartidos</div><div class="list-items">${renderList(d.topSh, maxSh, 'compartidos')}</div></div>` : ''}
@@ -344,6 +450,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
   }
 
   const data = tab === 'mine' || !isAdmin ? myData : globalData;
+  const chartMetrics = tab === 'mine' || !isAdmin ? myChartMetrics : globalChartMetrics;
 
   const renderListItem = (item: any, max: number, type: 'vistas'|'compartidos'|'marcas'|'usuarios') => {
      const w = max > 0 ? Math.max(5, (item.count / max) * 100) : 0;
@@ -480,7 +587,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
               <View style={{ alignItems: 'flex-start' }}>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.navy, fontWeight: '700' }}>
-                  {Math.round(data.views * 0.25)} vistas
+                  {chartMetrics.start} vistas
                 </Text>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 9, color: COLORS.gray4 }}>
                   {period === 'today' ? '00:00h' : period === '7d' ? 'Hace 7d' : period === '30d' ? 'Hace 30d' : 'Inicio (60d)'}
@@ -488,15 +595,15 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
               </View>
               <View style={{ alignItems: 'center' }}>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.navy, fontWeight: '700' }}>
-                  Pico: {Math.max(data.views, Math.round(data.views * 0.65))} vistas
+                  Pico: {chartMetrics.peak} vistas
                 </Text>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 9, color: COLORS.gray4 }}>
-                  {period === 'today' ? '12:00h' : period === '7d' ? 'Hace 3d' : period === '30d' ? 'Hace 15d' : 'Hace 30d'}
+                  {chartMetrics.peakLabel}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.navy, fontWeight: '700' }}>
-                  {data.views} vistas
+                  {chartMetrics.today} vistas
                 </Text>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 9, color: COLORS.navy, fontWeight: '700' }}>Hoy</Text>
               </View>
