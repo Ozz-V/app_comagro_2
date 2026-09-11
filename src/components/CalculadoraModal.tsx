@@ -208,6 +208,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
      
       let isEjeLibreOrCombustion = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR');
       const subcatStr = String(p.subcategoria).toUpperCase();
+      if (subcatStr.includes('CUERPO SUMERGIBLE')) isEjeLibreOrCombustion = true;
       if (subcatStr.includes('NAFTA') || subcatStr.includes('DIESEL')) isEjeLibreOrCombustion = true;
       if (p.specs && JSON.stringify(p.specs).toUpperCase().includes('COMBUSTIÓN')) isEjeLibreOrCombustion = true;
 
@@ -216,7 +217,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
          else is380 = true;
       }
 
-      let isEjeLibre = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.subcategoria).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR') || String(p.subcategoria).toUpperCase().includes('SIN MOTOR');
+      let isEjeLibre = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.subcategoria).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR') || String(p.subcategoria).toUpperCase().includes('SIN MOTOR') || String(p.subcategoria).toUpperCase().includes('CUERPO SUMERGIBLE');
       if (!isEjeLibre && p.specs) {
           const allSpecsStr = JSON.stringify(p.specs).toUpperCase();
           if (allSpecsStr.includes('SIN MOTOR') || allSpecsStr.includes('EJE LIBRE')) {
@@ -575,19 +576,42 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const fullPoolFiltered = sortByScore(applyFaseFilter(applyHydraulicFilter(fullPoolRaw)));
         const bodyPoolFiltered = sortByScore(applyFaseFilter(applyHydraulicFilter(bodyPoolRaw)));
 
+        const getMixedResults = (pool: any[], limit: number) => {
+           const result: any[] = [];
+           const countBySub: Record<string, number> = {};
+           for (const p of pool) {
+              const sub = String(p.subcategoria || '').toUpperCase();
+              if (!countBySub[sub]) countBySub[sub] = 0;
+              if (countBySub[sub] < 3) {
+                  result.push(p);
+                  countBySub[sub]++;
+              }
+              if (result.length >= limit) break;
+           }
+           if (result.length < limit) {
+               for (const p of pool) {
+                  if (!result.includes(p)) {
+                      result.push(p);
+                      if (result.length >= limit) break;
+                  }
+               }
+           }
+           return result.sort((a,b) => (a.score ?? 999) - (b.score ?? 999));
+        };
+
         // Priority logic:
         // sinelec (user pressed "Sin Motor") → show bodyPool only
         // Otherwise → show fullPool first; if empty, fall back to bodyPool
         let useBodyPool = false;
         if (reqFase === 'sinelec') {
-           filtered = stripInternal(bodyPoolFiltered).slice(0, 5);
+           filtered = stripInternal(getMixedResults(bodyPoolFiltered, 5));
            useBodyPool = true;
         } else if (fullPoolFiltered.length > 0) {
-           filtered = stripInternal(fullPoolFiltered).slice(0, 5);
+           filtered = stripInternal(getMixedResults(fullPoolFiltered, 5));
            useBodyPool = false;
         } else {
            // Fallback: no complete pumps matched — show body pool with motor suggestion
-           filtered = stripInternal(bodyPoolFiltered).slice(0, 5);
+           filtered = stripInternal(getMixedResults(bodyPoolFiltered, 5));
            useBodyPool = bodyPoolFiltered.length > 0;
         }
         void useBodyPool;
@@ -1353,9 +1377,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   </View>
                 )}
 
-                {motorResult && motorResult.length === 0 && motorWarning && (
-                  <Text style={styles.advWarn}>{motorWarning}</Text>
-                )}
                 {motorResult && motorResult.length > 0 && (
                   <View style={[styles.suggestedContainer, {marginTop: 5}]}>
                     <Text style={styles.suggestedTitle}>{motorResultTitle}</Text>

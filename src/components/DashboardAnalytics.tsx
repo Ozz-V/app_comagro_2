@@ -353,7 +353,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
         .kpi-val { font-size: 22px; font-weight: 800; }
         .chart-box { background: #F4F6F8; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; border: 1px solid #DFE1E6; }
         .chart-header { font-size: 10px; font-weight: 700; color: #1A2530; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; }
-        .chart-svg { width: 100%; height: 60px; }
+        .chart-svg { width: 100%; height: auto; max-height: 120px; margin: 4px 0; }
         .chart-labels { display: flex; justify-content: space-between; margin-top: 4px; }
         .chart-label { font-size: 8px; font-weight: 700; color: #1A2530; }
         .chart-sublabel { font-size: 7px; color: #6B778C; }
@@ -393,7 +393,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
             <span>Historial de Uso</span>
             <span style="color:#007db8;">${cleanText(d.views)} vistas totales</span>
           </div>
-          <svg class="chart-svg" viewBox="-12 -16 324 82" preserveAspectRatio="none">
+          <svg class="chart-svg" viewBox="-12 -16 324 82">
             <defs>
               <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="#007DB8" stop-opacity="0.35"/>
