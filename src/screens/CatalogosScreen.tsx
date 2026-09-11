@@ -228,9 +228,6 @@ export default function CatalogosScreen({ navigation }: { navigation: { navigate
           style={styles.logoAnimado}
           resizeMode="contain"
         />
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.btnVolver}>‹ Volver</Text>
-        </TouchableOpacity>
       </View>
       <View style={styles.topBorder} />
 

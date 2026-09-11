@@ -502,43 +502,43 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const tolCurva = reglas.matematica.toleranciaCurva || 1.15; 
         const minCaudalTol = reglas.matematica.toleranciaCaudalMinimo || 0.85;
 
-        if (targetHpInput === 0) {
-           if (targetCaudalLpm > 0 && targetAlturaInput > 0) {
-              const maxMultiplo = reglas.matematica.maxMultiploCaudalPermitido ?? 8;
-              conAltura = conAltura.filter(p => {
-                 const qmax = (p as any)._q;
-                 const hmax = (p as any)._h;
-                 if (qmax > targetCaudalLpm * maxMultiplo) return false;
-                 if (qmax < targetCaudalLpm * minCaudalTol || hmax < targetAlturaInput) return false;
+        const hasCaudal = targetCaudalLpm > 0;
+        const hasAltura = targetAlturaInput > 0;
+        const hasHp = targetHpInput > 0;
+
+        conAltura = conAltura.filter((p: any) => {
+           const qmax = p._q;
+           const hmax = p._h;
+           const hpVal = p.calcVal;
+           const hpEff = hpVal > 0 ? hpVal : (qmax > 0 && hmax > 0 ? ((qmax * hmax) / 3150) : 0);
+
+           if (hasHp) {
+              if (hpEff > 0 && (hpEff < targetHpInput * 0.60 || hpEff > targetHpInput * 1.50)) return false;
+           }
+           if (hasCaudal) {
+              if (qmax > 0 && (qmax < targetCaudalLpm * 0.60 || qmax > targetCaudalLpm * 4.0)) return false;
+           }
+           if (hasAltura) {
+              if (hmax > 0 && hmax < targetAlturaInput * 0.60) return false;
+           }
+           if (hasCaudal && hasAltura && qmax > 0 && hmax > 0) {
+              if (targetCaudalLpm <= qmax) {
                  const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
-                 return curvaH >= targetAlturaInput && curvaH <= targetAlturaInput * (tolCurva + 0.5);
-              });
-              
-              const pesoExcesoH    = reglas.matematica.pesoExcesoH    ?? 1.0;
-              const pesoExcesoQmax = reglas.matematica.pesoExcesoQmax ?? 0.5;
-              const pesoExcesoHmax = reglas.matematica.pesoExcesoHmax ?? 0.2;
-              conAltura.forEach(p => {
-                 const qmax = (p as any)._q;
-                 const hmax = (p as any)._h;
-                 const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
-                 const excesoH    = Math.abs(curvaH - targetAlturaInput) / targetAlturaInput;
-                 const excesoQmax = Math.max(0, (qmax - targetCaudalLpm) / targetCaudalLpm);
-                 const excesoHmax = Math.max(0, (hmax - targetAlturaInput) / targetAlturaInput);
-                 (p as any).score = excesoH * pesoExcesoH + excesoQmax * pesoExcesoQmax + excesoHmax * pesoExcesoHmax;
-              });
-           } else {
-              if (targetCaudalLpm > 0) {
-                 conAltura = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * minCaudalTol);
-              }
-              if (targetAlturaInput > 0) {
-                 conAltura = conAltura.filter(p => (p as any)._h >= targetAlturaInput);
+                 if (curvaH < targetAlturaInput * 0.65) return false;
+              } else {
+                 return false;
               }
            }
-        }
+           return true;
+        });
         
-        if (targetCaudalLpm > 0 || targetHpInput > 0) {
-           sinAltura = sinAltura.filter(p => (p as any)._q >= targetCaudalLpm * minCaudalTol || ((p as any)._q === 0 && (p as any)._isEjeLibre));
-        }
+        sinAltura = sinAltura.filter((p: any) => {
+           const qmax = p._q;
+           const hpVal = p.calcVal;
+           if (hasHp && hpVal > 0 && (hpVal < targetHpInput * 0.60 || hpVal > targetHpInput * 1.50)) return false;
+           if (hasCaudal && qmax > 0 && (qmax < targetCaudalLpm * 0.60 || qmax > targetCaudalLpm * 4.0)) return false;
+           return true;
+        });
         
         if (reqFase === 'sinelec') {
            conAltura = conAltura.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
@@ -582,20 +582,23 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             let highestTargetHp = 0;
             
             for (const pump of ejeLibrePumps) {
+                const pQ = (pump as any)._q || targetCaudalLpm;
+                const pH = (pump as any)._h || targetAlturaInput;
+
                 let rawHp = 0;
-                if ((pump as any)._q > 0 && (pump as any)._h > 0) {
-                    rawHp = ((pump as any)._q * (pump as any)._h) / reglas.matematica.divisorHpBomba;
+                if (targetHpInput > 0) {
+                    rawHp = targetHpInput;
+                } else if (pQ > 0 && pH > 0) {
+                    rawHp = (pQ * pH) / reglas.matematica.divisorHpBomba;
                 } else if (pump.calcVal > 0) {
                     rawHp = pump.calcVal;
-                } else {
-                    rawHp = (targetCaudalLpm * targetAlturaInput) / reglas.matematica.divisorHpBomba;
                 }
-                
-                if (targetHpInput > 0) rawHp = targetHpInput;
 
-                const pumpTargetHp = (pump.calcVal > 0 && rawHp === pump.calcVal) ? rawHp : rawHp * reglas.matematica.margenSeguridadMotor;
+                const pumpTargetHp = (pump.calcVal > 0 && rawHp === pump.calcVal) 
+                    ? rawHp 
+                    : (rawHp > 0 ? rawHp * reglas.matematica.margenSeguridadMotor : 0);
                 
-                const searchHp = pumpTargetHp === 0 ? 999999 : pumpTargetHp;
+                const searchHp = pumpTargetHp;
                 
                 if (pumpTargetHp > highestTargetHp) highestTargetHp = pumpTargetHp;
                 
@@ -621,32 +624,24 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                          }
                       });
                    }
-                   return { ...m, calcVal: mHp, score: (mHp > 0 && mHp >= searchHp) ? mHp - searchHp : 9999 };
+                   return { ...m, calcVal: mHp, score: (mHp > 0 && searchHp > 0 && mHp >= searchHp) ? mHp - searchHp : 9999 };
                 });
 
-                let selectedMotors = validMotors.filter(m => m.calcVal > 0 && m.calcVal >= searchHp && m.calcVal <= searchHp * 1.30);
-                
-                if (selectedMotors.length === 0) {
-                    const maxCatalogHp = Math.max(...validMotors.map((m: any) => m.calcVal || 0), 0);
-                    selectedMotors = validMotors.filter(m => m.calcVal === maxCatalogHp && maxCatalogHp > 0);
-                    
-                    if (selectedMotors.length > 0) {
-                        const m = selectedMotors[0];
-                        if (pumpTargetHp === 0) {
-                            m.displayValue = `Máx cap. ${maxCatalogHp} HP`;
-                            setMotorWarning(`⚠️ Motor de mayor potencia sugerido como referencia. Falta altura (mca) para el exacto.`);
-                        } else {
-                            m.displayValue = `Máx cap. ${maxCatalogHp} HP`;
-                            if (pumpTargetHp > highestTargetHp) {
-                                if (targetAlturaInput > 0 && targetCaudalLpm > 0) {
-                                    const maxMCA = (maxCatalogHp * reglas.matematica.divisorHpBomba) / targetCaudalLpm;
-                                    setMotorWarning(`⚠️ Requiere ~${Math.round(pumpTargetHp)} HP. Con este motor máximo (${maxCatalogHp} HP), solo elevará hasta ${maxMCA.toFixed(0)} MCA.`);
-                                } else {
-                                    setMotorWarning(`⚠️ Requiere ~${Math.round(pumpTargetHp)} HP. Se sugiere el motor máximo en stock (${maxCatalogHp} HP) como Plan B.`);
-                                }
-                            }
-                        }
-                    }
+                let selectedMotors: ExtendedCalcProduct[] = [];
+                if (searchHp > 0) {
+                   selectedMotors = validMotors.filter(m => m.calcVal > 0 && m.calcVal >= searchHp && m.calcVal <= searchHp * 1.35);
+                   if (selectedMotors.length === 0) {
+                       const higherMotors = validMotors.filter(m => m.calcVal > 0 && m.calcVal >= searchHp).sort((a,b) => a.calcVal - b.calcVal);
+                       if (higherMotors.length > 0) {
+                           selectedMotors = [higherMotors[0]];
+                       }
+                   }
+                } else {
+                   const smallestMotors = validMotors.filter(m => m.calcVal > 0).sort((a, b) => a.calcVal - b.calcVal);
+                   if (smallestMotors.length > 0) {
+                       selectedMotors = [smallestMotors[0]];
+                       setMotorWarning('Falta información de altura (mca) para calcular la potencia exacta del motor.');
+                   }
                 }
                 
                 selectedMotors.forEach(m => {
@@ -822,15 +817,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       >
         <View style={styles.modalContent}>
           <View style={[styles.header, { justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center' }]}>
-            {calcMode ? (
-               <TouchableOpacity onPress={handleBack} style={{ padding: 5 }}>
-                  <Text style={{ fontFamily: FONTS.body, fontSize: 16, color: COLORS.green }}>‹ Volver</Text>
-               </TouchableOpacity>
-            ) : <View style={{ width: 30 }} />}
+            <View style={{ width: 30 }} />
             <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
-            <TouchableOpacity onPress={onClose} style={{ padding: 5 }}>
-              <Text style={styles.closeBtn}>✕</Text>
-            </TouchableOpacity>
+            {!calcMode ? (
+              <TouchableOpacity onPress={onClose} style={{ padding: 5 }}>
+                <Text style={styles.closeBtn}>✕</Text>
+              </TouchableOpacity>
+            ) : <View style={{ width: 30 }} />}
           </View>
           
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -906,7 +899,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         const tDiametro = tx.label_diametro ?? 'Diámetro de Cañería';
                         const tAccesorios = tx.label_accesorios ?? 'Accesorios (Cantidades)';
                         const tBtnBuscar = tx.btn_buscar ?? 'Buscar Equipos';
-                        const tAvisoDiamInsuf  = tx.aviso_diametro_insuficiente ?? '⚠ Diámetro insuficiente';
+                        const tAvisoDiamInsuf  = tx.aviso_diametro_insuficiente ?? 'Diámetro insuficiente';
                         const tAvisoDiamBloq   = tx.aviso_diametro_bloqueado    ?? 'Rango supera tabla de fricción';
                         const tAvisoSinCaudal  = tx.aviso_sin_caudal            ?? 'Ingresá el caudal para buscar';
 

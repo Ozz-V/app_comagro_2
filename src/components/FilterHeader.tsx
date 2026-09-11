@@ -42,17 +42,6 @@ export default function FilterHeader({
           style={styles.logoAnimado}
           resizeMode="contain"
         />
-        <TouchableOpacity onPress={() => {
-          if (isFiltered) {
-            onClearFilters();
-          } else {
-            onGoBack();
-          }
-        }}>
-          <Text style={styles.btnVolver}>
-            {isFiltered ? '‹ Volver a marcas' : '‹ Volver'}
-          </Text>
-        </TouchableOpacity>
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

@@ -295,9 +295,6 @@ export default function FichasScreen({ navigation }: { navigation: { navigate: (
             style={styles.logoAnimado}
             resizeMode="contain"
           />
-          <TouchableOpacity onPress={() => catActual !== 'TODAS' ? (setCatActual('TODAS'), setBusqueda('')) : navigation.goBack()}>
-            <Text style={styles.btnVolver}>‹ Volver</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={styles.searchWrap}>

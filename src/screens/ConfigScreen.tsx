@@ -439,9 +439,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
     <SafeAreaView style={st.safe}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
       <View style={st.topbar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ width: 60 }}>
-          <Text style={{ fontFamily: FONTS.body, fontSize: 16, color: COLORS.green }}>‹ Volver</Text>
-        </TouchableOpacity>
+        <View style={{ width: 60 }} />
         <Text style={st.topTitle}>Configuración</Text>
         <View style={{ width: 60 }} />
       </View>

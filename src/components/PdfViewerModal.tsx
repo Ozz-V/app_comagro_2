@@ -142,9 +142,7 @@ export default function PdfViewerModal({ visible, url, title, onClose }: PdfView
 
         {/* Barra superior */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.backBtn} activeOpacity={0.7}>
-            <Text style={styles.volver}>‹ Volver</Text>
-          </TouchableOpacity>
+          <View style={{ width: 40 }} />
 
           <Text style={styles.headerTitle} numberOfLines={1}>
             {title || 'Documento'}

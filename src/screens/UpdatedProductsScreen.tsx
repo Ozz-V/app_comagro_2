@@ -97,9 +97,6 @@ export default function UpdatedProductsScreen({ route, navigation }: { route: an
           style={styles.logoAnimado}
           resizeMode="contain"
         />
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.btnVolver}>‹ Volver</Text>
-        </TouchableOpacity>
       </View>
       <View style={styles.topBorder} />
 

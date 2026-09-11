@@ -861,7 +861,7 @@ export default function ProductDetailModal({
                  </View>
                  <View style={{ backgroundColor: '#fff4e5', borderWidth: 1.5, borderColor: '#f0a93a', borderRadius: 8, padding: 12, marginTop: 16, width: '100%' }}>
                     <Text style={{ fontSize: 11.5, fontWeight: 'bold', color: '#7a4a05', marginBottom: 4 }}>
-                       ⚠ Gráfica estimativa, no oficial del fabricante
+                       Gráfica estimativa, no oficial del fabricante
                     </Text>
                     <Text style={{ fontSize: 10.5, color: '#7a4a05', lineHeight: 15 }}>
                        Esta curva es una aproximación teórica calculada a partir de los datos técnicos cargados (caudal y altura/presión máximos). Puede no coincidir con la curva real publicada por el fabricante, ya que no se dispone de todos sus puntos oficiales. Para datos exactos, consultá siempre la ficha del fabricante o a un asesor.

@@ -113,9 +113,6 @@ export default function EstadisticasScreen({ navigation }: { navigation: { navig
 
       <View style={styles.topbar}>
         <LottieView source={ANIMATION_ISO} autoPlay loop style={styles.logoAnimado} resizeMode="contain" />
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.btnVolver}>‹ Volver</Text>
-        </TouchableOpacity>
       </View>
       <View style={styles.topBorder} />
 

@@ -10,6 +10,7 @@ import LottieView from 'lottie-react-native';
 import { supabase, EDGE_URL } from '../supabase';
 import { COLORS, FONTS } from '../theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import SvgIcon from '../components/SvgIcon';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
 
@@ -255,7 +256,8 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
         />
 
         <View style={styles.hintBanner}>
-          <Text style={styles.hintText}>💡 Tratá de ser específico e incluir el modelo, SKU o contexto para que la búsqueda sea más precisa.</Text>
+          <SvgIcon name="buscar" size={14} color={COLORS.navy} />
+          <Text style={styles.hintText}>Tratá de ser específico e incluir el modelo, SKU o contexto para que la búsqueda sea más precisa.</Text>
         </View>
 
         <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'android' ? Math.max(10, insets.bottom + 5) : 10 }]}>
@@ -406,18 +408,22 @@ const styles = StyleSheet.create({
   cardAction: { fontSize: 11, color: COLORS.green, fontWeight: 'bold' },
 
   hintBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#F8FAFC',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    alignItems: 'center'
+    borderTopColor: '#E2E8F0'
   },
   hintText: {
     fontFamily: FONTS.bodySemi,
     fontSize: 11,
     color: COLORS.gray4,
-    textAlign: 'center'
+    textAlign: 'center',
+    flexShrink: 1
   },
 
   inputContainer: {
