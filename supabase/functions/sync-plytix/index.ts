@@ -61,7 +61,7 @@ async function computeHash(value: any): Promise<string> {
 // deno-lint-ignore no-explicit-any
 async function withRetry<T extends { error: any }>(
   label: string,
-  op: () => Promise<T>,
+  op: () => PromiseLike<T>,
   attempts = 3,
 ): Promise<T> {
   let result!: T;
