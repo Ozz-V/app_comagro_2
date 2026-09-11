@@ -52,6 +52,31 @@ async function computeHash(value: any): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
+// RETRY GENÉRICO PARA ESCRITURAS A SUPABASE
+// ---------------------------------------------------------------------------
+// Mismo patrón que ya usábamos solo para la lectura de hashes (3 intentos,
+// 1s de espera), pero reutilizable para cualquier llamada a Supabase que
+// devuelva { error }. Protege contra fallas transitorias de infra (ej.
+// "Gateway Timeout") para que un hipo puntual no tumbe toda la corrida.
+// deno-lint-ignore no-explicit-any
+async function withRetry<T extends { error: any }>(
+  label: string,
+  op: () => Promise<T>,
+  attempts = 3,
+): Promise<T> {
+  let result!: T;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    result = await op();
+    if (!result.error) return result;
+    console.warn(`[RETRY ${attempt}/${attempts}] ${label} falló (${result.error.message}).`);
+    if (attempt < attempts) {
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // ROTACIÓN DE API KEYS DE GEMINI
 // ---------------------------------------------------------------------------
 function loadGeminiKeys(): string[] {
@@ -224,6 +249,24 @@ async function handleBatchedNotifications(
       ? 'Se agregó o actualizó 1 producto. ¡Revisalo!'
       : `Se agregaron o actualizaron ${pendingCount} productos. ¡Revisalos!`;
 
+    // --- RESERVA DEL BATCH ANTES DE ENVIAR ---
+    // Reseteamos el contador ANTES de pegarle a Expo (no después). Si el proceso se cae justo
+    // después de enviar el push, la corrida siguiente ya no va a re-notificar estos mismos SKUs.
+    // Trade-off consciente: preferimos "en el peor caso se pierde una notificación" antes que
+    // repetir el bug anterior de dos productos re-notificándose en loop cada 10 minutos.
+    const { error: resetError } = await withRetry('reservar notification_batch', () =>
+      supaAdmin.from('notification_batch').upsert({
+        id: 1,
+        pending_count: 0,
+        window_started_at: null,
+        last_sent_at: now.toISOString(),
+      })
+    );
+    if (resetError) {
+      console.error('No se pudo reservar el batch de notificación, se aborta este envío para no duplicar:', resetError.message);
+      return;
+    }
+
     const profilesWithToken = (profiles || []).filter((p: { expo_push_token: string | null }) => !!p.expo_push_token);
 
     if (profilesWithToken.length > 0) {
@@ -278,18 +321,13 @@ async function handleBatchedNotifications(
         body: notifBody,
         data: { type: 'new_products', count: pendingCount, skus: batchedSkus },
       }));
-      const { error: logError } = await supaAdmin.from('notifications_log').insert(logRows);
+      const { error: logError } = await withRetry('insert notifications_log', () =>
+        supaAdmin.from('notifications_log').insert(logRows)
+      );
       if (logError) {
         console.error('notifications_log_insert_error', logError.message);
       }
     }
-
-    await supaAdmin.from('notification_batch').upsert({
-      id: 1,
-      pending_count: 0,
-      window_started_at: null,
-      last_sent_at: now.toISOString(),
-    });
   } catch (err) {
     console.error('Error en el manejo de notificaciones agrupadas:', err);
   }
@@ -448,9 +486,9 @@ Deno.serve(async (req: Request) => {
         const chunkSize = 1000;
         for (let i = 0; i < upsertQueueData.length; i += chunkSize) {
           const chunk = upsertQueueData.slice(i, i + chunkSize);
-          const { error: queueError } = await supaAdmin
-            .from('plytix_queue')
-            .upsert(chunk, { onConflict: 'sku' });
+          const { error: queueError } = await withRetry('upsert plytix_queue', () =>
+            supaAdmin.from('plytix_queue').upsert(chunk, { onConflict: 'sku' })
+          );
           if (queueError) {
             console.error('Error insertando en plytix_queue:', queueError.message);
             throw new Error(`Error en upsert plytix_queue: ${queueError.message}`);
@@ -474,6 +512,23 @@ Deno.serve(async (req: Request) => {
 
     if (!queueItems || queueItems.length === 0) {
        return new Response(JSON.stringify({ message: 'Todo está sincronizado. No hay productos pendientes en la cola.', processed: 0 }), { status: 200 });
+    }
+
+    // --- RESERVA DE LA COLA (evita doble procesamiento si dos corridas del cron se solapan) ---
+    // Marcamos estos SKUs como 'processing' ANTES de trabajar sobre ellos. El .eq('status','pending')
+    // hace que la actualización solo afecte filas que sigan pendientes en ese instante; si otra
+    // invocación ya las reservó, esta no las va a tocar. No es un lock perfecto a nivel de Postgres,
+    // pero elimina el escenario real: dos corridas gastando Gemini dos veces y duplicando notificaciones.
+    const claimedSkus = queueItems.map((item: { sku: string }) => item.sku);
+    const { error: claimError } = await withRetry('reservar cola (claim)', () =>
+      supaAdmin
+        .from('plytix_queue')
+        .update({ status: 'processing', updated_at: new Date().toISOString() })
+        .in('sku', claimedSkus)
+        .eq('status', 'pending')
+    );
+    if (claimError) {
+      throw new Error(`Error reservando la cola: ${claimError.message}`);
     }
 
     const processedSkus: string[] = [];
