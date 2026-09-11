@@ -551,13 +551,24 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            sinAltura = sinAltura.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
         }
 
-        conAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
-        sinAltura.sort((a, b) => (a.score ?? 999) - (b.score ?? 999));
+         const isBodyOrEjeLibre = (p: any) => {
+            const sub = String(p.subcategoria || '').toUpperCase();
+            const mod = String(p.modelo || '').toUpperCase();
+            return p._isEjeLibre || sub.includes('CUERPO SUMERGIBLE') || mod.includes('EJE LIBRE') || mod.includes('SIN MOTOR');
+         };
 
-        filtered = [...conAltura, ...sinAltura].slice(0, 5).map(p => {
-           const { _q, _h, _is220, _is380, ...rest } = p as any;
-           return rest;
-        });
+         const getTierScore = (p: any) => {
+            const body = isBodyOrEjeLibre(p);
+            return reqFase === 'sinelec' ? (body ? 0 : 10) : (body ? 10 : 0);
+         };
+
+         conAltura.sort((a, b) => (getTierScore(a) * 10 + (a.score ?? 999)) - (getTierScore(b) * 10 + (b.score ?? 999)));
+         sinAltura.sort((a, b) => (getTierScore(a) * 10 + (a.score ?? 999)) - (getTierScore(b) * 10 + (b.score ?? 999)));
+
+         filtered = [...conAltura, ...sinAltura].slice(0, 5).map(p => {
+            const { _q, _h, _is220, _is380, ...rest } = p as any;
+            return rest;
+         });
 
         const checkNeedsMotor = (p: any) => {
            const isEjeLibre = p._isEjeLibre || String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR');
