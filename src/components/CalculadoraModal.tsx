@@ -579,15 +579,32 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const getMixedResults = (pool: any[], limit: number) => {
            const result: any[] = [];
            const countBySub: Record<string, number> = {};
+           
+           // Pass 1: Maximum variety (1 per subcategory)
            for (const p of pool) {
               const sub = String(p.subcategoria || '').toUpperCase();
               if (!countBySub[sub]) countBySub[sub] = 0;
-              if (countBySub[sub] < 3) {
+              if (countBySub[sub] < 1) {
                   result.push(p);
                   countBySub[sub]++;
               }
               if (result.length >= limit) break;
            }
+           
+           // Pass 2: Allow up to 2 per subcategory if we need more
+           if (result.length < limit) {
+               for (const p of pool) {
+                  if (result.includes(p)) continue;
+                  const sub = String(p.subcategoria || '').toUpperCase();
+                  if (countBySub[sub] < 2) {
+                      result.push(p);
+                      countBySub[sub]++;
+                  }
+                  if (result.length >= limit) break;
+               }
+           }
+           
+           // Pass 3: Fill with whatever is left
            if (result.length < limit) {
                for (const p of pool) {
                   if (!result.includes(p)) {
@@ -596,23 +613,20 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   }
                }
            }
+           
            return result.sort((a,b) => (a.score ?? 999) - (b.score ?? 999));
         };
 
         // Priority logic:
         // sinelec (user pressed "Sin Motor") → show bodyPool only
-        // Otherwise → show fullPool first; if empty, fall back to bodyPool
+        // Otherwise → combine both pools and extract a diverse top 5
         let useBodyPool = false;
         if (reqFase === 'sinelec') {
            filtered = stripInternal(getMixedResults(bodyPoolFiltered, 5));
            useBodyPool = true;
-        } else if (fullPoolFiltered.length > 0) {
-           filtered = stripInternal(getMixedResults(fullPoolFiltered, 5));
-           useBodyPool = false;
         } else {
-           // Fallback: no complete pumps matched — show body pool with motor suggestion
-           filtered = stripInternal(getMixedResults(bodyPoolFiltered, 5));
-           useBodyPool = bodyPoolFiltered.length > 0;
+           const combinedPool = sortByScore([...fullPoolFiltered, ...bodyPoolFiltered]);
+           filtered = stripInternal(getMixedResults(combinedPool, 5));
         }
         void useBodyPool;
 
