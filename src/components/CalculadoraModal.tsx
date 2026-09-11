@@ -176,10 +176,13 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             }
          }
 
-         if (key.includes('ALTURA') || key.includes('ELEVACIÓN') || key.includes('MCA')) {
+         if (key.includes('ALTURA') || key.includes('ELEVACIÓN') || key.includes('MCA') || key.includes('PRESIÓN') || key.includes('PRESION')) {
             const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
             if (nums) {
-               const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+               let maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
+               if (valStr.includes('BAR')) {
+                  maxNum = maxNum * 10.2;
+               }
                if (maxNum > maxAlturaMca) maxAlturaMca = maxNum;
             }
          }
@@ -526,12 +529,15 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
 
               if (hasHp) {
                  if (hpEff > 0 && (hpEff < targetHpInput * 0.60 || hpEff > targetHpInput * 1.50)) return false;
+                 if (hpEff === 0) return false;
               }
               if (hasCaudal) {
                  if (qmax > 0 && (qmax < targetCaudalLpm * 0.60 || qmax > targetCaudalLpm * 4.0)) return false;
+                 if (qmax === 0) return false;
               }
               if (hasAltura) {
                  if (hmax > 0 && hmax < targetAlturaInput * 0.60) return false;
+                 if (hmax === 0) return false;
               }
               if (hasCaudal && hasAltura && qmax > 0 && hmax > 0) {
                  if (targetCaudalLpm <= qmax) {
@@ -1104,7 +1110,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                                   <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>Trifásico</Text>
                                 </TouchableOpacity>
 
-                                {(!['combustion', 'drenaje'].includes(pumpWizard.uso)) && (
+                                {(!['combustion', 'drenaje', 'vivienda'].includes(pumpWizard.uso)) && (
                                   <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'sinelec' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'sinelec' ? '' : 'sinelec'})}>
                                     <Text style={[styles.faseBtnText, pumpWizard.fase === 'sinelec' && styles.faseBtnTextActive]}>Sin Motor</Text>
                                   </TouchableOpacity>
