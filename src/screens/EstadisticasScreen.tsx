@@ -152,5 +152,5 @@ const styles = StyleSheet.create({
     color: COLORS.navy, textAlign: 'center', marginTop: 4, marginBottom: 20,
   },
   // Se modificó para quitar el paddingBottom excesivo y usar flex adecuadamente
-  content: { flex: 1, paddingHorizontal: 0, paddingBottom: 10 },
+  content: { flex: 1, paddingHorizontal: 0, paddingTop: 10, paddingBottom: 10 },
 });

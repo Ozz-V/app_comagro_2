@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
@@ -398,10 +398,11 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
                  </TouchableOpacity>
                </>
            )}
-           {!isAdmin && <Text style={[s.tabText, s.tabTextActive, {padding: 6}]}>Mis Estadísticas Personales</Text>}
+           {!isAdmin && <Text style={[s.tabText, s.tabTextActive, { padding: 6, textAlign: 'center' }]}>Mis Estadísticas Personales</Text>}
         </View>
-        <TouchableOpacity onPress={generatePdfReport} style={[s.pdfIcon, { opacity: loading ? 0.5 : 1 }]} disabled={loading}>
-          <SvgIcon name="upload" size={16} color={COLORS.navy} />
+        <TouchableOpacity onPress={generatePdfReport} style={[s.pdfBtn, { opacity: loading ? 0.5 : 1 }]} disabled={loading}>
+          <SvgIcon name="upload" size={14} color={COLORS.navy} />
+          <Text style={s.pdfBtnText}>Reporte</Text>
         </TouchableOpacity>
       </View>
 
@@ -418,26 +419,26 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
       {loading && !data.views ? (
         <ActivityIndicator size="large" color={COLORS.navy} style={s.loader} />
       ) : (
-        <View style={s.contentArea}>
+        <ScrollView style={s.contentArea} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
           
           <View style={s.rowTotals}>
-             <View style={s.cardTotal}>
-                <Text style={s.cardTitle}>Vistas Totales</Text>
+             <View style={[s.cardTotal, s.cardTotalViews]}>
+                <Text style={s.cardTitleLight}>Vistas Totales</Text>
                 <View style={s.kpiRow}>
-                  <Text style={s.totalValue}>{cleanText(data.views)}</Text>
+                  <Text style={s.totalValueLight}>{cleanText(data.views)}</Text>
                   {period !== 'all' && (
-                    <Text style={[s.trendText, { color: (data.views >= (data.prevViews || 0)) ? COLORS.green : '#E53935' }]}>
+                    <Text style={[s.trendTextLight, { color: (data.views >= (data.prevViews || 0)) ? '#81C784' : '#FF8A80' }]}>
                       {getTrend(data.views, data.prevViews || 0)}
                     </Text>
                   )}
                 </View>
              </View>
-             <View style={s.cardTotal}>
-                <Text style={s.cardTitle}>Compartidos</Text>
+             <View style={[s.cardTotal, s.cardTotalShares]}>
+                <Text style={s.cardTitleLight}>Compartidos</Text>
                 <View style={s.kpiRow}>
-                  <Text style={s.totalValue}>{cleanText(data.shares)}</Text>
+                  <Text style={s.totalValueLight}>{cleanText(data.shares)}</Text>
                   {period !== 'all' && (
-                    <Text style={[s.trendText, { color: (data.shares >= (data.prevShares || 0)) ? COLORS.green : '#E53935' }]}>
+                    <Text style={[s.trendTextLight, { color: (data.shares >= (data.prevShares || 0)) ? '#81C784' : '#FF8A80' }]}>
                       {getTrend(data.shares, data.prevShares || 0)}
                     </Text>
                   )}
@@ -447,7 +448,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
 
           {/* Renderizado Condicional: 1 Columna (Mine) vs 2 Columnas (General) */}
           {tab === 'mine' ? (
-             <View style={{ flex: 1, gap: 10 }}>
+             <View style={{ gap: 12 }}>
                  <View style={s.cardList}>
                     <Text style={s.cardTitle}>Más Vistos</Text>
                     <View style={s.listContainer}>
@@ -468,7 +469,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
                  </View>
              </View>
           ) : (
-             <View style={{ flex: 1 }}>
+             <View style={{ gap: 12 }}>
                  <View style={s.row}>
                      <View style={s.cardList}>
                         <Text style={s.cardTitle}>Más Vistos</Text>
@@ -504,48 +505,56 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
              </View>
           )}
 
-        </View>
+        </ScrollView>
       )}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, paddingBottom: 5 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 10 },
-  tabs: { flexDirection: 'row', backgroundColor: '#E8ECF0', borderRadius: 6, padding: 2 },
-  tabBtn: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 4 },
+  container: { flex: 1 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 16 },
+  tabs: { flex: 1, flexDirection: 'row', backgroundColor: '#E8ECF0', borderRadius: 8, padding: 3, marginRight: 10 },
+  tabBtn: { flex: 1, paddingVertical: 8, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   tabActive: { backgroundColor: COLORS.white, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-  tabText: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4 },
+  tabText: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.gray4 },
   tabTextActive: { color: COLORS.navy, fontWeight: '700' },
-  pdfIcon: { width: 30, height: 30, backgroundColor: '#E8ECF0', borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  filtersRow: { flexDirection: 'row', gap: 6, marginBottom: 10, paddingHorizontal: 10 },
-  filterPill: { paddingVertical: 5, paddingHorizontal: 10, backgroundColor: '#E8ECF0', borderRadius: 12 },
+  
+  pdfBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#E8ECF0', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  pdfBtnText: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.navy, fontWeight: '600' },
+
+  filtersRow: { flexDirection: 'row', gap: 8, marginBottom: 14, paddingHorizontal: 16 },
+  filterPill: { flex: 1, paddingVertical: 8, backgroundColor: '#E8ECF0', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   filterPillActive: { backgroundColor: COLORS.navy },
-  filterPillText: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4 },
-  filterPillTextActive: { color: COLORS.white },
+  filterPillText: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4, textAlign: 'center' },
+  filterPillTextActive: { color: COLORS.white, fontWeight: '700' },
   loader: { marginTop: 40 },
   
-  contentArea: { flex: 1, paddingHorizontal: 10 },
-  rowTotals: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  row: { flexDirection: 'row', gap: 10, marginBottom: 10, flex: 1 },
+  contentArea: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingBottom: 30 },
+  rowTotals: { flexDirection: 'row', gap: 12, marginBottom: 14 },
+  row: { flexDirection: 'row', gap: 12 },
   
-  cardTotal: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
+  cardTotal: { flex: 1, borderRadius: 12, padding: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  cardTotalViews: { backgroundColor: COLORS.navy },
+  cardTotalShares: { backgroundColor: COLORS.celeste || '#007DB8' },
+  
+  cardTitleLight: { fontFamily: FONTS.bodySemi, fontSize: 11, color: 'rgba(255, 255, 255, 0.85)', textTransform: 'uppercase', marginBottom: 6, letterSpacing: 0.5 },
+  totalValueLight: { fontFamily: FONTS.heading, fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
+  trendTextLight: { fontFamily: FONTS.bodySemi, fontSize: 12, fontWeight: '700' },
   kpiRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  trendText: { fontFamily: FONTS.bodySemi, fontSize: 11 },
   
-  cardList: { flex: 1, backgroundColor: COLORS.white, borderRadius: 10, padding: 8, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, overflow: 'hidden' },
-  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 9, color: COLORS.gray4, textTransform: 'uppercase', marginBottom: 6, letterSpacing: 0.5 },
-  totalValue: { fontFamily: FONTS.heading, fontSize: 22, fontWeight: '800', color: COLORS.navy },
+  cardList: { flex: 1, backgroundColor: COLORS.white, borderRadius: 12, padding: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, borderWidth: 1, borderColor: '#E8ECF0' },
+  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4, textTransform: 'uppercase', marginBottom: 10, letterSpacing: 0.5 },
   
-  listContainer: { flex: 1, justifyContent: 'space-evenly' },
-  listItem: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2, flex: 1 },
-  itemImg: { width: 20, height: 20, borderRadius: 4, backgroundColor: '#F0F4F8' },
-  itemAvatar: { borderRadius: 10 },
+  listContainer: { gap: 8 },
+  listItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  itemImg: { width: 24, height: 24, borderRadius: 4, backgroundColor: '#F0F4F8' },
+  itemAvatar: { borderRadius: 12 },
   itemBrand: { borderRadius: 4, borderWidth: 1, borderColor: '#eee' },
   itemInfo: { flex: 1, minWidth: 0 },
-  itemName: { fontFamily: FONTS.bodySemi, fontSize: 9, color: COLORS.navy, marginBottom: 2 },
-  itemCount: { fontFamily: FONTS.heading, fontSize: 10, fontWeight: '800', width: 25, textAlign: 'right' },
-  progressBg: { height: 3, backgroundColor: '#E8ECF0', borderRadius: 1.5, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 1.5 },
+  itemName: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.navy, marginBottom: 3 },
+  itemCount: { fontFamily: FONTS.heading, fontSize: 11, fontWeight: '800', width: 28, textAlign: 'right' },
+  progressBg: { height: 4, backgroundColor: '#E8ECF0', borderRadius: 2, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 2 },
 });
