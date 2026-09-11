@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard } from 'react-native';
 import { Image } from 'expo-image';
 import { COLORS } from '../theme';
 import SvgIcon from './SvgIcon';
@@ -11,7 +11,6 @@ import { ParsedProduct, CalcProduct, PumpWizardState, SpecTuple } from '../types
 import { FRICCION_DIAMS, FIT_HEADERS, FIT_ROWS, interpolateFriction } from '../utils/frictionLogic';
 
 import { useRules } from '../hooks/useRules';
-import { DEFAULT_RULES } from '../services/rulesService';
 
 interface CalculadoraModalProps {
   visible: boolean;
@@ -26,7 +25,21 @@ type ExtendedCalcProduct = CalcProduct & {
   pairedSku?: string;
 };
 
-type RulesCategory = typeof DEFAULT_RULES.categorias[0];
+// Función inteligente para saltos lógicos de HP
+const stepHp = (current: number, direction: 'up' | 'down') => {
+   if (direction === 'up') {
+      if (current < 3) return current + 0.5;
+      if (current < 10) return current + 1;
+      if (current < 50) return current + 5;
+      return current + 10;
+   } else {
+      if (current <= 0.5) return 0;
+      if (current <= 3) return current - 0.5;
+      if (current <= 10) return current - 1;
+      if (current <= 50) return current - 5;
+      return current - 10;
+   }
+}
 
 export default function CalculadoraModal({ visible, onClose, navigation }: CalculadoraModalProps) {
   const reglas = useRules();
@@ -40,7 +53,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   const [genFase, setGenFase] = useState<'220v'|'380v'>('380v');
   const [genStats, setGenStats] = useState({ min380: 0, max220: 0 });
   const [motorState, setMotorState] = useState({ hp: '', polos: '', fase: '' });
-  const [motorCatalog, setMotorCatalog] = useState<any[]>([]);
 
   const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' as 'l/min' | 'm3/h' | 'l/h' });
 
@@ -51,13 +63,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
   const [waitingForCatalog, setWaitingForCatalog] = useState(false);
   
   const [showDiamPicker, setShowDiamPicker] = useState(false);
-  const [showMotorHpPicker, setShowMotorHpPicker] = useState(false);
-  const [showMotorPolosPicker, setShowMotorPolosPicker] = useState(false);
-  const [showPumpHpPicker, setShowPumpHpPicker] = useState(false);
   
   const [motorWarning, setMotorWarning] = useState<string | null>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
-  const [availableHps, setAvailableHps] = useState<number[]>([]);
 
   useEffect(() => {
     if (!visible) {
@@ -183,7 +190,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
          }
        });
        
-       // SOLUCIÓN 3: Detectar el HP requerido para cuerpos sumergibles que no tienen motor propio
        let cuerpoHpReq = 0;
        p.specs.forEach((s: SpecTuple) => {
            const match = String(s[1]).match(/PARA\s+MOTOR\s+([\d.,]+)\s*HP/i);
@@ -218,35 +224,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
       return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380, isEjeLibre };
   }
 
-  // Pre-read stats para rellenar opciones HP
-  useEffect(() => {
-    if (wizardStep === 2 && calcMode === 'bomba' && pumpWizard.uso) {
-      setStatsLoading(true);
-      const usoConf = reglas.categorias.find((u: any) => u.id === pumpWizard.uso);
-      getProductsBySubcategory('BOMBA', true).then(dbProducts => {
-         // SOLUCIÓN 2: Aplicar las limitaciones de categoría para que no salgan en el Picker
-         const hpSet = new Set<number>();
-         dbProducts.forEach(p => {
-            const sub = String(p.subcategoria).toUpperCase();
-            const nom = String(p.modelo).toUpperCase();
-            if (usoConf && usoConf.tipos.some(t => sub.includes(t) || nom.includes(t))) {
-               const specs = parsePumpSpecs(p as ParsedProduct);
-               let skipHp = false;
-               if (pumpWizard.uso === 'vivienda' && specs.hpVal > (reglas?.filtros?.vivienda?.maxHp || 3)) skipHp = true;
-               
-               if (!skipHp && specs.hpVal > 0) hpSet.add(specs.hpVal);
-            }
-         });
-         setAvailableHps(Array.from(hpSet).sort((a, b) => a - b));
-         setStatsLoading(false);
-      }).catch(e => {
-         setStatsLoading(false);
-         console.error(e);
-      });
-    }
-  }, [wizardStep, pumpWizard.uso, calcMode]);
-
-  // Pre-read stats for generators
   useEffect(() => {
     if (calcMode === 'gen') {
        getProductsBySubcategory('GENERADOR', true).then(dbProducts => {
@@ -288,67 +265,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
        }).catch(console.error);
     }
   }, [calcMode]);
-
-  // Pre-read stats for motors
-  useEffect(() => {
-    if (calcMode === 'motor') {
-        getProductsBySubcategory('MOTOR', true).then(dbProducts => {
-            const parsedMotors = dbProducts
-                .filter(p => {
-                   const sub = String(p.subcategoria).toUpperCase();
-                   return sub.includes('ELÉC') || sub.includes('ELEC');
-                })
-                .map(p => {
-                    let hp = 0;
-                    let rpm = 0;
-                    let polos = 0;
-                    const parsed = p as ParsedProduct;
-                    const tension = getProductTension(parsed);
-                    const fase = tension === null ? null : (tension >= 300 ? '380v' : '220v');
-
-                    if (p.specs) {
-                        p.specs.forEach((s: SpecTuple) => {
-                            const k = String(s[0]).toUpperCase();
-                            const v = String(s[1]).toUpperCase();
-                            if (k.includes('HP') || k.includes('POTENCIA')) {
-                                const n = extractNum(v);
-                                if (n) hp = n;
-                            }
-                            if (k.includes('RPM') || k.includes('VELOCIDAD')) {
-                                const n = extractNum(v);
-                                if (n) rpm = n;
-                            }
-                            if (k.includes('POLO')) {
-                                const n = extractNum(v);
-                                if (n) polos = n;
-                            }
-                        });
-                    }
-                    if (rpm > 0 && polos === 0) {
-                        if (rpm > 2500) polos = 2;
-                        else if (rpm > 1200) polos = 4;
-                        else if (rpm > 800) polos = 6;
-                        else if (rpm > 600) polos = 8;
-                    }
-                    return { sku: p.modelo, hp, fase, polos, rpm };
-                });
-            setMotorCatalog(parsedMotors);
-        }).catch(console.error);
-    }
-  }, [calcMode]);
-
-  const availMotorProps = useMemo(() => {
-    let valid = motorCatalog;
-    if (motorState.hp) valid = valid.filter(m => m.hp === parseFloat(motorState.hp));
-    if (motorState.fase) valid = valid.filter(m => m.fase === motorState.fase || m.fase === null);
-    if (motorState.polos) valid = valid.filter(m => m.polos === parseInt(motorState.polos));
-
-    const hps = Array.from(new Set(valid.filter(m => m.hp > 0).map(m => m.hp))).sort((a,b)=>a-b);
-    const polos = Array.from(new Set(valid.filter(m => m.polos > 0).map(m => m.polos))).sort((a,b)=>a-b);
-    const fases = Array.from(new Set(valid.filter(m => m.fase).map(m => m.fase)));
-
-    return { hps, polos, fases };
-  }, [motorCatalog, motorState]);
 
   const handleUnitChange = (newUnit: 'l/min' | 'm3/h' | 'l/h') => {
     const currentVal = parseFloat(pumpWizard.caudal);
@@ -454,7 +370,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               else if (rpm > 600) polos = 8;
           }
 
-          if (targetHp > 0 && hp > 0 && Math.abs(hp - targetHp) > 0.05) return false;
+          if (targetHp > 0 && hp > 0 && Math.abs(hp - targetHp) > targetHp * 0.4) return false;
           if (targetFase && !matchesFase(parsed, targetFase as '220v'|'380v')) return false;
           if (targetPolos > 0 && polos > 0 && polos !== targetPolos) return false;
 
@@ -512,17 +428,15 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
 
               const specs = parsePumpSpecs(p as ParsedProduct);
               
-              // SOLUCIÓN 2: Restricciones firmes por categoría, antes de evaluar si hizo match explícito
-              if (pumpWizard.uso === 'vivienda') {
-                 if (specs.hpVal > (reglas?.filtros?.vivienda?.maxHp || 3)) return false;
-              }
-              if (pumpWizard.uso === 'riego_presion') {
-                 if (specs.hpVal > 0 && specs.hpVal < (reglas?.filtros?.industrial?.minHp || 3)) return false;
-              }
-
               if (targetHpInput > 0) {
-                 if (specs.hpVal !== targetHpInput) return false;
+                 if (specs.hpVal > 0 && (specs.hpVal < targetHpInput * 0.5 || specs.hpVal > targetHpInput * 2)) return false;
               } else {
+                 if (pumpWizard.uso === 'vivienda') {
+                    if (specs.hpVal > (reglas?.filtros?.vivienda?.maxHp || 3)) return false;
+                 }
+                 if (pumpWizard.uso === 'riego_presion') {
+                    if (specs.hpVal > 0 && specs.hpVal < (reglas?.filtros?.industrial?.minHp || 3)) return false;
+                 }
                  if (pumpWizard.uso === 'vivienda') {
                     if (specs.hpVal === 0 && specs.maxCaudalLpm > (reglas?.filtros?.vivienda?.maxCaudalLpm || 165)) return false;
                  }
@@ -545,6 +459,10 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
            
            let score = 0;
            
+           if (targetHpInput > 0 && specs.hpVal > 0) {
+              score += Math.abs(specs.hpVal - targetHpInput) * 3;
+           }
+
            if (specs.maxCaudalLpm > 0 && targetCaudalLpm > 0) {
               score += Math.max(0, (specs.maxCaudalLpm - targetCaudalLpm) / targetCaudalLpm);
            }
@@ -581,40 +499,41 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const tolCurva = reglas.matematica.toleranciaCurva || 1.15; 
         const minCaudalTol = reglas.matematica.toleranciaCaudalMinimo || 0.85;
 
-        if (targetHpInput > 0) {
-        } else if (targetCaudalLpm > 0 && targetAlturaInput > 0) {
-           const maxMultiplo = reglas.matematica.maxMultiploCaudalPermitido ?? 8;
-           conAltura = conAltura.filter(p => {
-              const qmax = (p as any)._q;
-              const hmax = (p as any)._h;
-              if (qmax > targetCaudalLpm * maxMultiplo) return false;
-              if (qmax < targetCaudalLpm * minCaudalTol || hmax < targetAlturaInput) return false;
-              const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
-              return curvaH >= targetAlturaInput && curvaH <= targetAlturaInput * (tolCurva + 0.5);
-           });
-           
-           const pesoExcesoH    = reglas.matematica.pesoExcesoH    ?? 1.0;
-           const pesoExcesoQmax = reglas.matematica.pesoExcesoQmax ?? 0.5;
-           const pesoExcesoHmax = reglas.matematica.pesoExcesoHmax ?? 0.2;
-           conAltura.forEach(p => {
-              const qmax = (p as any)._q;
-              const hmax = (p as any)._h;
-              const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
-              const excesoH    = Math.abs(curvaH - targetAlturaInput) / targetAlturaInput;
-              const excesoQmax = Math.max(0, (qmax - targetCaudalLpm) / targetCaudalLpm);
-              const excesoHmax = Math.max(0, (hmax - targetAlturaInput) / targetAlturaInput);
-              (p as any).score = excesoH * pesoExcesoH + excesoQmax * pesoExcesoQmax + excesoHmax * pesoExcesoHmax;
-           });
-        } else {
-           if (targetCaudalLpm > 0) {
-              conAltura = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * minCaudalTol);
-           }
-           if (targetAlturaInput > 0) {
-              conAltura = conAltura.filter(p => (p as any)._h >= targetAlturaInput);
+        if (targetHpInput === 0) {
+           if (targetCaudalLpm > 0 && targetAlturaInput > 0) {
+              const maxMultiplo = reglas.matematica.maxMultiploCaudalPermitido ?? 8;
+              conAltura = conAltura.filter(p => {
+                 const qmax = (p as any)._q;
+                 const hmax = (p as any)._h;
+                 if (qmax > targetCaudalLpm * maxMultiplo) return false;
+                 if (qmax < targetCaudalLpm * minCaudalTol || hmax < targetAlturaInput) return false;
+                 const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
+                 return curvaH >= targetAlturaInput && curvaH <= targetAlturaInput * (tolCurva + 0.5);
+              });
+              
+              const pesoExcesoH    = reglas.matematica.pesoExcesoH    ?? 1.0;
+              const pesoExcesoQmax = reglas.matematica.pesoExcesoQmax ?? 0.5;
+              const pesoExcesoHmax = reglas.matematica.pesoExcesoHmax ?? 0.2;
+              conAltura.forEach(p => {
+                 const qmax = (p as any)._q;
+                 const hmax = (p as any)._h;
+                 const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
+                 const excesoH    = Math.abs(curvaH - targetAlturaInput) / targetAlturaInput;
+                 const excesoQmax = Math.max(0, (qmax - targetCaudalLpm) / targetCaudalLpm);
+                 const excesoHmax = Math.max(0, (hmax - targetAlturaInput) / targetAlturaInput);
+                 (p as any).score = excesoH * pesoExcesoH + excesoQmax * pesoExcesoQmax + excesoHmax * pesoExcesoHmax;
+              });
+           } else {
+              if (targetCaudalLpm > 0) {
+                 conAltura = conAltura.filter(p => (p as any)._q >= targetCaudalLpm * minCaudalTol);
+              }
+              if (targetAlturaInput > 0) {
+                 conAltura = conAltura.filter(p => (p as any)._h >= targetAlturaInput);
+              }
            }
         }
         
-        if (targetCaudalLpm > 0) {
+        if (targetCaudalLpm > 0 || targetHpInput > 0) {
            sinAltura = sinAltura.filter(p => (p as any)._q >= targetCaudalLpm * minCaudalTol || ((p as any)._q === 0 && (p as any)._isEjeLibre));
         }
         
@@ -669,6 +588,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                     rawHp = (targetCaudalLpm * targetAlturaInput) / reglas.matematica.divisorHpBomba;
                 }
                 
+                if (targetHpInput > 0) rawHp = targetHpInput;
+
                 const pumpTargetHp = (pump.calcVal > 0 && rawHp === pump.calcVal) ? rawHp : rawHp * reglas.matematica.margenSeguridadMotor;
                 
                 const searchHp = pumpTargetHp === 0 ? 999999 : pumpTargetHp;
@@ -700,7 +621,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                    return { ...m, calcVal: mHp, score: (mHp > 0 && mHp >= searchHp) ? mHp - searchHp : 9999 };
                 });
 
-                let selectedMotors = validMotors.filter(m => m.calcVal > 0 && m.calcVal >= searchHp && m.calcVal <= searchHp * 1.20);
+                let selectedMotors = validMotors.filter(m => m.calcVal > 0 && m.calcVal >= searchHp && m.calcVal <= searchHp * 1.30);
                 
                 if (selectedMotors.length === 0) {
                     const maxCatalogHp = Math.max(...validMotors.map((m: any) => m.calcVal || 0), 0);
@@ -914,8 +835,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             <View>
               <Text style={styles.subtitle}>Seleccioná un tipo de equipo para hacer un cálculo rápido:</Text>
               <View style={styles.optionsContainer}>
-                <TouchableOpacity onPress={() => { setCalcMode('gen'); setHasCalculated(false); setCalcResult(null);
-      setMotorResult(null); }} style={styles.optionCard}>
+                <TouchableOpacity onPress={() => { setCalcMode('gen'); setHasCalculated(false); setCalcResult(null); setMotorResult(null); }} style={styles.optionCard}>
                   <View style={styles.iconContainer}>
                     <SvgIcon name="gen" size={28} color={COLORS.navy} />
                   </View>
@@ -926,8 +846,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   <Text style={styles.arrowIcon}>›</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => { setCalcMode('motor'); setHasCalculated(false); setCalcResult(null);
-      setMotorResult(null); }} style={styles.optionCard}>
+                <TouchableOpacity onPress={() => { setCalcMode('motor'); setHasCalculated(false); setCalcResult(null); setMotorResult(null); }} style={styles.optionCard}>
                   <View style={styles.iconContainer}>
                     <SvgIcon name="motor" size={28} color={COLORS.navy} />
                   </View>
@@ -938,8 +857,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   <Text style={styles.arrowIcon}>›</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => { setCalcMode('bomba'); setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null);
-      setMotorResult(null); setWizardStep(1); }} style={styles.optionCard}>
+                <TouchableOpacity onPress={() => { setCalcMode('bomba'); setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); setMotorResult(null); setWizardStep(1); }} style={styles.optionCard}>
                   <View style={styles.iconContainer}>
                     <SvgIcon name="bomba" size={28} color={COLORS.navy} />
                   </View>
@@ -957,18 +875,10 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                 <View>
                   {!(bombaTab === 'guiado' && wizardStep > 1) && (
                     <View style={styles.tabContainer}>
-                      <TouchableOpacity 
-                        style={[styles.tabBtn, bombaTab === 'guiado' && styles.tabBtnActive]} 
-                        onPress={() => { setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null);
-      setMotorResult(null); }}
-                      >
+                      <TouchableOpacity style={[styles.tabBtn, bombaTab === 'guiado' && styles.tabBtnActive]} onPress={() => { setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); setMotorResult(null); }}>
                         <Text style={[styles.tabText, bombaTab === 'guiado' && styles.tabTextActive]}>GUIADO</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.tabBtn, bombaTab === 'avanzado' && styles.tabBtnActive]} 
-                        onPress={() => { setBombaTab('avanzado'); setHasCalculated(false); setCalcResult(null);
-      setMotorResult(null); }}
-                      >
+                      <TouchableOpacity style={[styles.tabBtn, bombaTab === 'avanzado' && styles.tabBtnActive]} onPress={() => { setBombaTab('avanzado'); setHasCalculated(false); setCalcResult(null); setMotorResult(null); }}>
                         <Text style={[styles.tabText, bombaTab === 'avanzado' && styles.tabTextActive]}>CÁLCULO AVANZADO</Text>
                       </TouchableOpacity>
                     </View>
@@ -979,29 +889,23 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                       <Text style={styles.inputTitleSmall}>Filtro de Categoría</Text>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 15 }}>
                         {reglas.categorias.map((u: any) => (
-                          <TouchableOpacity 
-                            key={u.id}
-                            style={[styles.usoListCard, { flexGrow: 1, minWidth: '45%', padding: 10, minHeight: 40, marginRight: 0 }, pumpWizard.uso === u.id && styles.usoCardActive]}
-                            onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}
-                          >
-                            <Text style={[styles.usoListTitle, { fontSize: 12, textAlign: 'center' }, pumpWizard.uso === u.id && styles.usoTitleActive]}>
-                              {u.title}
-                            </Text>
+                          <TouchableOpacity key={u.id} style={[styles.usoListCard, { flexGrow: 1, minWidth: '45%', padding: 10, minHeight: 40, marginRight: 0 }, pumpWizard.uso === u.id && styles.usoCardActive]} onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}>
+                            <Text style={[styles.usoListTitle, { fontSize: 12, textAlign: 'center' }, pumpWizard.uso === u.id && styles.usoTitleActive]}>{u.title}</Text>
                           </TouchableOpacity>
                         ))}
                       </View>
 
                       {(() => {
                         const tx = (reglas as any)?.textos ?? {};
-                        const tCaudal   = tx.label_caudal   ?? 'Caudal (m\u00b3/h)';
-                        const tLongitud = tx.label_longitud ?? 'Longitud de Ca\u00f1er\u00eda (m)';
+                        const tCaudal   = tx.label_caudal   ?? 'Caudal (m³/h)';
+                        const tLongitud = tx.label_longitud ?? 'Longitud de Cañería (m)';
                         const tDesnivel = tx.label_desnivel ?? 'Altura a Elevar (m)';
-                        const tDiametro = tx.label_diametro ?? 'Di\u00e1metro de Ca\u00f1er\u00eda';
+                        const tDiametro = tx.label_diametro ?? 'Diámetro de Cañería';
                         const tAccesorios = tx.label_accesorios ?? 'Accesorios (Cantidades)';
                         const tBtnBuscar = tx.btn_buscar ?? 'Buscar Equipos';
-                        const tAvisoDiamInsuf  = tx.aviso_diametro_insuficiente ?? '\u26a0 Di\u00e1metro insuficiente';
-                        const tAvisoDiamBloq   = tx.aviso_diametro_bloqueado    ?? 'Rango supera tabla de fricci\u00f3n';
-                        const tAvisoSinCaudal  = tx.aviso_sin_caudal            ?? 'Ingres\u00e1 el caudal para buscar';
+                        const tAvisoDiamInsuf  = tx.aviso_diametro_insuficiente ?? '⚠ Diámetro insuficiente';
+                        const tAvisoDiamBloq   = tx.aviso_diametro_bloqueado    ?? 'Rango supera tabla de fricción';
+                        const tAvisoSinCaudal  = tx.aviso_sin_caudal            ?? 'Ingresá el caudal para buscar';
 
                         const advQ = parseFloat(adv.caudal) || 0;
                         const currentDiamSt = advQ > 0 ? interpolateFriction(advQ, adv.diamIdx).status : 'ok';
@@ -1036,12 +940,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                                   <Text style={{ color: allDiamsInvalid ? COLORS.gray3 : currentDiamInvalid ? '#c0392b' : COLORS.navy, fontSize: 14 }}>
                                     {FRICCION_DIAMS[adv.diamIdx]}
                                   </Text>
-                                  {currentDiamInvalid && !allDiamsInvalid && (
-                                    <Text style={{ fontSize: 10, color: '#c0392b', marginTop: 1 }}>{tAvisoDiamInsuf}</Text>
-                                  )}
-                                  {allDiamsInvalid && (
-                                    <Text style={{ fontSize: 10, color: COLORS.gray3, marginTop: 1 }}>{tAvisoDiamBloq}</Text>
-                                  )}
+                                  {currentDiamInvalid && !allDiamsInvalid && <Text style={{ fontSize: 10, color: '#c0392b', marginTop: 1 }}>{tAvisoDiamInsuf}</Text>}
+                                  {allDiamsInvalid && <Text style={{ fontSize: 10, color: COLORS.gray3, marginTop: 1 }}>{tAvisoDiamBloq}</Text>}
                                 </TouchableOpacity>
                               </View>
                             </View>
@@ -1116,32 +1016,18 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                           <Text style={styles.inputTitleSmall}>¿Para qué necesita la bomba?</Text>
                           <View style={styles.usosList}>
                             {reglas.categorias.map((u: any) => (
-                              <TouchableOpacity 
-                                key={u.id}
-                                style={[styles.usoListCard, pumpWizard.uso === u.id && styles.usoCardActive]}
-                                onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}
-                              >
-                                <Text style={[styles.usoListTitle, pumpWizard.uso === u.id && styles.usoTitleActive]}>
-                                  {u.title}
-                                </Text>
-                                <Text style={styles.usoListSubtitle}>
-                                  {u.subtitle}
-                                </Text>
+                              <TouchableOpacity key={u.id} style={[styles.usoListCard, pumpWizard.uso === u.id && styles.usoCardActive]} onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}>
+                                <Text style={[styles.usoListTitle, pumpWizard.uso === u.id && styles.usoTitleActive]}>{u.title}</Text>
+                                <Text style={styles.usoListSubtitle}>{u.subtitle}</Text>
                               </TouchableOpacity>
                             ))}
                           </View>
-                          
-                          <TouchableOpacity 
-                            style={[styles.calculateBtn, !pumpWizard.uso && { backgroundColor: COLORS.gray4 }]} 
-                            disabled={!pumpWizard.uso}
-                            onPress={() => setWizardStep(2)}
-                          >
+                          <TouchableOpacity style={[styles.calculateBtn, !pumpWizard.uso && { backgroundColor: COLORS.gray4 }]} disabled={!pumpWizard.uso} onPress={() => setWizardStep(2)}>
                             <Text style={styles.calculateBtnText}>Siguiente →</Text>
                           </TouchableOpacity>
                         </View>
                       ) : (
                         <View>
-                          {statsLoading && <ActivityIndicator size="small" color={COLORS.navy} style={{marginBottom: 10}} />}
                           <View style={styles.colList}>
                              <View style={styles.colListRow}>
                                 <Text style={styles.inputTitleSmall}>Caudal</Text>
@@ -1163,27 +1049,20 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
 
                              <View style={[styles.colListRow, { marginTop: 15 }]}>
                                 <Text style={styles.inputTitleSmall}>Altura de Elevación (m.c.a.)</Text>
-                                <TextInput 
-                                   style={[styles.textInputSmall, { marginHorizontal: 0 }]} 
-                                   keyboardType="numeric" 
-                                   placeholder="mca (Ej: 20)" 
-                                   placeholderTextColor={COLORS.gray4} 
-                                   value={pumpWizard.altura} 
-                                   maxLength={4} 
-                                   onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} 
-                                />
+                                <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="mca (Ej: 20)" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} maxLength={4} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
                              </View>
 
                              <View style={[styles.colListRow, { marginTop: 15 }]}>
                                 <Text style={styles.inputTitleSmall}>Potencia (HP) (Opcional)</Text>
-                                <TouchableOpacity
-                                   style={[styles.textInputSmall, { justifyContent: 'center' }]}
-                                   onPress={() => setShowPumpHpPicker(true)}
-                                >
-                                   <Text style={{ color: pumpWizard.hp ? COLORS.navy : COLORS.gray4, fontSize: 14, textAlign: 'center', fontWeight: pumpWizard.hp ? 'bold' : 'normal' }}>
-                                      {pumpWizard.hp ? `${pumpWizard.hp} HP` : 'Seleccionar HP (Opcional)'}
-                                   </Text>
-                                </TouchableOpacity>
+                                <View style={[styles.inputRow, { marginBottom: 0 }]}>
+                                  <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(pumpWizard.hp || '0') || 0; setPumpWizard({...pumpWizard, hp: current > 0 ? String(stepHp(current, 'down')) : ''}); }}>
+                                    <Text style={styles.counterBtnText}>-</Text>
+                                  </TouchableOpacity>
+                                  <TextInput style={styles.textInput} keyboardType="numeric" placeholder="Ej: 2.5" placeholderTextColor={COLORS.gray4} value={pumpWizard.hp} onChangeText={(t) => setPumpWizard({...pumpWizard, hp: t})} />
+                                  <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(pumpWizard.hp || '0') || 0; setPumpWizard({...pumpWizard, hp: String(stepHp(current, 'up'))}); }}>
+                                    <Text style={styles.counterBtnText}>+</Text>
+                                  </TouchableOpacity>
+                                </View>
                              </View>
                           </View>
 
@@ -1283,39 +1162,31 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   {calcMode === 'motor' && (
                     <View style={{ marginBottom: 15 }}>
                       <Text style={styles.inputTitleSmall}>Potencia (HP)</Text>
-                      <TouchableOpacity 
-                        style={[styles.textInputSmall, { marginBottom: 15, justifyContent: 'center' }]} 
-                        onPress={() => setShowMotorHpPicker(true)}
-                      >
-                        <Text style={{ color: motorState.hp ? COLORS.navy : COLORS.gray4, fontSize: 14, textAlign: 'center', fontWeight: motorState.hp ? 'bold' : 'normal' }}>
-                          {motorState.hp ? `${motorState.hp} HP` : 'Seleccionar HP (Opcional)'}
-                        </Text>
-                      </TouchableOpacity>
+                      <View style={styles.inputRow}>
+                        <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(motorState.hp || '0') || 0; setMotorState({...motorState, hp: current > 0 ? String(stepHp(current, 'down')) : ''}); setHasCalculated(false); }}>
+                          <Text style={styles.counterBtnText}>-</Text>
+                        </TouchableOpacity>
+                        <TextInput style={styles.textInput} keyboardType="numeric" placeholder="Ej: 5.5" placeholderTextColor={COLORS.gray4} value={motorState.hp} onChangeText={(t) => { setMotorState({...motorState, hp: t}); setHasCalculated(false); }} />
+                        <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(motorState.hp || '0') || 0; setMotorState({...motorState, hp: String(stepHp(current, 'up'))}); setHasCalculated(false); }}>
+                          <Text style={styles.counterBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
 
                       <Text style={styles.inputTitleSmall}>Polos</Text>
-                      <TouchableOpacity 
-                        style={[styles.textInputSmall, { marginBottom: 15, justifyContent: 'center' }]} 
-                        onPress={() => setShowMotorPolosPicker(true)}
-                      >
-                        <Text style={{ color: motorState.polos ? COLORS.navy : COLORS.gray4, fontSize: 14, textAlign: 'center', fontWeight: motorState.polos ? 'bold' : 'normal' }}>
-                          {motorState.polos ? `${motorState.polos} Polos` : 'Seleccionar Polos (Opcional)'}
-                        </Text>
-                      </TouchableOpacity>
+                      <View style={styles.faseGrid}>
+                        {[2, 4, 6].map(polo => (
+                           <TouchableOpacity key={polo} style={[styles.faseBtn, { width: '30%' }, motorState.polos === String(polo) && styles.faseBtnActive]} onPress={() => { setMotorState({...motorState, polos: motorState.polos === String(polo) ? '' : String(polo)}); setHasCalculated(false); }}>
+                              <Text style={[styles.faseBtnText, motorState.polos === String(polo) && styles.faseBtnTextActive]}>{polo} Polos</Text>
+                           </TouchableOpacity>
+                        ))}
+                      </View>
 
                       <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
                       <View style={styles.unitTabs}>
-                        <TouchableOpacity 
-                          disabled={!availMotorProps.fases.includes('220v')}
-                          style={[styles.unitTabBtn, motorState.fase === '220v' && styles.unitTabBtnActive, !availMotorProps.fases.includes('220v') && { opacity: 0.3 }]} 
-                          onPress={() => {setMotorState({...motorState, fase: motorState.fase === '220v' ? '' : '220v'}); setHasCalculated(false);}}
-                        >
+                        <TouchableOpacity style={[styles.unitTabBtn, motorState.fase === '220v' && styles.unitTabBtnActive]} onPress={() => {setMotorState({...motorState, fase: motorState.fase === '220v' ? '' : '220v'}); setHasCalculated(false);}}>
                           <Text style={[styles.unitTabTxt, motorState.fase === '220v' && styles.unitTabTxtActive]}>220V</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
-                          disabled={!availMotorProps.fases.includes('380v')}
-                          style={[styles.unitTabBtn, motorState.fase === '380v' && styles.unitTabBtnActive, !availMotorProps.fases.includes('380v') && { opacity: 0.3 }]} 
-                          onPress={() => {setMotorState({...motorState, fase: motorState.fase === '380v' ? '' : '380v'}); setHasCalculated(false);}}
-                        >
+                        <TouchableOpacity style={[styles.unitTabBtn, motorState.fase === '380v' && styles.unitTabBtnActive]} onPress={() => {setMotorState({...motorState, fase: motorState.fase === '380v' ? '' : '380v'}); setHasCalculated(false);}}>
                           <Text style={[styles.unitTabTxt, motorState.fase === '380v' && styles.unitTabTxtActive]}>380V</Text>
                         </TouchableOpacity>
                       </View>
@@ -1329,7 +1200,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   {calcMode === 'gen' && (
                     <View>
                       <Text style={styles.inputTitleSmall}>Valor en {genUnit === 'KVA' ? 'KVA' : 'Amperes'}</Text>
-                      
                       <View style={styles.inputRow}>
                         <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; if (current > 1) { setCalcInput(String(current - 1)); setHasCalculated(false); } }}>
                           <Text style={styles.counterBtnText}>-</Text>
@@ -1339,7 +1209,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                           <Text style={styles.counterBtnText}>+</Text>
                         </TouchableOpacity>
                       </View>
-
                       <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
                         <Text style={styles.calculateBtnText}>Calcular y Ver Equipos</Text>
                       </TouchableOpacity>
@@ -1363,8 +1232,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                           const equivalentText = genUnit === 'AMPER' ? `(Equivale a ${finalKva.toFixed(1)} KVA)\n\n` : '';
                           return equivalentText + estimateGenerador(finalKva);
                       })() :
-                       calcMode === 'motor' ? estimateMotor(parseFloat(calcInput)) :
-                       ''}
+                       calcMode === 'motor' ? estimateMotor(parseFloat(calcInput)) : ''}
                     </Text>
                   </View>
                   )}
@@ -1374,14 +1242,10 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                     {waitingForCatalog ? (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <ActivityIndicator size="small" color={COLORS.navy} />
-                        <Text style={styles.estimationText}>
-                          Estamos terminando de descargar el catálogo. El resultado va a aparecer solo en un momento…
-                        </Text>
+                        <Text style={styles.estimationText}>Estamos terminando de descargar el catálogo. El resultado va a aparecer solo en un momento…</Text>
                       </View>
                     ) : (
-                      <Text style={styles.estimationText}>
-                        No encontramos equipos que coincidan con ese requerimiento en la categoría seleccionada.
-                      </Text>
+                      <Text style={styles.estimationText}>No encontramos equipos que coincidan con ese requerimiento en la categoría seleccionada.</Text>
                     )}
                   </View>
                 )}
@@ -1415,9 +1279,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         return (
                         <TouchableOpacity 
                           style={[styles.suggestedCard, { borderColor: borderColor, borderWidth: borderWidth }]}
-                          onPress={() => {
-                              navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: calcResult.map(r => r.modelo) });
-                          }}
+                          onPress={() => { navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: calcResult.map(r => r.modelo) }); }}
                         >
                           {item.imagen ? (
                             <Image source={{ uri: item.imagen }} style={styles.suggestedImg} contentFit="contain" />
@@ -1458,9 +1320,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         return (
                         <TouchableOpacity 
                           style={[styles.suggestedCard, { borderColor: borderColor, borderWidth: 2 }]}
-                          onPress={() => {
-                              navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: motorResult.map(r => r.modelo) });
-                          }}
+                          onPress={() => { navigation.navigate('ProductViewer', { sku: item.modelo, contextSkus: motorResult.map(r => r.modelo) }); }}
                         >
                           {item.imagen ? (
                             <Image source={{ uri: item.imagen }} style={styles.suggestedImg} contentFit="contain" />
@@ -1494,7 +1354,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           </ScrollView>
         </View>
 
-        {/* SOLUCIÓN 1: Se agregó style={{ flexShrink: 1, width: '100%' }} a todos los ScrollView de los Modales */}
         <Modal visible={showDiamPicker} transparent animationType="fade" onRequestClose={() => setShowDiamPicker(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
             <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 20, maxHeight: '80%' }}>
@@ -1534,113 +1393,6 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           </View>
         </Modal>
 
-        <Modal visible={showMotorHpPicker} transparent animationType="fade" onRequestClose={() => setShowMotorHpPicker(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 20, maxHeight: '75%' }}>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 15, textAlign: 'center' }}>Seleccionar Potencia (HP)</Text>
-              <ScrollView style={{ flexShrink: 1, width: '100%' }} showsVerticalScrollIndicator={true}>
-                {motorState.hp !== '' && (
-                  <TouchableOpacity
-                    style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' }}
-                    onPress={() => { setMotorState({...motorState, hp: ''}); setHasCalculated(false); setShowMotorHpPicker(false); }}
-                  >
-                    <Text style={{ fontSize: 14, color: COLORS.navy, fontStyle: 'italic' }}>Quitar filtro de HP</Text>
-                  </TouchableOpacity>
-                )}
-                {availMotorProps.hps.map(hp => {
-                  const isSelected = motorState.hp === hp.toString();
-                  return (
-                    <TouchableOpacity
-                      key={hp}
-                      style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
-                      onPress={() => { setMotorState({...motorState, hp: hp.toString()}); setHasCalculated(false); setShowMotorHpPicker(false); }}
-                    >
-                      <Text style={{ fontSize: 15, color: isSelected ? COLORS.green : COLORS.navy, fontWeight: isSelected ? 'bold' : 'normal' }}>
-                        {hp} HP
-                      </Text>
-                      {isSelected && <Text style={{ fontSize: 13, color: COLORS.green, marginLeft: 8 }}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-              <TouchableOpacity style={{ marginTop: 15, padding: 12, backgroundColor: COLORS.navy, borderRadius: 8 }} onPress={() => setShowMotorHpPicker(false)}>
-                <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Cerrar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        <Modal visible={showMotorPolosPicker} transparent animationType="fade" onRequestClose={() => setShowMotorPolosPicker(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 20, maxHeight: '75%' }}>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 15, textAlign: 'center' }}>Seleccionar Polos</Text>
-              <ScrollView style={{ flexShrink: 1, width: '100%' }} showsVerticalScrollIndicator={true}>
-                {motorState.polos !== '' && (
-                  <TouchableOpacity
-                    style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' }}
-                    onPress={() => { setMotorState({...motorState, polos: ''}); setHasCalculated(false); setShowMotorPolosPicker(false); }}
-                  >
-                    <Text style={{ fontSize: 14, color: COLORS.navy, fontStyle: 'italic' }}>Quitar filtro de Polos</Text>
-                  </TouchableOpacity>
-                )}
-                {[2, 4, 6, 8].map(polo => {
-                  const isSelected = motorState.polos === polo.toString();
-                  return (
-                    <TouchableOpacity
-                      key={polo}
-                      style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
-                      onPress={() => { setMotorState({...motorState, polos: polo.toString()}); setHasCalculated(false); setShowMotorPolosPicker(false); }}
-                    >
-                      <Text style={{ fontSize: 15, color: isSelected ? COLORS.green : COLORS.navy, fontWeight: isSelected ? 'bold' : 'normal' }}>
-                        {polo} Polos
-                      </Text>
-                      {isSelected && <Text style={{ fontSize: 13, color: COLORS.green, marginLeft: 8 }}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-              <TouchableOpacity style={{ marginTop: 15, padding: 12, backgroundColor: COLORS.navy, borderRadius: 8 }} onPress={() => setShowMotorPolosPicker(false)}>
-                <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Cerrar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        <Modal visible={showPumpHpPicker} transparent animationType="fade" onRequestClose={() => setShowPumpHpPicker(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 20, maxHeight: '75%' }}>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 15, textAlign: 'center' }}>Seleccionar Potencia (HP)</Text>
-              <ScrollView style={{ flexShrink: 1, width: '100%' }} showsVerticalScrollIndicator={true}>
-                {pumpWizard.hp !== '' && (
-                  <TouchableOpacity
-                    style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' }}
-                    onPress={() => { setPumpWizard({...pumpWizard, hp: ''}); setShowPumpHpPicker(false); }}
-                  >
-                    <Text style={{ fontSize: 14, color: COLORS.navy, fontStyle: 'italic' }}>Quitar filtro de HP</Text>
-                  </TouchableOpacity>
-                )}
-                {availableHps.map(hp => {
-                  const isSelected = pumpWizard.hp === hp.toString();
-                  return (
-                    <TouchableOpacity
-                      key={hp}
-                      style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
-                      onPress={() => { setPumpWizard({...pumpWizard, hp: hp.toString()}); setShowPumpHpPicker(false); }}
-                    >
-                      <Text style={{ fontSize: 15, color: isSelected ? COLORS.green : COLORS.navy, fontWeight: isSelected ? 'bold' : 'normal' }}>
-                        {hp} HP
-                      </Text>
-                      {isSelected && <Text style={{ fontSize: 13, color: COLORS.green, marginLeft: 8 }}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-              <TouchableOpacity style={{ marginTop: 15, padding: 12, backgroundColor: COLORS.navy, borderRadius: 8 }} onPress={() => setShowPumpHpPicker(false)}>
-                <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Cerrar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -1972,7 +1724,7 @@ const styles = StyleSheet.create({
   faseGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    justifyContent: 'space-between',
     marginBottom: 10
   },
   faseBtn: {
