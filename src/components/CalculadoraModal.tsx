@@ -793,6 +793,25 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                }
            }
         }
+        // Remove pumps that need a motor/panel but didn't get one paired
+        filtered = filtered.filter(p => {
+            if (checkNeedsMotor(p)) {
+                return mResults.some(m => m.pairedSku === p.modelo);
+            }
+            return true;
+        });
+
+        // Warn if user picked Monofásico but the required HP is too big
+        if (filtered.length === 0 && reqFase === '220v') {
+            let estHp = targetHpInput;
+            if (estHp === 0 && targetCaudalLpm > 0 && targetAlturaInput > 0) {
+                estHp = (targetCaudalLpm * targetAlturaInput) / (reglas.matematica.divisorHpBomba || 3150);
+            }
+            if (estHp >= 3.5) {
+                setMotorWarning('⚠️ El requerimiento supera el límite para equipos Monofásicos. Intente con Trifásico.');
+            }
+        }
+
         setMotorResult(mResults);
       }
     } catch (e: unknown) {
@@ -1274,7 +1293,9 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                         <Text style={styles.estimationText}>Estamos terminando de descargar el catálogo. El resultado va a aparecer solo en un momento…</Text>
                       </View>
                     ) : (
-                      <Text style={styles.estimationText}>No encontramos equipos que coincidan con ese requerimiento en la categoría seleccionada.</Text>
+                      <Text style={[styles.estimationText, motorWarning ? { color: '#c0392b', fontWeight: '600' } : {}]}>
+                        {motorWarning || 'No encontramos equipos que coincidan con ese requerimiento en la categoría seleccionada.'}
+                      </Text>
                     )}
                   </View>
                 )}
