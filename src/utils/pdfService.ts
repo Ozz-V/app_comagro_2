@@ -490,37 +490,47 @@ export async function fetchImageBase64(url: string): Promise<string> {
   }
 }
 
-export async function generateAndSharePdf(modalProd: ParsedProduct, pdfCache: Record<string, string> = {}, logoRefreshKey: string = String(Date.now()), selectedImages?: string[]) {
+/**
+ * Genera el archivo PDF de la ficha (mismo HTML/datos que generateAndSharePdf)
+ * y devuelve su uri temporal, sin compartirlo. Es la única función que arma
+ * este PDF — tanto "Compartir PDF" como "Compartir Imagen" parten de acá,
+ * para garantizar que ambos formatos salgan siempre idénticos.
+ */
+export async function generateFichaPdfUri(modalProd: ParsedProduct, pdfCache: Record<string, string> = {}, logoRefreshKey: string = String(Date.now()), selectedImages?: string[]): Promise<string> {
   const specs = modalProd?.specs || [];
   let finalProdB64s: string[] = [];
   let finalLogoB64 = pdfCache?.logoBase64;
-  
+
   const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
   const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg?v=${logoRefreshKey}`;
-  
+
   let timeoutId: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => reject(new Error('timeout')), 10000);
   });
 
-  const urlsToFetch = selectedImages && selectedImages.length > 0 
-    ? selectedImages 
+  const urlsToFetch = selectedImages && selectedImages.length > 0
+    ? selectedImages
     : [modalProd?.imagenOriginal || modalProd?.imagen || ''];
 
   if (!finalLogoB64) {
     finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => '') as string;
   }
 
-  // Fetch all selected images
   finalProdB64s = await Promise.all(
     urlsToFetch.map(url => Promise.race([fetchImageBase64(url), timeoutPromise]).catch(() => '') as Promise<string>)
   );
-  
+
   clearTimeout(timeoutId);
 
   const htmlContent = generarHtmlFicha(specs, finalProdB64s, finalLogoB64, modalProd);
   const { uri } = await Print.printToFileAsync({ html: htmlContent });
-  
+  return uri;
+}
+
+export async function generateAndSharePdf(modalProd: ParsedProduct, pdfCache: Record<string, string> = {}, logoRefreshKey: string = String(Date.now()), selectedImages?: string[]) {
+  const uri = await generateFichaPdfUri(modalProd, pdfCache, logoRefreshKey, selectedImages);
+
   let finalUriToShare = uri;
   try {
     const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
