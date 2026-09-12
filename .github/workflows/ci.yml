@@ -33,7 +33,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: TypeScript Check (UI & Logic)
         run: npx tsc --noEmit
