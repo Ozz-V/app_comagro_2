@@ -466,11 +466,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const mapped = pool.map((p: ParsedProduct): ExtendedCalcProduct => {
            const specs = parsePumpSpecs(p);
            
-           let score = 0;
-           
-           if (targetHpInput > 0 && specs.hpVal > 0) {
-              score += Math.abs(specs.hpVal - targetHpInput) * 3;
-           }
+           let score = HydraulicCalculator.calculateScore(specs, targetHpInput, targetCaudalLpm, targetAlturaInput, reqFase, String(p.modelo), usoConf?.pref);
 
            if (specs.maxCaudalLpm > 0 && targetCaudalLpm > 0) {
               score += Math.max(0, (specs.maxCaudalLpm - targetCaudalLpm) / targetCaudalLpm);
@@ -1884,5 +1880,6 @@ const styles = StyleSheet.create({
     color: COLORS.navy
   }
 });
+
 
 

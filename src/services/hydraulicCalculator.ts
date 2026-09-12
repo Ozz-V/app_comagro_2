@@ -109,4 +109,15 @@ export class HydraulicCalculator {
     }
     return true;
   }
+
+  public static calculateScore(specs: ParsedPumpSpecs, targetHp: number, targetCaudalLpm: number, targetAlturaMca: number, reqFase: string, modelName: string, preferences: string[] | undefined): number {
+    let score = 0;
+    if (targetHp > 0 && specs.hpVal > 0) score += Math.abs(specs.hpVal - targetHp) * 3;
+    if (specs.maxCaudalLpm > 0 && targetCaudalLpm > 0) score += Math.max(0, (specs.maxCaudalLpm - targetCaudalLpm) / targetCaudalLpm);
+    if (specs.maxAlturaMca > 0 && targetAlturaMca > 0) score += Math.max(0, (specs.maxAlturaMca - targetAlturaMca) / targetAlturaMca);
+    if (reqFase === '220v' && specs.is220) score -= 0.15;
+    if (reqFase === '380v' && specs.is380) score -= 0.15;
+    if (preferences && preferences.some(pr => modelName.toUpperCase().includes(pr))) score -= 0.3;
+    return score;
+  }
 }
