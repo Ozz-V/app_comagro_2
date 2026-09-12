@@ -6,7 +6,7 @@ import {
   Platform, Share
 } from 'react-native';
 import Reanimated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, withSpring } from 'react-native-reanimated';
-import { WebView } from 'react-native-webview';
+import Pdf from 'react-native-pdf';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { captureRef } from 'react-native-view-shot';
@@ -17,7 +17,7 @@ import Svg, { Path, Line, Text as SvgText, G } from 'react-native-svg';
 import { COLORS, FONTS } from '../theme';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { generarHtmlFicha, fetchImageBase64, generateAndSharePdf, generateAndShareCurvaPdf } from '../utils/pdfService';
+import { fetchImageBase64, generateAndSharePdf, generateFichaPdfUri, generateAndShareCurvaPdf } from '../utils/pdfService';
 import { searchProducts } from '../utils/database';
 import { findSimilarProducts } from '../utils/productLogic';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -218,8 +218,8 @@ export default function ProductDetailModal({
     setLoadingSimilares(true);
   }
 
-  const hiddenWebViewRef = useRef<View>(null);
-  const [htmlForImage, setHtmlForImage] = useState<string | null>(null);
+  const hiddenPdfRef = useRef<View>(null);
+  const [pdfUriForImage, setPdfUriForImage] = useState<string | null>(null);
 
   const isMounted = useRef(true);
   useEffect(() => {
@@ -326,27 +326,10 @@ export default function ProductDetailModal({
         return;
       }
 
-      const specs = modalProd?.specs || [];
-      let finalProdB64s: string[] = [];
-      let finalLogoB64 = pdfCache?.logoBase64;
-
-      const urlsToFetch = selectedImages && selectedImages.length > 0 ? selectedImages : (modalProd?.imagen ? [modalProd.imagen] : []);
-
-      const marcaSlug = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-      const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg`;
-
-      const timeoutPromise = () => new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-
-      if (!finalLogoB64) {
-        finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise()]).catch(() => '') as string;
-      }
-
-      finalProdB64s = await Promise.all(
-        urlsToFetch.map(url => Promise.race([fetchImageBase64(url), timeoutPromise()]).catch(() => '') as Promise<string>)
-      );
-
-      const htmlContent = generarHtmlFicha(specs, finalProdB64s, finalLogoB64, modalProd);
-      if (isMounted.current) setHtmlForImage(htmlContent);
+      // Mismo PDF que "Compartir PDF" (misma función, mismos datos): la imagen
+      // que se comparte es siempre pixel-idéntica al PDF, nunca un render aparte.
+      const uri = await generateFichaPdfUri(modalProd, pdfCache, logoRefreshKey, selectedImages);
+      if (isMounted.current) setPdfUriForImage(uri);
     } catch (e: unknown) {
       Sentry.captureException(e);
       showAlert('Error', 'No se pudo preparar la ficha. Intentá de nuevo.');
@@ -362,10 +345,14 @@ export default function ProductDetailModal({
     triggerCompartirImagen();
   };
 
-  const capturarHtmlOculto = async () => {
+  const capturarPdfOculto = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      const imgUri = await captureRef(hiddenWebViewRef, {
+      // El PDF nativo ya avisó (onLoadComplete) que la página está renderizada.
+      // Solo esperamos a que React Native confirme que ese frame ya se compuso
+      // en pantalla antes de capturarlo — nada de tiempos de espera adivinados.
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      const imgUri = await captureRef(hiddenPdfRef, {
         format: 'png',
         quality: 1.0,
         result: 'tmpfile'
@@ -393,13 +380,13 @@ export default function ProductDetailModal({
         mimeType: 'image/png',
       });
       logProductAction('share_image');
-    } catch (e: any) {
+    } catch (e: unknown) {
       Sentry.captureException(e);
       showAlert('Error', 'Fallo al capturar la imagen en alta calidad.');
     } finally {
       if (isMounted.current) {
         setCompartiendo(false);
-        setHtmlForImage(null);
+        setPdfUriForImage(null);
       }
     }
   };
@@ -767,14 +754,22 @@ export default function ProductDetailModal({
         </Reanimated.View>
         )}
 
-        {htmlForImage && (
-          <View style={styles.hiddenWebviewWrap} pointerEvents="none" collapsable={false} ref={hiddenWebViewRef}>
-            <WebView 
-              source={{ html: htmlForImage }} 
+        {pdfUriForImage && (
+          <View style={styles.hiddenWebviewWrap} pointerEvents="none" collapsable={false} ref={hiddenPdfRef}>
+            <Pdf
+              source={{ uri: pdfUriForImage }}
+              page={1}
+              singlePage={true}
               style={{ width: 794, height: 1123 }}
-              onLoadEnd={capturarHtmlOculto}
-              scalesPageToFit={false}
-              javaScriptEnabled={true}
+              onLoadComplete={capturarPdfOculto}
+              onError={(e) => {
+                Sentry.captureException(e);
+                showAlert('Error', 'Fallo al capturar la imagen en alta calidad.');
+                if (isMounted.current) {
+                  setCompartiendo(false);
+                  setPdfUriForImage(null);
+                }
+              }}
             />
           </View>
         )}
