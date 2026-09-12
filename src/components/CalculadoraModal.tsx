@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react-native';
+import { ENGINEERING_CONSTANTS } from '../config/engineeringConstants';
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard } from 'react-native';
 import { Image } from 'expo-image';
@@ -181,7 +182,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             if (nums) {
                let maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
                if (valStr.includes('BAR')) {
-                  maxNum = maxNum * 10.2;
+                  maxNum = maxNum * ENGINEERING_CONSTANTS.CONVERSIONS.BAR_TO_MCA;
                }
                if (maxNum > maxAlturaMca) maxAlturaMca = maxNum;
             }
@@ -529,21 +530,21 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               const hpEff = hpVal > 0 ? hpVal : (qmax > 0 && hmax > 0 ? ((qmax * hmax) / 3150) : 0);
 
               if (hasHp) {
-                 if (hpEff > 0 && (hpEff < targetHpInput * 0.60 || hpEff > targetHpInput * 1.50)) return false;
+                 if (hpEff > 0 && (hpEff < targetHpInput * ENGINEERING_CONSTANTS.TOLERANCES.HP_MIN_FACTOR || hpEff > targetHpInput * ENGINEERING_CONSTANTS.TOLERANCES.HP_MAX_FACTOR)) return false;
                  if (hpEff === 0) return false;
               }
               if (hasCaudal) {
-                 if (qmax > 0 && (qmax < targetCaudalLpm * 0.60 || qmax > targetCaudalLpm * 4.0)) return false;
+                 if (qmax > 0 && (qmax < targetCaudalLpm * ENGINEERING_CONSTANTS.TOLERANCES.HP_MIN_FACTOR || qmax > targetCaudalLpm * ENGINEERING_CONSTANTS.TOLERANCES.CAUDAL_QMAX_MAX_FACTOR)) return false;
                  if (qmax === 0) return false;
               }
               if (hasAltura) {
-                 if (hmax > 0 && hmax < targetAlturaInput * 0.60) return false;
+                 if (hmax > 0 && hmax < targetAlturaInput * ENGINEERING_CONSTANTS.TOLERANCES.HP_MIN_FACTOR) return false;
                  if (hmax === 0) return false;
               }
               if (hasCaudal && hasAltura && qmax > 0 && hmax > 0) {
                  if (targetCaudalLpm <= qmax) {
                     const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
-                    if (curvaH < targetAlturaInput * 0.65) return false;
+                    if (curvaH < targetAlturaInput * ENGINEERING_CONSTANTS.TOLERANCES.CURVA_H_MIN_FACTOR) return false;
                  } else {
                     return false;
                  }
@@ -620,15 +621,15 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         // Priority logic:
         // sinelec (user pressed "Sin Motor") → show bodyPool only
         // Otherwise → combine both pools and extract a diverse top 5
-        let useBodyPool = false;
+        
         if (reqFase === 'sinelec') {
            filtered = stripInternal(getMixedResults(bodyPoolFiltered, 5));
-           useBodyPool = true;
+           
         } else {
            const combinedPool = sortByScore([...fullPoolFiltered, ...bodyPoolFiltered]);
            filtered = stripInternal(getMixedResults(combinedPool, 5));
         }
-        void useBodyPool;
+        
 
         const checkNeedsMotor = (p: any) => {
            const isEjeLibre = p._isEjeLibre || String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR');
@@ -845,7 +846,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             if (estHp === 0 && targetCaudalLpm > 0 && targetAlturaInput > 0) {
                 estHp = (targetCaudalLpm * targetAlturaInput) / (reglas.matematica.divisorHpBomba || 3150);
             }
-            if (estHp >= 3.5) {
+            if (estHp >= ENGINEERING_CONSTANTS.ELECTRICAL.MONOPHASE_MAX_HP_WARNING) {
                 setMotorWarning('⚠️ El requerimiento supera el límite para equipos Monofásicos. Intente con Trifásico.');
             }
         }
