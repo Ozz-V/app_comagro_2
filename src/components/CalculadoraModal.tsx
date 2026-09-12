@@ -227,7 +227,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           }
       }
 
-      return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380, isEjeLibre };
+      return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380, isEjeLibre, isMotorOnly: false };
   }
 
   useEffect(() => {
@@ -1880,6 +1880,8 @@ const styles = StyleSheet.create({
     color: COLORS.navy
   }
 });
+
+
 
 
 
