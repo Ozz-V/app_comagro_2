@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react-native';
 import { ENGINEERING_CONSTANTS } from '../config/engineeringConstants';
+import { HydraulicCalculator } from '../services/hydraulicCalculator';
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, TextInput, FlatList, StyleSheet, ActivityIndicator, Keyboard } from 'react-native';
 import { Image } from 'expo-image';
@@ -523,34 +524,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const bodyPoolRaw = mapped.filter(p => isBodyOrEjeLibre(p));
 
         const applyHydraulicFilter = (items: any[]): any[] => {
-           return items.filter((p: any) => {
-              const qmax = p._q;
-              const hmax = p._h;
-              const hpVal = p.calcVal;
-              const hpEff = hpVal > 0 ? hpVal : (qmax > 0 && hmax > 0 ? ((qmax * hmax) / 3150) : 0);
-
-              if (hasHp) {
-                 if (hpEff > 0 && (hpEff < targetHpInput * ENGINEERING_CONSTANTS.TOLERANCES.HP_MIN_FACTOR || hpEff > targetHpInput * ENGINEERING_CONSTANTS.TOLERANCES.HP_MAX_FACTOR)) return false;
-                 if (hpEff === 0) return false;
-              }
-              if (hasCaudal) {
-                 if (qmax > 0 && (qmax < targetCaudalLpm * ENGINEERING_CONSTANTS.TOLERANCES.HP_MIN_FACTOR || qmax > targetCaudalLpm * ENGINEERING_CONSTANTS.TOLERANCES.CAUDAL_QMAX_MAX_FACTOR)) return false;
-                 if (qmax === 0) return false;
-              }
-              if (hasAltura) {
-                 if (hmax > 0 && hmax < targetAlturaInput * ENGINEERING_CONSTANTS.TOLERANCES.HP_MIN_FACTOR) return false;
-                 if (hmax === 0) return false;
-              }
-              if (hasCaudal && hasAltura && qmax > 0 && hmax > 0) {
-                 if (targetCaudalLpm <= qmax) {
-                    const curvaH = hmax * (1 - Math.pow(targetCaudalLpm / qmax, 2));
-                    if (curvaH < targetAlturaInput * ENGINEERING_CONSTANTS.TOLERANCES.CURVA_H_MIN_FACTOR) return false;
-                 } else {
-                    return false;
-                 }
-              }
-              return true;
-           });
+           return items.filter(p => HydraulicCalculator.validateHydraulics({ hpVal: p.calcVal, maxCaudalLpm: p._q, maxAlturaMca: p._h, is220: p._is220, is380: p._is380, isEjeLibre: p._isEjeLibre, isMotorOnly: false }, targetHpInput, targetCaudalLpm, targetAlturaInput));
         };
 
         const applyFaseFilter = (items: any[]): any[] => {
@@ -1910,3 +1884,5 @@ const styles = StyleSheet.create({
     color: COLORS.navy
   }
 });
+
+
