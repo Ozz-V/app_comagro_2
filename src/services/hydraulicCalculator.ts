@@ -120,4 +120,11 @@ export class HydraulicCalculator {
     if (preferences && preferences.some(pr => modelName.toUpperCase().includes(pr))) score -= 0.3;
     return score;
   }
+
+  public static validateFase(is220: boolean, is380: boolean, isEjeLibre: boolean, reqFase: string): boolean {
+    if (reqFase === 'sinelec') return (!is220 && !is380) || isEjeLibre;
+    if (reqFase === '220v') return is220 || isEjeLibre;
+    if (reqFase === '380v') return is380 || isEjeLibre;
+    return true;
+  }
 }

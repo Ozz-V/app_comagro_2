@@ -524,14 +524,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         };
 
         const applyFaseFilter = (items: any[]): any[] => {
-           if (reqFase === 'sinelec') {
-              return items.filter(p => (!(p as any)._is220 && !(p as any)._is380) || (p as any)._isEjeLibre);
-           } else if (reqFase === '220v') {
-              return items.filter(p => (p as any)._is220 || (p as any)._isEjeLibre);
-           } else if (reqFase === '380v') {
-              return items.filter(p => (p as any)._is380 || (p as any)._isEjeLibre);
-           }
-           return items;
+           return items.filter(p => HydraulicCalculator.validateFase(p._is220, p._is380, p._isEjeLibre, reqFase));
         };
 
         const sortByScore = (items: any[]): any[] =>
@@ -1880,6 +1873,7 @@ const styles = StyleSheet.create({
     color: COLORS.navy
   }
 });
+
 
 
 
