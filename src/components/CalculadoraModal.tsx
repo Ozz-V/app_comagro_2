@@ -140,94 +140,10 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     return { hTotal: hTot, perdida: pFric, lTotal: lTot, status };
   }, [adv, bombaTab]);
 
+  // El parseo de specs vive únicamente en HydraulicCalculator.parsePumpSpecs
+  // (src/services/hydraulicCalculator.ts). No reintroducir una copia local acá.
   function parsePumpSpecs(p: ParsedProduct) {
-     let maxCaudalLpm = 0;
-     let maxAlturaMca = 0;
-     let hpVal = 0;
-     let is380 = false;
-     let is220 = false;
-
-     if (p.specs) {
-       p.specs.forEach((s: SpecTuple) => {
-         const key = String(s[0]).toUpperCase();
-         const valStr = String(s[1]).toUpperCase();
-         
-         if (key.includes('HP') || key.includes('POTENCIA')) {
-            let n = extractNum(s[1]);
-            if (n) {
-               if (valStr.includes('KW')) n = n * 1.34;
-               else if (valStr.includes(' W') || valStr.match(/\d+W/)) n = n * 0.00134;
-               if (n > hpVal) hpVal = n;
-            }
-         }
-         
-         if (key.includes('CAUDAL') || key.includes('FLUJO')) {
-            const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
-            if (nums) {
-               const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
-               const unitHint = valStr + ' ' + key;
-               let valLpm = maxNum; 
-               if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M^3/H') || unitHint.includes('M3H')) {
-                  valLpm = (maxNum * 1000) / 60;
-               } else if (unitHint.includes('L/H') || unitHint.includes('LT/H') || unitHint.includes('LTS/H')) {
-                  valLpm = maxNum / 60;
-               } else if (unitHint.includes('L/S')) {
-                  valLpm = maxNum * 60;
-               }
-               if (valLpm > maxCaudalLpm) maxCaudalLpm = valLpm;
-            }
-         }
-
-         if (key.includes('ALTURA') || key.includes('ELEVACIÓN') || key.includes('MCA') || key.includes('PRESIÓN') || key.includes('PRESION')) {
-            const nums = valStr.match(/([\d]+[\.,]?[\d]*)/g);
-            if (nums) {
-               let maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
-               if (valStr.includes('BAR')) {
-                  maxNum = maxNum * ENGINEERING_CONSTANTS.CONVERSIONS.BAR_TO_MCA;
-               }
-               if (maxNum > maxAlturaMca) maxAlturaMca = maxNum;
-            }
-         }
-         
-         if (key.includes('VOLTAJE') || key.includes('TENSIÓN') || key.includes('ALIMENTACIÓN') || key.includes('FASE')) {
-            if (valStr.includes('380') || valStr.includes('TRIF')) is380 = true;
-            if (valStr.includes('220') || valStr.includes('MONO')) is220 = true;
-         }
-       });
-       
-       let cuerpoHpReq = 0;
-       p.specs.forEach((s: SpecTuple) => {
-           const match = String(s[1]).match(/PARA\s+MOTOR\s+([\d.,]+)\s*HP/i);
-           if (match) {
-               const m = parseFloat(match[1].replace(',', '.'));
-               if (m > cuerpoHpReq) cuerpoHpReq = m;
-           }
-       });
-       if (hpVal === 0 && cuerpoHpReq > 0) {
-           hpVal = cuerpoHpReq;
-       }
-     }
-     
-      let isEjeLibreOrCombustion = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR');
-      const subcatStr = String(p.subcategoria).toUpperCase();
-      if (subcatStr.includes('CUERPO SUMERGIBLE')) isEjeLibreOrCombustion = true;
-      if (subcatStr.includes('NAFTA') || subcatStr.includes('DIESEL')) isEjeLibreOrCombustion = true;
-      if (p.specs && JSON.stringify(p.specs).toUpperCase().includes('COMBUSTIÓN')) isEjeLibreOrCombustion = true;
-
-      if (!is220 && !is380 && !isEjeLibreOrCombustion) {
-         if (hpVal <= 3) is220 = true;
-         else is380 = true;
-      }
-
-      let isEjeLibre = String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.subcategoria).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR') || String(p.subcategoria).toUpperCase().includes('SIN MOTOR') || String(p.subcategoria).toUpperCase().includes('CUERPO SUMERGIBLE');
-      if (!isEjeLibre && p.specs) {
-          const allSpecsStr = JSON.stringify(p.specs).toUpperCase();
-          if (allSpecsStr.includes('SIN MOTOR') || allSpecsStr.includes('EJE LIBRE')) {
-              isEjeLibre = true;
-          }
-      }
-
-      return { hpVal, maxCaudalLpm, maxAlturaMca, is220, is380, isEjeLibre, isMotorOnly: false };
+    return HydraulicCalculator.parsePumpSpecs(p, extractNum);
   }
 
   useEffect(() => {
@@ -435,7 +351,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               const specs = parsePumpSpecs(p as ParsedProduct);
               
               // Potencia efectiva (declarada o calculada por punto hidráulico Qmax * Hmax)
-              const effectiveHp = specs.hpVal > 0 ? specs.hpVal : ((specs.maxCaudalLpm * specs.maxAlturaMca) / 3150);
+              const effectiveHp = specs.hpVal > 0 ? specs.hpVal : ((specs.maxCaudalLpm * specs.maxAlturaMca) / ENGINEERING_CONSTANTS.HYDRAULIC.BOMBA_HP_DIVISOR);
 
               if (pumpWizard.uso === 'vivienda') {
                  // Vivienda: NUNCA cuerpos sumergibles ni eje libre / sin motor
@@ -448,7 +364,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
               }
 
               if (targetHpInput > 0) {
-                 if (effectiveHp > 0 && (effectiveHp < targetHpInput * 0.4 || effectiveHp > targetHpInput * 2.2)) return false;
+                 if (effectiveHp > 0 && (effectiveHp < targetHpInput * ENGINEERING_CONSTANTS.TOLERANCES.HP_PREFILTER_MIN_FACTOR || effectiveHp > targetHpInput * ENGINEERING_CONSTANTS.TOLERANCES.HP_PREFILTER_MAX_FACTOR)) return false;
               }
 
               return true;
@@ -466,21 +382,11 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const mapped = pool.map((p: ParsedProduct): ExtendedCalcProduct => {
            const specs = parsePumpSpecs(p);
            
-           let score = HydraulicCalculator.calculateScore(specs, targetHpInput, targetCaudalLpm, targetAlturaInput, reqFase, String(p.modelo), usoConf?.pref);
-
-           if (specs.maxCaudalLpm > 0 && targetCaudalLpm > 0) {
-              score += Math.max(0, (specs.maxCaudalLpm - targetCaudalLpm) / targetCaudalLpm);
-           }
-           if (specs.maxAlturaMca > 0 && targetAlturaInput > 0) {
-              score += Math.max(0, (specs.maxAlturaMca - targetAlturaInput) / targetAlturaInput);
-           }
-
-           if (reqFase === '220v' && specs.is220) score -= 0.15;
-           if (reqFase === '380v' && specs.is380) score -= 0.15;
-           
-           if (usoConf?.pref && usoConf.pref.some((pr: any) => String(p.modelo).toUpperCase().includes(pr))) {
-              score -= 0.3;
-           }
+           // HydraulicCalculator.calculateScore ya computa distancia de HP,
+           // caudal, altura, bonus de fase y bonus de preferencia. No sumar
+           // ninguno de esos factores de nuevo acá (bug que existía en la
+           // versión anterior de este branch: se sumaban dos veces).
+           const score = HydraulicCalculator.calculateScore(specs, targetHpInput, targetCaudalLpm, targetAlturaInput, reqFase, String(p.modelo), usoConf?.pref);
 
            let displayVal = specs.hpVal > 0 ? `${specs.hpVal.toFixed(1)} HP` : '? HP';
            if (specs.hpVal === 0 || String(p.modelo).toUpperCase().includes('EJE LIBRE') || String(p.modelo).toUpperCase().includes('SIN MOTOR')) {
@@ -520,7 +426,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         const bodyPoolRaw = mapped.filter(p => isBodyOrEjeLibre(p));
 
         const applyHydraulicFilter = (items: any[]): any[] => {
-           return items.filter(p => HydraulicCalculator.validateHydraulics({ hpVal: p.calcVal, maxCaudalLpm: p._q, maxAlturaMca: p._h, is220: p._is220, is380: p._is380, isEjeLibre: p._isEjeLibre, isMotorOnly: false }, targetHpInput, targetCaudalLpm, targetAlturaInput));
+           return items.filter(p => HydraulicCalculator.validateHydraulics({ hpVal: p.calcVal, maxCaudalLpm: p._q, maxAlturaMca: p._h, is220: p._is220, is380: p._is380, isEjeLibre: p._isEjeLibre }, targetHpInput, targetCaudalLpm, targetAlturaInput));
         };
 
         const applyFaseFilter = (items: any[]): any[] => {
@@ -807,7 +713,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         if (filtered.length === 0 && reqFase === '220v') {
             let estHp = targetHpInput;
             if (estHp === 0 && targetCaudalLpm > 0 && targetAlturaInput > 0) {
-                estHp = (targetCaudalLpm * targetAlturaInput) / (reglas.matematica.divisorHpBomba || 3150);
+                estHp = (targetCaudalLpm * targetAlturaInput) / (reglas.matematica.divisorHpBomba || ENGINEERING_CONSTANTS.HYDRAULIC.BOMBA_HP_DIVISOR);
             }
             if (estHp >= ENGINEERING_CONSTANTS.ELECTRICAL.MONOPHASE_MAX_HP_WARNING) {
                 setMotorWarning('⚠️ El requerimiento supera el límite para equipos Monofásicos. Intente con Trifásico.');
@@ -1873,9 +1779,3 @@ const styles = StyleSheet.create({
     color: COLORS.navy
   }
 });
-
-
-
-
-
-
