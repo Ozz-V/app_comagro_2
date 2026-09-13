@@ -29,21 +29,26 @@ import ImageViewerModal from './ImageViewerModal';
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 
 // --- Captura en alta calidad del PDF oculto ---------------------------------
-// CAPTURE_SCALE controla la resolución final del PNG exportado. El contenedor
-// oculto y el <Pdf> deben crecer JUNTOS y en la misma proporción que el scale:
-// si solo se escala el <Pdf> pero el contenedor queda fijo en el tamaño de
-// una hoja A4 (794x1123), react-native-pdf renderiza la página más grande
-// PERO recortada al tamaño del contenedor, y captureRef termina fotografiando
-// únicamente la esquina superior izquierda ampliada (el logo gigante cortado)
-// en lugar de la ficha completa. Al multiplicar también el ancho/alto del
-// contenedor por CAPTURE_SCALE, la página completa entra dentro de la caja
-// oculta y la captura sale entera, solo que con más píxeles.
+// react-native-pdf ajusta automáticamente la página al ancho/alto del
+// contenedor que le demos (fit-to-container). Por eso, para exportar en mayor
+// resolución, alcanza con agrandar el contenedor oculto y el propio <Pdf> por
+// CAPTURE_SCALE: la página se renderiza más grande de forma nativa, sin
+// necesidad de tocar nada más.
+//
+// IMPORTANTE: el <Pdf> de abajo NO debe recibir las props scale/minScale/
+// maxScale. Si a un contenedor ya agrandado (794*3 x 1123*3) se le suma
+// además scale={3}, ese zoom se aplica ENCIMA del tamaño ya agrandado
+// (contenedor 3x * scale 3x = 9x el tamaño real de la página), y la página
+// termina siendo mucho más grande que el propio contenedor que la envuelve.
+// Eso es justo lo que se veía: solo un pedazo (la esquina superior, con el
+// logo) gigante y recortado, en vez de la ficha completa. El tamaño más
+// grande del contenedor por sí solo ya es la fuente de la mayor resolución.
 //
 // Subir este valor mejora la nitidez del PNG compartido pero aumenta el uso
 // de memoria durante la captura (más notorio en gama baja). 3 es un buen
 // balance para imprimir/zoom; si hay lentitud o crashes en dispositivos
 // modestos, bajar a 2.
-const CAPTURE_SCALE = 2;
+const CAPTURE_SCALE = 3;
 const PAGE_WIDTH = 794;
 const PAGE_HEIGHT = 1123;
 
@@ -787,9 +792,6 @@ export default function ProductDetailModal({
               source={{ uri: pdfUriForImage }}
               page={1}
               singlePage={true}
-              scale={CAPTURE_SCALE}
-              minScale={CAPTURE_SCALE}
-              maxScale={CAPTURE_SCALE}
               style={{ width: PAGE_WIDTH * CAPTURE_SCALE, height: PAGE_HEIGHT * CAPTURE_SCALE }}
               onLoadComplete={capturarPdfOculto}
               onError={(e) => {
