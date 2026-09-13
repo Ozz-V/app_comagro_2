@@ -9,6 +9,28 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import * as IntentLauncher from 'expo-intent-launcher';
 
+// El workflow de build (build-produccion.yml) siempre publica el APK como
+// un Release Asset de este repo puntual. Cualquier download_url que no
+// matchee esto se rechaza — aunque la fila en version_apk sea legítima,
+// no hay razón para que la app descargue e instale un binario desde
+// cualquier otro origen.
+const ALLOWED_DOWNLOAD_HOST = 'github.com';
+const ALLOWED_DOWNLOAD_PATH_PREFIX = '/Ozz-V/app_comagro_2/releases/download/';
+
+function isDownloadUrlTrusted(url: string | null | undefined): url is string {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'https:' &&
+      parsed.hostname === ALLOWED_DOWNLOAD_HOST &&
+      parsed.pathname.startsWith(ALLOWED_DOWNLOAD_PATH_PREFIX)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function useOTAUpdate() {
   const { showAlert } = useCustomAlert();
   const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'prompt' | 'downloading' | 'ready' | 'none'>('idle');
@@ -40,6 +62,11 @@ export function useOTAUpdate() {
           ? parseInt(Application.nativeBuildVersion, 10)
           : (Constants.expoConfig?.android?.versionCode || 1);
         if (data.version_code > installedCode) {
+          if (!isDownloadUrlTrusted(data.download_url)) {
+            Sentry.captureMessage(`OTA update rechazada: download_url de origen no confiable (${data.download_url})`, 'error');
+            setUpdateState('none');
+            return;
+          }
           setUpdateNotes(data.release_notes || 'Nueva versión disponible');
           setUpdateUrl(data.download_url);
           setExpectedSha256(data.sha256_hash || null);
@@ -83,6 +110,13 @@ export function useOTAUpdate() {
 
     if (!url) {
       showAlert("Error Crítico", "No se encontró el link de descarga. Por favor, intenta de nuevo más tarde.");
+      setUpdateState('none');
+      return;
+    }
+
+    if (!isDownloadUrlTrusted(url)) {
+      Sentry.captureMessage(`OTA download rechazado: download_url de origen no confiable (${url})`, 'error');
+      showAlert("Error de Seguridad", "El link de descarga no proviene de un origen confiable. Actualización cancelada.");
       setUpdateState('none');
       return;
     }
