@@ -42,8 +42,9 @@ describe('pdfService', () => {
 
   describe('generarHtmlFicha', () => {
     it('generates HTML string with 2 columns layout when specs > 0 and image is small', () => {
-      // Force many specs to trigger double columns
-      const manySpecs = Array.from({ length: 30 }, (_, i) => [`Spec${i}`, `Val${i}`]) as [string, string][];
+      // Force many specs to trigger double columns. El umbral exacto depende
+      // de PX_HDR/TEXT_H (ver pdfService.ts); 35 deja margen de sobra.
+      const manySpecs = Array.from({ length: 35 }, (_, i) => [`Spec${i}`, `Val${i}`]) as [string, string][];
       const html = generarHtmlFicha(manySpecs, ['base64Img'], 'logoBase64', mockProduct);
       
       expect(html).toContain('<!DOCTYPE html>');
@@ -63,6 +64,17 @@ describe('pdfService', () => {
       expect(html).toContain('Power');
       expect(html).toContain('2hp');
       expect(html).toContain('width:34%'); // Single column colgroup
+    });
+
+    it('shows the brand logo big in the header with the product name and SKU instead of the old generic "FICHA TÉCNICA" title', () => {
+      const html = generarHtmlFicha(mockProduct.specs || [], ['base64Img'], 'logoBase64', mockProduct);
+
+      expect(html).toContain('class="hdr-name"');
+      expect(html).toContain(mockProduct.subcategoria);
+      expect(html).toContain('SKU:');
+      expect(html).toContain(mockProduct.modelo);
+      expect(html).not.toContain('FICHA T');
+      expect(html).not.toContain('info-box');
     });
   });
 
