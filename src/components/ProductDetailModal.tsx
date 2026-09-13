@@ -760,6 +760,9 @@ export default function ProductDetailModal({
               source={{ uri: pdfUriForImage }}
               page={1}
               singlePage={true}
+              scale={3}
+              minScale={3}
+              maxScale={3}
               style={{ width: 794, height: 1123 }}
               onLoadComplete={capturarPdfOculto}
               onError={(e) => {
