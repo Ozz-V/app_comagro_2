@@ -6,14 +6,14 @@ import { ParsedProduct } from '../types/models';
 
 // ── Constantes de página (px a 96dpi, A4 portrait = 297mm ≈ 1122px) ─────
 const PX_PAGE     = 1108; // alto total usable
-const PX_HDR      = 96;   // header
+const PX_HDR      = 130;  // header (logo de marca grande + nombre + SKU)
 const PX_TMARG    = 12;   // margin-top del bloque superior
 const PX_GAP      = 12;   // espacio entre bloque superior y specs
 const PX_SPEC_HDR = 34;   // cabecera azul "ESPECIFICACIONES TÉCNICAS"
 const PX_FOOT     = 34;   // footer
 const PX_SAFETY   = 14;   // margen de seguridad
 const MIN_IMG_H   = 80;   // altura mínima aceptable de la imagen
-const TEXT_H      = 77;   // altura aproximada del bloque de texto
+const TEXT_H      = 0;    // ya no hay bloque de texto junto a la imagen: marca/nombre/SKU viven en el header
 
 export function generarHtmlFicha(specs: [string, string][], base64Images: string[], logoBase64: string, modalProd: ParsedProduct, includeCurve: boolean = false) {
   const numSpecs = specs.length;
@@ -205,14 +205,13 @@ export function generarHtmlFicha(specs: [string, string][], base64Images: string
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1a1a1a; background: #fff; margin: 0; }
         .page { width: 794px; height: 1123px; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        .hdr { display: flex; align-items: center; padding: 14px 26px 0 26px; flex-shrink: 0; }
-        .hdr-logo { height: 70px; display: flex; align-items: center; flex-shrink: 0; }
-        .hdr-logo img { max-height: 70px; max-width: 234px; object-fit: contain; }
-        .hdr-sep { width: 2px; height: 46px; background: #c4ccd8; margin: 0 16px; flex-shrink: 0; }
-        .hdr-text { flex: 1; }
-        .hdr-title { font-size: 19pt; font-weight: bold; color: #0a2566; letter-spacing: 1px; line-height: 1; }
-        .hdr-sub { font-size: 7.5pt; color: #8492a6; letter-spacing: 2px; text-transform: uppercase; margin-top: 3px; }
-        .green-line { height: 5px; background: linear-gradient(90deg, #0d8a39, #09c24f); margin-top: 10px; flex-shrink: 0; }
+        .hdr { display: flex; align-items: center; justify-content: space-between; padding: 14px 26px 0 26px; flex-shrink: 0; gap: 16px; }
+        .hdr-logo { height: 96px; display: flex; align-items: center; flex-shrink: 0; }
+        .hdr-logo img { max-height: 96px; max-width: 320px; object-fit: contain; }
+        .hdr-text { text-align: right; min-width: 0; }
+        .hdr-name { font-size: 15pt; font-weight: bold; color: #0a2566; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.15; word-break: break-word; }
+        .hdr-sku { font-size: 9pt; color: #8492a6; letter-spacing: 1.5px; margin-top: 4px; }
+        .green-line { height: 5px; background: linear-gradient(90deg, #0d8a39, #09c24f); margin: 10px 26px 0 26px; flex-shrink: 0; }
         .top-block { display: flex; flex-direction: row; margin: ${PX_TMARG}px 26px 0 26px; height: ${topBlockH}px; gap: 12px; flex-shrink: 0; }
         .img-col { flex: ${showCurve ? '1' : '1'}; min-height: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
         .img-box { width: 100%; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; align-content: center; }
@@ -223,10 +222,6 @@ export function generarHtmlFicha(specs: [string, string][], base64Images: string
         .curve-title { font-size: 10pt; font-weight: bold; color: #0a2566; text-align: center; margin-bottom: 6px; }
         .curve-wrapper { flex: 1; position: relative; }
         .curve-disclaimer { font-size: 6pt; color: #8492a6; text-align: center; margin-top: 4px; line-height: 1.1; }
-        .info-box { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; }
-        .p-marca  { font-size: 11pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; letter-spacing: 0.5px; }
-        .p-modelo { font-size: 20pt; font-weight: bold; color: #0a2566; line-height: 1.1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .p-subcat { font-size: 8.5pt; color: #8492a6; text-transform: uppercase; letter-spacing: 1px; }
         .specs-block { margin: ${PX_GAP}px 26px 0 26px; flex-shrink: 0; }
         .stitle { background: #0a2566; color: #fff; font-size: 9pt; font-weight: bold; letter-spacing: 1px; padding: 6px 14px; border-radius: 6px 6px 0 0; }
         .stbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -243,22 +238,16 @@ export function generarHtmlFicha(specs: [string, string][], base64Images: string
       <div class="page">
         <div class="hdr">
           <div class="hdr-logo"><img src="${logoBase64}" onerror="this.style.display='none'" /></div>
-          <div class="hdr-sep"></div>
           <div class="hdr-text">
-            <div class="hdr-title">FICHA T&#201;CNICA</div>
-            <div class="hdr-sub">Detalle de Producto</div>
-            <div class="green-line"></div>
+            <div class="hdr-name">${escapeHtml(modalProd?.subcategoria || modalProd?.marca || '')}</div>
+            <div class="hdr-sku">SKU: ${escapeHtml(modalProd?.modelo || '')}</div>
           </div>
         </div>
+        <div class="green-line"></div>
         <div class="top-block">
           <div class="img-col">
             <div class="img-box">
               ${base64Images.map(img => `<div class="img-grid-item"><img class="prod-img" src="${img}" alt="Producto" /></div>`).join('')}
-            </div>
-            <div class="info-box">
-              <span class="p-marca">${escapeHtml(modalProd?.marca || '')}</span>
-              <span class="p-modelo">${escapeHtml(modalProd?.modelo || '')}</span>
-              <span class="p-subcat">${escapeHtml(modalProd?.subcategoria || '')}</span>
             </div>
           </div>
           ${showCurve ? `
