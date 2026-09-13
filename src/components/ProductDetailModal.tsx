@@ -36,19 +36,29 @@ const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 // necesidad de tocar nada más.
 //
 // IMPORTANTE: el <Pdf> de abajo NO debe recibir las props scale/minScale/
-// maxScale. Si a un contenedor ya agrandado (794*3 x 1123*3) se le suma
-// además scale={3}, ese zoom se aplica ENCIMA del tamaño ya agrandado
-// (contenedor 3x * scale 3x = 9x el tamaño real de la página), y la página
+// maxScale. Si a un contenedor ya agrandado (794*2 x 1123*2) se le suma
+// además scale={2}, ese zoom se aplica ENCIMA del tamaño ya agrandado
+// (contenedor 2x * scale 2x = 4x el tamaño real de la página), y la página
 // termina siendo mucho más grande que el propio contenedor que la envuelve.
 // Eso es justo lo que se veía: solo un pedazo (la esquina superior, con el
 // logo) gigante y recortado, en vez de la ficha completa. El tamaño más
 // grande del contenedor por sí solo ya es la fuente de la mayor resolución.
 //
-// Subir este valor mejora la nitidez del PNG compartido pero aumenta el uso
-// de memoria durante la captura (más notorio en gama baja). 3 es un buen
-// balance para imprimir/zoom; si hay lentitud o crashes en dispositivos
-// modestos, bajar a 2.
-const CAPTURE_SCALE = 3;
+// RENDIMIENTO: el costo de renderizar y comprimir la captura crece con el
+// CUADRADO de CAPTURE_SCALE (el doble de escala = 4 veces más píxeles). En
+// equipos de gama baja (ej. Galaxy A16) eso se nota mucho más que en un
+// gama alta (ej. S24 FE). Por eso:
+//  - CAPTURE_SCALE se bajó de 3 a 2: ~44% menos píxeles que a 3x, manteniendo
+//    una nitidez bastante mayor a la del tamaño original (794x1123).
+//  - La captura se exporta como JPEG (no PNG): la compresión JPEG es
+//    sensiblemente más rápida que la de PNG (que es sin pérdida), sobre todo
+//    en CPUs débiles, y el archivo resultante pesa menos. A CAPTURE_QUALITY
+//    alto (0.92) no se nota diferencia visual en una ficha técnica.
+// Si en dispositivos muy modestos sigue sintiéndose lento, se puede bajar
+// CAPTURE_SCALE a 1.5 o incluso a 1 (sin ganancia de nitidez, pero instantáneo).
+const CAPTURE_SCALE = 2;
+const CAPTURE_FORMAT: 'jpg' | 'png' = 'jpg';
+const CAPTURE_QUALITY = 0.92;
 const PAGE_WIDTH = 794;
 const PAGE_HEIGHT = 1123;
 
@@ -376,9 +386,13 @@ export default function ProductDetailModal({
       // en pantalla antes de capturarlo — nada de tiempos de espera adivinados.
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
+      // JPEG en vez de PNG: comprime bastante más rápido (PNG es sin pérdida)
+      // y a CAPTURE_QUALITY alto no se nota diferencia visual en una ficha
+      // técnica. Esto es clave para que la captura no se sienta lenta en
+      // equipos de gama baja.
       const imgUri = await captureRef(hiddenPdfRef, {
-        format: 'png',
-        quality: 1.0,
+        format: CAPTURE_FORMAT,
+        quality: CAPTURE_QUALITY,
         result: 'tmpfile'
       });
 
@@ -386,7 +400,7 @@ export default function ProductDetailModal({
       try {
         const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
         const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-        const newFileName = `${safeMarca}_${safeModelo}.png`;
+        const newFileName = `${safeMarca}_${safeModelo}.${CAPTURE_FORMAT}`;
         const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
 
         const fileInfo = await FileSystem.getInfoAsync(newUri);
@@ -401,7 +415,7 @@ export default function ProductDetailModal({
 
       await Sharing.shareAsync(finalUriToShare, {
         dialogTitle: `Ficha ${modalProd?.modelo}`,
-        mimeType: 'image/png',
+        mimeType: CAPTURE_FORMAT === 'jpg' ? 'image/jpeg' : 'image/png',
       });
       logProductAction('share_image');
     } catch (e: unknown) {
