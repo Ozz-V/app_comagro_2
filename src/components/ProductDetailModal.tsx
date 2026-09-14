@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/react-native';
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useRef } from 'react';
+import { useProductDetailLogic } from '../hooks/useProductDetailLogic';
 import {
   View, Text, Modal, ScrollView, TouchableOpacity,
   ActivityIndicator, StyleSheet, useWindowDimensions,
@@ -25,6 +26,9 @@ import { supabase } from '../supabase';
 import { ParsedProduct } from '../types';
 import { APP_CONSTANTS } from '../config/constants';
 import ImageViewerModal from './ImageViewerModal';
+import SimilarProductsTab from './product/SimilarProductsTab';
+import CurveModal from './product/CurveModal';
+import ProductSpecsTab from './product/ProductSpecsTab';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 
@@ -97,400 +101,26 @@ export default function ProductDetailModal({
   const insets = useSafeAreaInsets();
   const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const { showAlert, showToast } = useCustomAlert();
-  const [activeTab, setActiveTab] = useState('FICHA');
-  const [generandoPdf, setGenerandoPdf] = useState(false);
-  const [viewerVisible, setViewerVisible] = useState(false);
-
-  // Carrusel State
-  const [activeImgIndex, setActiveImgIndex] = useState(0);
-  const [imgWidth, setImgWidth] = useState<number>(0);
-
-  const rawProductImages = [
-    ...(modalProd?.imagen ? [modalProd.imagen] : []),
-    ...(modalProd?.imagenes || [])
-  ];
-
-  const cleanUrls: string[] = [];
-  for (const url of rawProductImages) {
-    if (!url || typeof url !== 'string') continue;
-    let clean = url.trim();
-    if (clean.startsWith('[') && clean.endsWith(']')) {
-      try {
-        const parsed = JSON.parse(clean);
-        if (Array.isArray(parsed)) {
-          cleanUrls.push(...parsed);
-          continue;
-        }
-      } catch (e) {}
-    }
-    clean = clean.replace(/^["']|["']$/g, '');
-
-    if (clean.includes(',') && !clean.includes('?')) {
-      const segments = clean.split(',');
-      const merged: string[] = [];
-      for (const seg of segments) {
-        const tSeg = seg.trim().replace(/^["']|["']$/g, '');
-        const lowerSeg = tSeg.toLowerCase();
-        if (lowerSeg.startsWith('http') || lowerSeg.startsWith('file') || lowerSeg.startsWith('content') || lowerSeg.startsWith('data:')) {
-          merged.push(tSeg);
-        } else {
-          if (merged.length > 0) {
-            merged[merged.length - 1] += ',' + tSeg; 
-          } else {
-            merged.push(tSeg);
-          }
-        }
-      }
-      cleanUrls.push(...merged);
-    } else {
-      cleanUrls.push(clean);
-    }
-  }
-
-  const productImages = Array.from(new Set(cleanUrls)).filter(url => {
-    const lower = url.toLowerCase();
-    return (lower.startsWith('http') || lower.startsWith('file://') || lower.startsWith('content://') || lower.startsWith('data:')) && url.length > 5;
+  const {
+    activeTab, setActiveTab,
+    generandoPdf,
+    viewerVisible, setViewerVisible,
+    activeImgIndex, setActiveImgIndex,
+    imgWidth, setImgWidth,
+    productImages,
+    productosSimilares, productosMismaMarca, loadingSimilares,
+    compartiendo, setCompartiendo, contentReady, setContentReady,
+    showCurveModal, setShowCurveModal,
+    sharingCurvaPdf, sharingCurvaImagen,
+    curveCaptureRef, curveSize, curveData,
+    prevProd, nextProd,
+    hiddenPdfRef, pdfUriForImage, setPdfUriForImage,
+    handleProbeLayout,
+    compartirPdf, compartirImagen, capturarPdfOculto,
+    compartirCurvaPdf, compartirCurvaImagen
+  } = useProductDetailLogic({
+    modalProd, visible, activeSliderList, pdfCache, logoRefreshKey, showAlert, screenWidth, LOGO_BASE
   });
-
-  const [productosSimilares, setProductosSimilares] = useState<ParsedProduct[]>([]);
-  const [productosMismaMarca, setProductosMismaMarca] = useState<ParsedProduct[]>([]);
-  const [loadingSimilares, setLoadingSimilares] = useState(true);
-  const [compartiendo, setCompartiendo] = useState(false);
-  const [contentReady, setContentReady] = useState(false);
-  const [showCurveModal, setShowCurveModal] = useState(false);
-  const [sharingCurvaPdf, setSharingCurvaPdf] = useState(false);
-  const [sharingCurvaImagen, setSharingCurvaImagen] = useState(false);
-  const curveCaptureRef = useRef<View>(null);
-  // Ancho de la gráfica limitado al espacio real disponible dentro del modal
-  // (90% de pantalla, menos el padding del card y del área capturada),
-  // para que nunca se recorte horizontalmente en teléfonos angostos.
-  const curveSize = Math.max(220, Math.min(300, Math.round(screenWidth * 0.9 - 64)));
-
-  const curveData = useMemo(() => {
-    if (!modalProd) return null;
-    const subcat = (modalProd.subcategoria || '').toUpperCase();
-    const isPumpType = subcat.includes('BOMBA') || subcat.includes('MOTOBOMBA') || subcat.includes('CUERPO') || subcat.includes('ACHIQUE') || subcat.includes('DRENAJE');
-    const isExcluded = (subcat.includes('PARA ') && !subcat.includes('PISCINA')) || subcat.includes('VACIO') || subcat.includes('REPUESTO') || subcat.includes('ACCESORIO') || subcat.includes('TABLERO') || subcat.includes('PRESURIZADOR') || subcat.includes('CONTROL');
-
-    if (!isPumpType || isExcluded) return null;
-
-    let maxQ = 0, maxH = 0, maxBar = 0;
-    (modalProd.specs || []).forEach((s: [string, string]) => {
-      const k = String(s[0]).toUpperCase();
-      const v = String(s[1]).toUpperCase();
-      if (k.includes('CAUDAL') || k.includes('FLUJO')) {
-         const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
-         if (nums) {
-            const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
-            const unitHint = v + ' ' + k;
-            let valLpm = maxNum;
-            if (unitHint.includes('M3/H') || unitHint.includes('M³/H') || unitHint.includes('M^3/H') || unitHint.includes('M3H')) {
-               valLpm = (maxNum * 1000) / 60;
-            } else if (unitHint.includes('L/H') || unitHint.includes('LT/H') || unitHint.includes('LTS/H')) {
-               valLpm = maxNum / 60;
-            } else if (unitHint.includes('L/S')) {
-               valLpm = maxNum * 60;
-            }
-            if (valLpm > maxQ) maxQ = valLpm;
-         }
-      }
-      if (k.includes('ALTURA') || k.includes('ELEVACIÓN') || k.includes('MCA')) {
-         const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
-         if (nums) {
-            const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
-            if (maxNum > maxH) maxH = maxNum;
-         }
-      } else if (k.includes('BAR') || k.includes('PRESIÓN') || k.includes('PRESION')) {
-         const nums = v.match(/([\d]+[\.,]?[\d]*)/g);
-         if (nums) {
-            const maxNum = Math.max(...nums.map(n => parseFloat(n.replace(',','.'))));
-            if (maxNum > maxBar) maxBar = maxNum;
-         }
-      }
-    });
-    if (maxH === 0 && maxBar > 0) {
-      maxH = maxBar * 10.197;
-    }
-
-    if (maxQ > 0 && maxH > 0) {
-      const finalQ = maxQ * 60 / 1000;
-
-      const getTicks = (max: number) => {
-         if (max <= 0) return [0, 1];
-         let step = Math.pow(10, Math.floor(Math.log10(max)));
-         const m = max / step;
-         if (m <= 2) step *= 0.2;
-         else if (m <= 5) step *= 0.5;
-         const ticks = [];
-         const count = Math.ceil(max / step);
-         for (let idx = 0; idx <= count; idx++) {
-            ticks.push(Math.round(idx * step * 100) / 100);
-         }
-         if (ticks[ticks.length - 1] < max) {
-            ticks.push(Math.round((ticks[ticks.length - 1] + step) * 100) / 100);
-         }
-         return ticks;
-      };
-
-      return { 
-         maxQ: finalQ, 
-         maxH,
-         qTicks: getTicks(finalQ),
-         hTicks: getTicks(maxH)
-      };
-    }
-    return null;
-  }, [modalProd]);
-
-  const [prevModelo, setPrevModelo] = useState(modalProd?.modelo);
-  if (modalProd && modalProd.modelo !== prevModelo) {
-    setPrevModelo(modalProd.modelo);
-    setActiveTab('FICHA');
-    setActiveImgIndex(0); // Resetea el carrusel al cambiar de producto
-    setProductosSimilares([]);
-    setProductosMismaMarca([]);
-    setLoadingSimilares(true);
-  }
-
-  const hiddenPdfRef = useRef<View>(null);
-  const [pdfUriForImage, setPdfUriForImage] = useState<string | null>(null);
-
-  const isMounted = useRef(true);
-  useEffect(() => {
-    isMounted.current = true;
-    return () => { isMounted.current = false; };
-  }, []);
-  useEffect(() => {
-    if (!visible) setContentReady(false);
-  }, [visible]);
-  useEffect(() => {
-    if (visible) {
-      const t = setTimeout(() => setContentReady(true), 600);
-      return () => clearTimeout(t);
-    }
-  }, [visible]);
-
-  const handleProbeLayout = (e: any) => {
-    const w = e.nativeEvent.layout.width;
-    if (Math.abs(w - screenWidth) < 2) {
-      setContentReady(true);
-    }
-  };
-
-  async function logProductAction(action: string) {
-    if (!modalProd) return;
-    try {
-      let email = (await supabase.auth.getUser()).data?.user?.email;
-      if (!email) {
-        const cached = await AsyncStorage.getItem('@user_profile_cache');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          email = parsed.email;
-        }
-      }
-
-      if (!email || email === 'anon@comagro.com.py') {
-         return; 
-      }
-
-      const q = await AsyncStorage.getItem('@analytics_queue');
-      const queue = q ? JSON.parse(q) : [];
-      queue.push({
-        modelo: modalProd.modelo,
-        marca: modalProd.marca,
-        sku: modalProd.modelo,
-        action,
-        user_email: email
-      });
-      await AsyncStorage.setItem('@analytics_queue', JSON.stringify(queue));
-    } catch (err) {
-      console.log('Error logging analytics', err);
-    }
-  }
-
-  useEffect(() => {
-    if (visible && modalProd) {
-      logProductAction('view');
-    }
-  }, [modalProd?.modelo, visible]);
-
-  const currentIndex = modalProd && activeSliderList ? activeSliderList.findIndex((p: ParsedProduct) => p.modelo === modalProd.modelo) : -1;
-  const prevProd = currentIndex > 0 ? activeSliderList[currentIndex - 1] : null;
-  const nextProd = currentIndex !== -1 && currentIndex < (activeSliderList?.length || 0) - 1 ? activeSliderList[currentIndex + 1] : null;
-
-  useEffect(() => {
-    async function fetchRelated() {
-      if (isMounted.current) setLoadingSimilares(true);
-      const { similares, mismaMarca } = await findSimilarProducts(modalProd);
-      if (isMounted.current) {
-        setProductosSimilares(similares);
-        setProductosMismaMarca(mismaMarca);
-        setLoadingSimilares(false);
-      }
-    }
-    fetchRelated();
-  }, [modalProd]);
-
-  const triggerCompartirPdf = async (selectedImages?: string[]) => {
-    if (!modalProd) return;
-    try {
-      setGenerandoPdf(true);
-      await generateAndSharePdf(modalProd, pdfCache, logoRefreshKey, selectedImages);
-      logProductAction('share_pdf');
-    } catch (e: unknown) {
-      Sentry.captureException(e);
-      showAlert('Error', 'No se pudo generar el PDF corporativo.');
-    } finally {
-      if (isMounted.current) {
-        setGenerandoPdf(false);
-      }
-    }
-  };
-
-  const triggerCompartirImagen = async (selectedImages?: string[]) => {
-    if (!modalProd) return;
-    try {
-      setCompartiendo(true);
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        showAlert('Error', 'Compartir no está disponible en este dispositivo');
-        if (isMounted.current) {
-          setCompartiendo(false);
-        }
-        return;
-      }
-
-      // Mismo PDF que "Compartir PDF" (misma función, mismos datos): la imagen
-      // que se comparte es siempre pixel-idéntica al PDF, nunca un render aparte.
-      const uri = await generateFichaPdfUri(modalProd, pdfCache, logoRefreshKey, selectedImages);
-      if (isMounted.current) setPdfUriForImage(uri);
-    } catch (e: unknown) {
-      Sentry.captureException(e);
-      showAlert('Error', 'No se pudo preparar la ficha. Intentá de nuevo.');
-      if (isMounted.current) setCompartiendo(false);
-    }
-  };
-
-  const compartirPdf = () => {
-    triggerCompartirPdf();
-  };
-
-  const compartirImagen = () => {
-    triggerCompartirImagen();
-  };
-
-  const capturarPdfOculto = async () => {
-    try {
-      // El PDF nativo ya avisó (onLoadComplete) que la página está renderizada.
-      // Solo esperamos a que React Native confirme que ese frame ya se compuso
-      // en pantalla antes de capturarlo — nada de tiempos de espera adivinados.
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-      // JPEG en vez de PNG: comprime bastante más rápido (PNG es sin pérdida)
-      // y a CAPTURE_QUALITY alto no se nota diferencia visual en una ficha
-      // técnica. Esto es clave para que la captura no se sienta lenta en
-      // equipos de gama baja.
-      const imgUri = await captureRef(hiddenPdfRef, {
-        format: CAPTURE_FORMAT,
-        quality: CAPTURE_QUALITY,
-        result: 'tmpfile'
-      });
-
-      let finalUriToShare = imgUri;
-      try {
-        const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-        const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-        const newFileName = `${safeMarca}_${safeModelo}.${CAPTURE_FORMAT}`;
-        const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
-
-        const fileInfo = await FileSystem.getInfoAsync(newUri);
-        if (fileInfo.exists) {
-          await FileSystem.deleteAsync(newUri);
-        }
-        await FileSystem.copyAsync({ from: imgUri, to: newUri });
-        finalUriToShare = newUri;
-      } catch (renameError) {
-        console.log('No se pudo renombrar, usando original:', renameError);
-      }
-
-      await Sharing.shareAsync(finalUriToShare, {
-        dialogTitle: `Ficha ${modalProd?.modelo}`,
-        mimeType: CAPTURE_FORMAT === 'jpg' ? 'image/jpeg' : 'image/png',
-      });
-      logProductAction('share_image');
-    } catch (e: unknown) {
-      Sentry.captureException(e);
-      showAlert('Error', 'Fallo al capturar la imagen en alta calidad.');
-    } finally {
-      if (isMounted.current) {
-        setCompartiendo(false);
-        setPdfUriForImage(null);
-      }
-    }
-  };
-
-  // Compartir la Curva de Rendimiento es una acción explícita y opcional que
-  // el usuario solo encuentra dentro del modal "Ver Curva de Rendimiento".
-  // Nunca se adjunta automáticamente al compartir la ficha del producto.
-  const compartirCurvaPdf = async () => {
-    if (!modalProd || !curveData) return;
-    try {
-      setSharingCurvaPdf(true);
-      let logoB64 = pdfCache?.logoBase64;
-      if (!logoB64) {
-        const marcaSlug = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-        const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg`;
-        logoB64 = await fetchImageBase64(logoUrl).catch(() => '');
-      }
-      await generateAndShareCurvaPdf(curveData, modalProd, logoB64 || '');
-      logProductAction('share_curva_pdf');
-    } catch (e: unknown) {
-      Sentry.captureException(e);
-      showAlert('Error', 'No se pudo generar el PDF de la curva.');
-    } finally {
-      if (isMounted.current) setSharingCurvaPdf(false);
-    }
-  };
-
-  const compartirCurvaImagen = async () => {
-    if (!modalProd) return;
-    try {
-      setSharingCurvaImagen(true);
-      const imgUri = await captureRef(curveCaptureRef, {
-        format: 'png',
-        quality: 1.0,
-        result: 'tmpfile'
-      });
-
-      let finalUriToShare = imgUri;
-      try {
-        const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-        const safeModelo = (modalProd?.modelo || 'sku').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-        const newFileName = `CURVA_${safeMarca}_${safeModelo}.png`;
-        const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
-
-        const fileInfo = await FileSystem.getInfoAsync(newUri);
-        if (fileInfo.exists) {
-          await FileSystem.deleteAsync(newUri);
-        }
-        await FileSystem.copyAsync({ from: imgUri, to: newUri });
-        finalUriToShare = newUri;
-      } catch {
-        // Si falla el renombrado, se comparte con el nombre original
-      }
-
-      await Sharing.shareAsync(finalUriToShare, {
-        dialogTitle: `Curva de Rendimiento ${modalProd?.modelo}`,
-        mimeType: 'image/png',
-      });
-      logProductAction('share_curva_image');
-    } catch (e: unknown) {
-      Sentry.captureException(e);
-      showAlert('Error', 'No se pudo compartir la imagen de la curva.');
-    } finally {
-      if (isMounted.current) setSharingCurvaImagen(false);
-    }
-  };
 
   const parseBoldText = (text: string) => {
     if (!text) return null;
@@ -666,18 +296,7 @@ export default function ProductDetailModal({
                      </TouchableOpacity>
                   ) : null}
 
-                  {modalProd?.specs?.length > 0 && (
-                    <View style={styles.specsWrap}>
-                      <View style={{ borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#E0E0E0' }}>
-                        {modalProd.specs.map(([n, v]: [string, string], i: number) => (
-                          <View key={i} style={[styles.specRow, i % 2 === 1 && styles.specRowAlt]}>
-                            <Text style={styles.specName}>{n}</Text>
-                            <Text style={styles.specVal}>{v}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
+                  <ProductSpecsTab modalProd={modalProd} />
                 </View>
 
                 <View style={styles.modalActionsWrap}>
@@ -745,47 +364,13 @@ export default function ProductDetailModal({
             )}
 
             {activeTab === 'SIMILARES' && (
-              <View style={styles.tabContent}>
-                {productosMismaMarca.length > 0 && (
-                  <View style={{ marginBottom: 16 }}>
-                    <Text style={styles.simSectionTitle}>Más de {modalProd?.marca}</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
-                      {productosMismaMarca.map((sim: ParsedProduct) => (
-                        <TouchableOpacity
-                          key={sim.modelo}
-                          style={styles.simSlideCard}
-                          onPress={() => onOpenProduct(sim)}
-                          activeOpacity={0.8}
-                        >
-                          <Image source={{ uri: sim.imagen }} style={styles.simSlideImg} contentFit="contain" />
-                          <Text style={styles.simSlideMarca}>{sim.subcategoria}</Text>
-                          <Text style={styles.simSlideModelo} numberOfLines={2}>{sim.modelo}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {productosSimilares.length > 0 && (
-                  <View>
-                    <Text style={styles.simSectionTitle}>Misma categoría</Text>
-                    {productosSimilares.map((sim: any) => (
-                      <TouchableOpacity key={sim.modelo} style={styles.simCard} onPress={() => onOpenProduct(sim)}>
-                        <Image source={{ uri: sim.imagen }} style={styles.simImg} contentFit="contain" />
-                        <View style={styles.simInfo}>
-                          <Text style={styles.simMarca}>{sim.marca}</Text>
-                          <Text style={styles.simModelo} numberOfLines={2}>{sim.modelo}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-
-                {productosSimilares.length === 0 && productosMismaMarca.length === 0 && (
-                  <Text style={styles.aiBodyText}>No hay productos relacionados.</Text>
-                )}
-              </View>
-            )}
+                <SimilarProductsTab 
+                  productosSimilares={productosSimilares}
+                  productosMismaMarca={productosMismaMarca}
+                  modalProd={modalProd}
+                  onOpenProduct={onOpenProduct}
+                />
+              )}
 
             <View style={{ height: 40 }} />
           </ScrollView>
@@ -811,160 +396,28 @@ export default function ProductDetailModal({
               onError={(e) => {
                 Sentry.captureException(e);
                 showAlert('Error', 'Fallo al capturar la imagen en alta calidad.');
-                if (isMounted.current) {
-                  setCompartiendo(false);
+                setCompartiendo(false);
                   setPdfUriForImage(null);
-                }
               }}
             />
           </View>
         )}
 
-        {curveData && (
-          <Modal
+        <CurveModal
             visible={showCurveModal}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowCurveModal(false)}
-            statusBarTranslucent
-            navigationBarTranslucent
-          >
-            <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', paddingTop: insets.top, paddingBottom: insets.bottom}}>
-              <View style={{
-                width: '90%',
-                maxHeight: screenHeight - insets.top - insets.bottom - 32,
-                backgroundColor: '#fff',
-                borderRadius: 12,
-                overflow: 'hidden',
-              }}>
-               {/* Zona con scroll: solo el gráfico + aviso. Los botones de abajo quedan
-                   siempre fijos y visibles, sin necesidad de deslizar para llegar a ellos. */}
-               <ScrollView
-                 showsVerticalScrollIndicator={false}
-                 contentContainerStyle={{ alignItems: 'center', padding: 20, paddingBottom: 16 }}
-               >
-                 <View ref={curveCaptureRef} collapsable={false} style={{ alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 4, paddingBottom: 18 }}>
-                   <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', borderBottomWidth: 3, borderBottomColor: COLORS.green, paddingBottom: 10, marginBottom: 14, gap: 10 }}>
-                     <Image
-                       source={{ uri: `${LOGO_BASE}${(modalProd?.marca || '').toUpperCase().replace(/\s+/g, '_')}.jpg` }}
-                       style={{ width: 90, height: 42 }}
-                       contentFit="contain"
-                     />
-                     <View style={{ width: 1.5, height: 34, backgroundColor: '#dce4f0' }} />
-                     <View style={{ flex: 1 }}>
-                       <Text style={{ fontSize: 15, fontWeight: 'bold', color: COLORS.navy, textTransform: 'uppercase' }}>Curva de Rendimiento</Text>
-                       <Text style={{ fontSize: 11, color: '#555', marginTop: 1 }}>{modalProd?.marca} · {modalProd?.subcategoria}</Text>
-                       <Text style={{ fontSize: 11, color: COLORS.navy, fontWeight: '600', marginTop: 1 }}>SKU: {modalProd?.modelo}</Text>
-                     </View>
-                   </View>
-                 <View style={{width: curveSize, height: curveSize}}>
-                    <Svg width={curveSize} height={curveSize} viewBox="0 0 320 320">
-                      {curveData.qTicks.map((t: number) => {
-                         const px = 50 + (t / curveData.qTicks[curveData.qTicks.length - 1]) * 240;
-                         return (
-                           <G key={`x-${t}`}>
-                             <Line x1={px} y1="40" x2={px} y2="280" stroke="#e4eaf4" strokeWidth="1" />
-                             <SvgText x={px} y="295" fontSize="10" fill="#555" textAnchor="middle">{t}</SvgText>
-                           </G>
-                         );
-                      })}
-                      {curveData.hTicks.map((t: number) => {
-                         const py = 280 - (t / curveData.hTicks[curveData.hTicks.length - 1]) * 240;
-                         return (
-                           <G key={`y-${t}`}>
-                             <Line x1="50" y1={py} x2="290" y2={py} stroke="#e4eaf4" strokeWidth="1" />
-                             <SvgText x="42" y={py + 3} fontSize="10" fill="#555" textAnchor="end">{t}</SvgText>
-                           </G>
-                         );
-                      })}
-
-                      <Line x1="50" y1="40" x2="50" y2="280" stroke="#555" strokeWidth="2" />
-                      <Line x1="50" y1="280" x2="290" y2="280" stroke="#555" strokeWidth="2" />
-                      <SvgText x="170" y="315" fontSize="12" fill="#555" textAnchor="middle" fontWeight="bold">Caudal (m³/h)</SvgText>
-                      <SvgText x="15" y="160" fontSize="12" fill="#555" textAnchor="middle" transform="rotate(-90, 15, 160)" fontWeight="bold">Altura MCA (m)</SvgText>
-
-                      <Path 
-                        d={
-                          [...Array(51).keys()].map(i => {
-                             const q = curveData.maxQ * (i / 50);
-                             const hp = curveData.maxH * (1 - Math.pow(q / curveData.maxQ, 2));
-                             const maxTickQ = curveData.qTicks[curveData.qTicks.length - 1];
-                             const maxTickH = curveData.hTicks[curveData.hTicks.length - 1];
-                             const pad = 6;
-                             const px = 50 + pad + (q / maxTickQ) * (240 - pad * 2);
-                             const py = 280 - pad - (hp / maxTickH) * (240 - pad * 2);
-                             return `${i === 0 ? 'M' : 'L'} ${px} ${py}`;
-                          }).join(' ')
-                        }
-                        stroke={COLORS.green} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"
-                      />
-                    </Svg>
-                 </View>
-                 <View style={{ backgroundColor: '#fff4e5', borderWidth: 1.5, borderColor: '#f0a93a', borderRadius: 8, padding: 12, marginTop: 16, width: '100%' }}>
-                    <Text style={{ fontSize: 11.5, fontWeight: 'bold', color: '#7a4a05', marginBottom: 4 }}>
-                       Gráfica estimativa, no oficial del fabricante
-                    </Text>
-                    <Text style={{ fontSize: 10.5, color: '#7a4a05', lineHeight: 15 }}>
-                       Esta curva es una aproximación teórica calculada a partir de los datos técnicos cargados (caudal y altura/presión máximos). Puede no coincidir con la curva real publicada por el fabricante, ya que no se dispone de todos sus puntos oficiales. Para datos exactos, consultá siempre la ficha del fabricante o a un asesor.
-                    </Text>
-                 </View>
-                 </View>
-               </ScrollView>
-
-               {/* Pie fijo: siempre visible, no se scrollea. */}
-               <View style={{
-                 paddingHorizontal: 20,
-                 paddingTop: 12,
-                 paddingBottom: (insets.bottom || 0) + 16,
-                 borderTopWidth: 1,
-                 borderTopColor: '#eef1f6',
-                 backgroundColor: '#fff',
-               }}>
-                 <Text style={{fontSize: 10, color: '#8492a6', textAlign: 'center', marginBottom: 10}}>
-                   Compartir esta curva es opcional: solo se envía si vos lo elegís.
-                 </Text>
-
-                 <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { flex: 1 }, sharingCurvaPdf && styles.actionBtnDisabled]}
-                      onPress={compartirCurvaPdf}
-                      disabled={sharingCurvaPdf || sharingCurvaImagen}
-                      activeOpacity={0.8}
-                    >
-                      {sharingCurvaPdf ? (
-                        <ActivityIndicator size="small" color={COLORS.white} />
-                      ) : (
-                        <View style={styles.actionBtnContent}>
-                          <SvgIcon name="descarga" size={16} color="#fff" />
-                          <Text style={styles.actionBtnText}>PDF</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { flex: 1, backgroundColor: COLORS.green }, sharingCurvaImagen && styles.actionBtnDisabled]}
-                      onPress={compartirCurvaImagen}
-                      disabled={sharingCurvaPdf || sharingCurvaImagen}
-                      activeOpacity={0.8}
-                    >
-                      {sharingCurvaImagen ? (
-                        <ActivityIndicator size="small" color={COLORS.white} />
-                      ) : (
-                        <View style={styles.actionBtnContent}>
-                          <SvgIcon name="share" size={16} color="#fff" />
-                          <Text style={styles.actionBtnText}>Imagen</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                 </View>
-
-                 <TouchableOpacity style={[styles.actionBtn, {marginTop: 10, width: '100%', backgroundColor: COLORS.navy}]} onPress={() => setShowCurveModal(false)}>
-                    <Text style={{color: '#fff', fontWeight: 'bold'}}>Cerrar</Text>
-                 </TouchableOpacity>
-               </View>
-              </View>
-            </View>
-          </Modal>
-        )}
+            onClose={() => setShowCurveModal(false)}
+            curveData={curveData}
+            modalProd={modalProd}
+            curveCaptureRef={curveCaptureRef}
+            curveSize={curveSize}
+            sharingCurvaImagen={sharingCurvaImagen}
+            sharingCurvaPdf={sharingCurvaPdf}
+            compartirCurvaImagen={compartirCurvaImagen}
+            compartirCurvaPdf={compartirCurvaPdf}
+            insets={insets}
+            screenHeight={screenHeight}
+            LOGO_BASE={LOGO_BASE}
+          />
       </Reanimated.View>
 
       <ImageViewerModal 
