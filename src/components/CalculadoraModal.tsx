@@ -1,3 +1,6 @@
+import { GeneratorTab } from './calculator/GeneratorTab';
+import { MotorForm } from './calculator/forms/MotorForm';
+import { PumpTab } from './calculator/PumpTab';
 import * as Sentry from '@sentry/react-native';
 import { ENGINEERING_CONSTANTS } from '../config/engineeringConstants';
 import { HydraulicCalculator } from '../services/hydraulicCalculator';
@@ -828,350 +831,36 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
             </View>
           ) : (
             <View>
-              {calcMode === 'bomba' ? (
-                <View>
-                  {!(bombaTab === 'guiado' && wizardStep > 1) && (
-                    <View style={styles.tabContainer}>
-                      <TouchableOpacity style={[styles.tabBtn, bombaTab === 'guiado' && styles.tabBtnActive]} onPress={() => { setBombaTab('guiado'); setHasCalculated(false); setCalcResult(null); setMotorResult(null); }}>
-                        <Text style={[styles.tabText, bombaTab === 'guiado' && styles.tabTextActive]}>GUIADO</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.tabBtn, bombaTab === 'avanzado' && styles.tabBtnActive]} onPress={() => { setBombaTab('avanzado'); setHasCalculated(false); setCalcResult(null); setMotorResult(null); }}>
-                        <Text style={[styles.tabText, bombaTab === 'avanzado' && styles.tabTextActive]}>CÁLCULO AVANZADO</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
+              {calcMode === 'bomba' && (
+                <PumpTab 
+                  bombaTab={bombaTab} setBombaTab={setBombaTab} 
+                  pumpWizard={pumpWizard} setPumpWizard={setPumpWizard} 
+                  adv={adv} setAdv={setAdv} 
+                  setHasCalculated={setHasCalculated} handleCalculate={handleCalculate}
+                  wizardStep={wizardStep} setWizardStep={setWizardStep}
+                  handleUnitChange={handleUnitChange} stepHp={stepHp}
+                  reglas={reglas} interpolateFriction={interpolateFriction}
+                  FRICCION_DIAMS={FRICCION_DIAMS} FIT_HEADERS={FIT_HEADERS}
+                  COLORS={COLORS}
+                />
+              )}
 
-                  {bombaTab === 'avanzado' ? (
-                    <View style={styles.avanzadoContainer}>
-                      <Text style={styles.inputTitleSmall}>Filtro de Categoría</Text>
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 15 }}>
-                        {reglas.categorias.map((u: any) => (
-                          <TouchableOpacity key={u.id} style={[styles.usoListCard, { flexGrow: 1, minWidth: '45%', padding: 10, minHeight: 40, marginRight: 0 }, pumpWizard.uso === u.id && styles.usoCardActive]} onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}>
-                            <Text style={[styles.usoListTitle, { fontSize: 12, textAlign: 'center' }, pumpWizard.uso === u.id && styles.usoTitleActive]}>{u.title}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
+              {calcMode === 'gen' && (
+                <GeneratorTab 
+                  genUnit={genUnit} setGenUnit={setGenUnit} 
+                  genFase={genFase} setGenFase={setGenFase} 
+                  genStats={genStats} calcInput={calcInput} 
+                  setCalcInput={setCalcInput} setHasCalculated={setHasCalculated} 
+                  handleCalculate={handleCalculate} 
+                />
+              )}
 
-                      {(() => {
-                        const tx = (reglas as any)?.textos ?? {};
-                        const tCaudal   = tx.label_caudal   ?? 'Caudal (m³/h)';
-                        const tLongitud = tx.label_longitud ?? 'Longitud de Cañería (m)';
-                        const tDesnivel = tx.label_desnivel ?? 'Altura a Elevar (m)';
-                        const tDiametro = tx.label_diametro ?? 'Diámetro de Cañería';
-                        const tAccesorios = tx.label_accesorios ?? 'Accesorios (Cantidades)';
-                        const tBtnBuscar = tx.btn_buscar ?? 'Buscar Equipos';
-                        const tAvisoDiamInsuf  = tx.aviso_diametro_insuficiente ?? 'Diámetro insuficiente';
-                        const tAvisoDiamBloq   = tx.aviso_diametro_bloqueado    ?? 'Rango supera tabla de fricción';
-                        const tAvisoSinCaudal  = tx.aviso_sin_caudal            ?? 'Ingresá el caudal para buscar';
-
-                        const advQ = parseFloat(adv.caudal) || 0;
-                        const currentDiamSt = advQ > 0 ? interpolateFriction(advQ, adv.diamIdx).status : 'ok';
-                        const currentDiamInvalid = currentDiamSt === 'above' || currentDiamSt === 'sin-datos';
-                        const allDiamsInvalid = advQ > 0 && FRICCION_DIAMS.every((_, idx) => {
-                          const s = interpolateFriction(advQ, idx).status;
-                          return s === 'above' || s === 'sin-datos';
-                        });
-
-                        const hasCaudal = advQ > 0;
-                        const hasUso = !!pumpWizard.uso;
-                        const canBuscar = hasCaudal && hasUso;
-
-                        return (
-                          <>
-                            <View style={styles.grid2Cols}>
-                              <View style={styles.col}>
-                                <Text style={styles.inputTitleSmall}>{tCaudal}</Text>
-                                <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 15" placeholderTextColor={COLORS.gray4} value={adv.caudal} onChangeText={(t) => setAdv({...adv, caudal: t})} />
-                              </View>
-                              <View style={styles.col}>
-                                <Text style={styles.inputTitleSmall}>{tDiametro}</Text>
-                                <TouchableOpacity
-                                  style={[
-                                    styles.textInputSmall,
-                                    allDiamsInvalid && { opacity: 0.45, backgroundColor: '#f0f0f0' },
-                                    currentDiamInvalid && !allDiamsInvalid && { borderColor: '#c0392b', borderWidth: 1.5 }
-                                  ]}
-                                  onPress={() => !allDiamsInvalid && setShowDiamPicker(true)}
-                                  disabled={allDiamsInvalid}
-                                >
-                                  <Text style={{ color: allDiamsInvalid ? COLORS.gray3 : currentDiamInvalid ? '#c0392b' : COLORS.navy, fontSize: 14 }}>
-                                    {FRICCION_DIAMS[adv.diamIdx]}
-                                  </Text>
-                                  {currentDiamInvalid && !allDiamsInvalid && <Text style={{ fontSize: 10, color: '#c0392b', marginTop: 1 }}>{tAvisoDiamInsuf}</Text>}
-                                  {allDiamsInvalid && <Text style={{ fontSize: 10, color: COLORS.gray3, marginTop: 1 }}>{tAvisoDiamBloq}</Text>}
-                                </TouchableOpacity>
-                              </View>
-                            </View>
-
-                            <View style={styles.grid2Cols}>
-                              <View style={styles.col}>
-                                <Text style={styles.inputTitleSmall}>{tLongitud}</Text>
-                                <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 200" placeholderTextColor={COLORS.gray4} value={adv.lRecta} onChangeText={(t) => setAdv({...adv, lRecta: t})} />
-                              </View>
-                              <View style={styles.col}>
-                                <Text style={styles.inputTitleSmall}>{tDesnivel}</Text>
-                                <TextInput style={styles.textInputSmall} keyboardType="numeric" placeholder="Ej: 1" placeholderTextColor={COLORS.gray4} value={adv.hGeo} onChangeText={(t) => setAdv({...adv, hGeo: t})} />
-                              </View>
-                            </View>
-
-                            <Text style={[styles.inputTitleSmall, { marginTop: 5, marginBottom: 5 }]}>{tAccesorios}</Text>
-                            <View style={styles.accGrid}>
-                              {FIT_HEADERS.map((h, i) => (
-                                <View key={h} style={styles.accCell}>
-                                  <Text style={styles.accLabel}>{h}</Text>
-                                  <TextInput
-                                    style={styles.accInput}
-                                    keyboardType="numeric"
-                                    value={adv.acc[i] ? String(adv.acc[i]) : ''}
-                                    onChangeText={(t) => {
-                                      const n = parseInt(t) || 0;
-                                      const newAcc = [...adv.acc];
-                                      newAcc[i] = n;
-                                      setAdv({...adv, acc: newAcc});
-                                    }}
-                                  />
-                                </View>
-                              ))}
-                            </View>
-
-                            {status === 'sin-datos' && parseFloat(adv.caudal) > 0 ? (
-                              <Text style={styles.advWarn}>No hay datos de fricción para este caudal y diámetro.</Text>
-                            ) : parseFloat(adv.caudal) > 0 && (
-                              <View style={[styles.advResultBox, { flexDirection: 'column', padding: 15, alignItems: 'flex-start', gap: 6 }]}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                                  <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Altura manométrica total:</Text>
-                                  <Text style={[styles.advResultVal, { fontSize: 14 }]}>{hTotal.toFixed(2)} mca</Text>
-                                </View>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                                  <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Pérdida por fricción:</Text>
-                                  <Text style={[styles.advResultVal, { fontSize: 14 }]}>{perdida.toFixed(2)} mca</Text>
-                                </View>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                                  <Text style={[styles.advResultLbl, { fontSize: 13 }]}>Longitud equivalente total:</Text>
-                                  <Text style={[styles.advResultVal, { fontSize: 14 }]}>{lTotal.toFixed(2)} m</Text>
-                                </View>
-                              </View>
-                            )}
-
-                            <TouchableOpacity
-                              style={[styles.calculateBtn, { marginTop: 10, paddingVertical: 10 }, !canBuscar && { backgroundColor: COLORS.gray4 }]}
-                              onPress={handleCalculate}
-                              disabled={!canBuscar}
-                            >
-                              <Text style={styles.calculateBtnText}>
-                                {canBuscar ? tBtnBuscar : (!hasUso ? 'Seleccioná una categoría arriba' : tAvisoSinCaudal)}
-                              </Text>
-                            </TouchableOpacity>
-                          </>
-                        );
-                      })()}
-                    </View>
-                  ) : (
-                    <View style={styles.guiadoContainer}>
-                      {wizardStep === 1 ? (
-                        <View>
-                          <Text style={styles.inputTitleSmall}>¿Para qué necesita la bomba?</Text>
-                          <View style={styles.usosList}>
-                            {reglas.categorias.map((u: any) => (
-                              <TouchableOpacity key={u.id} style={[styles.usoListCard, pumpWizard.uso === u.id && styles.usoCardActive]} onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}>
-                                <Text style={[styles.usoListTitle, pumpWizard.uso === u.id && styles.usoTitleActive]}>{u.title}</Text>
-                                <Text style={styles.usoListSubtitle}>{u.subtitle}</Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                          <TouchableOpacity style={[styles.calculateBtn, !pumpWizard.uso && { backgroundColor: COLORS.gray4 }]} disabled={!pumpWizard.uso} onPress={() => setWizardStep(2)}>
-                            <Text style={styles.calculateBtnText}>Siguiente →</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <View>
-                          <View style={styles.colList}>
-                             <View style={styles.colListRow}>
-                                <Text style={styles.inputTitleSmall}>Caudal</Text>
-                                <View style={styles.unitTabs}>
-                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('l/min')}>
-                                      <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabTxtActive]}>L/min</Text>
-                                   </TouchableOpacity>
-                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('m3/h')}>
-                                      <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabTxtActive]}>m³/h</Text>
-                                   </TouchableOpacity>
-                                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('l/h')}>
-                                      <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabTxtActive]}>L/h</Text>
-                                   </TouchableOpacity>
-                                </View>
-                                <View style={styles.caudalRow}>
-                                  <TextInput style={[styles.textInputSmall, { flex: 1, marginHorizontal: 0, marginRight: 5 }]} keyboardType="numeric" placeholder="Ej: 100" placeholderTextColor={COLORS.gray4} value={pumpWizard.caudal} onChangeText={(t) => setPumpWizard({...pumpWizard, caudal: t})} />
-                                </View>
-                             </View>
-
-                             <View style={[styles.colListRow, { marginTop: 15 }]}>
-                                <Text style={styles.inputTitleSmall}>Altura de Elevación (m.c.a.)</Text>
-                                <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="mca (Ej: 20)" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} maxLength={4} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
-                             </View>
-
-                             <View style={[styles.colListRow, { marginTop: 15 }]}>
-                                <Text style={styles.inputTitleSmall}>Potencia (HP) (Opcional)</Text>
-                                <View style={[styles.inputRow, { marginBottom: 0 }]}>
-                                  <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(pumpWizard.hp || '0') || 0; setPumpWizard({...pumpWizard, hp: current > 0 ? String(stepHp(current, 'down')) : ''}); }}>
-                                    <Text style={styles.counterBtnText}>-</Text>
-                                  </TouchableOpacity>
-                                  <TextInput style={styles.textInput} keyboardType="numeric" placeholder="Ej: 2.5" placeholderTextColor={COLORS.gray4} value={pumpWizard.hp} onChangeText={(t) => setPumpWizard({...pumpWizard, hp: t})} />
-                                  <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(pumpWizard.hp || '0') || 0; setPumpWizard({...pumpWizard, hp: String(stepHp(current, 'up'))}); }}>
-                                    <Text style={styles.counterBtnText}>+</Text>
-                                  </TouchableOpacity>
-                                </View>
-                             </View>
-                          </View>
-
-                          <Text style={{fontSize: 12, marginBottom: 10, textAlign: 'center', color: COLORS.gray4}}>
-                            * Ingresa al menos uno de los valores para calcular
-                          </Text>
-
-                          {pumpWizard.uso !== 'combustion' && (
-                            <>
-                              <Text style={styles.inputTitleSmall}>Alimentación Eléctrica (Opcional)</Text>
-                              <View style={styles.faseGrid}>
-                                <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
-                                  <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>Monofásico</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
-                                  <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>Trifásico</Text>
-                                </TouchableOpacity>
-
-                                {(!['combustion', 'drenaje', 'vivienda'].includes(pumpWizard.uso)) && (
-                                  <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === 'sinelec' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === 'sinelec' ? '' : 'sinelec'})}>
-                                    <Text style={[styles.faseBtnText, pumpWizard.fase === 'sinelec' && styles.faseBtnTextActive]}>Sin Motor</Text>
-                                  </TouchableOpacity>
-                                )}
-                              </View>
-                            </>
-                          )}
-
-                          <TouchableOpacity 
-                            style={[styles.calculateBtn, {paddingVertical: 10, marginBottom: 5}, (!pumpWizard.caudal && !pumpWizard.altura && !pumpWizard.hp) && { backgroundColor: COLORS.gray4 }]} 
-                            disabled={!pumpWizard.caudal && !pumpWizard.altura && !pumpWizard.hp}
-                            onPress={handleCalculate}
-                          >
-                            <Text style={styles.calculateBtnText}>Ver Recomendaciones</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <View>
-                  {calcMode === 'gen' && (
-                    <View style={{ marginBottom: 15 }}>
-                      <Text style={styles.inputTitleSmall}>Unidad de medida</Text>
-                      <View style={[styles.unitTabs, { marginBottom: 15 }]}>
-                        <TouchableOpacity style={[styles.unitTabBtn, genUnit === 'KVA' && styles.unitTabBtnActive]} onPress={() => {setGenUnit('KVA'); setHasCalculated(false);}}>
-                          <Text style={[styles.unitTabTxt, genUnit === 'KVA' && styles.unitTabTxtActive]}>KVA</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.unitTabBtn, genUnit === 'AMPER' && styles.unitTabBtnActive]} onPress={() => {setGenUnit('AMPER'); setHasCalculated(false);}}>
-                          <Text style={[styles.unitTabTxt, genUnit === 'AMPER' && styles.unitTabTxtActive]}>AMPERES</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      <View style={{ marginBottom: 15 }}>
-                        <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
-                        
-                        {(() => {
-                           const genValInput = parseFloat(calcInput) || 0;
-                           let kva220 = genValInput;
-                           let kva380 = genValInput;
-                           if (genUnit === 'AMPER') {
-                               kva220 = (genValInput * 220) / 1000;
-                               kva380 = (genValInput * 380 * 1.732) / 1000;
-                           }
-                           
-                           const is220Disabled = genValInput > 0 && genStats.max220 > 0 && kva220 > genStats.max220 * 1.3;
-                           const is380Disabled = genValInput > 0 && genStats.min380 > 0 && kva380 < genStats.min380 * 0.7;
-
-                           if (is220Disabled && genFase === '220v') setTimeout(() => setGenFase('380v'), 0);
-                           if (is380Disabled && genFase === '380v') setTimeout(() => setGenFase('220v'), 0);
-
-                           return (
-                             <>
-                               <View style={styles.unitTabs}>
-                                 <TouchableOpacity 
-                                   disabled={is220Disabled}
-                                   style={[styles.unitTabBtn, genFase === '220v' && styles.unitTabBtnActive, is220Disabled && { opacity: 0.3 }]} 
-                                   onPress={() => {setGenFase('220v'); setHasCalculated(false);}}
-                                 >
-                                   <Text style={[styles.unitTabTxt, genFase === '220v' && styles.unitTabTxtActive]}>Monofásico</Text>
-                                 </TouchableOpacity>
-                                 <TouchableOpacity 
-                                   disabled={is380Disabled}
-                                   style={[styles.unitTabBtn, genFase === '380v' && styles.unitTabBtnActive, is380Disabled && { opacity: 0.3 }]} 
-                                   onPress={() => {setGenFase('380v'); setHasCalculated(false);}}
-                                 >
-                                   <Text style={[styles.unitTabTxt, genFase === '380v' && styles.unitTabTxtActive]}>Trifásico</Text>
-                                 </TouchableOpacity>
-                               </View>
-                             </>
-                           );
-                        })()}
-                      </View>
-                    </View>
-                  )}
-
-                  {calcMode === 'motor' && (
-                    <View style={{ marginBottom: 15 }}>
-                      <Text style={styles.inputTitleSmall}>Potencia (HP)</Text>
-                      <View style={styles.inputRow}>
-                        <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(motorState.hp || '0') || 0; setMotorState({...motorState, hp: current > 0 ? String(stepHp(current, 'down')) : ''}); setHasCalculated(false); }}>
-                          <Text style={styles.counterBtnText}>-</Text>
-                        </TouchableOpacity>
-                        <TextInput style={styles.textInput} keyboardType="numeric" placeholder="Ej: 5.5" placeholderTextColor={COLORS.gray4} value={motorState.hp} onChangeText={(t) => { setMotorState({...motorState, hp: t}); setHasCalculated(false); }} />
-                        <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(motorState.hp || '0') || 0; setMotorState({...motorState, hp: String(stepHp(current, 'up'))}); setHasCalculated(false); }}>
-                          <Text style={styles.counterBtnText}>+</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      <Text style={styles.inputTitleSmall}>Polos</Text>
-                      <View style={styles.faseGrid}>
-                        {[2, 4, 6].map(polo => (
-                           <TouchableOpacity key={polo} style={[styles.faseBtn, motorState.polos === String(polo) && styles.faseBtnActive]} onPress={() => { setMotorState({...motorState, polos: motorState.polos === String(polo) ? '' : String(polo)}); setHasCalculated(false); }}>
-                              <Text style={[styles.faseBtnText, motorState.polos === String(polo) && styles.faseBtnTextActive]}>{polo} Polos</Text>
-                           </TouchableOpacity>
-                        ))}
-                      </View>
-
-                      <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
-                      <View style={styles.unitTabs}>
-                        <TouchableOpacity style={[styles.unitTabBtn, motorState.fase === '220v' && styles.unitTabBtnActive]} onPress={() => {setMotorState({...motorState, fase: motorState.fase === '220v' ? '' : '220v'}); setHasCalculated(false);}}>
-                          <Text style={[styles.unitTabTxt, motorState.fase === '220v' && styles.unitTabTxtActive]}>Monofásico</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.unitTabBtn, motorState.fase === '380v' && styles.unitTabBtnActive]} onPress={() => {setMotorState({...motorState, fase: motorState.fase === '380v' ? '' : '380v'}); setHasCalculated(false);}}>
-                          <Text style={[styles.unitTabTxt, motorState.fase === '380v' && styles.unitTabTxtActive]}>Trifásico</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      <TouchableOpacity style={[styles.calculateBtn, {marginTop: 20}]} onPress={handleCalculate}>
-                        <Text style={styles.calculateBtnText}>Buscar Motores</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                  {calcMode === 'gen' && (
-                    <View>
-                      <Text style={styles.inputTitleSmall}>Valor en {genUnit === 'KVA' ? 'KVA' : 'Amperes'}</Text>
-                      <View style={styles.inputRow}>
-                        <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; if (current > 1) { setCalcInput(String(current - 1)); setHasCalculated(false); } }}>
-                          <Text style={styles.counterBtnText}>-</Text>
-                        </TouchableOpacity>
-                        <TextInput style={styles.textInput} keyboardType="numeric" placeholder="Ej: 50" placeholderTextColor={COLORS.gray4} value={calcInput} onChangeText={(t) => { setCalcInput(t); setHasCalculated(false); }} />
-                        <TouchableOpacity style={styles.counterBtn} onPress={() => { const current = parseFloat(calcInput) || 0; const max = genUnit === 'KVA' ? 3000 : 5000; if (current < max) { setCalcInput(String(current + 1)); setHasCalculated(false); } }}>
-                          <Text style={styles.counterBtnText}>+</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
-                        <Text style={styles.calculateBtnText}>Calcular y Ver Equipos</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
+              {calcMode === 'motor' && (
+                <MotorForm 
+                  motorState={motorState} setMotorState={setMotorState} 
+                  setHasCalculated={setHasCalculated} stepHp={stepHp} 
+                  handleCalculate={handleCalculate} 
+                />
               )}
 
               {hasCalculated && (parseFloat(calcInput) > 0 || calcMode === 'bomba' || calcMode === 'motor') && (
@@ -1353,6 +1042,8 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     </Modal>
   );
 }
+
+
 
 
 
