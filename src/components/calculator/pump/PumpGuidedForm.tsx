@@ -7,7 +7,7 @@ export const PumpGuidedForm = ({ wizardStep, setWizardStep, pumpWizard, setPumpW
     <View style={styles.guiadoContainer}>
       {wizardStep === 1 ? (
         <View>
-          <Text style={styles.inputTitleSmall}>�Para qu� necesita la bomba?</Text>
+          <Text style={styles.inputTitleSmall}>¿Para qué necesita la bomba?</Text>
           <View style={styles.usosList}>
             {reglas?.categorias?.map((u: any) => (
               <TouchableOpacity key={u.id} style={[styles.usoListCard, pumpWizard.uso === u.id && styles.usoCardActive]} onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}>

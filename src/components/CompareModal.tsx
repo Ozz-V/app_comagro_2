@@ -54,7 +54,7 @@ export default function CompareModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={styles.scrollContent}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
             {/* Cabecera con imágenes y nombres */}
             <View style={styles.productsHeaderRow}>
               <View style={styles.emptyHeaderCell} />

@@ -390,7 +390,7 @@ export async function searchProducts(marcaFiltro: string, subcatFiltro: string, 
   }
 
   if (subcatFiltro && subcatFiltro !== 'Todas' && subcatFiltro !== '__acc__' && subcatFiltro !== '__productos__') {
-    query += ' AND p.subcategoria LIKE ?';
+    query += ' AND p.subcategoria = ?';
     params.push(`%${subcatFiltro}%`);
   }
 

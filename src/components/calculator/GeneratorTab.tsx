@@ -43,7 +43,7 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({ genUnit, setGenUnit,
       </View>
 
       <View style={{ marginBottom: 15 }}>
-        <Text style={styles.inputTitleSmall}>Tensi�n el�ctrica</Text>
+        <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
         <View style={styles.unitTabs}>
           <TouchableOpacity 
             disabled={is220Disabled}
@@ -73,7 +73,7 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({ genUnit, setGenUnit,
             <Text style={styles.counterBtnText}>+</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
+        <TouchableOpacity disabled={!calcInput || parseFloat(calcInput) <= 0} style={[styles.calculateBtn, (!calcInput || parseFloat(calcInput) <= 0) && { backgroundColor: COLORS.gray4 }]} onPress={handleCalculate}>
           <Text style={styles.calculateBtnText}>Calcular y Ver Equipos</Text>
         </TouchableOpacity>
       </View>
