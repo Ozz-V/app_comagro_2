@@ -530,6 +530,10 @@ export function useCalculatorLogic(visible: boolean, onClose: () => void, naviga
                 let rawHp = 0;
                 if (targetHpInput > 0) {
                     rawHp = targetHpInput;
+                } else if (pump.calcVal > 0 && String(pump.subcategoria).toUpperCase().includes('CUERPO')) {
+                    rawHp = pump.calcVal;
+                } else if (targetCaudalLpm > 0 && targetAlturaInput > 0) {
+                    rawHp = (targetCaudalLpm * targetAlturaInput) / reglas.matematica.divisorHpBomba;
                 } else if (pQ > 0 && pH > 0) {
                     rawHp = (pQ * pH) / reglas.matematica.divisorHpBomba;
                 } else if (pump.calcVal > 0) {
@@ -571,7 +575,7 @@ export function useCalculatorLogic(visible: boolean, onClose: () => void, naviga
 
                 let selectedMotors: ExtendedCalcProduct[] = [];
                 if (searchHp > 0) {
-                   selectedMotors = validMotors.filter(m => m.calcVal > 0 && m.calcVal >= searchHp && m.calcVal <= searchHp * 1.35);
+                   selectedMotors = validMotors.filter(m => m.calcVal > 0 && m.calcVal >= searchHp && m.calcVal <= searchHp * 1.20);
                    if (selectedMotors.length === 0) {
                        const higherMotors = validMotors.filter(m => m.calcVal > 0 && m.calcVal >= searchHp).sort((a,b) => a.calcVal - b.calcVal);
                        if (higherMotors.length > 0) {
@@ -780,5 +784,6 @@ export function useCalculatorLogic(visible: boolean, onClose: () => void, naviga
     reglas, stepHp, handleUnitChange, handleCalculate, handleBack, getHeaderTitle
   };
 }
+
 
 

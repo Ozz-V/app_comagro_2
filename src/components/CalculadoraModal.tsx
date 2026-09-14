@@ -93,6 +93,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                   setHasCalculated={setHasCalculated} handleCalculate={handleCalculate}
                   wizardStep={wizardStep} setWizardStep={setWizardStep}
                   handleUnitChange={handleUnitChange} stepHp={stepHp}
+                  showDiamPicker={showDiamPicker} setShowDiamPicker={setShowDiamPicker}
                   reglas={reglas} interpolateFriction={interpolateFriction}
                   FRICCION_DIAMS={FRICCION_DIAMS} FIT_HEADERS={FIT_HEADERS}
                   COLORS={COLORS}
@@ -172,6 +173,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     </Modal>
   );
 }
+
 
 
 
