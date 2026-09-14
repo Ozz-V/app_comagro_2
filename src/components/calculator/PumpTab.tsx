@@ -21,7 +21,7 @@ export const PumpTab = ({
             <Text style={[styles.tabText, bombaTab === 'guiado' && styles.tabTextActive]}>GUIADO</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.tabBtn, bombaTab === 'avanzado' && styles.tabBtnActive]} onPress={() => { setBombaTab('avanzado'); setHasCalculated(false); }}>
-            <Text style={[styles.tabText, bombaTab === 'avanzado' && styles.tabTextActive]}>C¡LCULO AVANZADO</Text>
+            <Text style={[styles.tabText, bombaTab === 'avanzado' && styles.tabTextActive]}>C√ÅLCULO AVANZADO</Text>
           </TouchableOpacity>
         </View>
       )}

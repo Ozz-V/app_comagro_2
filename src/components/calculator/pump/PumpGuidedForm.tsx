@@ -7,7 +7,7 @@ export const PumpGuidedForm = ({ wizardStep, setWizardStep, pumpWizard, setPumpW
     <View style={styles.guiadoContainer}>
       {wizardStep === 1 ? (
         <View>
-          <Text style={styles.inputTitleSmall}>¿Para qué necesita la bomba?</Text>
+          <Text style={styles.inputTitleSmall}>ï¿½Para quï¿½ necesita la bomba?</Text>
           <View style={styles.usosList}>
             {reglas?.categorias?.map((u: any) => (
               <TouchableOpacity key={u.id} style={[styles.usoListCard, pumpWizard.uso === u.id && styles.usoCardActive]} onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}>
@@ -17,7 +17,7 @@ export const PumpGuidedForm = ({ wizardStep, setWizardStep, pumpWizard, setPumpW
             ))}
           </View>
           <TouchableOpacity style={[styles.calculateBtn, !pumpWizard.uso && { backgroundColor: COLORS.gray4 }]} disabled={!pumpWizard.uso} onPress={() => setWizardStep(2)}>
-            <Text style={styles.calculateBtnText}>Siguiente ?</Text>
+            <Text style={styles.calculateBtnText}>Siguiente âž”</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -29,8 +29,8 @@ export const PumpGuidedForm = ({ wizardStep, setWizardStep, pumpWizard, setPumpW
                    <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('l/min')}>
                       <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'l/min' && styles.unitTabTxtActive]}>L/min</Text>
                    </TouchableOpacity>
-                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('m3/h')}>
-                      <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'm3/h' && styles.unitTabTxtActive]}>m³/h</Text>
+                   <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'mÂ³/h' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('mÂ³/h')}>
+                      <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'mÂ³/h' && styles.unitTabTxtActive]}>mÂ³/h</Text>
                    </TouchableOpacity>
                    <TouchableOpacity style={[styles.unitTabBtn, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabBtnActive]} onPress={() => handleUnitChange('l/h')}>
                       <Text style={[styles.unitTabTxt, pumpWizard.unidadCaudal === 'l/h' && styles.unitTabTxtActive]}>L/h</Text>
@@ -42,7 +42,7 @@ export const PumpGuidedForm = ({ wizardStep, setWizardStep, pumpWizard, setPumpW
              </View>
 
              <View style={[styles.colListRow, { marginTop: 15 }]}>
-                <Text style={styles.inputTitleSmall}>Altura de Elevación (m.c.a.)</Text>
+                <Text style={styles.inputTitleSmall}>Altura de ElevaciÃ³n (m.c.a.)</Text>
                 <TextInput style={[styles.textInputSmall, { marginHorizontal: 0 }]} keyboardType="numeric" placeholder="mca (Ej: 20)" placeholderTextColor={COLORS.gray4} value={pumpWizard.altura} maxLength={4} onChangeText={(t) => setPumpWizard({...pumpWizard, altura: t})} />
              </View>
 
@@ -66,13 +66,13 @@ export const PumpGuidedForm = ({ wizardStep, setWizardStep, pumpWizard, setPumpW
 
           {pumpWizard.uso !== 'combustion' && (
             <>
-              <Text style={styles.inputTitleSmall}>Alimentación Eléctrica (Opcional)</Text>
+              <Text style={styles.inputTitleSmall}>AlimentaciÃ³n ElÃ©ctrica (Opcional)</Text>
               <View style={styles.faseGrid}>
                 <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '220v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '220v' ? '' : '220v'})}>
-                  <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>Monofásico</Text>
+                  <Text style={[styles.faseBtnText, pumpWizard.fase === '220v' && styles.faseBtnTextActive]}>MonofÃ¡sico</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.faseBtn, pumpWizard.fase === '380v' && styles.faseBtnActive]} onPress={() => setPumpWizard({...pumpWizard, fase: pumpWizard.fase === '380v' ? '' : '380v'})}>
-                  <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>Trifásico</Text>
+                  <Text style={[styles.faseBtnText, pumpWizard.fase === '380v' && styles.faseBtnTextActive]}>TrifÃ¡sico</Text>
                 </TouchableOpacity>
 
                 {(!['combustion', 'drenaje', 'vivienda'].includes(pumpWizard.uso)) && (

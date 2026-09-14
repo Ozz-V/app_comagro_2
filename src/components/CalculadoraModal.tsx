@@ -47,7 +47,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {!calcMode ? (
             <View>
-              <Text style={styles.subtitle}>Seleccioná un tipo de equipo para hacer un cálculo rápido:</Text>
+              <Text style={styles.subtitle}>Seleccionáá un tipo de equipo para hacer un cálculo rápido:</Text>
               <View style={styles.optionsContainer}>
                 <TouchableOpacity onPress={() => { setCalcMode('gen'); setHasCalculated(false); setCalcResult(null); setMotorResult(null); }} style={styles.optionCard}>
                   <View style={styles.iconContainer}>
@@ -133,7 +133,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
         <Modal visible={showDiamPicker} transparent animationType="fade" onRequestClose={() => setShowDiamPicker(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
             <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 20, maxHeight: '80%' }}>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 4, textAlign: 'center' }}>Seleccione Diámetro</Text>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.navy, marginBottom: 4, textAlign: 'center' }}>Seleccionáe Diámetro</Text>
               <Text style={{ fontSize: 12, color: COLORS.gray3, marginBottom: 15, textAlign: 'center' }}>
                 {parseFloat(adv.caudal) > 0 ? `Para ${adv.caudal} ${adv.unidadCaudal} — los grises no son válidos` : 'Ingresá el caudal primero para ver opciones válidas'}
               </Text>

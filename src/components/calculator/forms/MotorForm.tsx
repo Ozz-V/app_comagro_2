@@ -34,13 +34,13 @@ export const MotorForm: React.FC<MotorFormProps> = ({ motorState, setMotorState,
         ))}
       </View>
 
-      <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
+      <Text style={styles.inputTitleSmall}>Tensiï¿½n elï¿½ctrica</Text>
       <View style={styles.unitTabs}>
         <TouchableOpacity style={[styles.unitTabBtn, motorState.fase === '220v' && styles.unitTabBtnActive]} onPress={() => {setMotorState({...motorState, fase: motorState.fase === '220v' ? '' : '220v'}); setHasCalculated(false);}}>
-          <Text style={[styles.unitTabTxt, motorState.fase === '220v' && styles.unitTabTxtActive]}>Monofásico</Text>
+          <Text style={[styles.unitTabTxt, motorState.fase === '220v' && styles.unitTabTxtActive]}>MonofÃ¡sico</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.unitTabBtn, motorState.fase === '380v' && styles.unitTabBtnActive]} onPress={() => {setMotorState({...motorState, fase: motorState.fase === '380v' ? '' : '380v'}); setHasCalculated(false);}}>
-          <Text style={[styles.unitTabTxt, motorState.fase === '380v' && styles.unitTabTxtActive]}>Trifásico</Text>
+          <Text style={[styles.unitTabTxt, motorState.fase === '380v' && styles.unitTabTxtActive]}>TrifÃ¡sico</Text>
         </TouchableOpacity>
       </View>
 

@@ -311,7 +311,7 @@ export function useProductDetailLogic({
       // El PDF nativo ya avisó (onLoadComplete) que la página está renderizada.
       // Solo esperamos a que React Native confirme que ese frame ya se compuso
       // en pantalla antes de capturarlo — nada de tiempos de espera adivinados.
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // JPEG en vez de PNG: comprime bastante más rápido (PNG es sin pérdida)
       // y a CAPTURE_QUALITY alto no se nota diferencia visual en una ficha

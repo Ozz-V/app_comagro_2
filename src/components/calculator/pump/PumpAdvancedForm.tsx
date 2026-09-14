@@ -6,15 +6,15 @@ export const PumpAdvancedForm = ({ pumpWizard, setPumpWizard, adv, setAdv, regla
   const [showDiamPicker, setShowDiamPicker] = useState(false);
 
   const tx = (reglas as any)?.textos ?? {};
-  const tCaudal   = tx.label_caudal   ?? 'Caudal (m³/h)';
-  const tLongitud = tx.label_longitud ?? 'Longitud de Cañería (m)';
+  const tCaudal   = tx.label_caudal   ?? 'Caudal (mÂ³/h)';
+  const tLongitud = tx.label_longitud ?? 'Longitud de Caï¿½erï¿½a (m)';
   const tDesnivel = tx.label_desnivel ?? 'Altura a Elevar (m)';
-  const tDiametro = tx.label_diametro ?? 'Diámetro de Cañería';
+  const tDiametro = tx.label_diametro ?? 'Diï¿½metro de Caï¿½erï¿½a';
   const tAccesorios = tx.label_accesorios ?? 'Accesorios (Cantidades)';
   const tBtnBuscar = tx.btn_buscar ?? 'Buscar Equipos';
-  const tAvisoDiamInsuf  = tx.aviso_diametro_insuficiente ?? 'Diámetro insuficiente';
-  const tAvisoDiamBloq   = tx.aviso_diametro_bloqueado    ?? 'Rango supera tabla de fricción';
-  const tAvisoSinCaudal  = tx.aviso_sin_caudal            ?? 'Ingresá el caudal para buscar';
+  const tAvisoDiamInsuf  = tx.aviso_diametro_insuficiente ?? 'Diï¿½metro insuficiente';
+  const tAvisoDiamBloq   = tx.aviso_diametro_bloqueado    ?? 'Rango supera tabla de fricciï¿½n';
+  const tAvisoSinCaudal  = tx.aviso_sin_caudal            ?? 'Ingresï¿½ el caudal para buscar';
 
   const advQ = parseFloat(adv.caudal) || 0;
   const currentDiamSt = advQ > 0 ? interpolateFriction(advQ, adv.diamIdx).status : 'ok';
@@ -30,7 +30,7 @@ export const PumpAdvancedForm = ({ pumpWizard, setPumpWizard, adv, setAdv, regla
 
   return (
     <View style={styles.avanzadoContainer}>
-      <Text style={styles.inputTitleSmall}>Filtro de Categoría</Text>
+      <Text style={styles.inputTitleSmall}>Filtro de CategorÃ­a</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 15 }}>
         {reglas?.categorias?.map((u: any) => (
           <TouchableOpacity key={u.id} style={[styles.usoListCard, { flexGrow: 1, minWidth: '45%', padding: 10, minHeight: 40, marginRight: 0 }, pumpWizard.uso === u.id && styles.usoCardActive]} onPress={() => setPumpWizard({...pumpWizard, uso: u.id})}>
@@ -101,7 +101,7 @@ export const PumpAdvancedForm = ({ pumpWizard, setPumpWizard, adv, setAdv, regla
         disabled={!canBuscar}
       >
         <Text style={styles.calculateBtnText}>
-          {canBuscar ? tBtnBuscar : (!hasUso ? 'Seleccioná una categoría arriba' : tAvisoSinCaudal)}
+          {canBuscar ? tBtnBuscar : (!hasUso ? 'SeleccionÃ¡Ã¡ una categorï¿½a arriba' : tAvisoSinCaudal)}
         </Text>
       </TouchableOpacity>
     </View>

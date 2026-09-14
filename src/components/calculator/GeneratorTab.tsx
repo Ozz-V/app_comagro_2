@@ -43,21 +43,21 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({ genUnit, setGenUnit,
       </View>
 
       <View style={{ marginBottom: 15 }}>
-        <Text style={styles.inputTitleSmall}>Tensión eléctrica</Text>
+        <Text style={styles.inputTitleSmall}>Tensiï¿½n elï¿½ctrica</Text>
         <View style={styles.unitTabs}>
           <TouchableOpacity 
             disabled={is220Disabled}
             style={[styles.unitTabBtn, genFase === '220v' && styles.unitTabBtnActive, is220Disabled && { opacity: 0.3 }]} 
             onPress={() => {setGenFase('220v'); setHasCalculated(false);}}
           >
-            <Text style={[styles.unitTabTxt, genFase === '220v' && styles.unitTabTxtActive]}>Monofásico</Text>
+            <Text style={[styles.unitTabTxt, genFase === '220v' && styles.unitTabTxtActive]}>MonofÃ¡sico</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             disabled={is380Disabled}
             style={[styles.unitTabBtn, genFase === '380v' && styles.unitTabBtnActive, is380Disabled && { opacity: 0.3 }]} 
             onPress={() => {setGenFase('380v'); setHasCalculated(false);}}
           >
-            <Text style={[styles.unitTabTxt, genFase === '380v' && styles.unitTabTxtActive]}>Trifásico</Text>
+            <Text style={[styles.unitTabTxt, genFase === '380v' && styles.unitTabTxtActive]}>TrifÃ¡sico</Text>
           </TouchableOpacity>
         </View>
       </View>
