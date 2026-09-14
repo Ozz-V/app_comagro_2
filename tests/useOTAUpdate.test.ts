@@ -157,6 +157,23 @@ describe('useOTAUpdate hook', () => {
     expect(result.current.updateState).toBe('none');
   });
 
+  it('aborts and deletes the file if only an md5 hash is available (no MD5 fallback allowed)', async () => {
+    (FileSystem.createDownloadResumable as jest.Mock).mockReturnValue({
+      downloadAsync: jest.fn().mockResolvedValue({ uri: 'file:///docs/comagro_update.apk', status: 200, headers: { 'content-type': 'application/vnd.android.package-archive' } }),
+    });
+    (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ md5: 'def' });
+
+    const { result } = await renderHook(() => useOTAUpdate());
+    await act(async () => {
+      // sha256Override es null a propósito: solo habría un md5_hash en la fila de version_apk.
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/app_comagro_2/releases/download/rc-1/comagroapp.apk', null);
+    });
+
+    expect(FileSystem.deleteAsync).toHaveBeenCalled();
+    expect(showAlert).toHaveBeenCalledWith('Error de Actualización', expect.stringContaining('Sin hash SHA-256'));
+    expect(result.current.updateState).toBe('none');
+  });
+
   it('rejects a download whose content-type is html (e.g. an error page instead of the APK)', async () => {
     (FileSystem.createDownloadResumable as jest.Mock).mockReturnValue({
       downloadAsync: jest.fn().mockResolvedValue({ uri: 'file:///docs/comagro_update.apk', status: 200, headers: { 'content-type': 'text/html' } }),
