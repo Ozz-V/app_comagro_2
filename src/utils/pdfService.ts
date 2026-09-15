@@ -124,12 +124,12 @@ export async function generarHtmlFicha(specs: [string, string][], base64Images: 
     const maxTickH = hTicks[hTicks.length - 1];
     
     let pathD = '';
-    const curvePad = 6;
+    
     for (let i = 0; i <= 50; i++) {
        const q = finalQ * (i / 50);
        const hp = maxH * (1 - Math.pow(q / finalQ, 2));
-       const px = 50 + curvePad + (q / maxTickQ) * (240 - curvePad * 2);
-       const py = 280 - curvePad - (hp / maxTickH) * (240 - curvePad * 2);
+       const px = 50 + (q / maxTickQ) * 240;
+       const py = 280 - (hp / maxTickH) * 240;
        pathD += `${i === 0 ? 'M' : 'L'} ${px} ${py} `;
     }
     
@@ -257,12 +257,12 @@ export function generarHtmlCurva(curveData: CurvaData, modalProd: ParsedProduct,
   const maxTickH = hTicks[hTicks.length - 1];
 
   let pathD = '';
-  const curvePad = 6;
+  
   for (let i = 0; i <= 50; i++) {
     const q = finalQ * (i / 50);
     const hp = maxH * (1 - Math.pow(q / finalQ, 2));
-    const px = 50 + curvePad + (q / maxTickQ) * (240 - curvePad * 2);
-    const py = 280 - curvePad - (hp / maxTickH) * (240 - curvePad * 2);
+    const px = 50 + (q / maxTickQ) * 240;
+    const py = 280 - (hp / maxTickH) * 240;
     pathD += `${i === 0 ? 'M' : 'L'} ${px} ${py} `;
   }
 

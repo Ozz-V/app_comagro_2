@@ -11,10 +11,11 @@ interface Props {
   setPeriod: (p: string) => void;
   isAdmin: boolean;
   loading: boolean;
+  isGeneratingPdf?: boolean;
   onPdfPress: () => void;
 }
 
-export function DashboardHeader({ tab, setTab, period, setPeriod, isAdmin, loading, onPdfPress }: Props) {
+export function DashboardHeader({ tab, setTab, period, setPeriod, isAdmin, loading, onPdfPress, isGeneratingPdf }: Props) {
   return (
     <>
       <View style={s.headerRow}>
@@ -31,9 +32,15 @@ export function DashboardHeader({ tab, setTab, period, setPeriod, isAdmin, loadi
            )}
            {!isAdmin && <Text style={[s.tabText, s.tabTextActive, { padding: 6, textAlign: 'center' }]}>Mis Estadísticas Personales</Text>}
         </View>
-        <TouchableOpacity onPress={onPdfPress} style={[s.pdfBtn, { opacity: loading ? 0.5 : 1 }]} disabled={loading}>
-          <SvgIcon name="upload" size={14} color={COLORS.navy} />
-          <Text style={s.pdfBtnText}>Reporte</Text>
+        <TouchableOpacity onPress={onPdfPress} style={[s.pdfBtn, { opacity: isGeneratingPdf ? 0.7 : 1 }]} disabled={isGeneratingPdf || loading}>
+          {isGeneratingPdf ? (
+            <ActivityIndicator size="small" color={COLORS.navy} />
+          ) : (
+            <>
+              <SvgIcon name="upload" size={14} color={COLORS.navy} />
+              <Text style={s.pdfBtnText}>Reporte</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -47,7 +54,7 @@ export function DashboardHeader({ tab, setTab, period, setPeriod, isAdmin, loadi
             </TouchableOpacity>
            ))}
          </View>
-         {loading && <ActivityIndicator size="small" color={COLORS.navy} style={{ marginRight: 8 }} />}
+         
       </View>
     </>
   );

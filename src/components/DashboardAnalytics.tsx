@@ -32,7 +32,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
   const {
     tab, setTab, period, setPeriod, loading, expandedCard, setExpandedCard,
     isAdmin, isOnline, myData, globalData, myChartMetrics, globalChartMetrics,
-    imageMap, productBrandMap, cleanText, generatePdfReport
+    imageMap, productBrandMap, cleanText, generatePdfReport, isGeneratingPdf
   } = useDashboardAnalyticsLogic(onTabChange);
 
   const data = tab === 'mine' || !isAdmin ? myData : globalData;
@@ -87,7 +87,8 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
         setPeriod={setPeriod} 
         isAdmin={isAdmin} 
         loading={loading} 
-        onPdfPress={generatePdfReport} 
+        onPdfPress={generatePdfReport}
+          isGeneratingPdf={isGeneratingPdf} 
       />
 
       <ScrollView 

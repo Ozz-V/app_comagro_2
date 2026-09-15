@@ -123,6 +123,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
   const [period, setPeriod] = useState('all');
   const [loading, setLoading] = useState(true);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   const { showToast } = useCustomAlert();
   const { isOnline } = useOfflineSync();
@@ -286,7 +287,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
   }
 
   async function generatePdfReport() {
-    setLoading(true);
+    setIsGeneratingPdf(true);
     try {
       const d = tab === 'mine' || !isAdmin ? myData : globalData;
       const pLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Últimos 7 días' : period === '30d' ? 'Últimos 30 días' : 'Todo el tiempo';
@@ -373,7 +374,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
       showToast('Error generando PDF.');
       Sentry.captureException(e);
     } finally {
-      setLoading(false);
+      setIsGeneratingPdf(false);
     }
   }
 
@@ -382,6 +383,6 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
   return {
     tab, setTab, period, setPeriod, loading, expandedCard, setExpandedCard,
     isAdmin, isOnline, myData, globalData, myChartMetrics, globalChartMetrics,
-    imageMap, productBrandMap, cleanText, generatePdfReport
+    imageMap, productBrandMap, cleanText, generatePdfReport, isGeneratingPdf
   };
 }
