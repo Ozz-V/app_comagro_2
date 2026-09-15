@@ -104,6 +104,13 @@ export default function CurveModal({
                 />
               </Svg>
            </View>
+             
+             {/* Advertencia requerida */}
+             <View style={{ backgroundColor: '#fff4e5', borderColor: '#f0a93a', borderWidth: 1.5, borderRadius: 8, padding: 12, marginTop: 14, width: '100%' }}>
+               <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#7a4a05', marginBottom: 4 }}>Importante: gráfica estimativa, no oficial del fabricante</Text>
+               <Text style={{ fontSize: 11, color: '#7a4a05', lineHeight: 16 }}>Esta curva es una aproximación teórica generada a partir de los datos técnicos cargados para este producto (caudal y altura/presión máximos). No representa necesariamente la curva real publicada por el fabricante, ya que no se cuenta con la totalidad de los puntos de su curva oficial. Para datos técnicos exactos y curvas de eficiencia, consultá siempre la ficha oficial del fabricante o a un asesor de Comagro.</Text>
+             </View>
+
            </View>
            <View style={{flexDirection: 'row', gap: 10, marginTop: 10, width: '100%'}}>
             <TouchableOpacity
