@@ -70,7 +70,7 @@ describe('useOTAUpdate hook', () => {
   it('sets state to prompt with update details when a newer version exists', async () => {
     (NetInfo.fetch as jest.Mock).mockResolvedValue({ isConnected: true });
     (supabase.from as jest.Mock).mockReturnValue(buildSupabaseChain({
-      data: { version_code: 20, release_notes: 'Mejoras varias', download_url: 'https://github.com/Ozz-V/app_comagro_2/releases/download/rc-1/comagroapp.apk', sha256_hash: 'abc', md5_hash: 'def' },
+      data: { version_code: 20, release_notes: 'Mejoras varias', download_url: 'https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', sha256_hash: 'abc', md5_hash: 'def' },
       error: null,
     }));
     const { result } = await renderHook(() => useOTAUpdate());
@@ -133,7 +133,7 @@ describe('useOTAUpdate hook', () => {
 
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
-      await result.current.startDownloadUpdate('https://github.com/Ozz-V/app_comagro_2/releases/download/rc-1/comagroapp.apk', 'abc123', null);
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123', null);
     });
 
     expect(result.current.updateState).toBe('ready');
@@ -149,7 +149,7 @@ describe('useOTAUpdate hook', () => {
 
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
-      await result.current.startDownloadUpdate('https://github.com/Ozz-V/app_comagro_2/releases/download/rc-1/comagroapp.apk', 'abc123', null);
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123', null);
     });
 
     expect(FileSystem.deleteAsync).toHaveBeenCalled();
@@ -166,7 +166,7 @@ describe('useOTAUpdate hook', () => {
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
       // sha256Override es null a propósito: solo habría un md5_hash en la fila de version_apk.
-      await result.current.startDownloadUpdate('https://github.com/Ozz-V/app_comagro_2/releases/download/rc-1/comagroapp.apk', null);
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', null);
     });
 
     expect(FileSystem.deleteAsync).toHaveBeenCalled();
@@ -181,7 +181,7 @@ describe('useOTAUpdate hook', () => {
 
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
-      await result.current.startDownloadUpdate('https://github.com/Ozz-V/app_comagro_2/releases/download/rc-1/comagroapp.apk', 'abc123', null);
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123', null);
     });
 
     expect(showAlert).toHaveBeenCalledWith('Error de Actualización', expect.stringContaining('no es una APK'));
@@ -207,7 +207,7 @@ describe('useOTAUpdate hook', () => {
 
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
-      await result.current.startDownloadUpdate('https://github.com/Ozz-V/app_comagro_2/releases/download/rc-1/comagroapp.apk', 'abc123', null);
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123', null);
     });
     await act(async () => {
       await result.current.installUpdate();
