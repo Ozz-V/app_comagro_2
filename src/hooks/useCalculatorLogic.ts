@@ -57,7 +57,7 @@ export function useCalculatorLogic(visible: boolean, onClose: () => void, naviga
   const [genStats, setGenStats] = useState({ min380: 0, max220: 0 });
   const [motorState, setMotorState] = useState({ hp: '', polos: '', fase: '' });
 
-  const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' as 'l/min' | 'm3/h' | 'l/h' });
+  const [adv, setAdv] = useState({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm³/h' as 'l/min' | 'm³/h' | 'l/h' });
 
   const [calcResult, setCalcResult] = useState<ExtendedCalcProduct[] | null>(null);
   const [motorResult, setMotorResult] = useState<ExtendedCalcProduct[] | null>(null);
@@ -80,7 +80,7 @@ export function useCalculatorLogic(visible: boolean, onClose: () => void, naviga
       setWizardStep(1);
       setMotorState({ hp: '', polos: '', fase: '' });
       setPumpWizard({ uso: '', caudal: '', unidadCaudal: 'l/min', altura: '', fase: '', hp: '' });
-      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm3/h' });      
+      setAdv({ caudal: '', diamIdx: 4, lRecta: '', hGeo: '', acc: [0,0,0,0,0,0], unidadCaudal: 'm³/h' });      
       setMotorWarning(null);
       setWaitingForCatalog(false);
     }
@@ -189,18 +189,39 @@ export function useCalculatorLogic(visible: boolean, onClose: () => void, naviga
     }
   }, [calcMode]);
 
-  const handleUnitChange = (newUnit: 'l/min' | 'm3/h' | 'l/h') => {
+  
+  const handleGenUnitChange = (newUnit: 'KVA' | 'AMPER') => {
+    const currentVal = parseFloat(calcInput);
+    if (!currentVal || isNaN(currentVal)) {
+       setGenUnit(newUnit);
+       return;
+    }
+    if (genUnit === newUnit) return;
+    let newVal = currentVal;
+    if (newUnit === 'AMPER') {
+       if (genFase === '220v') newVal = (currentVal * 1000) / 220;
+       else newVal = (currentVal * 1000) / (380 * 1.732);
+    } else {
+       if (genFase === '220v') newVal = (currentVal * 220) / 1000;
+       else newVal = (currentVal * 380 * 1.732) / 1000;
+    }
+    const newValStr = Number.isInteger(newVal) ? newVal.toString() : newVal.toFixed(2).replace(/\.00$/, '');
+    setCalcInput(newValStr);
+    setGenUnit(newUnit);
+  };
+
+  const handleUnitChange = (newUnit: 'l/min' | 'm³/h' | 'l/h') => {
     const currentVal = parseFloat(pumpWizard.caudal);
     if (!currentVal || isNaN(currentVal)) {
        setPumpWizard({...pumpWizard, unidadCaudal: newUnit});
        return;
     }
     let valLpm = currentVal;
-    if (pumpWizard.unidadCaudal === 'm3/h') valLpm = currentVal * (1000/60);
+    if (pumpWizard.unidadCaudal === 'm³/h') valLpm = currentVal * (1000/60);
     else if (pumpWizard.unidadCaudal === 'l/h') valLpm = currentVal / 60;
 
     let newVal = valLpm;
-    if (newUnit === 'm3/h') newVal = valLpm / (1000/60);
+    if (newUnit === 'm³/h') newVal = valLpm / (1000/60);
     else if (newUnit === 'l/h') newVal = valLpm * 60;
 
     const newValStr = Number.isInteger(newVal) ? newVal.toString() : newVal.toFixed(2).replace(/\.00$/, '');
@@ -210,7 +231,7 @@ export function useCalculatorLogic(visible: boolean, onClose: () => void, naviga
   function getTargetCaudalLpm() {
     const targetCaudalInput = parseFloat(pumpWizard.caudal) || 0;
     let targetCaudalLpm = targetCaudalInput;
-    if (pumpWizard.unidadCaudal === 'm3/h') targetCaudalLpm = targetCaudalInput * (1000 / 60);
+    if (pumpWizard.unidadCaudal === 'm³/h') targetCaudalLpm = targetCaudalInput * (1000 / 60);
     if (pumpWizard.unidadCaudal === 'l/h') targetCaudalLpm = targetCaudalInput / 60;
     return targetCaudalLpm;
   }
@@ -319,7 +340,7 @@ export function useCalculatorLogic(visible: boolean, onClose: () => void, naviga
            targetCaudalLpm = getTargetCaudalLpm();
         } else {
            const advCaudalRaw = parseFloat(adv.caudal) || 0;
-           if (adv.unidadCaudal === 'm3/h') targetCaudalLpm = advCaudalRaw * (1000 / 60);
+           if (adv.unidadCaudal === 'm³/h') targetCaudalLpm = advCaudalRaw * (1000 / 60);
            else if (adv.unidadCaudal === 'l/h') targetCaudalLpm = advCaudalRaw / 60;
            else targetCaudalLpm = advCaudalRaw; 
            targetCaudalInput = targetCaudalLpm;
@@ -781,7 +802,8 @@ export function useCalculatorLogic(visible: boolean, onClose: () => void, naviga
     bombaTab, setBombaTab, pumpWizard, setPumpWizard, adv, setAdv, showDiamPicker, setShowDiamPicker,
     calcResult, setCalcResult, motorResult, setMotorResult, waitingForCatalog, setWaitingForCatalog,
     motorWarning, setMotorWarning, motorResultTitle, setMotorResultTitle, wizardStep, setWizardStep,
-    reglas, stepHp, handleUnitChange, handleCalculate, handleBack, getHeaderTitle
+    reglas, stepHp, handleUnitChange, handleGenUnitChange, handleCalculate, handleBack, getHeaderTitle,
+    advResults: { hTotal, perdida, lTotal, status }
   };
 }
 

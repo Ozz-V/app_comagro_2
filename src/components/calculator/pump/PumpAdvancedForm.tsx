@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, Modal, ScrollView } from 'react-native';
 import { styles } from '../CalculatorStyles';
 
-export const PumpAdvancedForm = ({ pumpWizard, setPumpWizard, adv, setAdv, reglas, handleCalculate, interpolateFriction, FRICCION_DIAMS, FIT_HEADERS, COLORS }: any) => {
-  const [showDiamPicker, setShowDiamPicker] = useState(false);
-
+export const PumpAdvancedForm = ({ pumpWizard, setPumpWizard, adv, setAdv, reglas, handleCalculate, interpolateFriction, FRICCION_DIAMS, FIT_HEADERS, COLORS, showDiamPicker, setShowDiamPicker, advResults }: any) => {
+  
   const tx = (reglas as any)?.textos ?? {};
   const tCaudal   = tx.label_caudal   ?? 'Caudal (m³/h)';
   const tLongitud = tx.label_longitud ?? 'Longitud de Ca�er�a (m)';
@@ -94,6 +93,51 @@ export const PumpAdvancedForm = ({ pumpWizard, setPumpWizard, adv, setAdv, regla
           </View>
         ))}
       </View>
+
+
+      {canBuscar && advResults && advResults.hTotal > 0 && (
+        <View style={{ backgroundColor: '#f8f9fa', padding: 12, borderRadius: 8, marginTop: 15, borderWidth: 1, borderColor: '#e1e5eb' }}>
+          <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.navy, marginBottom: 8 }}>Resultados de Cañería</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+            <Text style={{ fontSize: 13, color: '#555' }}>Long. Equivalente Total:</Text>
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#333' }}>{advResults?.lTotal?.toFixed(2)} m</Text>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+            <Text style={{ fontSize: 13, color: '#555' }}>Pérdida por Fricción:</Text>
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#333' }}>{advResults?.perdida?.toFixed(2)} m.c.a.</Text>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#e1e5eb' }}>
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: COLORS.navy }}>Altura Dinámica Total:</Text>
+            <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.green }}>{advResults?.hTotal?.toFixed(2)} m.c.a.</Text>
+          </View>
+        </View>
+      )}
+
+      <Modal visible={showDiamPicker} transparent animationType="fade" onRequestClose={() => setShowDiamPicker(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowDiamPicker(false)}>
+          <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden', maxHeight: '70%' }}>
+            <Text style={{ padding: 15, fontSize: 16, fontWeight: 'bold', backgroundColor: COLORS.navy, color: '#fff', textAlign: 'center' }}>Seleccionar Diámetro</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {FRICCION_DIAMS.map((d: any, idx: number) => {
+                const s = interpolateFriction(advQ, idx).status;
+                const isInvalid = s === 'above' || s === 'sin-datos';
+                return (
+                  <TouchableOpacity
+                    key={d}
+                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: isInvalid ? '#f9f9f9' : adv.diamIdx === idx ? '#f0f8ff' : '#fff' }}
+                    onPress={() => { if (!isInvalid) { setAdv({...adv, diamIdx: idx}); setShowDiamPicker(false); } }}
+                    disabled={isInvalid}
+                  >
+                    <Text style={{ fontSize: 15, color: isInvalid ? '#ccc' : COLORS.navy, fontWeight: adv.diamIdx === idx ? 'bold' : 'normal', textAlign: 'center' }}>
+                      {d} {isInvalid && '(Fuera de rango)'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <TouchableOpacity
         style={[styles.calculateBtn, { marginTop: 10, paddingVertical: 10 }, !canBuscar && { backgroundColor: COLORS.gray4 }]}

@@ -24,7 +24,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
     calcInput, setCalcInput, hasCalculated, setHasCalculated, motorState, setMotorState,
     bombaTab, setBombaTab, pumpWizard, setPumpWizard, adv, setAdv, showDiamPicker, setShowDiamPicker,
     calcResult, setCalcResult, motorResult, setMotorResult, waitingForCatalog, motorWarning, motorResultTitle, wizardStep, setWizardStep,
-    reglas, stepHp, handleUnitChange, handleCalculate, handleBack, getHeaderTitle
+    reglas, stepHp, handleUnitChange, handleGenUnitChange, handleCalculate, handleBack, getHeaderTitle, advResults
   } = state;
 
   return (
@@ -89,11 +89,12 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
                 <PumpTab 
                   bombaTab={bombaTab} setBombaTab={setBombaTab} 
                   pumpWizard={pumpWizard} setPumpWizard={setPumpWizard} 
-                  adv={adv} setAdv={setAdv} 
+                  adv={adv} setAdv={setAdv}
+                  showDiamPicker={showDiamPicker} setShowDiamPicker={setShowDiamPicker} advResults={advResults} 
                   setHasCalculated={setHasCalculated} handleCalculate={handleCalculate}
                   wizardStep={wizardStep} setWizardStep={setWizardStep}
                   handleUnitChange={handleUnitChange} stepHp={stepHp}
-                  showDiamPicker={showDiamPicker} setShowDiamPicker={setShowDiamPicker}
+                  
                   reglas={reglas} interpolateFriction={interpolateFriction}
                   FRICCION_DIAMS={FRICCION_DIAMS} FIT_HEADERS={FIT_HEADERS}
                   COLORS={COLORS}
@@ -102,7 +103,7 @@ export default function CalculadoraModal({ visible, onClose, navigation }: Calcu
 
               {calcMode === 'gen' && (
                 <GeneratorTab 
-                  genUnit={genUnit} setGenUnit={setGenUnit} 
+                  genUnit={genUnit} handleGenUnitChange={handleGenUnitChange} 
                   genFase={genFase} setGenFase={setGenFase} 
                   genStats={genStats} calcInput={calcInput} 
                   setCalcInput={setCalcInput} setHasCalculated={setHasCalculated} 

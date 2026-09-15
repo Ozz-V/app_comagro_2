@@ -117,7 +117,7 @@ describe('useOTAUpdate hook', () => {
   it('rejects downloading from an untrusted origin even if a checksum is provided', async () => {
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
-      await result.current.startDownloadUpdate('https://attacker.example.com/comagroapp.apk', 'abc123', null);
+      await result.current.startDownloadUpdate('https://attacker.example.com/comagroapp.apk', 'abc123');
     });
     expect(showAlert).toHaveBeenCalledWith('Error de Seguridad', expect.stringContaining('origen confiable'));
     expect(result.current.updateState).toBe('none');
@@ -133,7 +133,7 @@ describe('useOTAUpdate hook', () => {
 
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
-      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123', null);
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123');
     });
 
     expect(result.current.updateState).toBe('ready');
@@ -149,7 +149,7 @@ describe('useOTAUpdate hook', () => {
 
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
-      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123', null);
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123');
     });
 
     expect(FileSystem.deleteAsync).toHaveBeenCalled();
@@ -166,7 +166,7 @@ describe('useOTAUpdate hook', () => {
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
       // sha256Override es null a propósito: solo habría un md5_hash en la fila de version_apk.
-      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', null);
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk');
     });
 
     expect(FileSystem.deleteAsync).toHaveBeenCalled();
@@ -181,7 +181,7 @@ describe('useOTAUpdate hook', () => {
 
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
-      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123', null);
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123');
     });
 
     expect(showAlert).toHaveBeenCalledWith('Error de Actualización', expect.stringContaining('no es una APK'));
@@ -207,7 +207,7 @@ describe('useOTAUpdate hook', () => {
 
     const { result } = await renderHook(() => useOTAUpdate());
     await act(async () => {
-      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123', null);
+      await result.current.startDownloadUpdate('https://github.com/Ozz-V/comagro_apk_descargas/releases/download/rc-1/comagroapp.apk', 'abc123');
     });
     await act(async () => {
       await result.current.installUpdate();

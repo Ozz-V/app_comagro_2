@@ -5,7 +5,7 @@ import { COLORS } from '../../theme';
 
 interface GeneratorTabProps {
   genUnit: 'KVA' | 'AMPER';
-  setGenUnit: (u: 'KVA' | 'AMPER') => void;
+  handleGenUnitChange: (u: 'KVA' | 'AMPER') => void;
   genFase: '220v' | '380v';
   setGenFase: (f: '220v' | '380v') => void;
   genStats: { min380: number; max220: number };
@@ -15,7 +15,7 @@ interface GeneratorTabProps {
   handleCalculate: () => void;
 }
 
-export const GeneratorTab: React.FC<GeneratorTabProps> = ({ genUnit, setGenUnit, genFase, setGenFase, genStats, calcInput, setCalcInput, setHasCalculated, handleCalculate }) => {
+export const GeneratorTab: React.FC<GeneratorTabProps> = ({ genUnit, handleGenUnitChange, genFase, setGenFase, genStats, calcInput, setCalcInput, setHasCalculated, handleCalculate }) => {
   const genValInput = parseFloat(calcInput) || 0;
   let kva220 = genValInput;
   let kva380 = genValInput;
@@ -34,10 +34,10 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({ genUnit, setGenUnit,
     <View style={{ marginBottom: 15 }}>
       <Text style={styles.inputTitleSmall}>Unidad de medida</Text>
       <View style={[styles.unitTabs, { marginBottom: 15 }]}>
-        <TouchableOpacity style={[styles.unitTabBtn, genUnit === 'KVA' && styles.unitTabBtnActive]} onPress={() => {setGenUnit('KVA'); setHasCalculated(false);}}>
+        <TouchableOpacity style={[styles.unitTabBtn, genUnit === 'KVA' && styles.unitTabBtnActive]} onPress={() => {handleGenUnitChange('KVA'); setHasCalculated(false);}}>
           <Text style={[styles.unitTabTxt, genUnit === 'KVA' && styles.unitTabTxtActive]}>KVA</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.unitTabBtn, genUnit === 'AMPER' && styles.unitTabBtnActive]} onPress={() => {setGenUnit('AMPER'); setHasCalculated(false);}}>
+        <TouchableOpacity style={[styles.unitTabBtn, genUnit === 'AMPER' && styles.unitTabBtnActive]} onPress={() => {handleGenUnitChange('AMPER'); setHasCalculated(false);}}>
           <Text style={[styles.unitTabTxt, genUnit === 'AMPER' && styles.unitTabTxtActive]}>AMPERES</Text>
         </TouchableOpacity>
       </View>

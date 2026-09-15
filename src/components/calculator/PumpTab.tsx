@@ -11,7 +11,7 @@ export const PumpTab = ({
   setHasCalculated, handleCalculate, 
   wizardStep, setWizardStep, 
   handleUnitChange, stepHp,
-  reglas, interpolateFriction, FRICCION_DIAMS, FIT_HEADERS, COLORS
+  reglas, interpolateFriction, FRICCION_DIAMS, FIT_HEADERS, COLORS, showDiamPicker, setShowDiamPicker, advResults
 }: any) => {
   return (
     <View>
@@ -35,6 +35,9 @@ export const PumpTab = ({
           FRICCION_DIAMS={FRICCION_DIAMS}
           FIT_HEADERS={FIT_HEADERS}
           COLORS={COLORS}
+          showDiamPicker={showDiamPicker}
+          setShowDiamPicker={setShowDiamPicker}
+          advResults={advResults}
         />
       ) : (
         <PumpGuidedForm 
