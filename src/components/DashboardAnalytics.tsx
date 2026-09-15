@@ -19,7 +19,6 @@ import { useTemplate } from '../hooks/useTemplate';
 import { renderTemplate } from '../services/templateService';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
-const CACHE_KEY = 'comagro_productos_v3';
 
 import { useDashboardAnalyticsLogic, getTrend } from '../hooks/useDashboardAnalyticsLogic';
 import { DashboardHeader } from './dashboard/DashboardHeader';

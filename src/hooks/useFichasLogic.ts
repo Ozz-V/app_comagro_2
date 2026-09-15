@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from '../supabase';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
+import { useCustomAlert } from '../contexts/CustomAlertContext';
 
 export interface Ficha {
   name: string;
@@ -28,6 +29,7 @@ const BUCKET = 'Fichas';
 
 
 export function useFichasLogic() {
+  const { showAlert } = useCustomAlert();
   const [allFiles, setAllFiles]       = useState<Record<string, Ficha[]>>({});
   const [categorias, setCategorias]   = useState<string[]>([]);
   const [catActual, setCatActual]     = useState('TODAS');
@@ -196,9 +198,9 @@ export function useFichasLogic() {
       setPdfModal({ visible: true, url: data.signedUrl, title: nombre || path });
     } catch (e: unknown) {
       if ((e as Error).message === 'timeout') {
-        alert('Sin conexión. Descarga la ficha para usarla offline.');
+        showAlert('Modo Offline', 'Sin conexión. Descarga la ficha para usarla offline.');
       } else {
-        alert('Error al abrir la ficha: ' + (e as Error).message);
+        showAlert('Error', 'No se pudo abrir la ficha: ' + (e as Error).message);
       }
     } finally {
       setAbriendo(null);

@@ -14,7 +14,6 @@ import { AnalyticsRankItem } from '../types';
 import { APP_CONSTANTS } from '../config/constants';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
-const CACHE_KEY = 'comagro_productos_v3';
 
 interface DashboardData {
   views: number;
