@@ -28,7 +28,7 @@ interface DashboardData {
   users?: (AnalyticsRankItem & { user_email: string })[];
 }
 
-interface ChartMetrics {
+export interface ChartMetrics {
   start: number;   // views in the oldest third of the period
   peak: number;    // max views in any single day
   peakLabel: string; // e.g. "Hace 3d" or a date
