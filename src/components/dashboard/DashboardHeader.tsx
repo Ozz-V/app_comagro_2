@@ -38,7 +38,7 @@ export function DashboardHeader({ tab, setTab, period, setPeriod, isAdmin, loadi
       </View>
 
       <View style={[s.filtersRow, { justifyContent: 'space-between' }]}>
-         <View style={{ flexDirection: 'row', gap: 8 }}>
+         <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
            {['today', '7d', '30d', 'all'].map(p => (
             <TouchableOpacity key={p} style={[s.filterPill, period === p && s.filterPillActive]} onPress={() => setPeriod(p)}>
                <Text style={[s.filterPillText, period === p && s.filterPillTextActive]}>
