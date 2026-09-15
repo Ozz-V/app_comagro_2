@@ -15,7 +15,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 // no hay razón para que la app descargue e instale un binario desde
 // cualquier otro origen.
 const ALLOWED_DOWNLOAD_HOST = 'github.com';
-const ALLOWED_DOWNLOAD_PATH_PREFIX = '/Ozz-V/app_comagro_2/releases/download/';
+const ALLOWED_DOWNLOAD_PATH_PREFIX = '/Ozz-V/comagro_apk_descargas/releases/download/';
 
 function isDownloadUrlTrusted(url: string | null | undefined): url is string {
   if (!url) return false;
