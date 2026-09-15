@@ -390,49 +390,11 @@ Deno.serve(async (req: Request) => {
 
     // deno-lint-ignore no-explicit-any
     const dedupedContext = combinedContext.filter((item: any) => {
-      if (seenSkus.has(item.sku)) return false;
-      if (/^TEST-|-DELETE-ME$/i.test(item.sku || '')) return false;
-      if (blockSubmersible && item.sales_pitch?.toLowerCase().includes('sumergible')) return false;
-
-      if (item.__categoryWords && item.__categoryWords.size > 0) {
-        const tipo = extractProductType(item.sales_pitch || '');
-        if (tipo) {
-          const paraMatch = tipo.match(/^(.*?)\s+para\s+(.*)$/i);
-          if (paraMatch) {
-            // Tipo = "<accesorio/repuesto/ATS> PARA <maquina>". Solo es
-            // válido si el cliente pidió explícitamente un accesorio.
-            if (!isAccessoryRequest) return false;
-            // Verificar que la máquina del repuesto sea compatible con lo pedido.
-            // Usamos match parcial: si el cliente pidió "bomba", acepta
-            // "REPUESTO PARA BOMBA A COMBUSTIÓN", "REPUESTO PARA MOTOBOMBA", etc.
-            // Solo bloqueamos si la máquina del repuesto es completamente distinta
-            // (ej. el cliente pidió repuesto para bomba pero el tipo es "REPUESTO PARA GENERADOR").
-            const _maquinaDelRepuesto = normalizeWord(paraMatch[2].trim().split(/\s+/)[0] || '');
-            const ACC_GENERICAS = new Set(['repuesto', 'repuestos', 'accesorio', 'accesorios', 'pieza', 'piezas', 'parte', 'partes', 'ats']);
-            const mencionaMaquinaEspecifica = [...item.__categoryWords].some((w: string) => !ACC_GENERICAS.has(w));
-            // Si el usuario especificó una máquina (no sólo "accesorio" genérico),
-            // verificar que el repuesto sea para esa familia de máquina.
-            // Usamos contains en vez de solo primera palabra para cubrir familias.
-            if (mencionaMaquinaEspecifica) {
-              // ¿Alguna de las palabras del tipo de la máquina del repuesto aparece en __categoryWords?
-              const maquinaWords = paraMatch[2].trim().toLowerCase().split(/\s+/).map(normalizeWord);
-              const matchFound = maquinaWords.some((w: string) => !ACC_GENERICAS.has(w) && item.__categoryWords.has(w));
-              if (!matchFound) return false;
-            }
-          } else {
-            // Tipo sin "PARA": es la máquina/producto completo en sí.
-            if (isAccessoryRequest) return false;
-            const tipoPrimeraPalabra = normalizeWord(tipo.split(/\s+/)[0] || '');
-            if (!item.__categoryWords.has(tipoPrimeraPalabra)) return false;
-          }
-        }
-        // Si no se pudo extraer "Tipo de Producto" (ficha con formato viejo
-        // o distinto), no filtramos por las dudas -- mejor dejarlo pasar y
-        // que el LLM lo evalúe, a perder un producto válido por un dato
-        // faltante.
-      }
-
-      seenSkus.add(item.sku);
+        if (seenSkus.has(item.sku)) return false;
+        if (/^TEST-|-DELETE-ME$/i.test(item.sku || '')) return false;
+        if (blockSubmersible && item.sales_pitch?.toLowerCase().includes('sumergible')) return false;
+        
+        seenSkus.add(item.sku);
       return true;
     });
 
