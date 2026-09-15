@@ -1,1 +1,0 @@
-import { supabase } from './src/supabase.ts'; async function main() { const { data, error } = await supabase.from('version_apk').select('*').order('created_at', { ascending: false }).limit(1).single(); console.log('Error:', error); console.log('Data:', data); } main();
