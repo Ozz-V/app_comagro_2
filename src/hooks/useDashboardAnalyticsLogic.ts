@@ -301,7 +301,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
            
            let imgTag = '';
            if (type === 'usuarios') {
-             imgTag = `<img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${color.replace('#','')}&color=fff" class="item-img" style="border-radius:14px;">`;
+             imgTag = `<div class="item-img" style="border-radius:14px; background-color:${color}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:10px; line-height:28px; text-align:center;">${name.substring(0,2).toUpperCase()}</div>`;
              name = name.split('@')[0];
            } else if (type === 'marcas') {
              const marcaSlug = (name || '').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();

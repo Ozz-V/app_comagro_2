@@ -197,8 +197,9 @@ export function useFichasLogic() {
     } catch (e: unknown) {
       if ((e as Error).message === 'timeout') {
         alert('Sin conexión. Descarga la ficha para usarla offline.');
+      } else {
+        alert('Error al abrir la ficha: ' + (e as Error).message);
       }
-      // Otros errores se ignoran silenciosamente
     } finally {
       setAbriendo(null);
     }
