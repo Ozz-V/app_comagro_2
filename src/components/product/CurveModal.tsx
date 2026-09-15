@@ -18,7 +18,8 @@ export default function CurveModal({
   compartirCurvaPdf,
   insets,
   screenHeight,
-  LOGO_BASE
+  LOGO_BASE,
+  logoRefreshKey
 }: any) {
   if (!visible || !curveData) return null;
 

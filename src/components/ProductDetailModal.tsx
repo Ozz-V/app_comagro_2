@@ -206,7 +206,7 @@ export default function ProductDetailModal({
                 <View style={styles.fichaCard}>
                   <View style={styles.fichaHeaderMobile}>
                     <View style={styles.logoContainer}>
-                      <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg` }} style={{ width: 130, height: 60 }} contentFit="contain" />
+                      <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg${logoRefreshKey ? '?v=' + logoRefreshKey : ''}` }} style={{ width: 130, height: 60 }} contentFit="contain" />
                     </View>
                     <View style={styles.headerSeparator} />
                     <Text style={styles.headerTitleText}>FICHA TÉCNICA</Text>
@@ -410,6 +410,7 @@ export default function ProductDetailModal({
             modalProd={modalProd}
             curveCaptureRef={curveCaptureRef}
             curveSize={curveSize}
+            logoRefreshKey={logoRefreshKey}
             sharingCurvaImagen={sharingCurvaImagen}
             sharingCurvaPdf={sharingCurvaPdf}
             compartirCurvaImagen={compartirCurvaImagen}

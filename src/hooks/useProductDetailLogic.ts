@@ -366,7 +366,7 @@ export function useProductDetailLogic({
       let logoB64 = pdfCache?.logoBase64;
       if (!logoB64) {
         const marcaSlug = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-        const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg`;
+        const logoUrl = `${LOGO_BASE}${marcaSlug}.jpg${logoRefreshKey ? '?v=' + logoRefreshKey : ''}`;
         logoB64 = await fetchImageBase64(logoUrl).catch(() => '');
       }
       await generateAndShareCurvaPdf(curveData, modalProd, logoB64 || '');
