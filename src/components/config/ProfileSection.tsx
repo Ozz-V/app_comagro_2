@@ -33,8 +33,20 @@ export default function ProfileSection() {
     setProfileLoading(true);
     try {
       const cached = await AsyncStorage.getItem('@user_profile_cache');
-      if (cached && isMounted.current) {
-        const data = JSON.parse(cached);
+      let data = cached ? JSON.parse(cached) : null;
+      
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          const { data: dbProfile } = await supabase.from('profiles').select('id, full_name, avatar_url, telefono, email').eq('id', authData.user.id).single();
+          if (dbProfile) {
+            data = { ...data, ...dbProfile };
+            await AsyncStorage.setItem('@user_profile_cache', JSON.stringify(data));
+          }
+        }
+      } catch (err) {}
+
+      if (data && isMounted.current) {
         if (data.id) setUserId(data.id);
         setUserEmail(data.email || '');
         setFullName(data.full_name && data.full_name.trim() !== '' ? data.full_name : '');
