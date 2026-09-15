@@ -92,11 +92,13 @@ export default function CurveModal({
                        const maxTickQ = curveData.qTicks[curveData.qTicks.length - 1];
                        const maxTickH = curveData.hTicks[curveData.hTicks.length - 1];
                        const pad = 6;
-                       if (q > maxTickQ || hp < 0) return '';
+                       if (q > maxTickQ || hp < 0) return null;
                        const px = 50 + (q / maxTickQ) * 240;
                        const py = 280 - (hp / maxTickH) * 240;
-                       if (px > 290 - pad || py < 40 + pad) return '';
-                       return (i === 0 ? 'M' : 'L') + px + ',' + py;
+                       if (px > 290 - pad || py < 40 + pad) return null;
+                       return { px, py };
+                    }).filter((pt): pt is { px: number, py: number } => pt !== null).map((pt, index) => {
+                       return (index === 0 ? 'M' : 'L') + pt.px + ',' + pt.py;
                     }).join(' ')
                   }
                   stroke={COLORS.green}

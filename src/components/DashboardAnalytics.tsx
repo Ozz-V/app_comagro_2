@@ -95,7 +95,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
         contentContainerStyle={s.scrollContent} 
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ opacity: loading ? 0.4 : 1, flex: 1 }}>
+        <View style={{ flex: 1 }}>
           
           <DashboardKpiCards 
             views={data.views} 
