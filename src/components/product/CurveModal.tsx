@@ -84,9 +84,8 @@ export default function CurveModal({
                 <SvgText x="170" y="315" fontSize="12" fill="#555" textAnchor="middle" fontWeight="bold">Caudal (m³/h)</SvgText>
                 <SvgText x="15" y="160" fontSize="12" fill="#555" textAnchor="middle" transform="rotate(-90, 15, 160)" fontWeight="bold">Altura MCA (m)</SvgText>
 
-                <Path 
-                  d={
-                    [...Array(51).keys()].map(i => {
+                {(() => {
+                  const dStr = [...Array(51).keys()].map(i => {
                        const q = curveData.maxQ * (i / 50);
                        const hp = curveData.maxH * (1 - Math.pow(q / curveData.maxQ, 2));
                        const maxTickQ = curveData.qTicks[curveData.qTicks.length - 1];
@@ -99,12 +98,19 @@ export default function CurveModal({
                        return { px, py };
                     }).filter((pt): pt is { px: number, py: number } => pt !== null).map((pt, index) => {
                        return (index === 0 ? 'M' : 'L') + pt.px + ',' + pt.py;
-                    }).join(' ')
-                  }
-                  stroke={COLORS.green}
-                  strokeWidth="3"
-                  fill="none"
-                />
+                    }).join(' ');
+                  
+                  if (!dStr) return null; // Previene crasheos nativos en Android si no hay curva válida
+                  
+                  return (
+                    <Path 
+                      d={dStr}
+                      stroke={COLORS.green}
+                      strokeWidth="3"
+                      fill="none"
+                    />
+                  );
+                })()}
               </Svg>
            </View>
              
