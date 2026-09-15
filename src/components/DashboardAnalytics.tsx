@@ -91,10 +91,12 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
         onPdfPress={generatePdfReport} 
       />
 
-      {loading ? (
-        <ActivityIndicator size="large" color={COLORS.navy} style={s.loader} />
-      ) : (
-        <ScrollView style={s.contentArea} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={s.contentArea} 
+        contentContainerStyle={s.scrollContent} 
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ opacity: loading ? 0.4 : 1, flex: 1 }}>
           
           <DashboardKpiCards 
             views={data.views} 
@@ -118,8 +120,8 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
             renderListItem={renderListItem} 
           />
 
-        </ScrollView>
-      )}
+        </View>
+      </ScrollView>
     </View>
   );
 }

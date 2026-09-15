@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { COLORS } from '../../theme';
 import SvgIcon from '../SvgIcon';
 import { s } from './DashboardStyles';
@@ -37,14 +37,17 @@ export function DashboardHeader({ tab, setTab, period, setPeriod, isAdmin, loadi
         </TouchableOpacity>
       </View>
 
-      <View style={s.filtersRow}>
-         {['today', '7d', '30d', 'all'].map(p => (
+      <View style={[s.filtersRow, { justifyContent: 'space-between' }]}>
+         <View style={{ flexDirection: 'row', gap: 8 }}>
+           {['today', '7d', '30d', 'all'].map(p => (
             <TouchableOpacity key={p} style={[s.filterPill, period === p && s.filterPillActive]} onPress={() => setPeriod(p)}>
                <Text style={[s.filterPillText, period === p && s.filterPillTextActive]}>
                   {p === 'today' ? 'Hoy' : p === '7d' ? '7 Días' : p === '30d' ? '30 Días' : 'Todo'}
                </Text>
             </TouchableOpacity>
-         ))}
+           ))}
+         </View>
+         {loading && <ActivityIndicator size="small" color={COLORS.navy} style={{ marginRight: 8 }} />}
       </View>
     </>
   );
