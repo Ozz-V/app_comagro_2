@@ -87,6 +87,28 @@ export async function syncCatalog(
     const rows: Product[] = await res.json();
 
     if (Array.isArray(rows) && rows.length > 0) {
+        // INTEGRACIÓN AI: Obtener pitch y precio_web para inyectarlos antes de guardar
+        try {
+          const skus = rows.map((r: any) => r.SKU || r.sku);
+          const { data: aiData } = await supabase.from('productos_ai_data').select('sku, sales_pitch, precio_web').in('sku', skus);
+          if (aiData) {
+            const aiMap: Record<string, string> = {};
+            const aiMapPrecio: Record<string, number | null> = {};
+            aiData.forEach(r => {
+              aiMap[r.sku] = r.sales_pitch;
+              aiMapPrecio[r.sku] = r.precio_web;
+            });
+            rows.forEach((prod: any) => {
+              const skuStr = String(prod.SKU || prod.sku).trim();
+              prod.sales_pitch = aiMap[skuStr] || '';
+              prod.precio_web = aiMapPrecio[skuStr] || null;
+            });
+          }
+        } catch (err) {
+          console.warn('Error al mezclar AI data en syncCatalog:', err);
+        }
+
+
       // Siempre upsert — nunca se borra la tabla acá (ver database.ts).
       await insertProductsBatch(rows, manifest, !isFullSync);
       totalSynced += rows.length;
