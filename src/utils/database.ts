@@ -476,7 +476,8 @@ export async function getProductBySku(sku: string): Promise<ParsedProduct | null
     imagenOriginal: result.imagenOriginal,
     imagenes: result.imagenes_json ? JSON.parse(result.imagenes_json) : [],
     specs: result.specs_json ? JSON.parse(result.specs_json) : [],
-    sales_pitch: result.sales_pitch || ''
+    sales_pitch: result.sales_pitch || '',
+    precio_web: result.precio_web
   };
 }
 
