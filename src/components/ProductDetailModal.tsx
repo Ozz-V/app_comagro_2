@@ -1,4 +1,4 @@
-﻿import * as Sentry from '@sentry/react-native';
+import * as Sentry from '@sentry/react-native';
 import React, { useRef } from 'react';
 import { useProductDetailLogic } from '../hooks/useProductDetailLogic';
 import {
@@ -26,41 +26,41 @@ import { supabase } from '../supabase';
 import { ParsedProduct } from '../types';
 import { APP_CONSTANTS } from '../config/constants';
 import ImageViewerModal from './ImageViewerModal';
-import ProductPriceBadge from './product/ProductPriceBadge';
 import SimilarProductsTab from './product/SimilarProductsTab';
 import CurveModal from './product/CurveModal';
 import ProductSpecsTab from './product/ProductSpecsTab';
+import ProductPriceBadge from './product/ProductPriceBadge';
 
 const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 
 // --- Captura en alta calidad del PDF oculto ---------------------------------
-// react-native-pdf ajusta automÃ¡ticamente la pÃ¡gina al ancho/alto del
+// react-native-pdf ajusta automáticamente la página al ancho/alto del
 // contenedor que le demos (fit-to-container). Por eso, para exportar en mayor
-// resoluciÃ³n, alcanza con agrandar el contenedor oculto y el propio <Pdf> por
-// CAPTURE_SCALE: la pÃ¡gina se renderiza mÃ¡s grande de forma nativa, sin
-// necesidad de tocar nada mÃ¡s.
+// resolución, alcanza con agrandar el contenedor oculto y el propio <Pdf> por
+// CAPTURE_SCALE: la página se renderiza más grande de forma nativa, sin
+// necesidad de tocar nada más.
 //
 // IMPORTANTE: el <Pdf> de abajo NO debe recibir las props scale/minScale/
 // maxScale. Si a un contenedor ya agrandado (794*2 x 1123*2) se le suma
-// ademÃ¡s scale={2}, ese zoom se aplica ENCIMA del tamaÃ±o ya agrandado
-// (contenedor 2x * scale 2x = 4x el tamaÃ±o real de la pÃ¡gina), y la pÃ¡gina
-// termina siendo mucho mÃ¡s grande que el propio contenedor que la envuelve.
-// Eso es justo lo que se veÃ­a: solo un pedazo (la esquina superior, con el
-// logo) gigante y recortado, en vez de la ficha completa. El tamaÃ±o mÃ¡s
-// grande del contenedor por sÃ­ solo ya es la fuente de la mayor resoluciÃ³n.
+// además scale={2}, ese zoom se aplica ENCIMA del tamaño ya agrandado
+// (contenedor 2x * scale 2x = 4x el tamaño real de la página), y la página
+// termina siendo mucho más grande que el propio contenedor que la envuelve.
+// Eso es justo lo que se veía: solo un pedazo (la esquina superior, con el
+// logo) gigante y recortado, en vez de la ficha completa. El tamaño más
+// grande del contenedor por sí solo ya es la fuente de la mayor resolución.
 //
 // RENDIMIENTO: el costo de renderizar y comprimir la captura crece con el
-// CUADRADO de CAPTURE_SCALE (el doble de escala = 4 veces mÃ¡s pÃ­xeles). En
-// equipos de gama baja (ej. Galaxy A16) eso se nota mucho mÃ¡s que en un
+// CUADRADO de CAPTURE_SCALE (el doble de escala = 4 veces más píxeles). En
+// equipos de gama baja (ej. Galaxy A16) eso se nota mucho más que en un
 // gama alta (ej. S24 FE). Por eso:
-//  - CAPTURE_SCALE se bajÃ³ de 3 a 2: ~44% menos pÃ­xeles que a 3x, manteniendo
-//    una nitidez bastante mayor a la del tamaÃ±o original (794x1123).
-//  - La captura se exporta como JPEG (no PNG): la compresiÃ³n JPEG es
-//    sensiblemente mÃ¡s rÃ¡pida que la de PNG (que es sin pÃ©rdida), sobre todo
-//    en CPUs dÃ©biles, y el archivo resultante pesa menos. A CAPTURE_QUALITY
-//    alto (0.92) no se nota diferencia visual en una ficha tÃ©cnica.
-// Si en dispositivos muy modestos sigue sintiÃ©ndose lento, se puede bajar
-// CAPTURE_SCALE a 1.5 o incluso a 1 (sin ganancia de nitidez, pero instantÃ¡neo).
+//  - CAPTURE_SCALE se bajó de 3 a 2: ~44% menos píxeles que a 3x, manteniendo
+//    una nitidez bastante mayor a la del tamaño original (794x1123).
+//  - La captura se exporta como JPEG (no PNG): la compresión JPEG es
+//    sensiblemente más rápida que la de PNG (que es sin pérdida), sobre todo
+//    en CPUs débiles, y el archivo resultante pesa menos. A CAPTURE_QUALITY
+//    alto (0.92) no se nota diferencia visual en una ficha técnica.
+// Si en dispositivos muy modestos sigue sintiéndose lento, se puede bajar
+// CAPTURE_SCALE a 1.5 o incluso a 1 (sin ganancia de nitidez, pero instantáneo).
 const CAPTURE_SCALE = 2;
 const CAPTURE_FORMAT: 'jpg' | 'png' = 'jpg';
 const CAPTURE_QUALITY = 0.92;
@@ -148,13 +148,13 @@ export default function ProductDetailModal({
         <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', zIndex: 999 }]} pointerEvents="box-none">
           {prevProd && (
             <TouchableOpacity onPress={() => onOpenProduct(prevProd)} style={styles.navBtnLeft}>
-              <Text style={styles.navBtnText}>â€¹</Text>
+              <Text style={styles.navBtnText}>‹</Text>
             </TouchableOpacity>
           )}
 
           {nextProd && (
             <TouchableOpacity onPress={() => onOpenProduct(nextProd)} style={styles.navBtnRight}>
-              <Text style={styles.navBtnText}>â€º</Text>
+              <Text style={styles.navBtnText}>›</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -170,7 +170,7 @@ export default function ProductDetailModal({
               <Text style={[styles.modalTitle, { flex: 1, textAlign: 'center' }]} numberOfLines={1}>{modalProd?.modelo}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={{ marginLeft: 15, padding: 5 }}>
-              <Text style={styles.modalClose}>âœ• Cerrar</Text>
+              <Text style={styles.modalClose}>✕ Cerrar</Text>
             </TouchableOpacity>
           </View>
 
@@ -210,7 +210,7 @@ export default function ProductDetailModal({
                       <Image source={{ uri: `${LOGO_BASE}${(modalProd?.marca||'').toUpperCase().replace(/\s+/g,'_')}.jpg${logoRefreshKey ? '?v=' + logoRefreshKey : ''}` }} style={{ width: 130, height: 60 }} contentFit="contain" />
                     </View>
                     <View style={styles.headerSeparator} />
-                    <Text style={styles.headerTitleText}>FICHA TÃ‰CNICA</Text>
+                    <Text style={styles.headerTitleText}>FICHA TÉCNICA</Text>
                   </View>
                   <View style={styles.greenLineFull} />
 
@@ -350,10 +350,10 @@ export default function ProductDetailModal({
                   <ActivityIndicator size="large" color={COLORS.navy} style={{ marginTop: 20 }} />
                 ) : (
                   <Text style={styles.aiBodyText}>
-                    {aiData ? parseBoldText(aiData) : 'Texto inteligente en preparaciÃ³n para este producto.'}
+                    {aiData ? parseBoldText(aiData) : 'Texto inteligente en preparación para este producto.'}
                   </Text>
                 )}
-                {aiData && aiData !== 'Texto inteligente en preparaciÃ³n para este producto.' && (
+                {aiData && aiData !== 'Texto inteligente en preparación para este producto.' && (
                   <TouchableOpacity 
                     style={styles.copyBtn}
                     onPress={async () => {
@@ -511,4 +511,3 @@ const styles = StyleSheet.create({
 
   hiddenWebviewWrap: { position: 'absolute', top: -10000, left: -10000, zIndex: -10, opacity: 0 }
 });
-

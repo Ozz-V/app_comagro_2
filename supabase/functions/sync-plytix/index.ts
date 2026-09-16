@@ -398,6 +398,9 @@ Deno.serve(async (req: Request) => {
           if (
             keyLower.includes('imagen') ||
             keyLower.includes('image') ||
+              keyLower.includes('foto') ||
+              keyLower.includes('img') ||
+              keyLower.includes('thumbnail') ||
             keyLower.includes('manual') ||
             keyLower.includes('fecha') ||
             keyLower.includes('date') ||
@@ -502,7 +505,7 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
 
          const nombreProd = p['Nombre del Producto'] || p['Brand'] || sku;
          const specsText = Object.entries(p)
-            .filter(([k,v]) => v && String(v).trim() !== '' && !k.toLowerCase().includes('imagen') && !k.toLowerCase().includes('manual'))
+            .filter(([k,v]) => v && String(v).trim() !== '' && (!k.toLowerCase().includes('imagen') && !k.toLowerCase().includes('image') && !k.toLowerCase().includes('foto') && !k.toLowerCase().includes('img') && !k.toLowerCase().includes('thumbnail')) && !k.toLowerCase().includes('manual'))
             .map(([k,v]) => `${k}: ${v}`)
             .join(', ');
 
@@ -519,7 +522,7 @@ Escribe una descripción comercial y técnica (sales pitch) de EXACTAMENTE 1 pá
          }));
          const embeddingVector = embedData.embedding.values;
 
-         const ignoreKeys = ['imagen', 'manual', 'marcación pim', 'material antiguo', 'despiece', 'denominador estandar', 'volumen', 'peso neto', 'thumbnail', 'ficha tecnica', 'ficha', 'video', 'gama', 'brand logo'];
+         const ignoreKeys = ['imagen', 'image', 'foto', 'img', 'manual', 'marcación pim', 'material antiguo', 'despiece', 'denominador estandar', 'volumen', 'peso neto', 'thumbnail', 'ficha tecnica', 'ficha', 'video', 'gama', 'brand logo'];
          const specsList = [];
          for (const [key, val] of Object.entries(p)) {
              const kLower = key.toLowerCase();

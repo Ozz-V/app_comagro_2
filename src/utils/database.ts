@@ -289,7 +289,8 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
 
       const rawImages: string[] = [];
       for (const [col, val] of Object.entries(p)) {
-        if (col.toLowerCase().includes('imagen') && val && String(val).trim().length > 0) {
+        const cLower = col.toLowerCase();
+        if ((cLower.includes('imagen') || cLower.includes('image') || cLower.includes('foto') || cLower.includes('img') || cLower.includes('thumbnail')) && val && String(val).trim().length > 0) {
           const urlVal = String(val).trim();
           rawImages.push((manifest && manifest[urlVal]) || urlVal);
         }
