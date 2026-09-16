@@ -39,7 +39,7 @@ async function getAccessToken(): Promise<string | null> {
 // ─── Catálogo de Productos ────────────────────────────────────────────────────
 
 export const CACHE_TIME_KEY = 'comagro_productos_fecha_v3';
-const DATA_SCHEMA_VERSION = 'v4_fix_precio_specs'; // Cambiar este string fuerza una recarga masiva del catálogo
+const DATA_SCHEMA_VERSION = 'v1.2'; // Cambiar este string fuerza una recarga masiva del catálogo
 const SCHEMA_KEY = '@comagro_schema_version';
 const HORAS_VIGENCIA = 24;
 
