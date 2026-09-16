@@ -16,6 +16,7 @@ export interface ProductRow {
   specs_json: string;
   search_text: string;
   sales_pitch: string;
+  precio_web?: number;
 }
 
 // Singleton: una sola conexión compartida por todas las funciones.
@@ -403,7 +404,8 @@ export async function searchProducts(marcaFiltro: string, subcatFiltro: string, 
     imagen: r.imagen, imagenOriginal: r.imagenOriginal,
     imagenes: r.imagenes_json ? JSON.parse(r.imagenes_json) : [],
     specs: r.specs_json ? JSON.parse(r.specs_json) : [],
-    sales_pitch: r.sales_pitch || ''
+    sales_pitch: r.sales_pitch || '',
+    precio_web: r.precio_web
   }));
 }
 
@@ -428,7 +430,8 @@ export async function getProductsBySubcategory(substring: string, excludeAccesso
     imagenOriginal: r.imagenOriginal,
     imagenes: r.imagenes_json ? JSON.parse(r.imagenes_json) : [],
     specs: r.specs_json ? JSON.parse(r.specs_json) : [],
-    sales_pitch: r.sales_pitch || ''
+    sales_pitch: r.sales_pitch || '',
+    precio_web: r.precio_web
   }));
 }
 
@@ -487,6 +490,7 @@ export async function getAllProducts(): Promise<ParsedProduct[]> {
     imagenOriginal: r.imagenOriginal,
     imagenes: r.imagenes_json ? JSON.parse(r.imagenes_json) : [],
     specs: r.specs_json ? JSON.parse(r.specs_json) : [],
-    sales_pitch: r.sales_pitch || ''
+    sales_pitch: r.sales_pitch || '',
+    precio_web: r.precio_web
   }));
 }

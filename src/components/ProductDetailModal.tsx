@@ -26,6 +26,7 @@ import { supabase } from '../supabase';
 import { ParsedProduct } from '../types';
 import { APP_CONSTANTS } from '../config/constants';
 import ImageViewerModal from './ImageViewerModal';
+import ProductPriceBadge from './product/ProductPriceBadge';
 import SimilarProductsTab from './product/SimilarProductsTab';
 import CurveModal from './product/CurveModal';
 import ProductSpecsTab from './product/ProductSpecsTab';
@@ -450,7 +451,7 @@ const styles = StyleSheet.create({
   modalBody: { padding: 18 },
 
   fichaCard: { backgroundColor: COLORS.white, padding: 15, borderRadius: 8 },
-  fichaHeaderMobile: { flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', marginBottom: 10 },
+    fichaHeaderMobile: { flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', marginBottom: 10 },
   logoContainer: { width: 140, justifyContent: 'center', alignItems: 'center' },
   headerSeparator: { width: 1, height: 30, backgroundColor: '#a0a0a0', marginHorizontal: 10 },
   headerTitleText: { fontFamily: FONTS.heading, fontSize: 16, color: '#0a2566', letterSpacing: 1 },

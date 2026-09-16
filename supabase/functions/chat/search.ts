@@ -22,9 +22,17 @@ type Quantity = { value: number; unit: string } | null;
 
 export type Target = { value: number; unit: "kva" | "bar" | "kg" | "kw" | "m3h"; estimated?: boolean; sizeBias?: "closest" | "smallest" } | null;
 
-type ParsedGroup = { terms: string[]; quantity: Quantity };
+type ParsedGroup = { terms: string[]; quantity: Quantity; brand: string | null };
 
-export type IntentGroup = { terms: string[]; target: Target };
+// brand: cuando el cliente nombra explícitamente una marca (ej. "Prysmian",
+// "Cobreflex", "Honda"), viaja en este campo SEPARADO de 'terms' -- no
+// mezclada como un término más entre categoría/sinónimos/unidades. Esto es
+// lo que permite en index.ts tratarla con la MISMA prioridad que un SKU
+// exacto (ver brandSearch más abajo y REGLA_DE_MARCA_EXPLICITA en
+// index.ts): si el cliente nombra la marca, sus productos van SIEMPRE en
+// la respuesta, sin competir por el cupo genérico de 40 resultados con
+// categorías/marcas que el cliente ni pidió.
+export type IntentGroup = { terms: string[]; target: Target; brand: string | null };
 
 type ConversionContext = {
   isResidential: boolean;
@@ -382,13 +390,14 @@ export async function extractIntent(chatHistoryText: string, productTypes: strin
               + `REGLA DE SUBTIPOS DEL MISMO OBJETO: en la lista real vas a encontrar casos donde el mismo objeto tiene varias categorías separadas por subtipo/variante (ej. "PANEL SOLAR BIFACIAL" y "PANEL SOLAR MONOCRISTALINO" son ambas variantes de panel solar; "BOMBA DE AGUA" y "MOTOBOMBA" podrían convivir como categorías separadas). Si el cliente pidió el objeto en general SIN especificar la variante/subtipo (ej. "un panel solar" sin decir bifacial o monocristalino), incluí TODAS las categorías reales de la lista que sean subtipos de ese mismo objeto como términos del MISMO grupo (no elijas una sola variante a ciegas y no generes grupos separados por subtipo tampoco, van todas juntas en un solo grupo). Si el cliente sí especificó la variante, priorizá esa categoría real puntual. `
               + `REGLA DE ACCESORIO/REPUESTO PARA UNA MÁQUINA ESPECÍFICA: en la lista de categorías reales vas a encontrar variantes con calificador, tipo "REPUESTOS PARA X", "ACCESORIOS PARA X", "ATS PARA X". Si el cliente pide explícitamente un repuesto, accesorio, pieza o ATS (con esas palabras o similares) PARA una máquina puntual que nombró, elegí la categoría real con calificador que corresponda (ej. "REPUESTOS PARA GENERADOR") en vez de la categoría de la máquina completa. Si el cliente NO usó ninguna palabra de accesorio/repuesto (solo describió una necesidad o pidió la máquina en sí), NUNCA elijas una categoría con calificador "PARA X" -- elegí la categoría de la máquina completa. Si pide el accesorio suelto sin nombrar ninguna máquina (ej. "necesito un arnés" a secas), buscá en la lista real cuál categoría con calificador podría aplicar, sin asumir una máquina específica. `
               + `GLOSARIO DE VOCABULARIO TÉCNICO DEL RUBRO (MÁXIMA PRIORIDAD - APLICA ANTES QUE CUALQUIER OTRA REGLA): Antes de elegir cualquier categoría, lee si el cliente mencionó alguno de estos indicadores de tipo de motor/combustible y actúa según la instrucción: SI el cliente menciona "diesel", "gasoil", "gas oil", "nafta", "a nafta", "a gasolina", "naftero", "a combustión", "a motor", o "a explosión" junto con cualquier tipo de bomba o máquina → DEBES usar EXCLUSIVAMENTE la categoría de la lista que contenga la palabra COMBUSTIÓN (ej. BOMBA A COMBUSTIÓN, COMPRESOR A COMBUSTIÓN, etc.). En este caso NO uses ninguna categoría que empiece con MOTOBOMBA, ELECTROBOMBA ni ninguna otra variante eléctrica. La palabra "diesel", "nafta" o "gasolina" ES la especificación de la variante y CANCELA la regla de subtipos (no incluyas los subtipos eléctricos). SI el cliente NO menciona ningún combustible ni tipo de motor → aplica la regla de subtipos normalmente. PREFIJO "MOTO-" SIN COMBUSTIBLE ESPECIFICADO: "motobomba" a secas (sin diesel/nafta/gasolina) → puede ser eléctrica o a combustión, aplica la regla de subtipos e incluye ambas familias. EQUIVALENCIAS ADICIONALES: "desmalezadora", "desbrozadora", "bordeadora", "motoguadaña" → misma familia, incluye todas. "generador", "grupo electrógeno", "planta eléctrica" → misma familia. `
-              + `REGLA DE MARCAS Y MODELOS (CRÍTICA): Si el cliente menciona explícitamente una MARCA (ej. 'Prysmian', 'Honda', 'Stihl') o un modelo específico en su mensaje, DEBES incluir obligatoriamente esa marca o modelo dentro del array de 'terms' de ese producto. Si no lo incluyes, el motor de búsqueda no podrá encontrar esa marca. `
+              + `REGLA DE MARCAS Y MODELOS (CRÍTICA, MÁXIMA PRIORIDAD): Si el cliente menciona explícitamente una MARCA (ej. 'Prysmian', 'Cobreflex', 'Honda', 'Stihl') en su mensaje, DEBES reportar esa marca EXACTAMENTE como la escribió (con mayúscula inicial, ej. "Prysmian") en el campo SEPARADO 'brand' de ese grupo -- 'brand' NUNCA debe quedar null si el cliente nombró una marca real, ignorar una marca mencionada es INADMISIBLE. Además, podés (opcionalmente) incluir esa misma marca también dentro de 'terms' como variante de búsqueda extra, pero el campo 'brand' es el obligatorio y el que realmente importa. Si el cliente NO menciona ninguna marca, 'brand' debe ser null -- NUNCA inventes ni asumas una marca que el cliente no dijo. Un modelo específico sin marca (ej. un código de producto) va SOLO en 'terms', no en 'brand'. `
                 + `REGLA DE UNIDADES (MUY IMPORTANTE): Si el usuario menciona una cantidad con unidad de medida (amperios, PSI, libras, litros por minuto, pies cúbicos, caballos de fuerza, kVA, kW, bar, kg, m3/h, o cualquier otra), tenés PROHIBIDO convertirla vos mismo. Tu único trabajo con eso es reportarla TAL CUAL la escribió el cliente en el campo 'quantity' del grupo correspondiente (value: número, unit: la unidad tal cual la escribió, ej. 'amperios', 'psi', 'hp'). La conversión matemática la hace otro sistema después. NO agregues variantes de búsqueda ya convertidas a otra unidad -- eso ya no es tu trabajo. `
-              + "Responde ÚNICAMENTE con un array JSON de objetos, cada uno con 'terms' (array de strings con sinónimos/variantes de búsqueda, SIN conversiones de unidad) y 'quantity' (objeto {value, unit} tal cual lo escribió el cliente, o null si no mencionó ninguna cantidad con unidad). "
-              + "Ejemplo para 1 producto sin cantidad: [{\"terms\":[\"panel solar\",\"paneles solares\"],\"quantity\":null}]. "
-              + "Ejemplo con cantidad (generador por amperios): pedido 'generador de 50 A para mi casa' -> [{\"terms\":[\"generador\",\"generadores\",\"grupo electrogeno\",\"planta electrica\"],\"quantity\":{\"value\":50,\"unit\":\"amperios\"}}]. "
-              + "Ejemplo con cantidad (compresor por PSI): pedido 'compresor de 90 psi' -> [{\"terms\":[\"compresor\",\"compresores\",\"compresor de aire\"],\"quantity\":{\"value\":90,\"unit\":\"psi\"}}]. "
-              + "Ejemplo con 2 productos distintos a la vez: [{\"terms\":[\"bomba de agua\",\"bombas de agua\"],\"quantity\":null},{\"terms\":[\"motor electrico\",\"motores electricos\"],\"quantity\":null}]."
+              + "Responde ÚNICAMENTE con un array JSON de objetos, cada uno con 'terms' (array de strings con sinónimos/variantes de búsqueda, SIN conversiones de unidad), 'quantity' (objeto {value, unit} tal cual lo escribió el cliente, o null si no mencionó ninguna cantidad con unidad) Y 'brand' (string con la marca EXACTA que mencionó el cliente, o null si no mencionó ninguna marca). "
+              + "Ejemplo para 1 producto sin cantidad ni marca: [{\"terms\":[\"panel solar\",\"paneles solares\"],\"quantity\":null,\"brand\":null}]. "
+              + "Ejemplo con marca: pedido 'necesito cable Prysmian' -> [{\"terms\":[\"cable\",\"cables\",\"Prysmian\"],\"quantity\":null,\"brand\":\"Prysmian\"}]. "
+              + "Ejemplo con cantidad (generador por amperios): pedido 'generador de 50 A para mi casa' -> [{\"terms\":[\"generador\",\"generadores\",\"grupo electrogeno\",\"planta electrica\"],\"quantity\":{\"value\":50,\"unit\":\"amperios\"},\"brand\":null}]. "
+              + "Ejemplo con cantidad (compresor por PSI): pedido 'compresor de 90 psi' -> [{\"terms\":[\"compresor\",\"compresores\",\"compresor de aire\"],\"quantity\":{\"value\":90,\"unit\":\"psi\"},\"brand\":null}]. "
+              + "Ejemplo con 2 productos distintos a la vez: [{\"terms\":[\"bomba de agua\",\"bombas de agua\"],\"quantity\":null,\"brand\":null},{\"terms\":[\"motor electrico\",\"motores electricos\"],\"quantity\":null,\"brand\":null}]."
           }]
         },
         contents: [{ role: "user", parts: [{ text: chatHistoryText }] }],
@@ -406,13 +415,14 @@ export async function extractIntent(chatHistoryText: string, productTypes: strin
 
         // deno-lint-ignore no-explicit-any
         const groups: ParsedGroup[] = (parsed as any[]).map((g) => {
-          if (Array.isArray(g)) return { terms: g.filter(Boolean), quantity: null };
-          if (typeof g === "string") return { terms: [g], quantity: null };
+          if (Array.isArray(g)) return { terms: g.filter(Boolean), quantity: null, brand: null };
+          if (typeof g === "string") return { terms: [g], quantity: null, brand: null };
           return {
             terms: Array.isArray(g?.terms) ? g.terms.filter(Boolean) : [],
             quantity: g?.quantity && typeof g.quantity.value === "number" && typeof g.quantity.unit === "string"
               ? { value: g.quantity.value, unit: g.quantity.unit }
               : null,
+            brand: typeof g?.brand === "string" && g.brand.trim().length > 0 ? g.brand.trim() : null,
           };
         });
 
@@ -453,7 +463,7 @@ export async function extractIntent(chatHistoryText: string, productTypes: strin
             }
           }
 
-          return { terms, target };
+          return { terms, target, brand: g.brand };
         });
       } catch (_err) { /* ignore parse error */ }
     }
@@ -538,6 +548,42 @@ export function groupMatchesText(group: string[], text: string): boolean {
       .filter(w => w.length > 2 && !STOPWORDS.has(w));
     return words.some(w => lowerText.includes(w));
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BÚSQUEDA DEDICADA POR MARCA (prioridad tipo "SKU exacto"):
+// cuando extractIntent reporta un 'brand' explícito para un grupo, este es
+// el único camino de búsqueda para ese grupo en lo que a marca respecta --
+// no depende del límite de 4 frases ni del ruido de las categorías
+// genéricas de keywordSearch (ver ese comentario más abajo). Se busca
+// directo por el nombre de marca dentro de sales_pitch, con un límite
+// generoso (60) para no perder variantes de esa marca. index.ts es quien
+// decide después si además filtra estos resultados por relevancia de
+// categoría (ver REGLA_DE_MARCA_EXPLICITA) y quien los marca con
+// __groupIndex negativo para que NUNCA compitan por el cupo genérico de 40
+// resultados por grupo -- la marca pedida por el cliente SIEMPRE debe
+// llegar a la respuesta final, sin excepción.
+// deno-lint-ignore no-explicit-any
+export async function brandSearch(supabase: any, brand: string): Promise<any[]> {
+  try {
+    const clean = brand.trim().toLowerCase().replace(/[%,()*]/g, '');
+    if (clean.length < 3) return [];
+
+    const { data, error } = await supabase
+      .from('productos_ai_data')
+      .select('sku, sales_pitch')
+      .ilike('sales_pitch', `%${clean}%`)
+      .limit(60);
+
+    if (error) {
+      console.error(JSON.stringify({ event: "brand_search_failed", error: error.message }));
+      return [];
+    }
+    return data || [];
+  } catch (e) {
+    console.error(JSON.stringify({ event: "brand_search_failed", error: String(e) }));
+    return [];
+  }
 }
 
 // deno-lint-ignore no-explicit-any

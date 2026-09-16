@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getDefaultMetrics, checkBan, resetCountersIfNeeded, checkQuotaExceeded, processStrike } from "./metrics.ts";
-import { extractIntent, getEmbedding, vectorSearch, keywordSearch, groupMatchesText, getProductTypes, filterProductTypesForQuery, Target } from "./search.ts";
+import { extractIntent, getEmbedding, vectorSearch, keywordSearch, brandSearch, groupMatchesText, getProductTypes, filterProductTypesForQuery, Target } from "./search.ts";
 import { generateResponse, parseLearnTag, saveLearnedRule, stripHallucinatedSkus } from "./ai.ts";
 import { GEMINI_KEYS, checkGeminiHealth } from "./gemini.ts";
 
@@ -36,6 +36,60 @@ function extractProductType(text: string): string | null {
   return m ? m[1].trim() : null;
 }
 
+// Extrae el campo estructurado "Marca" del bloque de especificaciones
+// técnicas dentro de sales_pitch, con el mismo criterio que
+// extractProductType (mismo pipeline de generación del catálogo/Plytix,
+// donde "Marca" es un atributo estándar junto a "Tipo de Producto"). Si el
+// campo estructurado no está presente en algún registro viejo, se prueba
+// una segunda variante de etiqueta ("Fabricante") antes de rendirse.
+// OJO: si en tu catálogo real el campo tiene otro nombre exacto, avisá para
+// ajustar el regex -- mientras tanto esta función simplemente devuelve null
+// y el resto del código sigue funcionando igual que antes (sin diversidad
+// forzada por marca, pero sin romper nada).
+function extractBrand(text: string): string | null {
+  if (!text) return null;
+  const m = text.match(/\*\*Marca:\*\*\s*([^\n*]+)/i) || text.match(/\*\*Fabricante:\*\*\s*([^\n*]+)/i) || text.match(/\*\*Brand:\*\*\s*([^\n*]+)/i);
+  return m ? m[1].trim() : null;
+}
+
+// Reordena un grupo de candidatos ya ordenados por relevancia/cercanía para
+// que, si hay más de una marca presente, se intercalen en round-robin
+// (1ro de marca A, 1ro de marca B, 2do de marca A, 2do de marca B, ...) en
+// vez de dejar que la relevancia textual cruda apile todos los de una sola
+// marca al principio. Esto es lo que garantiza la variedad de marca en
+// pedidos SIN marca explícita (ver REGLA_DE_VARIEDAD_SIN_ESPECIFICIDAD) --
+// no dependemos de que el LLM la note y la aplique solo, la lista que
+// recibe ya viene mezclada. Se preserva el orden relativo DENTRO de cada
+// marca (la relevancia real sigue mandando ahí). Si solo hay una marca (o
+// ninguna detectable), devuelve la lista intacta -- no-op.
+// deno-lint-ignore no-explicit-any
+function diversifyByBrand(items: any[]): any[] {
+  // deno-lint-ignore no-explicit-any
+  const buckets = new Map<string, any[]>();
+  const brandOrder: string[] = [];
+  for (const item of items) {
+    const brand = extractBrand(item.sales_pitch || '') || '__sin_marca_detectada__';
+    if (!buckets.has(brand)) { buckets.set(brand, []); brandOrder.push(brand); }
+    buckets.get(brand)!.push(item);
+  }
+  if (brandOrder.length <= 1) return items;
+
+  // deno-lint-ignore no-explicit-any
+  const result: any[] = [];
+  let addedAny = true;
+  while (addedAny) {
+    addedAny = false;
+    for (const brand of brandOrder) {
+      const bucket = buckets.get(brand)!;
+      if (bucket.length > 0) {
+        result.push(bucket.shift());
+        addedAny = true;
+      }
+    }
+  }
+  return result;
+}
+
 // Normaliza una palabra para comparar sin acentos, mayúsculas ni plural
 // simple (ej. "Generadores" y "generador" deben compararse iguales).
 function normalizeWord(s: string): string {
@@ -47,6 +101,7 @@ function normalizeWord(s: string): string {
   if (clean.endsWith('s')) return clean.slice(0, -1);
   return clean;
 }
+
 
 function extractSpecValue(text: string, unit: NonNullable<Target>["unit"]): number | null {
   if (!text) return null;
@@ -245,11 +300,17 @@ Deno.serve(async (req: Request) => {
     // queryGroups: un grupo (array de variantes/sinónimos) por cada producto detectado.
     // groupTargets: el objetivo numérico ya convertido para ese grupo (o null si el
     // pedido no tenía ninguna cantidad con unidad), en el mismo orden que queryGroups.
+    // groupBrands: la marca EXPLÍCITA que el cliente nombró para ese grupo (o null),
+    // en el mismo orden -- ver REGLA_DE_MARCA_EXPLICITA más abajo. Viaja separada de
+    // queryGroups porque una marca nunca debe competir/perderse dentro de la misma
+    // lógica de sinónimos genéricos de categoría.
     let queryGroups: string[][] = [[lastMessage]];
     let groupTargets: Target[] = [null];
+    let groupBrands: (string | null)[] = [null];
     if (intents && intents.length > 0) {
       queryGroups = intents.map(i => i.terms);
       groupTargets = intents.map(i => i.target);
+      groupBrands = intents.map(i => i.brand);
     }
 
     // Fallback: si el extractor de intents devolvió un solo grupo pero el mensaje
@@ -263,6 +324,7 @@ Deno.serve(async (req: Request) => {
       if (naiveSplit.length > 1) {
         queryGroups = naiveSplit.map((q: string) => [q]);
         groupTargets = naiveSplit.map(() => null);
+        groupBrands = naiveSplit.map(() => null);
       }
     }
 
@@ -304,9 +366,40 @@ Deno.serve(async (req: Request) => {
       keywordSearch(supaAdmin, g).then((rows: any[]) => rows.map(r => ({ ...r, __target: groupTargets[i], __categoryWords: groupCategoryWords[i], __groupIndex: i })))
     );
 
-    const [vResults, kwResults] = await Promise.all([
+    // BÚSQUEDA POR MARCA (prioridad tipo SKU exacto): si el cliente nombró
+    // una marca explícita para este grupo, se busca directo por marca en
+    // vez de depender de keywordSearch/vectorSearch genéricos. Se etiqueta
+    // con __groupIndex NEGATIVO (distinto de -1, que queda reservado para
+    // matches de SKU/código exacto) para que más abajo (ver
+    // CORTE_POR_GRUPO) estos resultados NUNCA compitan por el cupo
+    // genérico de 40 -- la marca pedida SIEMPRE llega a la respuesta
+    // final, sea cual sea el volumen de la categoría genérica.
+    // Se filtra por relevancia de categoría (groupMatchesText) para no
+    // mezclar productos de otro rubro que casualmente mencionen la marca
+    // de pasada -- pero si ESE filtro deja todo afuera, se usa la lista
+    // completa de la marca sin filtrar (mejor eso que decir "no tenemos"
+    // cuando sí hay stock de esa marca).
+    // deno-lint-ignore no-explicit-any
+    const brandPromises = queryGroups.map((g, i) => {
+      const brand = groupBrands[i];
+      if (!brand) return Promise.resolve([] as any[]);
+      return brandSearch(supaAdmin, brand).then((rows: any[]) => {
+        const relevantToCategory = rows.filter((r: any) => groupMatchesText(g, r.sales_pitch || ''));
+        const finalRows = relevantToCategory.length > 0 ? relevantToCategory : rows;
+        return finalRows.map((r: any) => ({
+          ...r,
+          __target: groupTargets[i],
+          __categoryWords: groupCategoryWords[i],
+          __groupIndex: -(2 + i),
+          __brand: brand,
+        }));
+      });
+    });
+
+    const [vResults, kwResults, brandResults] = await Promise.all([
       Promise.all(vectorPromises),
-      Promise.all(keywordPromises)
+      Promise.all(keywordPromises),
+      Promise.all(brandPromises),
     ]);
     const t_search_ms = Date.now() - t_search_start;
 
@@ -325,8 +418,17 @@ Deno.serve(async (req: Request) => {
 
     const configDataRes = await configPromise;
 
+    // deno-lint-ignore no-explicit-any
+    const brandContext: any[] = [];
+    brandResults.forEach(rows => { brandContext.push(...rows); });
+    const hasBrandRequest = groupBrands.some(b => !!b);
+
     // ── Assemble Context ──
-    const combinedContext = [...exactContext, ...vectorData];
+    // Orden de prioridad: SKU exacto primero, marca explícita segundo (ambos
+    // van a __groupIndex negativo y nunca compiten por el cupo genérico --
+    // ver REGLA_DE_PRIORIDAD_SKU_MARCA), y recién después el pool genérico
+    // de categoría/semántica.
+    const combinedContext = [...exactContext, ...brandContext, ...vectorData];
     const seenSkus = new Set();
 
     const isMotorQuery = /\bmotor(es)?\b/i.test(lastMessage);
@@ -394,6 +496,14 @@ Deno.serve(async (req: Request) => {
         if (/^TEST-|-DELETE-ME$/i.test(item.sku || '')) return false;
         if (blockSubmersible && item.sales_pitch?.toLowerCase().includes('sumergible')) return false;
         
+        if (!isAccessoryRequest) {
+            const tipoReal = extractProductType(item.sales_pitch || '') || '';
+            const tipoUpper = tipoReal.toUpperCase();
+            if (tipoUpper.includes('REPUESTO') || tipoUpper.includes('ACCESORIO') || tipoUpper.includes('ATS PARA')) {
+                return false; 
+            }
+        }
+        
         seenSkus.add(item.sku);
       return true;
     });
@@ -420,13 +530,14 @@ Deno.serve(async (req: Request) => {
     //    recomendación principal, el más grande como referencia).
     // deno-lint-ignore no-explicit-any
     const annotatedContext = dedupedContext.map((item: any) => {
-      if (!item.__target) return { ...item, __specNote: '', __ratio: null, __sortKey: null };
+      const brandNote = item.__brand ? ` (coincide con la marca pedida: ${item.__brand})` : '';
+      if (!item.__target) return { ...item, __specNote: brandNote, __ratio: null, __sortKey: null };
       const spec = extractSpecValue(item.sales_pitch || '', item.__target.unit);
-      if (spec == null) return { ...item, __specNote: '', __ratio: null, __sortKey: null };
+      if (spec == null) return { ...item, __specNote: brandNote, __ratio: null, __sortKey: null };
       const unitLabel = item.__target.unit.toUpperCase();
 
       if (item.__target.sizeBias === "smallest") {
-        const note = ` (potencia detectada: ~${spec} ${unitLabel})`;
+        const note = ` (potencia detectada: ~${spec} ${unitLabel})${brandNote}`;
         return { ...item, __specNote: note, __ratio: null, __sortKey: spec };
       }
 
@@ -439,7 +550,7 @@ Deno.serve(async (req: Request) => {
       // "muy diferente" con corte fijo. El LLM decide con el número real
       // qué tan razonable es, según el tipo de producto y la situación.
       const vecesTexto = ratio >= 1 ? `${round1(ratio)}x el objetivo` : `${round1(1 / ratio)}x más chico que el objetivo`;
-      const note = ` (especificación detectada: ~${spec} ${unitLabel} — objetivo ${item.__target.estimated ? 'estimado' : 'del cliente'}: ${item.__target.value} ${unitLabel}, es decir ${vecesTexto}${estimatedNote})`;
+      const note = ` (especificación detectada: ~${spec} ${unitLabel} — objetivo ${item.__target.estimated ? 'estimado' : 'del cliente'}: ${item.__target.value} ${unitLabel}, es decir ${vecesTexto}${estimatedNote})${brandNote}`;
       return { ...item, __specNote: note, __ratio: ratio, __sortKey: Math.abs(Math.log(ratio)) };
     });
 
@@ -485,9 +596,21 @@ Deno.serve(async (req: Request) => {
         const kb = b.__sortKey == null ? Infinity : b.__sortKey;
         return ka - kb;
       });
+
+      // DIVERSIDAD_POR_MARCA: solo para grupos genéricos (gi >= 0) donde el
+      // cliente NO pidió una marca explícita -- si gi < 0 son matches de
+      // SKU o de marca explícita (ver brandSearch), y ahí NO se diversifica
+      // porque el cliente ya eligió con qué quedarse. Reordena para que,
+      // si hay más de una marca entre los candidatos, no queden todos los
+      // de una sola marca acaparando el cupo antes de llegar a las demás.
+      const requestedBrand = gi >= 0 ? groupBrands[gi] : null;
+      const orderedItems = (gi >= 0 && !requestedBrand) ? diversifyByBrand(items) : items;
+
       // gi === -1 son matches por SKU/modelo EXACTO mencionado literal en
-      // el mensaje -- van todos siempre, no compiten por cupo.
-      finalContext.push(...(gi === -1 ? items : items.slice(0, perGroupCap)));
+      // el mensaje. gi < -1 (ver -(2+i) más arriba) son matches de MARCA
+      // explícita. Ambos casos van TODOS siempre, no compiten por cupo --
+      // ver REGLA_DE_PRIORIDAD_SKU_MARCA.
+      finalContext.push(...(gi < 0 ? orderedItems : orderedItems.slice(0, perGroupCap)));
     });
 
     let dbContextText = '';
@@ -520,6 +643,32 @@ Deno.serve(async (req: Request) => {
       if (exactMatches.length > 4) {
         dbContextText += `\n\nREGLA DE VARIANTES DEL MISMO CÓDIGO (MUY IMPORTANTE): el código que escribió el cliente coincide con ${exactMatches.length} productos distintos de la lista de arriba (son variantes/repuestos de la misma familia), pero tu límite es 4 productos por mensaje. Mostrale las primeras 4 variantes de esa lista, en el mismo orden en que aparecen arriba, y cerrá tu respuesta preguntándole si quiere ver las demás variantes disponibles para ese código. Fijate en tu propio mensaje anterior del historial: si ya le mostraste algunas de estas variantes y el usuario ahora te está confirmando que quiere ver más ("sí", "dale", "mostrame", "quiero ver más", etc.), mostrale las siguientes 4 que NO le hayas mostrado todavía (nunca repitas una que ya le pasaste), y volvé a preguntar si quiere ver más SOLO si todavía quedan variantes sin mostrar. Si ya le mostraste todas las que había, no vuelvas a preguntar ni digas que hay más.`;
       }
+
+      // NOTA_DE_MARCAS_DETECTADAS: para cada grupo genérico (sin marca
+      // pedida) donde el pool de candidatos trae MÁS de una marca real
+      // (ver extractBrand), se lo decimos al LLM con los nombres REALES y
+      // concretos -- no dejamos que lo infiera solo leyendo 40 descripciones.
+      // Esto es lo que hace confiable la REGLA DE VARIEDAD SIN
+      // ESPECIFICIDAD: la lista que ya armamos (diversifyByBrand) viene
+      // intercalada, y acá reforzamos con la instrucción explícita de
+      // nombrarlas en la primera oración, tal como pidió el cliente.
+      // deno-lint-ignore no-explicit-any
+      const brandsPresentByGroup = new Map<number, Set<string>>();
+      // deno-lint-ignore no-explicit-any
+      finalContext.forEach((item: any) => {
+        if (typeof item.__groupIndex !== 'number' || item.__groupIndex < 0) return;
+        if (groupBrands[item.__groupIndex]) return; // marca explícita: no aplica esta nota
+        const b = extractBrand(item.sales_pitch || '');
+        if (!b) return;
+        if (!brandsPresentByGroup.has(item.__groupIndex)) brandsPresentByGroup.set(item.__groupIndex, new Set());
+        brandsPresentByGroup.get(item.__groupIndex)!.add(b);
+      });
+      brandsPresentByGroup.forEach((brandsSet, gi) => {
+        if (brandsSet.size <= 1) return;
+        const brandsList = [...brandsSet].join(', ');
+        const pedidoRef = queryGroups[gi]?.[0] || 'este producto';
+        dbContextText += `\n\nMARCAS DISPONIBLES PARA "${pedidoRef}" (el cliente NO pidió una marca puntual): ${brandsList}. Para este pedido, tu respuesta DEBE incluir productos de más de una de estas marcas entre tus sugerencias (no repitas siempre la misma), y tu primera oración debe nombrarlas explícitamente, por ejemplo: "Contamos con ${pedidoRef} de las marcas ${brandsList}:".`;
+      });
     }
 
     let aiPrompt = `Eres el asesor experto de ventas de Comagro. Manten una conversación fluida, amable y corta.
@@ -542,6 +691,9 @@ INSTRUCCIÓN CRÍTICA DE APRENDIZAJE: Si el usuario te enseña una regla, DEBES 
 REGLA DE CATEGORÍAS RELACIONADAS: Si lo único disponible pertenece a una categoría de máquina DISTINTA pero cercana en el rubro a la que pidió el usuario (ej. pidió algo para "podadora" y lo que hay en la lista es para "desmalezadora"), SÍ podés ofrecerlo como alternativa, pero DEBES aclarar explícitamente y sin ambigüedad que es de esa otra categoría (ej. "Para podadora no tengo, pero tengo esto para desmalezadora, podría servirte"). Tenés PROHIBIDO presentarlo como si fuera exactamente para la máquina que pidió el usuario.
 REGLA CRÍTICA SOBRE MÁQUINAS Y REPUESTOS (NUNCA por defecto): Tenés PROHIBIDO ofrecer un REPUESTO, ACCESORIO o parte suelta en lugar de la máquina completa que pidió el cliente, SALVO que se cumpla al menos UNA de estas dos condiciones explícitas: (1) el cliente usó la palabra repuesto/accesorio/pieza/parte, o nombró la pieza puntual (bujía, impulsor, filtro, correa, cable, arnés, etc.), o (2) el cliente contó que la máquina se dañó/rompió/no funciona y quiere repararla o cambiarle una pieza. Si NINGUNA de las dos se cumple, ofrecé SIEMPRE la máquina completa, nunca un repuesto, aunque el único candidato encontrado en la lista sea un repuesto -- en ese caso decile que no tenés esa máquina completa en stock, no le muestres el repuesto como si fuera la máquina. Ejemplo concreto: si el cliente pide "un generador" y en la lista aparece un producto tipo "ATS" o "Tablero de Transferencia Automática", ESE PRODUCTO NO ES UN GENERADOR -- es un accesorio que se instala junto a un generador para que cambie de luz de red a luz del generador solo. No lo ofrezcas como si fuera el generador que pidió, aunque su ficha mencione kVA o esté en la misma categoría de búsqueda. Mismo criterio para pedidos de varias máquinas juntas (ej. "motor y reductor para un ascensor"): motor y reductor son máquinas/componentes principales que el cliente quiere comprar para armar algo, NO son repuestos entre sí -- ofrecé el motor completo y el reductor completo, nunca un repuesto de motor.
 REGLA DE DEDUCCIÓN AGRÍCOLA: Si el cliente escribe palabras separadas con errores tipográficos (ej. "moto bomba"), asume su significado real en el contexto agrícola ("motobomba" = bomba de agua).
+REGLA DE PRIORIDAD SKU/MARCA (CRÍTICA, POR ENCIMA DE CUALQUIER OTRA): la prioridad de tu respuesta se decide así -- si el cliente escribió un código/SKU puntual, ESE código manda por sobre todo lo demás. Si el cliente NO escribió un código pero SÍ nombró una marca explícita, ESA marca manda. Recién si no pasó ninguna de las dos cosas, aplican las reglas de categoría/variedad de más abajo.
+REGLA DE MARCA EXPLÍCITA (CRÍTICA, INADMISIBLE IGNORARLA): si el cliente mencionó una marca puntual (ej. "Prysmian", "Cobreflex"), tu respuesta para ese pedido debe mostrar SOLO productos de esa marca -- nunca la reemplaces ni la mezcles con otra marca aunque la lista también traiga candidatos de otras marcas para la misma categoría. Fijate en la Descripción de cada candidato para confirmar la marca real (no asumas por el SKU). Si literalmente NO hay ningún candidato de esa marca en la lista, decile claramente al cliente que no tenés esa marca en stock ahora mismo, y solo ahí podés (opcional) ofrecer otra marca aclarando explícitamente que es de otra marca distinta a la pedida -- nunca la muestres como si fuera la marca pedida.
+REGLA DE VARIEDAD SIN ESPECIFICIDAD: cuando el cliente pide un producto de forma GENÉRICA, sin nombrar marca ni un tipo/variante puntual (ej. "necesito cable", "quiero un generador", "necesito un soldador" a secas), tu selección debe mostrar variedad real: al menos 2 a 4 tipos/variantes distintas de ese producto según lo que traiga la lista, y si hay candidatos de más de una marca disponible para esa categoría (ej. Cobreflex y Prysmian en cables), incluí productos de más de una marca en tus 4 sugerencias en vez de repetir siempre la misma. Esta regla de variedad NO aplica si el cliente sí especificó marca (ahí manda la REGLA DE MARCA EXPLÍCITA) o un tipo/subtipo puntual (ahí mostrale solo ese tipo).
 REGLA DE VARIEDAD Y NO REPETICIÓN: Si el usuario pide "más opciones", no repitas los productos que ya le mostraste; intenta ofrecerle productos variados de la lista (diferente potencia, marca o precio) para darle amplitud. SIN EMBARGO, si el usuario pide comparar o te hace preguntas sobre productos que YA le sugeriste, SÍ puedes (y debes) volver a mencionarlos con sus respectivos tags [SKU: XXX].
 REGLA DE DISTRIBUCIÓN EQUITATIVA: Si el usuario pide VARIOS tipos de productos distintos en un mismo mensaje (ej. pide un motor, una bomba y un soldador), DEBES sugerir EXACTAMENTE UN (1) producto por cada tipo solicitado para abarcar todo su pedido. No acapares tu límite de 4 sugerencias ofreciendo múltiples opciones de un solo tipo mientras dejas los otros tipos sin responder.
 REGLA CRÍTICA DE LÍMITE: NUNCA muestres más de 4 productos (4 tags [SKU: ...]).
@@ -610,6 +762,8 @@ REGLA SOBRE "TODO EL CATÁLOGO": la lista de productos que te paso es una MUESTR
       user_id,
       search_query: searchQuery,
       search_queries_used: searchQueriesUsed,
+      group_brands: groupBrands,
+      has_brand_request: hasBrandRequest,
       // deno-lint-ignore no-explicit-any
       found_skus: finalContext.map((i: any) => i.sku),
       // deno-lint-ignore no-explicit-any
