@@ -287,18 +287,35 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const marca = (p.Brand || p.Marca || p.marca || '').toString().trim().toUpperCase();
       const subcategoria = (p['Tipo de Producto'] || p['Categoria Magento'] || 'General').toString().trim().toUpperCase();
 
-      const rawImages: string[] = [];
-      for (const [col, val] of Object.entries(p)) {
-        const cLower = col.toLowerCase();
-        if ((cLower.includes('imagen') || cLower.includes('image') || cLower.includes('foto') || cLower.includes('img') || cLower.includes('thumbnail')) && val && String(val).trim().length > 0) {
-          const urlVal = String(val).trim();
-          rawImages.push((manifest && manifest[urlVal]) || urlVal);
+        const extractedImages = new Map<string, { url: string, priority: number }>();
+        for (const [col, val] of Object.entries(p)) {
+          const cLower = col.toLowerCase();
+          if (cLower.includes('imagen') && val && String(val).trim().length > 0) {
+            const urlVal = String(val).trim();
+            const finalUrl = (manifest && manifest[urlVal]) || urlVal;
+            
+            // Agrupar por el número (ej. "imagen 1", "imagen 1 alta" comparten el grupo "1")
+            let groupId = 'base';
+            const match = cLower.match(/imagen\s*(\d+)/);
+            if (match) groupId = match[1];
+
+            // Prioridad: 1 (normal) > 2 (png) > 3 (alta)
+            let priority = 1;
+            if (cLower.includes('alta')) priority = 3;
+            else if (cLower.includes('png')) priority = 2;
+
+            const existing = extractedImages.get(groupId);
+            if (!existing || priority < existing.priority) {
+              extractedImages.set(groupId, { url: finalUrl, priority });
+            }
+          }
         }
-      }
-      const validImages = Array.from(new Set(rawImages)); // Deduplicate
-      const imagenOriginal = validImages.length > 0 ? validImages[0] : '';
-      const imagen = imagenOriginal;
-      const imagenesJson = JSON.stringify(validImages);
+        
+        const rawImages = Array.from(extractedImages.values()).map(x => x.url);
+        const validImages = Array.from(new Set(rawImages)); // Deduplicate
+        const imagenOriginal = validImages.length > 0 ? validImages[0] : '';
+        const imagen = imagenOriginal;
+        const imagenesJson = JSON.stringify(validImages);
 
       const specs: [string, string][] = [];
       const colsExcluidas = new Set([
