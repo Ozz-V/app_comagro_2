@@ -206,40 +206,49 @@ export default function ProfileSection() {
         {profileSaving && <View style={st.avatarOverlay}><ActivityIndicator size="small" color="#fff" /></View>}
       </TouchableOpacity>
 
-      {profileLoading ? <ActivityIndicator size="small" color={COLORS.navy} /> : isEditing ? (
+      {isEditing ? (
         <View style={{ width: '100%', gap: 10, marginTop: 8 }}>
           <TextInput style={st.input} placeholder="Nombre completo" placeholderTextColor={COLORS.gray4} value={fullName} onChangeText={setFullName} />
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.inputBorder, borderRadius: 10, paddingHorizontal: 10, backgroundColor: '#F7F8FA' }}>
-              <Text style={{ fontSize: 14, marginRight: 4 }}>{phoneCode === '+595' ? '🇵🇾' : '🌎'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#DCE4EE', borderRadius: 10, paddingHorizontal: 10, backgroundColor: '#F7F8FA' }}>
+              <Text style={{ fontSize: 14, marginRight: 4 }}>{phoneCode === '+595' ? '🇵🇾' : '📱'}</Text>
               <TextInput style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.navy, paddingVertical: 10, minWidth: 40 }} value={phoneCode} onChangeText={setPhoneCode} keyboardType="phone-pad" />
             </View>
             <TextInput style={[st.input, { flex: 1 }]} placeholder="Número (ej. 981 123 456)" placeholderTextColor={COLORS.gray4} keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
           </View>
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+            <TouchableOpacity style={st.cancelBtn} onPress={() => setIsEditing(false)}>
+              <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 14, color: COLORS.gray4 }}>Cancelar</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={st.saveBtn} onPress={() => saveProfile()} disabled={profileSaving}>
               <Text style={st.saveBtnText}>{profileSaving ? 'Guardando...' : 'Guardar'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={st.cancelBtn} onPress={() => setIsEditing(false)}>
-              <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4 }}>Cancelar</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
         <View style={{ width: '100%', alignItems: 'center' }}>
-          <View style={{ width: '100%', backgroundColor: '#F7F8FA', borderRadius: 12, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: COLORS.border }}>
+          <View style={{ width: '100%', backgroundColor: '#F7F8FA', borderRadius: 12, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: COLORS.border, position: 'relative' }}>
+            {profileLoading && (
+              <ActivityIndicator size="small" color={COLORS.navy} style={{ position: 'absolute', top: 16, right: 16 }} />
+            )}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
               <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Nombre:</Text>
-              <Text style={{ fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, flex: 1 }}>{fullName || 'Sin nombre'}</Text>
+              <Text style={{ fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, flex: 1, opacity: profileLoading && !fullName ? 0.3 : 1 }}>
+                {fullName || (profileLoading ? 'Cargando...' : 'Sin nombre')}
+              </Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
               <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Celular:</Text>
-              <Text style={{ fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, flex: 1 }}>{phoneCode} {phone}</Text>
+              <Text style={{ fontFamily: FONTS.heading, fontSize: 15, fontWeight: '700', color: COLORS.navy, flex: 1, opacity: profileLoading && !phone ? 0.3 : 1 }}>
+                {phone ? `${phoneCode} ${phone}` : (profileLoading ? 'Cargando...' : 'Sin número')}
+              </Text>
             </View>
-            {!!userEmail && (
+            {(userEmail || profileLoading) && (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, width: 70 }}>Correo:</Text>
-                <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, flex: 1 }}>{userEmail}</Text>
+                <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, flex: 1, opacity: profileLoading && !userEmail ? 0.3 : 1 }}>
+                  {userEmail || (profileLoading ? 'Cargando...' : '')}
+                </Text>
               </View>
             )}
           </View>
