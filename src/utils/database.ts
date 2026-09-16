@@ -319,7 +319,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const specs: [string, string][] = [];
       const colsExcluidas = new Set([
         'SKU', 'Brand', 'Marca', 'marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
-        'url_key', 'sales_pitch'
+        'url_key', 'sales_pitch', 'precio_web'
       ]);
 
       const basura = ['n/a', 'na', 'n.a', 'n.a.', 'no aplica', 'sin dato', 'sin datos',
@@ -331,6 +331,26 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         const s = String(val).trim();
         const sLower = s.toLowerCase();
 
+        // Dar formato amigable a updated_at
+        if (kLower === 'updated_at' || kLower === 'updated at') {
+          if (s.length > 0 && s !== 'null') {
+            try {
+              const d = new Date(s);
+              if (!isNaN(d.getTime())) {
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                const hours = String(d.getHours()).padStart(2, '0');
+                const minutes = String(d.getMinutes()).padStart(2, '0');
+                specs.push(['Actualizado última vez', `${day}/${month}/${year} ${hours}:${minutes}`]);
+              }
+            } catch (e) {
+              // Si falla el parseo, se ignora
+            }
+          }
+          continue;
+        }
+
         // 1. Filtro estricto para bloquear imágenes y links
         const esColumnaImagen = kLower.includes('imagen') || kLower.includes('foto') || kLower.includes('img') || kLower.includes('manual');
         const tieneLink = sLower.includes('http://') || sLower.includes('https://') || sLower.includes('plytix.com');
@@ -339,7 +359,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         const tieneContenidoReal = /[a-zA-Z0-9]/.test(s);
 
         if (!colsExcluidas.has(col) && !col.startsWith('_') && !esColumnaImagen && !tieneLink) {
-          if (s.length > 0 && tieneContenidoReal && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
+          if (s.length > 0 && s !== 'null' && tieneContenidoReal && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
             specs.push([col, s]);
           }
         }

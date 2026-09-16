@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS } from '../../theme';
@@ -30,11 +30,8 @@ export default function ProductPriceBadge({ price }: ProductPriceBadgeProps) {
 
 const styles = StyleSheet.create({
   pricePillContainer: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
     alignItems: 'flex-end',
-    zIndex: 20,
+    marginBottom: 4,
   },
   precioWebLabel: {
     fontSize: 9,
