@@ -156,7 +156,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
       imagenes_json TEXT,
       specs_json TEXT,
       search_text TEXT,
-      sales_pitch TEXT
+      sales_pitch TEXT, precio_web REAL
     );
 
     CREATE INDEX IF NOT EXISTS idx_productos_marca ON productos(marca COLLATE NOCASE);
@@ -189,7 +189,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
           imagenes_json TEXT,
           specs_json TEXT,
           search_text TEXT,
-          sales_pitch TEXT
+          sales_pitch TEXT, precio_web REAL
         );
       `);
     } else {
@@ -198,7 +198,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
         await db.execAsync('ALTER TABLE productos ADD COLUMN search_text TEXT;');
       }
       if (!hasSalesPitchColumn) {
-        await db.execAsync('ALTER TABLE productos ADD COLUMN sales_pitch TEXT;');
+        await db.execAsync('ALTER TABLE productos ADD COLUMN sales_pitch TEXT, precio_web REAL;');
       }
       if (!hasImagenesJsonColumn) {
         await db.execAsync('ALTER TABLE productos ADD COLUMN imagenes_json TEXT;');
@@ -207,6 +207,18 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
   }
 
   // ─── Índice FTS5 para búsqueda de texto ──────────────────────────────
+  
+  // MIGRACIÓN: Agregar precio_web si no existe
+  try {
+    const tableInfo: any[] = await db.getAllAsync('PRAGMA table_info(productos)');
+    const hasPrecioWeb = tableInfo.some(col => col.name === 'precio_web');
+    if (!hasPrecioWeb) {
+      await db.execAsync('ALTER TABLE productos ADD COLUMN precio_web REAL;');
+    }
+  } catch (e) {
+    console.warn('Error en migración precio_web', e);
+  }
+
   try {
     await db.execAsync(`
       CREATE VIRTUAL TABLE IF NOT EXISTS productos_fts USING fts5(
@@ -321,8 +333,8 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const salesPitch = p.sales_pitch || '';
 
       await db.runAsync(
-        'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, imagenes_json, specs_json, search_text, sales_pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [sku, marca, subcategoria, imagen, imagenOriginal, imagenesJson, specsJson, searchText, salesPitch]
+        'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, imagenes_json, specs_json, search_text, sales_pitch, precio_web) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [sku, marca, subcategoria, imagen, imagenOriginal, imagenesJson, specsJson, searchText, salesPitch, p.precio_web || null]
       );
     }
   });
