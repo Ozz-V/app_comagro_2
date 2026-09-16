@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -30,22 +30,11 @@ export default function ProfileSection() {
   }, []);
 
   async function loadProfile() {
-    setProfileLoading(true);
     try {
       const cached = await AsyncStorage.getItem('@user_profile_cache');
       let data = cached ? JSON.parse(cached) : null;
       
-      try {
-        const { data: authData } = await supabase.auth.getUser();
-        if (authData?.user) {
-          const { data: dbProfile } = await supabase.from('profiles').select('id, full_name, avatar_url, telefono, email').eq('id', authData.user.id).single();
-          if (dbProfile) {
-            data = { ...data, ...dbProfile };
-            await AsyncStorage.setItem('@user_profile_cache', JSON.stringify(data));
-          }
-        }
-      } catch (err) {}
-
+      // Si hay caché, mostrar los datos INMEDIATAMENTE sin bloquear la pantalla
       if (data && isMounted.current) {
         if (data.id) setUserId(data.id);
         setUserEmail(data.email || '');
@@ -60,7 +49,40 @@ export default function ProfileSection() {
           }
         }
         setAvatarUrl(data.avatar_local || data.avatar_url || null);
+        setProfileLoading(false); // Quitar el loading al instante
+      } else {
+        setProfileLoading(true); // Solo mostrar loading si no hay absolutamente nada
       }
+      
+      // En SEGUNDO PLANO, consultar a Supabase para sincronizar
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          const { data: dbProfile } = await supabase.from('profiles').select('id, full_name, avatar_url, telefono, email').eq('id', authData.user.id).single();
+          if (dbProfile) {
+            data = { ...data, ...dbProfile };
+            await AsyncStorage.setItem('@user_profile_cache', JSON.stringify(data));
+            
+            // Actualizar silenciosamente si hubo cambios en la nube
+            if (isMounted.current) {
+              if (data.id) setUserId(data.id);
+              setUserEmail(data.email || '');
+              setFullName(data.full_name && data.full_name.trim() !== '' ? data.full_name : '');
+              if (data.telefono && data.telefono !== '+595') {
+                if (data.telefono.includes(' ')) {
+                  const parts = data.telefono.split(' ');
+                  setPhoneCode(parts[0]);
+                  setPhone(parts.slice(1).join(' '));
+                } else {
+                  setPhone(data.telefono);
+                }
+              }
+              setAvatarUrl(data.avatar_local || data.avatar_url || null);
+            }
+          }
+        }
+      } catch (err) {}
+
     } catch (_) {}
     if (isMounted.current) setProfileLoading(false);
   }
