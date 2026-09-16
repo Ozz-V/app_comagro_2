@@ -61,23 +61,7 @@ export function useOTAUpdate() {
           ? parseInt(Application.nativeBuildVersion, 10)
           : (Constants.expoConfig?.android?.versionCode || 1);
         if (data.version_code > installedCode) {
-            // LOGICA BETA / ADMIN
-            const isBeta = (data.release_notes || '').toLowerCase().trim().startsWith('(beta)');
-            if (isBeta) {
-              const userResp = await supabase.auth.getUser();
-              const user = userResp.data?.user;
-              let role = 'customer';
-              if (user) {
-                const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-                if (profile) role = profile.role;
-              }
-              if (role !== 'admin') {
-                setUpdateState('none');
-                return;
-              }
-            }
-
-            if (!isDownloadUrlTrusted(data.download_url)) {
+          if (!isDownloadUrlTrusted(data.download_url)) {
             Sentry.captureMessage(`OTA update rechazada: download_url de origen no confiable (${data.download_url})`, 'error');
             setUpdateState('none');
             return;
