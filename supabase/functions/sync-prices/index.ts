@@ -1,5 +1,6 @@
 ﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as cheerio from "https://esm.sh/cheerio@1.0.0-rc.12";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,49 +16,65 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // 1. Obtener todos los SKUs de nuestra tabla
-    const { data: productos, error: dbError } = await supabaseClient
-      .from('productos_ai_data')
-      .select('sku');
+    const urlParam = new URL(req.url);
+    const limitQuery = urlParam.searchParams.get('limit');
+    const limit = limitQuery ? parseInt(limitQuery) : 0;
 
+    let dbQuery = supabaseClient.from('productos_ai_data').select('sku');
+    if (limit > 0) dbQuery = dbQuery.limit(limit);
+
+    const { data: productos, error: dbError } = await dbQuery;
     if (dbError) throw dbError;
 
     let actualizados = 0;
+    const detalles = [];
 
-    // 2. Por cada producto, visitar la web y buscar el precio
     for (const prod of (productos || [])) {
       if (!prod.sku) continue;
       
-      const url = "https://www.comagro.com.py/catalogsearch/result/?q=${prod.sku}";
+      const url = `https://www.comagro.com.py/catalogsearch/result/?q=${prod.sku}`;
       try {
         const res = await fetch(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Comagro SyncBot 1.0)' }
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
         });
         
         const html = await res.text();
+        const $ = cheerio.load(html);
         
-        // 3. Extraer el precio usando expresión regular
-        const match = html.match(/data-price-amount="(\d+(\.\d+)?)"/);
-        if (match && match[1]) {
-          const precio = parseFloat(match[1]);
+        const firstProduct = $('.products.list.items .product-item').first();
+        const priceString = firstProduct.find('[data-price-amount]').first().attr('data-price-amount');
+        
+        if (priceString) {
+          const precio = parseFloat(priceString);
           
-          // 4. Actualizar la base de datos
           await supabaseClient
             .from('productos_ai_data')
             .update({ precio_web: precio })
             .eq('sku', prod.sku);
             
           actualizados++;
+          detalles.push({ sku: prod.sku, precio });
+        } else {
+          const fallbackPrice = $('.product-info-price').first().find('[data-price-amount]').first().attr('data-price-amount');
+          if (fallbackPrice) {
+            const precioFallback = parseFloat(fallbackPrice);
+            await supabaseClient
+              .from('productos_ai_data')
+              .update({ precio_web: precioFallback })
+              .eq('sku', prod.sku);
+              
+            actualizados++;
+            detalles.push({ sku: prod.sku, precio: precioFallback });
+          }
         }
       } catch (err) {
-        console.error("Error procesando SKU ${prod.sku}:", err);
+        console.error(`Error procesando SKU ${prod.sku}:`, err);
       }
       
-      // Pequeña pausa de 200ms para no saturar el servidor web de Adobe Commerce
-      await new Promise(r => setTimeout(r, 200)); 
+      await new Promise(r => setTimeout(r, 600)); 
     }
 
-    return new Response(JSON.stringify({ status: "success", procesados: actualizados }), {
+    return new Response(JSON.stringify({ status: "success", procesados: actualizados, detalles }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
