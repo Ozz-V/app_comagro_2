@@ -78,21 +78,49 @@ export default function CompareModal({
               ))}
             </View>
 
-            {/* Tabla de specs con indicadores ↑↓ */}
+            {/* Tabla de specs con indicadores */}
             {(() => {
               if (!compareItems || compareItems.length === 0) return null;
-              // Reunir todos los nombres de specs únicos en orden
-              const allSpecNames: string[] = [];
-              const BLACKLIST_SPECS = ['nombre del producto', 'denominador estándar', 'denominador estandar', 'sku', 'accesorios', 'aplicación', 'aplicacion', 'descripción', 'descripcion', 'marca', 'modelo', 'imagen', 'video', 'id'];
+              // Reunir todos los nombres de specs únicos
+              const rawSpecNames: string[] = [];
+              const BLACKLIST_SPECS = [
+                'nombre del producto', 'denominador estándar', 'denominador estandar', 
+                'sku', 'accesorios', 'aplicación', 'aplicacion', 'descripción', 'descripcion', 
+                'marca', 'modelo', 'imagen', 'video', 'id', 'precio_web', 'precio', 
+                'actualizado por ultima vez', 'actualizado ultima vez', 'actualizado por última vez', 
+                'actualizado última vez', 'updated_at', 'created_at'
+              ];
+
+              // Palabras clave de prioridad (para mostrar arriba)
+              const PRIORITY_SPECS = [
+                'caudal', 'rpm', 'kva', 'amperaje', 'amper', 'voltaje', 'capacidad', 
+                'polos', 'potencia', 'frecuencia', 'presi', 'psi', 'tensi', 'cilindrada', 'combustible'
+              ];
 
               compareItems.forEach((prod: ParsedProduct) => {
                 (prod.specs || []).forEach((spec: SpecTuple) => {
                   const n = spec[0];
-                  if (!BLACKLIST_SPECS.includes(n.toLowerCase().trim()) && !allSpecNames.includes(n)) {
-                    allSpecNames.push(n);
+                  if (!BLACKLIST_SPECS.includes(n.toLowerCase().trim()) && !rawSpecNames.includes(n)) {
+                    rawSpecNames.push(n);
                   }
                 });
               });
+
+              // Ordenar: primero los de prioridad, luego el resto alfabéticamente
+              const allSpecNames = rawSpecNames.sort((a, b) => {
+                const aLower = a.toLowerCase();
+                const bLower = b.toLowerCase();
+                
+                const aIndex = PRIORITY_SPECS.findIndex(p => aLower.includes(p));
+                const bIndex = PRIORITY_SPECS.findIndex(p => bLower.includes(p));
+                
+                if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex; // Ambos son prioridad, se ordenan según arreglo
+                if (aIndex !== -1) return -1; // Solo a es prioridad
+                if (bIndex !== -1) return 1;  // Solo b es prioridad
+                
+                return aLower.localeCompare(bLower); // Ninguno es prioridad, orden alfabético
+              });
+
               return allSpecNames.map((specName, si) => {
                 // Obtener valores de cada producto para este spec
                 const vals = compareItems.map((prod: ParsedProduct) => {
@@ -192,7 +220,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg
   },
   scrollContent: {
-    padding: 12
+    padding: 12,
+    paddingBottom: 80 // Evita que se corte la última fila
   },
   header: {
     flexDirection: 'row',
