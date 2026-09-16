@@ -65,14 +65,14 @@ serve(async (req) => {
         if (exactForm.length > 0) {
            priceString = exactForm.closest('.product-item').find('[data-price-amount]').first().attr('data-price-amount');
         } else {
-           priceString = $('.products.list.items .product-item').first().find('[data-price-amount]').first().attr('data-price-amount');
+           // EXTREMADAMENTE IMPORTANTE: Si no hay match EXACTO, no hacemos fallback al primer elemento.
+           // Magento puede devolver productos similares (ej. repuestos GAEH50/122/SP al buscar GAEH50).
+           // Tomar el primer resultado a ciegas causa que se asigne el precio de un repuesto a la motobomba.
+           priceString = null;
         }
         
         if (priceString) {
           precioFinal = parseFloat(priceString);
-        } else {
-          const fallbackPrice = $('.product-info-price').first().find('[data-price-amount]').first().attr('data-price-amount');
-          if (fallbackPrice) precioFinal = parseFloat(fallbackPrice);
         }
 
         // Si encontró precio, actualiza el precio Y la huella
@@ -93,9 +93,16 @@ serve(async (req) => {
           actualizados++;
           detalles.push({ sku: prod.sku, precio: precioFinal });
         } else {
-          // Si NO encontró precio, SOLO actualiza la huella para que no se tranque la cola
+          // Si NO encontró precio (o ya no existe en la web), lo borramos de la BD
+          // y actualizamos la huella para que no se tranque la cola.
           await supabaseClient.from('productos_ai_data').update({ 
+            precio_web: null,
             precio_actualizado_en: now
+          }).eq('sku', prod.sku);
+
+          // También avisamos a la app que este producto cambió (para que borre el precio en los teléfonos)
+          await supabaseClient.from('plytix_queue').update({
+            updated_at: now
           }).eq('sku', prod.sku);
         }
 
