@@ -39,6 +39,8 @@ async function getAccessToken(): Promise<string | null> {
 // ─── Catálogo de Productos ────────────────────────────────────────────────────
 
 export const CACHE_TIME_KEY = 'comagro_productos_fecha_v3';
+const DATA_SCHEMA_VERSION = 'v4_fix_precio_specs'; // Cambiar este string fuerza una recarga masiva del catálogo
+const SCHEMA_KEY = '@comagro_schema_version';
 const HORAS_VIGENCIA = 24;
 
 /**
@@ -199,7 +201,16 @@ export async function ensureCatalogSynced(
 ): Promise<SyncResult | null> {
   if (catalogSyncPromise) return catalogSyncPromise;
 
-  const fechaCache = await AsyncStorage.getItem(CACHE_TIME_KEY);
+  // Verificación de versión del esquema de base de datos visual
+  const storedSchema = await AsyncStorage.getItem(SCHEMA_KEY);
+  let fechaCache = await AsyncStorage.getItem(CACHE_TIME_KEY);
+
+  // Si la versión del esquema cambió (porque los programadores lanzaron una update), borramos la fecha
+  if (storedSchema !== DATA_SCHEMA_VERSION) {
+    fechaCache = null;
+    await AsyncStorage.removeItem(CACHE_TIME_KEY);
+    await AsyncStorage.setItem(SCHEMA_KEY, DATA_SCHEMA_VERSION);
+  }
 
   if (!opts?.skipVigenciaCheck) {
     const cacheVigente = fechaCache && (Date.now() - parseInt(fechaCache)) < HORAS_VIGENCIA * 3600000;

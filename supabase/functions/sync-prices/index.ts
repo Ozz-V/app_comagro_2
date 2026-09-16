@@ -1,4 +1,4 @@
-﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as cheerio from "https://esm.sh/cheerio@1.0.0-rc.12";
 
@@ -77,10 +77,19 @@ serve(async (req) => {
 
         // Si encontró precio, actualiza el precio Y la huella
         if (precioFinal !== null) {
+          // 1. Actualiza el precio en AI data
           await supabaseClient.from('productos_ai_data').update({ 
             precio_web: precioFinal,
             precio_actualizado_en: now
           }).eq('sku', prod.sku);
+          
+          // 2. BUMP MAGICO: Le avisa a la tabla de Plytix que este producto se "actualizó".
+          // Así, cuando la App pregunte "¿qué cambió hoy?" (Sincronización Inteligente),
+          // el servidor le enviará este producto y la App descargará el nuevo precio al instante.
+          await supabaseClient.from('plytix_queue').update({
+            updated_at: now
+          }).eq('sku', prod.sku);
+
           actualizados++;
           detalles.push({ sku: prod.sku, precio: precioFinal });
         } else {
