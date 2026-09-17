@@ -27,7 +27,7 @@ import {
   dedupeAndFilterContext,
   annotateContext,
   buildFinalContext,
-} from "../ranking.ts";
+} from "./ranking.ts";
 
 // ── round1 ─────────────────────────────────────────────────────────────
 Deno.test("round1 redondea a 1 decimal", () => {

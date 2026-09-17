@@ -16,7 +16,7 @@ function assertNotIncludes(haystack: string, needle: string) {
   }
 }
 
-import { buildDbContextText, buildFinalPrompt, DEFAULT_AI_PROMPT } from "../promptBuilder.ts";
+import { buildDbContextText, buildFinalPrompt, DEFAULT_AI_PROMPT } from "./promptBuilder.ts";
 
 // ── buildDbContextText ──────────────────────────────────────────────
 Deno.test("buildDbContextText: vacío si no hay conocimiento ni contexto", () => {

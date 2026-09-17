@@ -43,6 +43,10 @@ El chatbot (`chat/index.ts`) usa un flujo híbrido ultra-optimizado:
 - **Límites de Tokens:** El Extractor de Intenciones debe usar `maxOutputTokens: 150` para permitir "pensar" sin colapsos.
 - **React Native:** Las modificaciones visuales de la App deben ajustarse al estilo de React Native (Flexbox) sin requerir librerías externas pesadas si no es estrictamente necesario.
 
+## 5. Privacidad y logs
+En las Edge Functions (especialmente `chat` y `search`), se almacena temporalmente información en logs (ej. `user_id` y textos de consultas de los vendedores) para propósitos de analítica, depuración y auditoría (por ejemplo, detectar bloqueos con strikes).
+Estos logs son de acceso exclusivo para administradores desde el panel de Supabase y **no son persistidos de manera infinita**. La política de retención depende de la configuración de proyectos de Supabase (por defecto 1 a 7 días en planes gratuitos/pro). Ninguna conversación es enviada a un tercero más que a la API de Gemini bajo estrictas políticas de confidencialidad comercial, sin uso de la data para re-entrenar modelos públicos de terceros.
+
 ## Plan de cobertura de tests
 Baseline actual: ~12%. Objetivo: subir el threshold ~10 puntos por sprint/mes,
 priorizando logica de negocio (services, hooks) sobre UI (screens/components).

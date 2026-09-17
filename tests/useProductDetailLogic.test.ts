@@ -232,7 +232,7 @@ describe('useProductDetailLogic', () => {
       const prod = buildProd();
       const { result } = await renderHook(() => useProductDetailLogic({ ...baseProps, modalProd: prod }));
 
-      let pending: Promise<void>;
+      let pending: void;
       await act(async () => {
         pending = result.current.compartirPdf();
         await Promise.resolve();
