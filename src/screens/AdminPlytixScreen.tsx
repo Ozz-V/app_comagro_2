@@ -1,31 +1,40 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, StatusBar, Platform, ScrollView } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../supabase';
 import { SvgXml } from 'react-native-svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import SystemHealthMonitor from '../components/SystemHealthMonitor';
 import { COLORS, FONTS } from '../theme';
 
+const CACHE_KEY = '@admin_plytix_errors_cache';
 const IconCheck = `<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="${COLORS.green}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
 
 export default function AdminPlytixScreen() {
   const navigation = useNavigation();
   const [errors, setErrors] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const fetchErrors = async () => {
-    setLoading(true);
+  const loadErrors = useCallback(async () => {
+    // 1. Render inmediato desde caché
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEY);
+      if (cached) setErrors(JSON.parse(cached));
+    } catch (e) {}
+
+    // 2. Refresh silencioso en background
     const { data, error } = await supabase
       .from('plytix_queue')
       .select('*')
       .eq('status', 'error')
       .order('last_attempt', { ascending: false });
-    if (!error && data) setErrors(data);
-    setLoading(false);
-  };
+    if (!error && data) {
+      setErrors(data);
+      AsyncStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    }
+  }, []);
 
-  useEffect(() => { fetchErrors(); }, []);
+  useEffect(() => { loadErrors(); }, [loadErrors]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -47,9 +56,7 @@ export default function AdminPlytixScreen() {
 
         <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Cola de Errores Plytix</Text>
 
-        {loading ? (
-          <ActivityIndicator size="large" color={COLORS.navy} style={{ marginTop: 24 }} />
-        ) : errors.length === 0 ? (
+        {errors.length === 0 ? (
           <View style={styles.emptyBox}>
             <SvgXml xml={IconCheck} />
             <Text style={styles.emptyText}>Sin errores de sincronización</Text>

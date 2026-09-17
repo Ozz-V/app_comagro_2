@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeaturesStore } from '../../store/useFeaturesStore';
 import { getProductBySku } from '../../utils/database';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SvgXml } from 'react-native-svg';
 import { COLORS, FONTS } from '../../theme';
 
@@ -17,13 +18,24 @@ export default function TopProductsPanel() {
   const navigation = useNavigation<any>();
 
   const [products, setProducts] = useState<{ sku: string; count: number; name: string; img: string }[]>([]);
-  const [loading, setLoading] = useState(true);
   const [maxCount, setMaxCount] = useState(0);
 
   useEffect(() => {
     if (!session?.user?.id) return;
+    const CACHE_KEY = `@historial_top_products_${session.user.id}`;
 
-    const fetchTop = async () => {
+    const load = async () => {
+      // 1. Render inmediato desde caché
+      try {
+        const cached = await AsyncStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          setProducts(parsed.products);
+          setMaxCount(parsed.maxCount);
+        }
+      } catch (e) {}
+
+      // 2. Refresh silencioso en background
       const { data, error } = await supabase
         .from('producto_analytics')
         .select('sku')
@@ -59,11 +71,11 @@ export default function TopProductsPanel() {
 
         setMaxCount(max);
         setProducts(enriched);
+        AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ products: enriched, maxCount: max }));
       }
-      setLoading(false);
     };
 
-    fetchTop();
+    load();
   }, [session?.user?.id]);
 
   if (!isFeatureEnabled('historial_user')) return null;
@@ -75,9 +87,7 @@ export default function TopProductsPanel() {
         <Text style={styles.cardTitle}>Tus Productos Más Vistos</Text>
       </View>
 
-      {loading ? (
-        <ActivityIndicator color={COLORS.navy} />
-      ) : products.length === 0 ? (
+      {products.length === 0 ? (
         <Text style={styles.empty}>Aún no viste ningún producto.</Text>
       ) : (
         <View style={styles.list}>
