@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -30,6 +30,9 @@ export default function FavoritesPanel() {
   const [favorites, setFavorites] = useState<FavItem[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // Recuerda si el usuario venía del modal "Ver todos" al entrar a un producto,
+  // para reabrirlo automáticamente al volver (en vez de quedar en Mi Historial).
+  const reabrirModalAlVolver = useRef(false);
 
   const enrich = async (skus: string[]): Promise<FavItem[]> =>
     Promise.all(
@@ -86,9 +89,15 @@ export default function FavoritesPanel() {
   };
 
   // useFocusEffect asegura que al regresar de ProductViewer (si quitó el fav), se actualice instantáneamente.
+  // Si veníamos del modal "Ver todos", lo reabrimos para que el "atrás" del producto
+  // regrese a esa lista en vez de a la pantalla principal de Historial.
   useFocusEffect(
     useCallback(() => {
       fetchFaves();
+      if (reabrirModalAlVolver.current) {
+        reabrirModalAlVolver.current = false;
+        setModalVisible(true);
+      }
     }, [session?.user?.id])
   );
 
@@ -169,6 +178,7 @@ export default function FavoritesPanel() {
                   style={styles.listCard}
                   activeOpacity={0.7}
                   onPress={() => {
+                    reabrirModalAlVolver.current = true;
                     setModalVisible(false);
                     navigation.navigate('ProductViewer', { sku: item.sku });
                   }}
