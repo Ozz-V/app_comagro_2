@@ -405,19 +405,17 @@ describe('useForumModalLogic', () => {
 
   // ── isAdmin ─────────────────────────────────────────────────────────
   describe('isAdmin', () => {
-    it('es true solo para el email de administrador', async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'ovilla@comagro.com.py' } } });
+    it('es true cuando useAuthStore dice que es admin', async () => {
+      const { useAuthStore } = require('../src/store/useAuthStore');
+      useAuthStore.setState({ isAdmin: true, session: { user: { id: 'u1', email: 'ovilla@comagro.com.py' } } });
       const { result } = await renderHook(() => useForumModalLogic({ visible: true, showAlert }));
-
-      await waitFor(() => expect(result.current.currentUser?.email).toBe('ovilla@comagro.com.py'));
       expect(result.current.isAdmin).toBe(true);
     });
 
     it('es false para cualquier otro usuario', async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: 'u2', email: 'vendedor@comagro.com.py' } } });
+      const { useAuthStore } = require('../src/store/useAuthStore');
+      useAuthStore.setState({ isAdmin: false, session: { user: { id: 'u2', email: 'vendedor@comagro.com.py' } } });
       const { result } = await renderHook(() => useForumModalLogic({ visible: true, showAlert }));
-
-      await waitFor(() => expect(result.current.currentUser?.email).toBe('vendedor@comagro.com.py'));
       expect(result.current.isAdmin).toBe(false);
     });
   });
