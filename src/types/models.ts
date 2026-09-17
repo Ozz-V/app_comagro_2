@@ -5,6 +5,7 @@ export interface Product {
   marca: string;
   subcategoria: string;
   imagen: string;
+  precio_web?: number;
   imagenOriginal: string;
   imagenes_json?: string;
   specs_json: string;
@@ -18,6 +19,7 @@ export interface ParsedProduct {
   marca: string;
   subcategoria: string;
   imagen: string;
+  precio_web?: number;
   imagenOriginal: string;
   imagenes?: string[];
   specs: SpecTuple[];

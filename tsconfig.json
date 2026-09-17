@@ -18,6 +18,8 @@
     "babel.config.js",
     "metro.config.js",
     "jest.config.js",
-    "supabase"
+    "supabase",
+    "fix_sku.ts",
+    "test_scrape.ts"
   ]
 }

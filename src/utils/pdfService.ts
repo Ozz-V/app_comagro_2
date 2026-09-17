@@ -3,19 +3,20 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image as ExpoImage } from 'expo-image';
 import { ParsedProduct } from '../types/models';
+import { getTemplate, fetchRemoteTemplate, renderTemplate } from '../services/templateService';
 
 // ── Constantes de página (px a 96dpi, A4 portrait = 297mm ≈ 1122px) ─────
 const PX_PAGE     = 1108; // alto total usable
-const PX_HDR      = 96;   // header
+const PX_HDR      = 130;  // header (logo de marca grande + nombre + SKU)
 const PX_TMARG    = 12;   // margin-top del bloque superior
 const PX_GAP      = 12;   // espacio entre bloque superior y specs
 const PX_SPEC_HDR = 34;   // cabecera azul "ESPECIFICACIONES TÉCNICAS"
 const PX_FOOT     = 34;   // footer
 const PX_SAFETY   = 14;   // margen de seguridad
 const MIN_IMG_H   = 80;   // altura mínima aceptable de la imagen
-const TEXT_H      = 77;   // altura aproximada del bloque de texto
+const TEXT_H      = 0;    // ya no hay bloque de texto junto a la imagen: marca/nombre/SKU viven en el header
 
-export function generarHtmlFicha(specs: [string, string][], base64Images: string[], logoBase64: string, modalProd: ParsedProduct, includeCurve: boolean = false) {
+export async function generarHtmlFicha(specs: [string, string][], base64Images: string[], logoBase64: string, modalProd: ParsedProduct, includeCurve: boolean = false): Promise<string> {
   const numSpecs = specs.length;
 
   const fs1  = numSpecs > 22 ? '8.5pt' : numSpecs > 16 ? '9pt'  : '10pt';
@@ -123,12 +124,12 @@ export function generarHtmlFicha(specs: [string, string][], base64Images: string
     const maxTickH = hTicks[hTicks.length - 1];
     
     let pathD = '';
-    const curvePad = 6;
+    
     for (let i = 0; i <= 50; i++) {
        const q = finalQ * (i / 50);
        const hp = maxH * (1 - Math.pow(q / finalQ, 2));
-       const px = 50 + curvePad + (q / maxTickQ) * (240 - curvePad * 2);
-       const py = 280 - curvePad - (hp / maxTickH) * (240 - curvePad * 2);
+       const px = 50 + (q / maxTickQ) * 240;
+       const py = 280 - (hp / maxTickH) * 240;
        pathD += `${i === 0 ? 'M' : 'L'} ${px} ${py} `;
     }
     
@@ -189,139 +190,54 @@ export function generarHtmlFicha(specs: [string, string][], base64Images: string
     ? `<colgroup><col style="width:22%"/><col style="width:28%"/><col style="width:22%"/><col style="width:28%"/></colgroup>`
     : `<colgroup><col style="width:34%"/><col style="width:66%"/></colgroup>`;
 
-  const specsHtml = numSpecs > 0
+  const specsBlockHtml = numSpecs > 0
     ? `<div class="stitle">ESPECIFICACIONES TÉCNICAS</div>
        <table class="stbl">${colgroup}<tbody>${rowsHtml}</tbody></table>`
     : '';
 
-  return `
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=794, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <style>
-        @page { margin: 0; size: A4 portrait; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; color: #1a1a1a; background: #fff; margin: 0; }
-        .page { width: 794px; height: 1123px; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        .hdr { display: flex; align-items: center; padding: 14px 26px 0 26px; flex-shrink: 0; }
-        .hdr-logo { height: 70px; display: flex; align-items: center; flex-shrink: 0; }
-        .hdr-logo img { max-height: 70px; max-width: 234px; object-fit: contain; }
-        .hdr-sep { width: 2px; height: 46px; background: #c4ccd8; margin: 0 16px; flex-shrink: 0; }
-        .hdr-text { flex: 1; }
-        .hdr-title { font-size: 19pt; font-weight: bold; color: #0a2566; letter-spacing: 1px; line-height: 1; }
-        .hdr-sub { font-size: 7.5pt; color: #8492a6; letter-spacing: 2px; text-transform: uppercase; margin-top: 3px; }
-        .green-line { height: 5px; background: linear-gradient(90deg, #0d8a39, #09c24f); margin-top: 10px; flex-shrink: 0; }
-        .top-block { display: flex; flex-direction: row; margin: ${PX_TMARG}px 26px 0 26px; height: ${topBlockH}px; gap: 12px; flex-shrink: 0; }
-        .img-col { flex: ${showCurve ? '1' : '1'}; min-height: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
-        .img-box { width: 100%; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; align-content: center; }
-        .prod-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-        .img-grid-item { flex: 1 1 ${base64Images.length > 2 ? '45%' : '100%'}; min-width: 0; height: ${base64Images.length > 2 ? '48%' : (base64Images.length === 2 ? '48%' : '100%')}; display: flex; align-items: center; justify-content: center; }
-        .img-grid-item img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-        .curve-col { flex: 1; display: flex; flex-direction: column; padding: 10px; }
-        .curve-title { font-size: 10pt; font-weight: bold; color: #0a2566; text-align: center; margin-bottom: 6px; }
-        .curve-wrapper { flex: 1; position: relative; }
-        .curve-disclaimer { font-size: 6pt; color: #8492a6; text-align: center; margin-top: 4px; line-height: 1.1; }
-        .info-box { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; }
-        .p-marca  { font-size: 11pt; font-weight: bold; color: #0d8a39; text-transform: uppercase; letter-spacing: 0.5px; }
-        .p-modelo { font-size: 20pt; font-weight: bold; color: #0a2566; line-height: 1.1; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .p-subcat { font-size: 8.5pt; color: #8492a6; text-transform: uppercase; letter-spacing: 1px; }
-        .specs-block { margin: ${PX_GAP}px 26px 0 26px; flex-shrink: 0; }
-        .stitle { background: #0a2566; color: #fff; font-size: 9pt; font-weight: bold; letter-spacing: 1px; padding: 6px 14px; border-radius: 6px 6px 0 0; }
-        .stbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        td { vertical-align: middle; word-break: break-word; overflow-wrap: break-word; line-height: 1.25; }
-        .sn  { padding: ${specPad} 8px ${specPad} 12px; font-size: ${specFs}; font-weight: bold; color: #0a2566; text-transform: uppercase; border-bottom: 1px solid #e4eaf4; }
-        .sv  { padding: ${specPad} 12px ${specPad} 6px; font-size: ${specFs}; color: #2d3748; border-bottom: 1px solid #e4eaf4; }
-        .sep { border-left: 2px solid #dce4f0; }
-        .footer { position: absolute; bottom: 0; left: 0; right: 0; height: ${PX_FOOT}px; background: #0a2566; display: flex; align-items: center; padding: 0 26px; gap: 10px; }
-        .ft { color: rgba(255,255,255,0.6); font-size: 7pt; }
-        .fd { color: rgba(255,255,255,0.22); font-size: 9pt; }
-      </style>
-    </head>
-    <body>
-      <div class="page">
-        <div class="hdr">
-          <div class="hdr-logo"><img src="${logoBase64}" onerror="this.style.display='none'" /></div>
-          <div class="hdr-sep"></div>
-          <div class="hdr-text">
-            <div class="hdr-title">FICHA T&#201;CNICA</div>
-            <div class="hdr-sub">Detalle de Producto</div>
-            <div class="green-line"></div>
-          </div>
-        </div>
-        <div class="top-block">
-          <div class="img-col">
-            <div class="img-box">
-              ${base64Images.map(img => `<div class="img-grid-item"><img class="prod-img" src="${img}" alt="Producto" /></div>`).join('')}
-            </div>
-            <div class="info-box">
-              <span class="p-marca">${escapeHtml(modalProd?.marca || '')}</span>
-              <span class="p-modelo">${escapeHtml(modalProd?.modelo || '')}</span>
-              <span class="p-subcat">${escapeHtml(modalProd?.subcategoria || '')}</span>
-            </div>
-          </div>
-          ${showCurve ? `
-          <div class="curve-col">
-             <div class="curve-title">CURVA DE RENDIMIENTO</div>
-             <div class="curve-wrapper">
-                ${svgCurveHtml}
-             </div>
-             <div class="curve-disclaimer">Nota: Curva de rendimiento teórica aproximada de referencia. Para datos técnicos exactos y curvas de eficiencia, consulte siempre la ficha oficial del fabricante o a un asesor.</div>
-          </div>
-          ` : ''}
-        </div>
-        <div class="specs-block">${specsHtml}</div>
-        <div class="footer">
-          <span class="ft">${modalProd?.marca ?? ''}</span>
-          <span class="fd">&#xB7;</span>
-          <span class="ft">${modalProd?.modelo ?? ''}</span>
-          <span class="fd">&#xB7;</span>
-          <span class="ft">${(modalProd?.subcategoria ?? '').toUpperCase()}</span>
-        </div>
+  const imgGridItemsHtml = base64Images.map(img => `<div class="img-grid-item"><img class="prod-img" src="${img}" alt="Producto" /></div>`).join('');
+
+  // Igual que el diseño original: con más de 2 imágenes se arma una grilla
+  // (45% de ancho, 48% de alto cada una); con exactamente 2, cada una ocupa
+  // el ancho completo pero la mitad del alto (apiladas); con 0 o 1, la única
+  // imagen ocupa el 100% del bloque.
+  const imgGridBasis = base64Images.length > 2 ? '45%' : '100%';
+  const imgGridHeight = base64Images.length >= 2 ? '48%' : '100%';
+
+  const curveColHtml = showCurve ? `
+      <div class="curve-col">
+         <div class="curve-title">CURVA DE RENDIMIENTO</div>
+         <div class="curve-wrapper">
+            ${svgCurveHtml}
+         </div>
+         <div class="curve-disclaimer">Nota: Curva de rendimiento teórica aproximada de referencia. Para datos técnicos exactos y curvas de eficiencia, consulte siempre la ficha oficial del fabricante o a un asesor.</div>
       </div>
-      <script>
-        (function(){
-          var imgs = document.querySelectorAll('.prod-img');
-          imgs.forEach(function(imgEl) {
-            var img = new Image();
-            img.onload = function() {
-              try {
-                var tmp = document.createElement('canvas');
-                var w = img.width, h = img.height;
-                tmp.width = w; tmp.height = h;
-                var ctx = tmp.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                var idata = ctx.getImageData(0,0,w,h);
-                var d = idata.data;
-                var top = h, bottom = 0, left = w, right = 0;
-                for (var y = 0; y < h; y++) {
-                  for (var x = 0; x < w; x++) {
-                    var i4 = (y * w + x) * 4;
-                    if (d[i4+3] > 10 && !(d[i4] >= 245 && d[i4+1] >= 245 && d[i4+2] >= 245)) {
-                      if (x < left) left = x;  if (x > right) right = x;
-                      if (y < top)  top  = y;  if (y > bottom) bottom = y;
-                    }
-                  }
-                }
-                if (right < left || bottom < top) return;
-                var p = 8;
-                left = Math.max(0, left-p); top = Math.max(0, top-p);
-                right = Math.min(w-1, right+p); bottom = Math.min(h-1, bottom+p);
-                var cw = right-left+1, ch = bottom-top+1;
-                var out = document.createElement('canvas');
-                out.width = cw; out.height = ch;
-                out.getContext('2d').drawImage(tmp, left, top, cw, ch, 0, 0, cw, ch);
-                imgEl.src = out.toDataURL('image/png');
-              } catch(e) {}
-            };
-            img.src = imgEl.src;
-          });
-        })();
-      </script>
-    </body>
-    </html>
-  `;
+      ` : '';
+
+  // Cache-first: usa el template ya guardado (o el de fábrica si no hay
+  // ninguno todavía) para no bloquear la generación del PDF esperando red.
+  const template = await getTemplate('product_sheet');
+  // Dispara en segundo plano el chequeo de una versión más nueva en Supabase,
+  // sin esperar la respuesta: si hay una actualización, quedará cacheada
+  // para la PRÓXIMA vez que se comparta una ficha (igual que useTemplate).
+  fetchRemoteTemplate('product_sheet').catch(() => {});
+
+  return renderTemplate(template.html, {
+    logoBase64,
+    hdrName: escapeHtml(modalProd?.subcategoria || modalProd?.marca || ''),
+    sku: escapeHtml(modalProd?.modelo || ''),
+    topBlockH: String(topBlockH),
+    imgGridItemsHtml,
+    imgGridBasis,
+    imgGridHeight,
+    curveColHtml,
+    specPad: String(specPad),
+    specFs: String(specFs),
+    specsBlockHtml,
+    footerMarca: modalProd?.marca ?? '',
+    footerModelo: modalProd?.modelo ?? '',
+    footerSubcat: (modalProd?.subcategoria ?? '').toUpperCase(),
+  });
 }
 
 // ── Exportación opcional y explícita de la Curva de Rendimiento ─────────
@@ -341,12 +257,12 @@ export function generarHtmlCurva(curveData: CurvaData, modalProd: ParsedProduct,
   const maxTickH = hTicks[hTicks.length - 1];
 
   let pathD = '';
-  const curvePad = 6;
+  
   for (let i = 0; i <= 50; i++) {
     const q = finalQ * (i / 50);
     const hp = maxH * (1 - Math.pow(q / finalQ, 2));
-    const px = 50 + curvePad + (q / maxTickQ) * (240 - curvePad * 2);
-    const py = 280 - curvePad - (hp / maxTickH) * (240 - curvePad * 2);
+    const px = 50 + (q / maxTickQ) * 240;
+    const py = 280 - (hp / maxTickH) * 240;
     pathD += `${i === 0 ? 'M' : 'L'} ${px} ${py} `;
   }
 
@@ -490,37 +406,47 @@ export async function fetchImageBase64(url: string): Promise<string> {
   }
 }
 
-export async function generateAndSharePdf(modalProd: ParsedProduct, pdfCache: Record<string, string> = {}, logoRefreshKey: string = String(Date.now()), selectedImages?: string[]) {
+/**
+ * Genera el archivo PDF de la ficha (mismo HTML/datos que generateAndSharePdf)
+ * y devuelve su uri temporal, sin compartirlo. Es la única función que arma
+ * este PDF — tanto "Compartir PDF" como "Compartir Imagen" parten de acá,
+ * para garantizar que ambos formatos salgan siempre idénticos.
+ */
+export async function generateFichaPdfUri(modalProd: ParsedProduct, pdfCache: Record<string, string> = {}, logoRefreshKey: string = String(Date.now()), selectedImages?: string[]): Promise<string> {
   const specs = modalProd?.specs || [];
   let finalProdB64s: string[] = [];
   let finalLogoB64 = pdfCache?.logoBase64;
-  
+
   const marcaSlug = modalProd?.marca?.toUpperCase().replace(/\s+/g, '_') || '';
   const logoUrl = `https://www.chacomer.com.py/media/wysiwyg/comagro/brands2025/${marcaSlug}.jpg?v=${logoRefreshKey}`;
-  
+
   let timeoutId: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => reject(new Error('timeout')), 10000);
   });
 
-  const urlsToFetch = selectedImages && selectedImages.length > 0 
-    ? selectedImages 
+  const urlsToFetch = selectedImages && selectedImages.length > 0
+    ? selectedImages
     : [modalProd?.imagenOriginal || modalProd?.imagen || ''];
 
   if (!finalLogoB64) {
     finalLogoB64 = await Promise.race([fetchImageBase64(logoUrl), timeoutPromise]).catch(() => '') as string;
   }
 
-  // Fetch all selected images
   finalProdB64s = await Promise.all(
     urlsToFetch.map(url => Promise.race([fetchImageBase64(url), timeoutPromise]).catch(() => '') as Promise<string>)
   );
-  
+
   clearTimeout(timeoutId);
 
-  const htmlContent = generarHtmlFicha(specs, finalProdB64s, finalLogoB64, modalProd);
+  const htmlContent = await generarHtmlFicha(specs, finalProdB64s, finalLogoB64, modalProd);
   const { uri } = await Print.printToFileAsync({ html: htmlContent });
-  
+  return uri;
+}
+
+export async function generateAndSharePdf(modalProd: ParsedProduct, pdfCache: Record<string, string> = {}, logoRefreshKey: string = String(Date.now()), selectedImages?: string[]) {
+  const uri = await generateFichaPdfUri(modalProd, pdfCache, logoRefreshKey, selectedImages);
+
   let finalUriToShare = uri;
   try {
     const safeMarca = (modalProd?.marca || 'marca').replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();

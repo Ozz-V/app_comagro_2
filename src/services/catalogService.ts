@@ -39,6 +39,8 @@ async function getAccessToken(): Promise<string | null> {
 // ─── Catálogo de Productos ────────────────────────────────────────────────────
 
 export const CACHE_TIME_KEY = 'comagro_productos_fecha_v3';
+const DATA_SCHEMA_VERSION = 'v1.2'; // Cambiar este string fuerza una recarga masiva del catálogo
+const SCHEMA_KEY = '@comagro_schema_version';
 const HORAS_VIGENCIA = 24;
 
 /**
@@ -87,6 +89,28 @@ export async function syncCatalog(
     const rows: Product[] = await res.json();
 
     if (Array.isArray(rows) && rows.length > 0) {
+        // INTEGRACIÓN AI: Obtener pitch y precio_web para inyectarlos antes de guardar
+        try {
+          const skus = rows.map((r: any) => r.SKU || r.sku);
+          const { data: aiData } = await supabase.from('productos_ai_data').select('sku, sales_pitch, precio_web').in('sku', skus);
+          if (aiData) {
+            const aiMap: Record<string, string> = {};
+            const aiMapPrecio: Record<string, number | null> = {};
+            aiData.forEach(r => {
+              aiMap[r.sku] = r.sales_pitch;
+              aiMapPrecio[r.sku] = r.precio_web;
+            });
+            rows.forEach((prod: any) => {
+              const skuStr = String(prod.SKU || prod.sku).trim();
+              prod.sales_pitch = aiMap[skuStr] || '';
+              prod.precio_web = aiMapPrecio[skuStr] || null;
+            });
+          }
+        } catch (err) {
+          console.warn('Error al mezclar AI data en syncCatalog:', err);
+        }
+
+
       // Siempre upsert — nunca se borra la tabla acá (ver database.ts).
       await insertProductsBatch(rows, manifest, !isFullSync);
       totalSynced += rows.length;
@@ -177,7 +201,16 @@ export async function ensureCatalogSynced(
 ): Promise<SyncResult | null> {
   if (catalogSyncPromise) return catalogSyncPromise;
 
-  const fechaCache = await AsyncStorage.getItem(CACHE_TIME_KEY);
+  // Verificación de versión del esquema de base de datos visual
+  const storedSchema = await AsyncStorage.getItem(SCHEMA_KEY);
+  let fechaCache = await AsyncStorage.getItem(CACHE_TIME_KEY);
+
+  // Si la versión del esquema cambió (porque los programadores lanzaron una update), borramos la fecha
+  if (storedSchema !== DATA_SCHEMA_VERSION) {
+    fechaCache = null;
+    await AsyncStorage.removeItem(CACHE_TIME_KEY);
+    await AsyncStorage.setItem(SCHEMA_KEY, DATA_SCHEMA_VERSION);
+  }
 
   if (!opts?.skipVigenciaCheck) {
     const cacheVigente = fechaCache && (Date.now() - parseInt(fechaCache)) < HORAS_VIGENCIA * 3600000;

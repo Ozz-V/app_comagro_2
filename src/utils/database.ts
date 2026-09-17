@@ -16,6 +16,7 @@ export interface ProductRow {
   specs_json: string;
   search_text: string;
   sales_pitch: string;
+  precio_web?: number;
 }
 
 // Singleton: una sola conexión compartida por todas las funciones.
@@ -155,7 +156,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
       imagenes_json TEXT,
       specs_json TEXT,
       search_text TEXT,
-      sales_pitch TEXT
+      sales_pitch TEXT, precio_web REAL
     );
 
     CREATE INDEX IF NOT EXISTS idx_productos_marca ON productos(marca COLLATE NOCASE);
@@ -188,7 +189,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
           imagenes_json TEXT,
           specs_json TEXT,
           search_text TEXT,
-          sales_pitch TEXT
+          sales_pitch TEXT, precio_web REAL
         );
       `);
     } else {
@@ -197,7 +198,15 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
         await db.execAsync('ALTER TABLE productos ADD COLUMN search_text TEXT;');
       }
       if (!hasSalesPitchColumn) {
+        // FIX (auditoría): SQLite NO soporta agregar más de una columna en
+        // una sola sentencia ALTER TABLE ... ADD COLUMN (a diferencia de
+        // Postgres/MySQL). La sentencia anterior con dos columnas separadas
+        // por coma lanzaba "syntax error near ','" en cualquier dispositivo
+        // que tuviera la tabla vieja sin `sales_pitch` -- es decir, rompía
+        // la migración incremental para usuarios existentes. Cada columna
+        // nueva necesita su propia sentencia ALTER TABLE.
         await db.execAsync('ALTER TABLE productos ADD COLUMN sales_pitch TEXT;');
+        await db.execAsync('ALTER TABLE productos ADD COLUMN precio_web REAL;');
       }
       if (!hasImagenesJsonColumn) {
         await db.execAsync('ALTER TABLE productos ADD COLUMN imagenes_json TEXT;');
@@ -206,6 +215,18 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
   }
 
   // ─── Índice FTS5 para búsqueda de texto ──────────────────────────────
+  
+  // MIGRACIÓN: Agregar precio_web si no existe
+  try {
+    const tableInfo: any[] = await db.getAllAsync('PRAGMA table_info(productos)');
+    const hasPrecioWeb = tableInfo.some(col => col.name === 'precio_web');
+    if (!hasPrecioWeb) {
+      await db.execAsync('ALTER TABLE productos ADD COLUMN precio_web REAL;');
+    }
+  } catch (e) {
+    console.warn('Error en migración precio_web', e);
+  }
+
   try {
     await db.execAsync(`
       CREATE VIRTUAL TABLE IF NOT EXISTS productos_fts USING fts5(
@@ -275,12 +296,29 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const subcategoria = (p['Tipo de Producto'] || p['Categoria Magento'] || 'General').toString().trim().toUpperCase();
 
       const rawImages: string[] = [];
+      const reserveImages: string[] = [];
+      
       for (const [col, val] of Object.entries(p)) {
-        if (col.toLowerCase().includes('imagen') && val && String(val).trim().length > 0) {
+        const cLower = col.toLowerCase();
+        if (cLower.includes('imagen') && val && String(val).trim().length > 0) {
           const urlVal = String(val).trim();
-          rawImages.push((manifest && manifest[urlVal]) || urlVal);
+          const finalUrl = (manifest && manifest[urlVal]) || urlVal;
+          
+          // Si es una columna de reserva (alta o png), la guardamos aparte
+          if (cLower.includes('alta') || cLower.includes('png')) {
+            reserveImages.push(finalUrl);
+          } else {
+            // Si es una columna principal, va a la lista oficial
+            rawImages.push(finalUrl);
+          }
         }
       }
+      
+      // EXCEPCIÓN: Si no se encontró NINGUNA foto principal, usamos solo 1 de las de reserva
+      if (rawImages.length === 0 && reserveImages.length > 0) {
+        rawImages.push(reserveImages[0]);
+      }
+
       const validImages = Array.from(new Set(rawImages)); // Deduplicate
       const imagenOriginal = validImages.length > 0 ? validImages[0] : '';
       const imagen = imagenOriginal;
@@ -289,7 +327,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const specs: [string, string][] = [];
       const colsExcluidas = new Set([
         'SKU', 'Brand', 'Marca', 'marca', 'id', 'ID', 'Tipo de Producto', 'Categoria Magento',
-        'url_key', 'sales_pitch'
+        'url_key', 'sales_pitch', 'precio_web'
       ]);
 
       const basura = ['n/a', 'na', 'n.a', 'n.a.', 'no aplica', 'sin dato', 'sin datos',
@@ -301,6 +339,26 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         const s = String(val).trim();
         const sLower = s.toLowerCase();
 
+        // Dar formato amigable a updated_at
+        if (kLower === 'updated_at' || kLower === 'updated at') {
+          if (s.length > 0 && s !== 'null') {
+            try {
+              const d = new Date(s);
+              if (!isNaN(d.getTime())) {
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                const hours = String(d.getHours()).padStart(2, '0');
+                const minutes = String(d.getMinutes()).padStart(2, '0');
+                specs.push(['Actualizado última vez', `${day}/${month}/${year} ${hours}:${minutes}`]);
+              }
+            } catch (e) {
+              // Si falla el parseo, se ignora
+            }
+          }
+          continue;
+        }
+
         // 1. Filtro estricto para bloquear imágenes y links
         const esColumnaImagen = kLower.includes('imagen') || kLower.includes('foto') || kLower.includes('img') || kLower.includes('manual');
         const tieneLink = sLower.includes('http://') || sLower.includes('https://') || sLower.includes('plytix.com');
@@ -309,7 +367,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         const tieneContenidoReal = /[a-zA-Z0-9]/.test(s);
 
         if (!colsExcluidas.has(col) && !col.startsWith('_') && !esColumnaImagen && !tieneLink) {
-          if (s.length > 0 && tieneContenidoReal && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
+          if (s.length > 0 && s !== 'null' && tieneContenidoReal && !/^0([.,]0+)?$/.test(s) && !basura.includes(sLower)) {
             specs.push([col, s]);
           }
         }
@@ -320,8 +378,8 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       const salesPitch = p.sales_pitch || '';
 
       await db.runAsync(
-        'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, imagenes_json, specs_json, search_text, sales_pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [sku, marca, subcategoria, imagen, imagenOriginal, imagenesJson, specsJson, searchText, salesPitch]
+        'INSERT OR REPLACE INTO productos (sku, marca, subcategoria, imagen, imagenOriginal, imagenes_json, specs_json, search_text, sales_pitch, precio_web) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [sku, marca, subcategoria, imagen, imagenOriginal, imagenesJson, specsJson, searchText, salesPitch, p.precio_web || null]
       );
     }
   });
@@ -403,7 +461,8 @@ export async function searchProducts(marcaFiltro: string, subcatFiltro: string, 
     imagen: r.imagen, imagenOriginal: r.imagenOriginal,
     imagenes: r.imagenes_json ? JSON.parse(r.imagenes_json) : [],
     specs: r.specs_json ? JSON.parse(r.specs_json) : [],
-    sales_pitch: r.sales_pitch || ''
+    sales_pitch: r.sales_pitch || '',
+    precio_web: r.precio_web
   }));
 }
 
@@ -428,7 +487,8 @@ export async function getProductsBySubcategory(substring: string, excludeAccesso
     imagenOriginal: r.imagenOriginal,
     imagenes: r.imagenes_json ? JSON.parse(r.imagenes_json) : [],
     specs: r.specs_json ? JSON.parse(r.specs_json) : [],
-    sales_pitch: r.sales_pitch || ''
+    sales_pitch: r.sales_pitch || '',
+    precio_web: r.precio_web
   }));
 }
 
@@ -444,7 +504,8 @@ export async function getProductBySku(sku: string): Promise<ParsedProduct | null
     imagenOriginal: result.imagenOriginal,
     imagenes: result.imagenes_json ? JSON.parse(result.imagenes_json) : [],
     specs: result.specs_json ? JSON.parse(result.specs_json) : [],
-    sales_pitch: result.sales_pitch || ''
+    sales_pitch: result.sales_pitch || '',
+    precio_web: result.precio_web
   };
 }
 
@@ -476,9 +537,9 @@ export async function fetchMissingProductFromCloud(sku: string): Promise<ParsedP
   }
 }
 
-export async function getAllProducts(): Promise<ParsedProduct[]> {
+export async function getAllProducts(limit: number = 50): Promise<ParsedProduct[]> {
   const db = await initDB();
-  const results = await db.getAllAsync<ProductRow>('SELECT * FROM productos ORDER BY marca ASC, sku ASC');
+  const results = await db.getAllAsync<ProductRow>(`SELECT * FROM productos ORDER BY marca ASC, sku ASC LIMIT ${limit}`);
   return results.map(r => ({
     modelo: r.sku,
     marca: r.marca,
@@ -487,6 +548,7 @@ export async function getAllProducts(): Promise<ParsedProduct[]> {
     imagenOriginal: r.imagenOriginal,
     imagenes: r.imagenes_json ? JSON.parse(r.imagenes_json) : [],
     specs: r.specs_json ? JSON.parse(r.specs_json) : [],
-    sales_pitch: r.sales_pitch || ''
+    sales_pitch: r.sales_pitch || '',
+    precio_web: r.precio_web
   }));
 }

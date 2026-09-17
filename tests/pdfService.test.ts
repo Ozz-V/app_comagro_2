@@ -41,10 +41,11 @@ describe('pdfService', () => {
   });
 
   describe('generarHtmlFicha', () => {
-    it('generates HTML string with 2 columns layout when specs > 0 and image is small', () => {
-      // Force many specs to trigger double columns
-      const manySpecs = Array.from({ length: 30 }, (_, i) => [`Spec${i}`, `Val${i}`]) as [string, string][];
-      const html = generarHtmlFicha(manySpecs, ['base64Img'], 'logoBase64', mockProduct);
+    it('generates HTML string with 2 columns layout when specs > 0 and image is small', async () => {
+      // Force many specs to trigger double columns. El umbral exacto depende
+      // de PX_HDR/TEXT_H (ver pdfService.ts); 35 deja margen de sobra.
+      const manySpecs = Array.from({ length: 35 }, (_, i) => [`Spec${i}`, `Val${i}`]) as [string, string][];
+      const html = await generarHtmlFicha(manySpecs, ['base64Img'], 'logoBase64', mockProduct);
       
       expect(html).toContain('<!DOCTYPE html>');
       expect(html).toContain('ESPECIFICACIONES TÉCNICAS');
@@ -56,13 +57,24 @@ describe('pdfService', () => {
       expect(html).toContain('width:22%');
     });
 
-    it('generates HTML string with 1 column layout when specs are few', () => {
-      const html = generarHtmlFicha(mockProduct.specs || [], ['base64Img'], 'logoBase64', mockProduct);
+    it('generates HTML string with 1 column layout when specs are few', async () => {
+      const html = await generarHtmlFicha(mockProduct.specs || [], ['base64Img'], 'logoBase64', mockProduct);
       
       expect(html).toContain('<!DOCTYPE html>');
       expect(html).toContain('Power');
       expect(html).toContain('2hp');
       expect(html).toContain('width:34%'); // Single column colgroup
+    });
+
+    it('shows the brand logo big in the header with the product name and SKU instead of the old generic "FICHA TÉCNICA" title', async () => {
+      const html = await generarHtmlFicha(mockProduct.specs || [], ['base64Img'], 'logoBase64', mockProduct);
+
+      expect(html).toContain('class="hdr-name"');
+      expect(html).toContain(mockProduct.subcategoria);
+      expect(html).toContain('SKU:');
+      expect(html).toContain(mockProduct.modelo);
+      expect(html).not.toContain('FICHA T');
+      expect(html).not.toContain('info-box');
     });
   });
 
@@ -112,18 +124,18 @@ describe('pdfService', () => {
       sales_pitch: 'Description',
     };
 
-    it('never includes the curve when includeCurve is omitted (share PDF/imagen)', () => {
-      const html = generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct);
+    it('never includes the curve when includeCurve is omitted (share PDF/imagen)', async () => {
+      const html = await generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct);
       expect(html).not.toContain('CURVA DE RENDIMIENTO');
     });
 
-    it('never includes the curve even if includeCurve is explicitly false', () => {
-      const html = generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct, false);
+    it('never includes the curve even if includeCurve is explicitly false', async () => {
+      const html = await generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct, false);
       expect(html).not.toContain('CURVA DE RENDIMIENTO');
     });
 
-    it('only draws the curve when includeCurve is explicitly true and product is a pump with valid data', () => {
-      const html = generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct, true);
+    it('only draws the curve when includeCurve is explicitly true and product is a pump with valid data', async () => {
+      const html = await generarHtmlFicha(pumpProduct.specs || [], ['base64Img'], 'logoBase64', pumpProduct, true);
       expect(html).toContain('CURVA DE RENDIMIENTO');
     });
   });

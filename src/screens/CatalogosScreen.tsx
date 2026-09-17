@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useCustomAlert } from '../contexts/CustomAlertContext';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, Image, SafeAreaView, StatusBar,
@@ -30,6 +31,7 @@ export default function CatalogosScreen({ navigation }: { navigation: { navigate
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [abriendo, setAbriendo]   = useState<string | null>(null);
+  const { showAlert } = useCustomAlert();
   const [pdfModal, setPdfModal]   = useState<{ visible: boolean; url: string | null; title: string | null }>({ visible: false, url: null, title: null });
   const { manifest, manifestReady, isOnline } = useOfflineSync();
 
@@ -173,7 +175,7 @@ export default function CatalogosScreen({ navigation }: { navigation: { navigate
       setPdfModal({ visible: true, url: data.signedUrl, title: label || archivo });
     } catch (e: unknown) {
       if ((e as Error)?.message === 'timeout') {
-        alert('Sin conexión. Descarga el catálogo para usarlo offline.');
+        showAlert('Modo Offline', 'Sin conexión. Descarga el catálogo para usarlo offline.');
       }
       // silently handled otherwise
     } finally {

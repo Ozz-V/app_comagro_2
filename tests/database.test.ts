@@ -107,6 +107,26 @@ describe('Database utility', () => {
       expect(mockDb.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('marca = ?'), expect.any(Array));
     });
 
+    it('filters by a specific subcategory using LIKE with a wildcarded param (regresión: no debe volver a usar "=")', async () => {
+      // Bug real detectado 2026-09-15: el commit 6b30f48 cambió
+      // "subcategoria LIKE ?" a "subcategoria = ?" sin sacar los "%"
+      // del parámetro, lo que rompía en silencio cualquier filtro por
+      // subcategoría específica (catálogo y "Comparar con similares").
+      mockDb.getAllAsync.mockImplementation((query: string) => {
+        if (query.includes('PRAGMA')) return Promise.resolve([{ name: 'sku' }, { name: 'search_text' }, { name: 'sales_pitch' }]);
+        return Promise.resolve([{ sku: '123', specs_json: '[]' }]);
+      });
+      await searchProducts('Todas', 'Motocultores', '');
+      expect(mockDb.getAllAsync).toHaveBeenCalledWith(
+        expect.stringContaining('subcategoria LIKE ?'),
+        expect.arrayContaining(['%Motocultores%'])
+      );
+      expect(mockDb.getAllAsync).not.toHaveBeenCalledWith(
+        expect.stringContaining('subcategoria = ?'),
+        expect.anything()
+      );
+    });
+
     it('gets product by sku', async () => {
       mockDb.getFirstAsync.mockResolvedValueOnce({ sku: '123', specs_json: '[]' });
       const res = await getProductBySku('123');

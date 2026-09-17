@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { View, Text, TouchableOpacity, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from './SvgIcon';
@@ -16,6 +17,7 @@ export default function ProfileCompleteModal({ visible, onSuccess, initialName =
   const [profPhoneCode, setProfPhoneCode] = useState('+595');
   const [profPhone, setProfPhone] = useState(initialPhone);
   const [profSaving, setProfSaving] = useState(false);
+  const { showAlert } = useCustomAlert();
 
   useEffect(() => {
     if (visible) {
@@ -34,7 +36,7 @@ export default function ProfileCompleteModal({ visible, onSuccess, initialName =
 
   async function saveRequiredProfile() {
     if (!profName.trim() || !profPhone.trim()) {
-      alert('Por favor completa tu nombre y teléfono.');
+      showAlert('Aviso', 'Por favor completa tu nombre y teléfono.');
       return;
     }
     setProfSaving(true);
@@ -52,10 +54,10 @@ export default function ProfileCompleteModal({ visible, onSuccess, initialName =
       if (!error) {
         if (onSuccess) onSuccess(profName);
       } else {
-        alert('Error DB: ' + (error.message || JSON.stringify(error)));
+        showAlert('Error DB', error.message || JSON.stringify(error));
       }
     } catch (e: any) {
-      alert('Error guardando perfil.');
+      showAlert('Error', 'Problema al guardar el perfil.');
     } finally {
       setProfSaving(false);
     }

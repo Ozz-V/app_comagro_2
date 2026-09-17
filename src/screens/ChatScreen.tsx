@@ -56,7 +56,9 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
             setProfName(profileData.full_name);
           }
         }
-      } catch (e) {}
+      } catch (e) {
+  console.warn('No se pudo leer @user_profile_cache', e);
+}
 
       if (localName) {
         setChatHistory([{
@@ -256,9 +258,8 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
         />
 
         <View style={styles.hintBanner}>
-          <SvgIcon name="buscar" size={14} color={COLORS.navy} />
-          <Text style={styles.hintText}>Tratá de ser específico e incluir el modelo, SKU o contexto para que la búsqueda sea más precisa.</Text>
-        </View>
+            <Text style={styles.hintText}>Sé específico (ej. marca o modelo) para mejores resultados.</Text>
+          </View>
 
         <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'android' ? Math.max(10, insets.bottom + 5) : 10 }]}>
           <TextInput

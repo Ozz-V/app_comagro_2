@@ -1,4 +1,4 @@
-tests/
+﻿tests/
 __mocks__/
 node_modules/
 .expo/
@@ -7,5 +7,8 @@ ios/
 src/models/database.types.ts
 dist/
 build/
-coverage/models/database.types.ts
+coverage/
 supabase/
+test_scrape.js
+test_scrape.ts
+fix_sku.ts

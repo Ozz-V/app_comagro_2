@@ -9,6 +9,28 @@ import { useCustomAlert } from '../contexts/CustomAlertContext';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import * as IntentLauncher from 'expo-intent-launcher';
 
+// El workflow de build (build-produccion.yml) siempre publica el APK como
+// un Release Asset de este repo puntual. Cualquier download_url que no
+// matchee esto se rechaza — aunque la fila en version_apk sea legítima,
+// no hay razón para que la app descargue e instale un binario desde
+// cualquier otro origen.
+const ALLOWED_DOWNLOAD_HOST = 'github.com';
+const ALLOWED_DOWNLOAD_PATH_PREFIX = '/Ozz-V/comagro_apk_descargas/releases/download/';
+
+function isDownloadUrlTrusted(url: string | null | undefined): url is string {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'https:' &&
+      parsed.hostname === ALLOWED_DOWNLOAD_HOST &&
+      parsed.pathname.startsWith(ALLOWED_DOWNLOAD_PATH_PREFIX)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function useOTAUpdate() {
   const { showAlert } = useCustomAlert();
   const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'prompt' | 'downloading' | 'ready' | 'none'>('idle');
@@ -16,7 +38,6 @@ export function useOTAUpdate() {
   const [updateNotes, setUpdateNotes] = useState('');
   const [updateUrl, setUpdateUrl] = useState<string | null>(null);
   const [expectedSha256, setExpectedSha256] = useState<string | null>(null);
-  const [expectedMd5, setExpectedMd5] = useState<string | null>(null);
   const [apkLocalUri, setApkLocalUri] = useState<string | null>(null);
 
   async function checkUpdate(autoStartDownload: boolean = false) {
@@ -40,13 +61,17 @@ export function useOTAUpdate() {
           ? parseInt(Application.nativeBuildVersion, 10)
           : (Constants.expoConfig?.android?.versionCode || 1);
         if (data.version_code > installedCode) {
+          if (!isDownloadUrlTrusted(data.download_url)) {
+            Sentry.captureMessage(`OTA update rechazada: download_url de origen no confiable (${data.download_url})`, 'error');
+            setUpdateState('none');
+            return;
+          }
           setUpdateNotes(data.release_notes || 'Nueva versión disponible');
           setUpdateUrl(data.download_url);
           setExpectedSha256(data.sha256_hash || null);
-          setExpectedMd5(data.md5_hash || null);
-          
+
           if (autoStartDownload) {
-            startDownloadUpdate(data.download_url, data.sha256_hash, data.md5_hash);
+            startDownloadUpdate(data.download_url, data.sha256_hash);
           } else {
             setUpdateState('prompt');
           }
@@ -62,10 +87,9 @@ export function useOTAUpdate() {
     }
   }
 
-  async function startDownloadUpdate(urlOrEvent?: string | any, sha256Override?: string | null, md5Override?: string | null) {
+  async function startDownloadUpdate(urlOrEvent?: string | any, sha256Override?: string | null) {
     let url = typeof urlOrEvent === 'string' ? urlOrEvent : updateUrl;
     let sha256 = typeof sha256Override === 'string' ? sha256Override : expectedSha256;
-    let md5 = typeof md5Override === 'string' ? md5Override : expectedMd5;
 
     // Fallback de ultra-seguridad: si la URL se perdió en el closure de React, forzar lectura de DB
     if (!url) {
@@ -74,7 +98,6 @@ export function useOTAUpdate() {
         if (data && data.download_url) {
           url = data.download_url;
           sha256 = data.sha256_hash || null;
-          md5 = data.md5_hash || null;
         }
       } catch (e) {
         Sentry.captureException(e);
@@ -83,6 +106,13 @@ export function useOTAUpdate() {
 
     if (!url) {
       showAlert("Error Crítico", "No se encontró el link de descarga. Por favor, intenta de nuevo más tarde.");
+      setUpdateState('none');
+      return;
+    }
+
+    if (!isDownloadUrlTrusted(url)) {
+      Sentry.captureMessage(`OTA download rechazado: download_url de origen no confiable (${url})`, 'error');
+      showAlert("Error de Seguridad", "El link de descarga no proviene de un origen confiable. Actualización cancelada.");
       setUpdateState('none');
       return;
     }
@@ -131,32 +161,26 @@ export function useOTAUpdate() {
           throw new Error(`El archivo descargado no es una APK (Recibido: ${contentType}). Verifica el link en Supabase.`);
         }
 
-        const hasSha256 = !!sha256;
-        const hasMd5 = !!md5;
-
-        if (hasSha256) {
-
-          const nativePath = result.uri.startsWith('file://') ? result.uri.replace('file://', '') : result.uri;
-          let calculatedSha256;
-          try {
-            calculatedSha256 = await ReactNativeBlobUtil.fs.hash(nativePath, 'sha256');
-          } catch (hashErr: unknown) {
-            throw new Error("Fallo al calcular SHA-256 local: " + ((hashErr as Error)?.message || String(hashErr)));
-          }
-          
-          if (calculatedSha256.toLowerCase() !== sha256!.toLowerCase()) {
-            await FileSystem.deleteAsync(result.uri, { idempotent: true });
-            throw new Error('Firma SHA-256 inválida. Posible archivo corrupto.');
-          }
-        } else if (hasMd5) {
-          const fileInfo = await FileSystem.getInfoAsync(result.uri, { md5: true }) as any;
-          if (fileInfo.md5?.toLowerCase() !== md5!.toLowerCase()) {
-            await FileSystem.deleteAsync(result.uri, { idempotent: true });
-            throw new Error('Firma MD5 inválida. Archivo corrupto.');
-          }
-        } else {
+        // MD5 ya no se acepta como verificación: es criptográficamente débil
+        // (colisiones factibles), así que un atacante que ya hubiera logrado
+        // escribir en version_apk podría haber generado un APK malicioso con
+        // el mismo MD5 que el legítimo. SHA-256 es obligatorio, sin fallback.
+        if (!sha256) {
           await FileSystem.deleteAsync(result.uri, { idempotent: true });
-          throw new Error('ALERTA: Sin hash de seguridad en BD. Abortado.');
+          throw new Error('ALERTA: Sin hash SHA-256 en BD. Abortado.');
+        }
+
+        const nativePath = result.uri.startsWith('file://') ? result.uri.replace('file://', '') : result.uri;
+        let calculatedSha256;
+        try {
+          calculatedSha256 = await ReactNativeBlobUtil.fs.hash(nativePath, 'sha256');
+        } catch (hashErr: unknown) {
+          throw new Error("Fallo al calcular SHA-256 local: " + ((hashErr as Error)?.message || String(hashErr)));
+        }
+
+        if (calculatedSha256.toLowerCase() !== sha256.toLowerCase()) {
+          await FileSystem.deleteAsync(result.uri, { idempotent: true });
+          throw new Error('Firma SHA-256 inválida. Posible archivo corrupto.');
         }
 
         setApkLocalUri(result.uri);
