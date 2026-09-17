@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../theme';
@@ -13,11 +13,13 @@ export default function HistorialScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={{fontSize: 24, color: COLORS.navy}}>{'<'}</Text>
+      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+      <View style={styles.topbar}>
+        <TouchableOpacity style={styles.backBtnWrapper} onPress={() => navigation.goBack()}>
+          <Text style={styles.backBtnText}>Cerrar</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Historial y Favoritos</Text>
+        <Text style={styles.topTitle}>Mi Historial</Text>
+        <View style={{ width: 80 }} />
       </View>
       
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -32,8 +34,30 @@ export default function HistorialScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.white },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: '#F8F9FA' },
-  backBtn: { paddingRight: 16 },
-  title: { fontSize: 20, fontWeight: 'bold', color: COLORS.navy },
-  scrollContent: { paddingVertical: 8, display: 'flex', flexDirection: 'column' }
+  topbar: {
+    height: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  topTitle: {
+    fontFamily: 'BarlowCondensed_900Black',
+    fontSize: 24,
+    color: '#1f2f6b',
+    textTransform: 'uppercase',
+  },
+  backBtnWrapper: {
+    width: 80,
+    paddingLeft: 16,
+    justifyContent: 'center',
+  },
+  backBtnText: {
+    fontFamily: 'Barlow_600SemiBold',
+    fontSize: 16,
+    color: '#1f2f6b',
+  },
+  scrollContent: { paddingVertical: 16, display: 'flex', flexDirection: 'column' }
 });
