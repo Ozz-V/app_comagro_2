@@ -191,14 +191,25 @@ jobs:
             echo "Secret GH_PAT_RELEASES detectado correctamente."
           fi
 
+      - name: Guardar APK como Artefacto (Seguro)
+        uses: actions/upload-artifact@v4
+        with:
+          name: comagroapp-apk
+          path: android/app/build/outputs/apk/release/comagroapp.apk
+          retention-days: 5
+
       - name: Create GitHub Release Candidate (Public Repo)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT_RELEASES }}
-        run: |
-          echo "Creando o actualizando Release en el repositorio público..."
-          gh release create ${{ env.CANDIDATE_TAG }} --repo Ozz-V/comagro_apk_descargas --title "Candidato ${{ env.CANDIDATE_TAG }}" --prerelease || echo "El release ya existe, procediendo a subir archivos."
-          echo "Subiendo APK y metadata..."
-          gh release upload ${{ env.CANDIDATE_TAG }} --repo Ozz-V/comagro_apk_descargas --clobber android/app/build/outputs/apk/release/comagroapp.apk /tmp/metadata.json
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "android/app/build/outputs/apk/release/comagroapp.apk,/tmp/metadata.json"
+          token: ${{ secrets.GH_PAT_RELEASES }}
+          repo: comagro_apk_descargas
+          owner: Ozz-V
+          tag: ${{ env.CANDIDATE_TAG }}
+          name: Candidato ${{ env.CANDIDATE_TAG }}
+          prerelease: true
+          allowUpdates: true
+          replacesArtifacts: true
 
       - name: Commit updated versionCode back to branch
         run: |
