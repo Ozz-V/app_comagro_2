@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, FlatList } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../supabase';
@@ -138,7 +139,7 @@ export default function FavoritesPanel() {
 
       {/* MODAL VER TODOS */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer} edges={['top', 'left', 'right']}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Todos mis Favoritos</Text>
             <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
@@ -184,7 +185,7 @@ export default function FavoritesPanel() {
             }}
             ListEmptyComponent={<Text style={styles.empty}>No se encontraron favoritos.</Text>}
           />
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );
@@ -212,7 +213,7 @@ const styles = StyleSheet.create({
   
   modalContainer: { flex: 1, backgroundColor: COLORS.bg },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  modalTitle: { fontFamily: FONTS.headingBold, fontSize: 20, color: COLORS.navy },
+  modalTitle: { fontFamily: FONTS.heading, fontSize: 20, fontWeight: '700', color: COLORS.navy },
   closeBtn: { padding: 4 },
   searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, margin: 16, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, gap: 10 },
   searchInput: { flex: 1, height: 44, fontFamily: FONTS.body, fontSize: 15, color: COLORS.navy },
