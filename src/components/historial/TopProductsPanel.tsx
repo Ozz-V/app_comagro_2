@@ -138,5 +138,5 @@ const styles = StyleSheet.create({
   name: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.navy, marginBottom: 4 },
   progressBg: { height: 4, backgroundColor: COLORS.bg, borderRadius: 2, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: COLORS.navy, borderRadius: 2 },
-  count: { fontFamily: FONTS.headingBold, fontSize: 14, color: COLORS.navy, width: 28, textAlign: 'right' },
+  count: { fontFamily: FONTS.heading, fontSize: 14, fontWeight: '700', color: COLORS.navy, width: 28, textAlign: 'right' },
 });
