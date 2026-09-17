@@ -53,7 +53,7 @@ export default function StarProductPanel() {
             shares: counts[starSku].shares,
             name: prod ? prod.modelo : starSku,
             marca: prod?.marca || '',
-            subcategory: prod?.sub_categoria || 'Sin subcategoría',
+            subcategory: prod?.subcategoria || 'Sin subcategoría',
             img: prod?.imagen || prod?.imagenOriginal || '',
           };
           setStarData(result);
