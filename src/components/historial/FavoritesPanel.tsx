@@ -18,8 +18,6 @@ export default function FavoritesPanel() {
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [loading, setLoading] = useState(true);
 
-  if (!isFeatureEnabled('favoritos')) return null;
-
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -36,6 +34,8 @@ export default function FavoritesPanel() {
 
     fetchFaves();
   }, [session?.user?.id]);
+
+  if (!isFeatureEnabled('favoritos')) return null;
 
   if (loading) return <ActivityIndicator style={{ margin: 20 }} color={COLORS.navy} />;
 

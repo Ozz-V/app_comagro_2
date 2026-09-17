@@ -14,8 +14,6 @@ export default function TopProductsPanel() {
   const [products, setProducts] = useState<{sku: string, count: number}[]>([]);
   const [loading, setLoading] = useState(true);
 
-  if (!isFeatureEnabled('historial_user')) return null;
-
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -51,6 +49,8 @@ export default function TopProductsPanel() {
 
     fetchTop();
   }, [session?.user?.id]);
+
+  if (!isFeatureEnabled('historial_user')) return null;
 
   return (
     <View style={styles.card}>

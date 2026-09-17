@@ -12,8 +12,6 @@ export default function StarProductPanel() {
   const [starSku, setStarSku] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  if (!isFeatureEnabled('producto_estrella')) return null;
-
   useEffect(() => {
     const fetchStar = async () => {
       // Optimizamos obteniendo el producto más visto desde la tabla de analytics
@@ -32,6 +30,8 @@ export default function StarProductPanel() {
 
     fetchStar();
   }, []);
+
+  if (!isFeatureEnabled('producto_estrella')) return null;
 
   return (
     <View style={styles.card}>
