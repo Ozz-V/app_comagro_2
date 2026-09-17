@@ -7,8 +7,10 @@ interface AuthState {
   isAuthenticated: boolean;
   isInitialized: boolean;
   session: Session | null;
+  isAdmin: boolean;
   setAuth: (session: Session | null) => void;
   clearAuth: () => void;
+  setIsAdmin: (isAdmin: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -17,6 +19,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isInitialized: false,
   session: null,
+  isAdmin: false,
   setAuth: (session) => set({
     session,
     userId: session?.user?.id || null,
@@ -30,5 +33,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     isAuthenticated: false,
     session: null,
     isInitialized: true,
+    isAdmin: false,
   }),
+  setIsAdmin: (isAdmin) => set({ isAdmin }),
 }));

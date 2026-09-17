@@ -43,6 +43,10 @@ import LottieSplashScreen from './src/screens/LottieSplashScreen';
 import CompleteProfileScreen from './src/screens/CompleteProfileScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import EstadisticasScreen from './src/screens/EstadisticasScreen';
+import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
+import AdminUsersScreen from './src/screens/AdminUsersScreen';
+import AdminPlytixScreen from './src/screens/AdminPlytixScreen';
+import AdminPushScreen from './src/screens/AdminPushScreen';
 import GlobalComunicadoHandler from './src/components/GlobalComunicadoHandler';
 import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -67,6 +71,10 @@ type RootStackParamList = {
   ChatScreen: undefined;
   Notificaciones: undefined;
   Estadisticas: undefined;
+  AdminDashboard: undefined;
+  AdminUsers: undefined;
+  AdminPlytix: undefined;
+  AdminPush: undefined;
   ProductViewer: { sku?: string; contextSkus?: string[]; notificationId?: number };
   ProductosActualizados: { skus?: string[]; notificationId?: number };
 };
@@ -124,7 +132,7 @@ function AppWrapper() {
 }
 
 function App() {
-  const { session, isAuthenticated, isInitialized, setAuth, clearAuth } = useAuthStore();
+  const { session, isAuthenticated, isInitialized, setAuth, clearAuth, isAdmin, setIsAdmin } = useAuthStore();
   const [showLottie, setShowLottie] = useState(true);
   const [profileComplete, setProfileComplete] = useState(true);
 
@@ -263,16 +271,18 @@ function App() {
         const cached = await AsyncStorage.getItem('@user_profile_cache');
         if (cached) {
           const data = JSON.parse(cached);
+          setIsAdmin(data.role === 'admin');
           if (data.full_name && data.full_name.trim() !== '' && data.telefono && data.telefono.trim() !== '') {
             setProfileComplete(true);
             return;
           }
         }
-        const { data, error } = await supabase.from('profiles').select('full_name, telefono').eq('id', userId).single();
+        const { data, error } = await supabase.from('profiles').select('full_name, telefono, role').eq('id', userId).single();
         if (error) {
           setProfileComplete(true);
           return;
         }
+        setIsAdmin(data.role === 'admin');
         if (data && data.full_name && data.full_name.trim() !== '' && data.telefono && data.telefono.trim() !== '') {
           await AsyncStorage.setItem('@user_profile_cache', JSON.stringify(data));
           setProfileComplete(true);
@@ -401,6 +411,14 @@ function App() {
                   <Stack.Screen name="Notificaciones" component={NotificationsScreen} />
                   <Stack.Screen name="Estadisticas" component={EstadisticasScreen} />
                   <Stack.Screen name="ProductosActualizados" component={UpdatedProductsScreen} />
+                  {isAdmin && (
+                    <>
+                      <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+                      <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+                      <Stack.Screen name="AdminPlytix" component={AdminPlytixScreen} />
+                      <Stack.Screen name="AdminPush" component={AdminPushScreen} />
+                    </>
+                  )}
                   <Stack.Screen 
                     name="ProductViewer" 
                     component={ProductViewerScreen} 

@@ -4,6 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { FlatList, InteractionManager } from 'react-native';
 import { supabase } from '../supabase';
 import { fetchTopics, fetchComments, createTopic, updateTopic, voteTopic, createComment, deleteTopic, deleteComment, getCachedTopics, saveCachedTopics, ForumTopic, ForumComment } from '../utils/forum';
+import { useAuthStore } from '../store/useAuthStore';
 
 interface Params {
   visible: boolean;
@@ -404,7 +405,7 @@ export function useForumModalLogic({ visible, openTopicId, openCommentId, notifi
     }
   };
 
-  const isAdmin = currentUser?.email === 'ovilla@comagro.com.py';
+  const { isAdmin } = useAuthStore();
 
   return {
     topics, loading, refreshing, setRefreshing,
