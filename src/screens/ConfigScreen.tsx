@@ -12,7 +12,6 @@ import { supabase, SUPABASE_URL } from '../supabase';
 import { syncAnalyticsQueue } from '../utils/analyticsSync';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
-import SystemHealthMonitor from '../components/SystemHealthMonitor';
 import DirectoryModal from '../components/DirectoryModal';
 import UserProfileModal from '../components/UserProfileModal';
 import * as Sentry from '@sentry/react-native';
@@ -284,7 +283,6 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
                 subtitle="Administrar usuarios y sistema"
                 onPress={() => navigation.navigate('AdminDashboard')}
               />
-              <SystemHealthMonitor />
             </>
           )}
 

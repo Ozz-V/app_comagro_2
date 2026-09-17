@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
+import SystemHealthMonitor from '../components/SystemHealthMonitor';
 
 
 type AdminDashboardNavProp = NativeStackNavigationProp<any, 'AdminDashboard'>;
@@ -48,6 +49,27 @@ export default function AdminDashboardScreen() {
           </View>
           <Text style={{color:'#ccc', fontSize:24}}>{'>'}</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('Estadisticas')}>
+          <Text style={{fontSize:24}}>📊</Text>
+          <View style={styles.cardText}>
+            <Text style={styles.cardTitle}>Métricas de Negocio</Text>
+            <Text style={styles.cardDesc}>Ver estadísticas globales y descargar PDF.</Text>
+          </View>
+          <Text style={{color:'#ccc', fontSize:24}}>{'>'}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('Historial')}>
+          <Text style={{fontSize:24}}>⭐</Text>
+          <View style={styles.cardText}>
+            <Text style={styles.cardTitle}>Mi Historial y Favoritos</Text>
+            <Text style={styles.cardDesc}>Ver tus favoritos y actividad personal.</Text>
+          </View>
+          <Text style={{color:'#ccc', fontSize:24}}>{'>'}</Text>
+        </TouchableOpacity>
+
+        <View style={{ marginTop: 20 }}>
+          <SystemHealthMonitor />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

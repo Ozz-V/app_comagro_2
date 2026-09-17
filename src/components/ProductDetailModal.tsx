@@ -22,6 +22,8 @@ import { fetchImageBase64, generateAndSharePdf, generateFichaPdfUri, generateAnd
 import { searchProducts } from '../utils/database';
 import { findSimilarProducts } from '../utils/productLogic';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppContext } from '../../App';
+import FavoriteToggle from './product/FavoriteToggle';
 import { supabase } from '../supabase';
 import { ParsedProduct } from '../types';
 import { APP_CONSTANTS } from '../config/constants';
@@ -214,7 +216,8 @@ export default function ProductDetailModal({
                   </View>
                   <View style={styles.greenLineFull} />
 
-                  <View style={styles.productBox}>
+                  <View style={[styles.productBox, { position: 'relative' }]}>
+                    {modalProd?.sku && <FavoriteToggle sku={modalProd.sku} />}
                     <View 
                       style={styles.productImgContainer} 
                       onLayout={(e) => setImgWidth(e.nativeEvent.layout.width)}

@@ -47,6 +47,8 @@ import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
 import AdminUsersScreen from './src/screens/AdminUsersScreen';
 import AdminPlytixScreen from './src/screens/AdminPlytixScreen';
 import AdminPushScreen from './src/screens/AdminPushScreen';
+import HistorialScreen from './src/screens/HistorialScreen';
+import { useFeaturesStore } from './src/store/useFeaturesStore';
 import GlobalComunicadoHandler from './src/components/GlobalComunicadoHandler';
 import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -71,6 +73,7 @@ type RootStackParamList = {
   ChatScreen: undefined;
   Notificaciones: undefined;
   Estadisticas: undefined;
+  Historial: undefined;
   AdminDashboard: undefined;
   AdminUsers: undefined;
   AdminPlytix: undefined;
@@ -336,6 +339,7 @@ function App() {
     }
 
     loadInitialSession();
+    useFeaturesStore.getState().loadFeatures();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, sess: unknown) => {
       const session = sess as Session | null;
@@ -410,6 +414,7 @@ function App() {
                   <Stack.Screen name="ChatScreen" component={ChatScreen} />
                   <Stack.Screen name="Notificaciones" component={NotificationsScreen} />
                   <Stack.Screen name="Estadisticas" component={EstadisticasScreen} />
+                  <Stack.Screen name="Historial" component={HistorialScreen} />
                   <Stack.Screen name="ProductosActualizados" component={UpdatedProductsScreen} />
                   {isAdmin && (
                     <>

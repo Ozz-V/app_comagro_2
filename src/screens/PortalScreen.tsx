@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, Modal, DeviceEventEmitter, FlatList } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useAuthStore } from '../store/useAuthStore';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
 import { syncAnalyticsQueue } from '../utils/analyticsSync';
@@ -27,6 +29,8 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
   const showProfileModalRef = React.useRef(false);
   const showTutorialRef = React.useRef(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const { isAdmin } = useAuthStore();
   const [allProdsCache, setAllProdsCache] = useState<ParsedProduct[]>([]);
 
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -293,11 +297,15 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
             </View>
             <Text style={styles.gridTitleThird}>Notificaciones</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.gridCardThird} activeOpacity={0.8} onPress={() => navigation.navigate('Estadisticas')}>
+          <TouchableOpacity 
+            style={styles.gridCardThird} 
+            activeOpacity={0.8} 
+            onPress={() => navigation.navigate(isAdmin ? 'AdminDashboard' : 'Historial')}
+          >
             <View style={styles.gridIconThird}>
-              <SvgIcon name="chart" size={24} color={COLORS.navy} />
+              <SvgIcon name={isAdmin ? "config" : "portapapeles"} size={24} color={COLORS.navy} />
             </View>
-            <Text style={styles.gridTitleThird}>Estadísticas</Text>
+            <Text style={styles.gridTitleThird}>{isAdmin ? "Panel de Control" : "Historial"}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
