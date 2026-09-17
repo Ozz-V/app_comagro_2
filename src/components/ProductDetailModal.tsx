@@ -216,7 +216,7 @@ export default function ProductDetailModal({
                   <View style={styles.greenLineFull} />
 
                   <View style={[styles.productBox, { position: 'relative' }]}>
-                    {(modalProd as any)?.sku && <FavoriteToggle sku={(modalProd as any).sku} />}
+                    {modalProd?.modelo && <FavoriteToggle sku={modalProd.modelo} />}
                     <View 
                       style={styles.productImgContainer} 
                       onLayout={(e) => setImgWidth(e.nativeEvent.layout.width)}

@@ -18,12 +18,12 @@ export default function TopProductsPanel() {
     if (!session?.user?.id) return;
 
     const fetchTop = async () => {
-      // Optimizamos obteniendo el historial personal desde analytics_events
+      // Optimizamos obteniendo el historial personal desde producto_analytics
       const { data, error } = await supabase
-        .from('analytics_events')
-        .select('event_data')
-        .eq('user_id', session.user.id)
-        .eq('event_type', 'view_product')
+        .from('producto_analytics')
+        .select('sku')
+        .eq('user_email', session.user.email)
+        .eq('action', 'view')
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -31,7 +31,7 @@ export default function TopProductsPanel() {
         // Agrupar por SKU
         const counts: Record<string, number> = {};
         data.forEach(row => {
-          const sku = row.event_data?.sku;
+          const sku = row.sku;
           if (sku) {
             counts[sku] = (counts[sku] || 0) + 1;
           }

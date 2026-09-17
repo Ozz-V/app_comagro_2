@@ -16,12 +16,18 @@ export default function StarProductPanel() {
     const fetchStar = async () => {
       // Optimizamos obteniendo el producto más visto desde la tabla de analytics
       const { data, error } = await supabase
-        .rpc('get_most_viewed_product_global');
+        .from('producto_analytics')
+        .select('sku')
+        .eq('action', 'view')
+        .limit(200);
 
-      // Si el RPC no existe aún (para no romper nada), usamos un fallback temporal o lo manejamos con una simple consulta
-      // Al ser un Panel Modular, si falla silenciosamente no rompe la app.
       if (!error && data && data.length > 0) {
-        setStarSku(data[0].sku);
+        const counts: Record<string, number> = {};
+        data.forEach(row => {
+          if (row.sku) counts[row.sku] = (counts[row.sku] || 0) + 1;
+        });
+        const star = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+        setStarSku(star || 'No hay datos');
       } else {
         setStarSku('No hay suficientes datos');
       }

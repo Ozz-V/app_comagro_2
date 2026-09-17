@@ -271,15 +271,26 @@ function App() {
     async function checkProfile(userId: string) {
       try {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-        const cached = await AsyncStorage.getItem('@user_profile_cache');
-        if (cached) {
-          const data = JSON.parse(cached);
-          setIsAdmin(data.role === 'admin');
-          if (data.full_name && data.full_name.trim() !== '' && data.telefono && data.telefono.trim() !== '') {
-            setProfileComplete(true);
-            return;
+          const cached = await AsyncStorage.getItem('@user_profile_cache');
+          if (cached) {
+            const data = JSON.parse(cached);
+            
+            // Si el caché viejo no tenía el rol guardado, lo vamos a buscar a la DB.
+            if (data.role === undefined) {
+              const { data: dbData } = await supabase.from('profiles').select('role').eq('id', userId).single();
+              if (dbData) {
+                data.role = dbData.role;
+                await AsyncStorage.setItem('@user_profile_cache', JSON.stringify(data));
+              }
+            }
+            
+            setIsAdmin(data.role === 'admin');
+            
+            if (data.full_name && data.full_name.trim() !== '' && data.telefono && data.telefono.trim() !== '') {
+              setProfileComplete(true);
+              return;
+            }
           }
-        }
         const { data, error } = await supabase.from('profiles').select('full_name, telefono, role').eq('id', userId).single();
         if (error) {
           setProfileComplete(true);
