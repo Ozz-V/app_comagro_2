@@ -8,15 +8,15 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $function
+AS $function$
 BEGIN
   IF NEW.role IS DISTINCT FROM OLD.role THEN
-    -- Si la consulta viene de PostgREST (API), el rol ser 'anon' o 'authenticated'
-    -- Si viene de Supabase Studio o service_key, ser 'postgres' o 'service_role'
+    -- Si la consulta viene de PostgREST (API), el rol sera 'anon' o 'authenticated'
+    -- Si viene de Supabase Studio o service_key, sera 'postgres' o 'service_role'
     IF current_setting('role', true) IN ('anon', 'authenticated') AND NOT public.is_admin() THEN
       RAISE EXCEPTION 'No autorizado para modificar el rol de un perfil';
     END IF;
   END IF;
   RETURN NEW;
 END;
-$function;
+$function$;
