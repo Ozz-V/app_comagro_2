@@ -12,11 +12,12 @@ import { COLORS, FONTS } from '../theme';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
 
+// Debe coincidir EXACTO con el enum public.tipo_comunicado en la base de datos.
 const TIPOS_COMUNICADO = [
   '¡Nuevas actualizaciones!',
   'Aviso Importante',
   'Problemas Conocidos / Mejoras',
-  'Sugerencia del Equipo'
+  'Saludos / Festividades (Otros)'
 ];
 
 export default function AdminPushScreen() {
@@ -52,15 +53,21 @@ export default function AdminPushScreen() {
           onPress: async () => {
             setLoading(true);
             try {
+              // La tabla real es "app_comunicados" (no "comunicados"), y sus columnas
+              // son tipo/titulo/contenido/imagen_url/is_active/created_at.
+              // No existe una columna de "fecha programada": usamos created_at como
+              // fecha efectiva de publicación (hoy si es inmediato, o la fecha elegida
+              // si se programó), y app_comunicados solo se marca visible cuando esa
+              // fecha ya se cumplió (ver useComunicados.ts).
               const bodyInsert = {
-                title: titulo.trim(),
-                body: mensaje.trim(),
-                type_label: tipo,
-                is_active: isActive,
-                sent_at: isActive ? new Date().toISOString() : fechaEnvio
+                tipo,
+                titulo: titulo.trim(),
+                contenido: mensaje.trim(),
+                is_active: true,
+                created_at: isActive ? new Date().toISOString() : fechaEnvio
               };
 
-              const { error } = await supabase.from('comunicados').insert([bodyInsert]);
+              const { error } = await supabase.from('app_comunicados').insert([bodyInsert]);
               if (error) throw error;
               
               showAlert('Éxito', 'Comunicado creado correctamente.');
