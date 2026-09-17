@@ -21,11 +21,14 @@ export function useComunicados() {
       const vistosCache = await AsyncStorage.getItem('@vistos_comunicados');
       const vistos: string[] = vistosCache ? JSON.parse(vistosCache) : [];
 
-      // 2. Traer todos los comunicados activos
+      // 2. Traer todos los comunicados activos cuya fecha (created_at) ya se cumplió.
+      //    Esto permite "programar" un comunicado a futuro: se inserta con is_active=true
+      //    pero con created_at en el futuro, y no se muestra hasta llegar esa fecha.
       const { data, error } = await supabase
         .from('app_comunicados')
         .select('*')
         .eq('is_active', true)
+        .lte('created_at', new Date().toISOString())
         .order('created_at', { ascending: false });
 
       if (error || !data) return;
