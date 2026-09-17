@@ -33,7 +33,10 @@ describe('Edge Function: search', () => {
       });
 
       const res = await extractIntent('Quiero una bomba de agua', mockProductTypes);
-      expect(res).toEqual([{ terms: ['bomba de agua'], target: null }]);
+      // FIX (auditoría): extractIntent ahora también devuelve el campo
+      // `brand` (marca explícita detectada, o null) por cada grupo -- el
+      // test viejo no lo esperaba y fallaba contra el código actual.
+      expect(res).toEqual([{ terms: ['bomba de agua'], target: null, brand: null }]);
     });
 
     it('returns null on fetch error or invalid json', async () => {
@@ -111,7 +114,8 @@ describe('Edge Function: search', () => {
       });
 
       const res = await extractIntent('Quiero una bomba de agua', []);
-      expect(res).toEqual([{ terms: ['bomba de agua'], target: null }]);
+      // FIX (auditoría): mismo motivo que el test anterior -- falta `brand`.
+      expect(res).toEqual([{ terms: ['bomba de agua'], target: null, brand: null }]);
     });
   });
 
