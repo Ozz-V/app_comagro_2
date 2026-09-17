@@ -192,19 +192,13 @@ jobs:
           fi
 
       - name: Create GitHub Release Candidate (Public Repo)
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          repository: Ozz-V/comagro_apk_descargas
-          tag_name: ${{ env.CANDIDATE_TAG }}
-          name: Candidato ${{ env.CANDIDATE_TAG }}
-          prerelease: true
-          make_latest: false
-          token: ${{ secrets.GH_PAT_RELEASES }}
-          files: |
-            android/app/build/outputs/apk/release/comagroapp.apk
-            /tmp/metadata.json
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT_RELEASES }}
+        run: |
+          echo "Creando o actualizando Release en el repositorio público..."
+          gh release create ${{ env.CANDIDATE_TAG }} --repo Ozz-V/comagro_apk_descargas --title "Candidato ${{ env.CANDIDATE_TAG }}" --prerelease || echo "El release ya existe, procediendo a subir archivos."
+          echo "Subiendo APK y metadata..."
+          gh release upload ${{ env.CANDIDATE_TAG }} --repo Ozz-V/comagro_apk_descargas --clobber android/app/build/outputs/apk/release/comagroapp.apk /tmp/metadata.json
 
       - name: Commit updated versionCode back to branch
         run: |
