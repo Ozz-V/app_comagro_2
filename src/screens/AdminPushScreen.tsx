@@ -213,14 +213,9 @@ const styles = StyleSheet.create({
   btnAction: {
     backgroundColor: COLORS.green,
     paddingVertical: 14,
-  dateSection: { marginBottom: 16 },
-  dateHint: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4, marginTop: -10, marginBottom: 16 },
-  sendBtn: {
-    backgroundColor: COLORS.navy,
-    padding: 16,
-    borderRadius: 10,
+    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 24,
   },
-  sendBtnText: { fontFamily: FONTS.bodySemi, fontSize: 15, color: COLORS.white, textTransform: 'uppercase', letterSpacing: 1 },
+  btnActionText: { fontFamily: FONTS.headingBold, fontSize: 16, color: COLORS.white, letterSpacing: 0.5 },
 });
