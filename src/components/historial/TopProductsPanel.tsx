@@ -5,17 +5,18 @@ import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeaturesStore } from '../../store/useFeaturesStore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getProductBySku } from '../../utils/database';
 import { SvgXml } from 'react-native-svg';
+import { COLORS, FONTS } from '../../theme';
 
-const EyeIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EyeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${COLORS.gray4}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
 export default function TopProductsPanel() {
   const { session } = useAuthStore();
   const { isFeatureEnabled } = useFeaturesStore();
   const navigation = useNavigation<any>();
-  
-  const [products, setProducts] = useState<{sku: string, count: number, name: string, img: string}[]>([]);
+
+  const [products, setProducts] = useState<{ sku: string; count: number; name: string; img: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [maxCount, setMaxCount] = useState(0);
 
@@ -29,35 +30,33 @@ export default function TopProductsPanel() {
         .eq('user_email', session.user.email)
         .eq('action', 'view')
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(200);
 
       if (!error && data) {
         const counts: Record<string, number> = {};
         data.forEach(row => {
           if (row.sku) counts[row.sku] = (counts[row.sku] || 0) + 1;
         });
-        
-        const sorted = Object.keys(counts)
+
+        const topSkus = Object.keys(counts)
           .sort((a, b) => counts[b] - counts[a])
           .slice(0, 5);
-          
+
         let max = 0;
-        
-        // Enrich from catalog cache
-        const cacheStr = await AsyncStorage.getItem('@catalog_cache');
-        const catalog = cacheStr ? JSON.parse(cacheStr) : [];
-        const enriched = sorted.map(sku => {
-          const prod = catalog.find((p: any) => p.modelo === sku || p.sku === sku);
-          const c = counts[sku];
-          if (c > max) max = c;
-          return {
-            sku,
-            count: c,
-            name: prod ? `${prod.marca} ${prod.modelo}` : sku,
-            img: prod?.url_imagen || ''
-          };
-        });
-        
+        const enriched = await Promise.all(
+          topSkus.map(async (sku) => {
+            const c = counts[sku];
+            if (c > max) max = c;
+            const prod = await getProductBySku(sku);
+            return {
+              sku,
+              count: c,
+              name: prod ? `${prod.marca}  ${prod.modelo}` : sku,
+              img: prod?.imagen || prod?.imagenOriginal || '',
+            };
+          })
+        );
+
         setMaxCount(max);
         setProducts(enriched);
       }
@@ -70,39 +69,38 @@ export default function TopProductsPanel() {
   if (!isFeatureEnabled('historial_user')) return null;
 
   return (
-    <View style={styles.cardListFull}>
-      <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 6}}>
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
         <SvgXml xml={EyeIcon} />
         <Text style={styles.cardTitle}>Tus Productos Más Vistos</Text>
       </View>
-      
+
       {loading ? (
-        <ActivityIndicator color="#1f2f6b" />
+        <ActivityIndicator color={COLORS.navy} />
       ) : products.length === 0 ? (
         <Text style={styles.empty}>Aún no viste ningún producto.</Text>
       ) : (
-        <View style={styles.listContainer}>
+        <View style={styles.list}>
           {products.map((item) => {
             const w = maxCount > 0 ? Math.max(5, (item.count / maxCount) * 100) : 0;
-            const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sku.substring(0,2))}&background=E8ECF0&color=1A2530`;
-            
+            const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sku.substring(0, 2))}&background=E8ECF0&color=1A2530`;
             return (
-              <TouchableOpacity 
-                key={item.sku} 
-                style={styles.listItem} 
-                activeOpacity={0.7} 
+              <TouchableOpacity
+                key={item.sku}
+                style={styles.row}
+                activeOpacity={0.7}
                 onPress={() => navigation.navigate('ProductViewer', { sku: item.sku })}
               >
-                <Image source={{uri: item.img || fallbackImg}} style={styles.itemImg} contentFit="contain" />
-                <View style={styles.itemInfo}>
-                    <Text style={styles.itemName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
-                    <View style={styles.progressBg}>
-                       <View style={[styles.progressFill, { width: `${w}%`, backgroundColor: '#1f2f6b' }]} />
-                    </View>
+                <Image source={{ uri: item.img || fallback }} style={styles.thumb} contentFit="contain" />
+                <View style={styles.info}>
+                  <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+                  <View style={styles.progressBg}>
+                    <View style={[styles.progressFill, { width: `${w}%` as any }]} />
+                  </View>
                 </View>
-                <Text style={styles.itemCount}>{item.count}</Text>
+                <Text style={styles.count}>{item.count}</Text>
               </TouchableOpacity>
-            )
+            );
           })}
         </View>
       )}
@@ -111,15 +109,24 @@ export default function TopProductsPanel() {
 }
 
 const styles = StyleSheet.create({
-  cardListFull: { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, borderWidth: 1, borderColor: '#E8ECF0' },
-  cardTitle: { fontFamily: 'Barlow_600SemiBold', fontSize: 12, color: '#666', textTransform: 'uppercase', letterSpacing: 0.5 },
-  empty: { color: '#999', fontStyle: 'italic', fontSize: 14, fontFamily: 'Barlow_400Regular' },
-  listContainer: { gap: 12 },
-  listItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
-  itemImg: { width: 32, height: 32, borderRadius: 4, backgroundColor: '#F0F4F8' },
-  itemInfo: { flex: 1, minWidth: 0 },
-  itemName: { fontFamily: 'Barlow_600SemiBold', fontSize: 12, color: '#1f2f6b', marginBottom: 4 },
-  itemCount: { fontFamily: 'BarlowCondensed_900Black', fontSize: 14, color: '#1f2f6b', width: 28, textAlign: 'right' },
-  progressBg: { height: 4, backgroundColor: '#E8ECF0', borderRadius: 2, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 2 },
+  card: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  empty: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, fontStyle: 'italic' },
+  list: { gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  thumb: { width: 36, height: 36, borderRadius: 6, backgroundColor: COLORS.bg },
+  info: { flex: 1, minWidth: 0 },
+  name: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.navy, marginBottom: 4 },
+  progressBg: { height: 4, backgroundColor: COLORS.bg, borderRadius: 2, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: COLORS.navy, borderRadius: 2 },
+  count: { fontFamily: FONTS.headingBold, fontSize: 14, color: COLORS.navy, width: 28, textAlign: 'right' },
 });
