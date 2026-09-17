@@ -63,14 +63,14 @@ export default function AdminUsersScreen() {
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
   const changeRole = (userId: string, newRole: string) => {
-    const label = newRole === 'admin' ? 'Administrador' : 'Usuario';
+    const isDemotion = newRole === 'staff';
     showAlert(
       'Cambiar Rol',
-      `¿Asignar el rol "${label}" a este usuario?`,
+      `¿Asignar el rol "${isDemotion ? 'Staff' : 'Administrador'}" a este usuario?`,
       [
-        { text: 'Cancelar' },
+        { text: 'NO', style: 'cancel' },
         {
-          text: `Hacer ${label}`,
+          text: 'SÍ',
           onPress: async () => {
             const { error } = await supabase.rpc('admin_set_role', { target_user_id: userId, new_role: newRole });
             if (error) showAlert('Error', error.message);
@@ -84,11 +84,12 @@ export default function AdminUsersScreen() {
   const banUser = (userId: string, name: string) => {
     showAlert(
       'Banear Usuario',
-      `¿Banear a ${name}? No podrá iniciar sesión en la aplicación.`,
+      `¿Bloquear el acceso a ${name}?`,
       [
-        { text: 'Cancelar' },
+        { text: 'NO', style: 'cancel' },
         {
-          text: 'Banear',
+          text: 'SÍ',
+          style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.rpc('admin_ban_user', { target_user_id: userId });
             if (error) showAlert('Error', error.message);
@@ -141,9 +142,9 @@ export default function AdminUsersScreen() {
                     <SvgXml xml={IconAdmin} />
                     <Text style={[styles.btnLabel, { color: COLORS.green }]}>Admin</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.btn, { backgroundColor: COLORS.celeste + '18' }]} onPress={() => changeRole(item.id, 'user')}>
+                  <TouchableOpacity style={[styles.btn, { backgroundColor: COLORS.celeste + '18' }]} onPress={() => changeRole(item.id, 'staff')}>
                     <SvgXml xml={IconUser} />
-                    <Text style={[styles.btnLabel, { color: COLORS.celeste }]}>User</Text>
+                    <Text style={[styles.btnLabel, { color: COLORS.celeste }]}>Staff</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.btn, { backgroundColor: '#ffebee' }]} onPress={() => banUser(item.id, item.full_name)}>
                     <SvgXml xml={IconBan} />

@@ -302,7 +302,7 @@ export default function PortalScreen({ navigation }: { navigation: any }) {
             onPress={() => navigation.navigate(isAdmin ? 'AdminDashboard' : 'Historial')}
           >
             <View style={styles.gridIconThird}>
-              <SvgIcon name={isAdmin ? "config" : "portapapeles"} size={24} color={COLORS.navy} />
+              <SvgIcon name={isAdmin ? "agenteIA" : "portapapeles"} size={24} color={COLORS.navy} />
             </View>
             <Text style={styles.gridTitleThird}>{isAdmin ? "Panel de Control" : "Historial"}</Text>
           </TouchableOpacity>

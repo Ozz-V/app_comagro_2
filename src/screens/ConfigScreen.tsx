@@ -275,17 +275,6 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
             onPress={() => setShowDirectoryModal(true)}
           />
 
-          {isAdmin && (
-            <>
-              <MenuCard 
-                iconName="config"
-                title="Centro de Mando"
-                subtitle="Administrar usuarios y sistema"
-                onPress={() => navigation.navigate('AdminDashboard')}
-              />
-            </>
-          )}
-
           <MenuCard 
             iconNode={<LottieView source={ANIMATION_ISO} autoPlay loop style={{ width: 34, height: 34 }} resizeMode="contain" />}
             title="Comagro App"

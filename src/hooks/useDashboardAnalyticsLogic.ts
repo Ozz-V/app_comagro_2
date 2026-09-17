@@ -154,7 +154,8 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
 
   async function loadImages() {
     try {
-      const rows = await getAllProducts();
+      // Pedir suficientes productos para que el mapa de imágenes cubra los más vistos
+      const rows = await getAllProducts(5000);
       const m: Record<string, string> = {};
       const bm: Record<string, string> = {};
       rows.forEach((r: any) => {
