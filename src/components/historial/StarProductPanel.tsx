@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
-  title: { fontFamily: FONTS.headingBold, fontSize: 18, color: '#FFC107', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 },
+  title: { fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: '#FFC107', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 },
   empty: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, textAlign: 'center' },
   card: {
     backgroundColor: COLORS.white,
@@ -161,6 +161,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
   },
-  statValue: { fontFamily: FONTS.headingBold, fontSize: 18, color: COLORS.navy, marginTop: 2 },
+  statValue: { fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: COLORS.navy, marginTop: 2 },
   statLabel: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, marginTop: 2 },
 });
