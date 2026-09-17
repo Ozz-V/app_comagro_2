@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, FlatList } from 'react-native';
 import { Image } from 'expo-image';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeaturesStore } from '../../store/useFeaturesStore';
@@ -11,6 +11,8 @@ import { SvgXml } from 'react-native-svg';
 import { COLORS, FONTS } from '../../theme';
 
 const StarIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="#FFC107" stroke="#FFC107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+const SearchIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.gray4}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+const CloseIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${COLORS.navy}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
 interface FavItem {
   sku: string;
@@ -25,7 +27,8 @@ export default function FavoritesPanel() {
   const navigation = useNavigation<any>();
 
   const [favorites, setFavorites] = useState<FavItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const enrich = async (skus: string[]): Promise<FavItem[]> =>
     Promise.all(
@@ -40,63 +43,82 @@ export default function FavoritesPanel() {
       })
     );
 
-  useEffect(() => {
+  const fetchFaves = async () => {
     if (!session?.user?.id) return;
+    
+    let activeFavs: string[] = [];
 
-    const fetchFaves = async () => {
-      // 1. Render inmediato desde caché local
-      try {
-        const cache = await AsyncStorage.getItem('@user_favorites_cache');
-        if (cache) {
-          const favsMap = JSON.parse(cache);
-          const activeFavs = Object.keys(favsMap).filter(sku => favsMap[sku]);
-          if (activeFavs.length > 0) {
-            const enriched = await enrich(activeFavs);
-            setFavorites(enriched);
-            setLoading(false);
-            return;
-          }
+    // 1. Render inmediato desde cache (Offline First)
+    try {
+      const cache = await AsyncStorage.getItem('@user_favorites_cache');
+      if (cache) {
+        const favsMap = JSON.parse(cache);
+        activeFavs = Object.keys(favsMap).filter(sku => favsMap[sku]);
+        if (activeFavs.length > 0) {
+          const enriched = await enrich(activeFavs);
+          setFavorites(enriched);
+        } else {
+          setFavorites([]);
         }
-      } catch (e) {}
+      }
+    } catch (e) {}
 
-      // 2. Fallback a DB
-      const { data } = await supabase
-        .from('user_favorites')
-        .select('sku')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
+    // 2. Fetch silencioso a Supabase para sincronizar
+    const { data } = await supabase
+      .from('user_favorites')
+      .select('sku')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false });
 
-      if (data) {
-        const enriched = await enrich(data.map(r => r.sku));
+    if (data) {
+      const dbFavs = data.map(r => r.sku);
+      
+      // Si hay diferencia entre cache y DB, actualizamos
+      if (dbFavs.join(',') !== activeFavs.join(',')) {
+        const enriched = await enrich(dbFavs);
         setFavorites(enriched);
-
-        // Actualizar caché
         const map: Record<string, boolean> = {};
-        data.forEach(r => { map[r.sku] = true; });
+        dbFavs.forEach(sku => { map[sku] = true; });
         AsyncStorage.setItem('@user_favorites_cache', JSON.stringify(map));
       }
-      setLoading(false);
-    };
+    }
+  };
 
-    fetchFaves();
-  }, [session?.user?.id]);
+  // useFocusEffect asegura que al regresar de ProductViewer (si quitó el fav), se actualice instantáneamente.
+  useFocusEffect(
+    useCallback(() => {
+      fetchFaves();
+    }, [session?.user?.id])
+  );
 
   if (!isFeatureEnabled('favoritos')) return null;
+
+  const displayFavorites = favorites.slice(0, 8); // Solo mostrar maximo 8 horizontal
+  const filteredFavorites = favorites.filter(f => 
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    f.sku.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    f.marca.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <SvgXml xml={StarIcon} />
-        <Text style={styles.cardTitle}>Mis Favoritos</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <SvgXml xml={StarIcon} />
+          <Text style={styles.cardTitle}>Mis Favoritos</Text>
+        </View>
+        {favorites.length > 0 && (
+          <TouchableOpacity onPress={() => setModalVisible(true)}>
+            <Text style={styles.verTodos}>Ver todos ({favorites.length})</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {loading ? (
-        <ActivityIndicator color={COLORS.navy} />
-      ) : favorites.length === 0 ? (
+      {favorites.length === 0 ? (
         <Text style={styles.empty}>Aún no guardaste ningún favorito.</Text>
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroller}>
-          {favorites.map((item) => {
+          {displayFavorites.map((item) => {
             const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sku.substring(0, 2))}&background=E8ECF0&color=1A2530`;
             return (
               <TouchableOpacity
@@ -113,6 +135,57 @@ export default function FavoritesPanel() {
           })}
         </ScrollView>
       )}
+
+      {/* MODAL VER TODOS */}
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Todos mis Favoritos</Text>
+            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
+              <SvgXml xml={CloseIcon} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.searchBox}>
+            <SvgXml xml={SearchIcon} />
+            <TextInput 
+              style={styles.searchInput}
+              placeholder="Buscar por marca, modelo o SKU..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor={COLORS.gray4}
+            />
+          </View>
+
+          <FlatList 
+            data={filteredFavorites}
+            keyExtractor={item => item.sku}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => {
+              const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sku.substring(0, 2))}&background=E8ECF0&color=1A2530`;
+              return (
+                <TouchableOpacity
+                  style={styles.listCard}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setModalVisible(false);
+                    navigation.navigate('ProductViewer', { sku: item.sku });
+                  }}
+                >
+                  <Image source={{ uri: item.img || fallback }} style={styles.listImg} contentFit="contain" />
+                  <View style={styles.listInfo}>
+                    <Text style={styles.listMarca}>{item.marca}</Text>
+                    <Text style={styles.listName}>{item.name}</Text>
+                    <Text style={styles.listSku}>SKU: {item.sku}</Text>
+                  </View>
+                  <SvgXml xml={StarIcon} />
+                </TouchableOpacity>
+              )
+            }}
+            ListEmptyComponent={<Text style={styles.empty}>No se encontraron favoritos.</Text>}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -127,12 +200,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4, textTransform: 'uppercase', letterSpacing: 0.5 },
-  empty: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, fontStyle: 'italic' },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  verTodos: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.green },
+  empty: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, fontStyle: 'italic', textAlign: 'center', marginTop: 20 },
   scroller: { gap: 12, paddingRight: 4 },
   favCard: { width: 96, alignItems: 'center' },
-  favImg: { width: 80, height: 80, borderRadius: 10, backgroundColor: COLORS.bg, marginBottom: 6 },
+  favImg: { width: 80, height: 80, borderRadius: 10, backgroundColor: COLORS.bg, marginBottom: 6, borderWidth: 1, borderColor: COLORS.border },
   favMarca: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4, textTransform: 'uppercase', textAlign: 'center' },
   favName: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.navy, textAlign: 'center', marginTop: 2 },
+  
+  modalContainer: { flex: 1, backgroundColor: COLORS.bg },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  modalTitle: { fontFamily: FONTS.headingBold, fontSize: 20, color: COLORS.navy },
+  closeBtn: { padding: 4 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, margin: 16, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, gap: 10 },
+  searchInput: { flex: 1, height: 44, fontFamily: FONTS.body, fontSize: 15, color: COLORS.navy },
+  listContent: { paddingHorizontal: 16, paddingBottom: 40, gap: 10 },
+  listCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, padding: 12, gap: 12, borderWidth: 1, borderColor: COLORS.border },
+  listImg: { width: 60, height: 60, borderRadius: 8, backgroundColor: COLORS.bg },
+  listInfo: { flex: 1 },
+  listMarca: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4, textTransform: 'uppercase' },
+  listName: { fontFamily: FONTS.bodySemi, fontSize: 15, color: COLORS.navy, marginVertical: 2 },
+  listSku: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4 },
 });
