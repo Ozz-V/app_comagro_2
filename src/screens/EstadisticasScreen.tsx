@@ -115,6 +115,7 @@ export default function EstadisticasScreen({ navigation }: { navigation: { navig
         <LottieView source={ANIMATION_ISO} autoPlay loop style={styles.logoAnimado} resizeMode="contain" />
       </View>
       <View style={styles.topBorder} />
+      <Text style={styles.titulo}>Métricas de Negocio</Text>
 
       <View style={[styles.content, { flex: 1, paddingHorizontal: 0 }]}>
         <DashboardAnalytics navigation={navigation} onUserClick={handleUserClick} onTabChange={setAnalyticsTab} />
@@ -139,7 +140,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
   topBorder: { height: 1, backgroundColor: COLORS.border },
   logoAnimado: { width: 100, height: 40 },

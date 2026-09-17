@@ -8,7 +8,9 @@ import { SvgXml } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { COLORS, FONTS } from '../theme';
+import LottieView from 'lottie-react-native';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
 const CACHE_KEY = '@admin_users_cache';
 
 const IconAdmin = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.green}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
@@ -105,13 +107,16 @@ export default function AdminUsersScreen() {
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
       <View style={styles.topbar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtnText}>Cerrar</Text>
-        </TouchableOpacity>
-        <Text style={styles.topTitle}>Gestión de Usuarios</Text>
-        <View style={{ width: 80 }} />
+        <LottieView
+          source={ANIMATION_ISO}
+          autoPlay
+          loop
+          style={styles.logoAnimado}
+          resizeMode="contain"
+        />
       </View>
       <View style={styles.topBorder} />
+      <Text style={styles.titulo}>Gestión de Usuarios</Text>
 
       {loading ? (
         <ActivityIndicator size="large" color={COLORS.navy} style={{ marginTop: 50 }} />
@@ -169,12 +174,11 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
   topBorder: { height: 1, backgroundColor: COLORS.border },
-  topTitle: { fontFamily: FONTS.headingBold, fontSize: 22, color: COLORS.navy, textTransform: 'uppercase' },
-  backBtn: { width: 80 },
-  backBtnText: { fontFamily: FONTS.bodySemi, fontSize: 16, color: COLORS.green },
+  logoAnimado: { width: 100, height: 40 },
+  titulo: { fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, textAlign: 'center', marginTop: 20, marginBottom: 4 },
   list: { padding: 16, paddingBottom: 40 },
   card: {
     flexDirection: 'row',

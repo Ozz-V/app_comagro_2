@@ -7,7 +7,9 @@ import { SvgXml } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SystemHealthMonitor from '../components/SystemHealthMonitor';
 import { COLORS, FONTS } from '../theme';
+import LottieView from 'lottie-react-native';
 
+const ANIMATION_ISO = require('../../assets/iso.json');
 const CACHE_KEY = '@admin_plytix_errors_cache';
 const IconCheck = `<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="${COLORS.green}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
 
@@ -41,13 +43,16 @@ export default function AdminPlytixScreen() {
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
       <View style={styles.topbar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtnText}>Cerrar</Text>
-        </TouchableOpacity>
-        <Text style={styles.topTitle}>Monitor Plytix</Text>
-        <View style={{ width: 80 }} />
+        <LottieView
+          source={ANIMATION_ISO}
+          autoPlay
+          loop
+          style={styles.logoAnimado}
+          resizeMode="contain"
+        />
       </View>
       <View style={styles.topBorder} />
+      <Text style={styles.titulo}>Monitor Plytix</Text>
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Estado de servidores — ahora vive aquí, no flotando en el Dashboard */}
@@ -86,12 +91,11 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
   topBorder: { height: 1, backgroundColor: COLORS.border },
-  topTitle: { fontFamily: FONTS.headingBold, fontSize: 22, color: COLORS.navy, textTransform: 'uppercase' },
-  backBtn: { width: 80 },
-  backBtnText: { fontFamily: FONTS.bodySemi, fontSize: 16, color: COLORS.green },
+  logoAnimado: { width: 100, height: 40 },
+  titulo: { fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, textAlign: 'center', marginTop: 20, marginBottom: 4 },
   scroll: { padding: 16, paddingBottom: 40 },
   sectionLabel: {
     fontFamily: FONTS.bodySemi,

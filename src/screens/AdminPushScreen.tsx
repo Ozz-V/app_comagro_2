@@ -5,79 +5,70 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { COLORS, FONTS } from '../theme';
+
+const ANIMATION_ISO = require('../../assets/iso.json');
 
 const TIPOS_COMUNICADO = [
   '¡Nuevas actualizaciones!',
   'Aviso Importante',
   'Problemas Conocidos / Mejoras',
-  'Saludos / Festividades (Otros)',
-  'Imagen'
+  'Sugerencia del Equipo'
 ];
 
 export default function AdminPushScreen() {
   const navigation = useNavigation();
   const { showAlert } = useCustomAlert();
 
-  const [tipo, setTipo] = useState(TIPOS_COMUNICADO[1]);
   const [titulo, setTitulo] = useState('');
-  const [contenido, setContenido] = useState('');
-  const [imagenUrl, setImagenUrl] = useState('');
+  const [mensaje, setMensaje] = useState('');
+  const [tipo, setTipo] = useState(TIPOS_COMUNICADO[0]);
   const [isActive, setIsActive] = useState(true);
-  // Fecha programada como string — sin deps externas. Ej: "2026-09-20T10:00"
-  const [scheduledDateStr, setScheduledDateStr] = useState('');
+  const [fechaEnvio, setFechaEnvio] = useState('');
+  
   const [loading, setLoading] = useState(false);
 
-  const saveComunicado = () => {
-    if (!titulo.trim() || !contenido.trim()) {
-      showAlert('Campos requeridos', 'El título y el contenido son obligatorios para publicar un comunicado.');
+  const enviar = async () => {
+    if (!titulo.trim() || !mensaje.trim()) {
+      showAlert('Error', 'El título y mensaje son obligatorios.');
       return;
     }
 
-    if (!isActive && !scheduledDateStr.trim()) {
-      showAlert('Fecha requerida', 'Ingresá la fecha y hora de publicación. Ejemplo: 2026-09-25T09:00');
+    if (!isActive && !fechaEnvio) {
+      showAlert('Error', 'Para programar un comunicado debes indicar una fecha y hora.');
       return;
     }
-
-    const scheduledLabel = isActive
-      ? 'Se publicará de inmediato.'
-      : `Programado para: ${scheduledDateStr}`;
 
     showAlert(
-      'Confirmar publicación',
-      `¿Guardar este comunicado global?\n\n${scheduledLabel}`,
+      'Confirmar',
+      `¿Enviar este comunicado a todos los usuarios?`,
       [
-        { text: 'Cancelar' },
-        {
-          text: 'Publicar',
+        { text: 'NO', style: 'cancel' },
+        { 
+          text: 'SÍ',
           onPress: async () => {
             setLoading(true);
-            let parsedDate: string | null = null;
-            if (!isActive && scheduledDateStr.trim()) {
-              const d = new Date(scheduledDateStr.trim());
-              parsedDate = isNaN(d.getTime()) ? null : d.toISOString();
-            }
+            try {
+              const bodyInsert = {
+                title: titulo.trim(),
+                body: mensaje.trim(),
+                type_label: tipo,
+                is_active: isActive,
+                sent_at: isActive ? new Date().toISOString() : fechaEnvio
+              };
 
-            const { error } = await supabase.from('app_comunicados').insert([{
-              tipo_comunicado: tipo,
-              titulo: titulo.trim(),
-              contenido: contenido.trim(),
-              imagen_url: imagenUrl.trim() || null,
-              is_active: isActive,
-              scheduled_at: parsedDate,
-            }]);
-            setLoading(false);
-            if (error) {
-              showAlert('Error al publicar', error.message);
-            } else {
-              showAlert('¡Publicado!', 'El comunicado fue guardado correctamente en la plataforma.');
-              setTitulo('');
-              setContenido('');
-              setImagenUrl('');
-              setIsActive(true);
-              setScheduledDateStr('');
+              const { error } = await supabase.from('comunicados').insert([bodyInsert]);
+              if (error) throw error;
+              
+              showAlert('Éxito', 'Comunicado creado correctamente.');
+              navigation.goBack();
+            } catch (err: any) {
+              showAlert('Error', err.message || 'No se pudo crear el comunicado.');
+            } finally {
+              setLoading(false);
             }
           }
         }
@@ -90,111 +81,88 @@ export default function AdminPushScreen() {
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
       <View style={styles.topbar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtnText}>Cerrar</Text>
-        </TouchableOpacity>
-        <Text style={styles.topTitle}>Nuevo Comunicado</Text>
-        <View style={{ width: 80 }} />
+        <LottieView
+          source={ANIMATION_ISO}
+          autoPlay
+          loop
+          style={styles.logoAnimado}
+          resizeMode="contain"
+        />
       </View>
       <View style={styles.topBorder} />
+      <Text style={styles.titulo}>Nuevo Comunicado</Text>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.helper}>
-          Inserta un aviso global en la plataforma. Los usuarios lo verán al abrir la app.
-        </Text>
-
-        <Text style={styles.label}>Tipo de Comunicado</Text>
-        <View style={styles.pills}>
-          {TIPOS_COMUNICADO.map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.pill, tipo === t && styles.pillActive]}
-              onPress={() => setTipo(t)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.pillText, tipo === t && styles.pillTextActive]}>{t}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.label}>Título</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej: Nueva lista de precios disponible..."
-          placeholderTextColor={COLORS.gray4}
-          value={titulo}
-          onChangeText={setTitulo}
-        />
-
-        <Text style={styles.label}>Contenido / Mensaje</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Escribe el cuerpo del comunicado..."
-          placeholderTextColor={COLORS.gray4}
-          value={contenido}
-          onChangeText={setContenido}
-          multiline
-          textAlignVertical="top"
-        />
-
-        <Text style={styles.label}>URL de Imagen (Opcional)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="https://ejemplo.com/imagen.jpg"
-          placeholderTextColor={COLORS.gray4}
-          value={imagenUrl}
-          onChangeText={setImagenUrl}
-          autoCapitalize="none"
-          keyboardType="url"
-        />
-
-        <View style={styles.switchRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Publicar inmediatamente</Text>
-            <Text style={styles.switchDesc}>
-              {isActive ? 'Activo y visible al instante.' : 'Se programará para una fecha específica.'}
-            </Text>
+        
+        <View style={styles.card}>
+          <Text style={styles.label}>Tipo de Comunicado</Text>
+          <View style={styles.tipoContainer}>
+            {TIPOS_COMUNICADO.map(t => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.tipoBadge, tipo === t && styles.tipoBadgeActivo]}
+                onPress={() => setTipo(t)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tipoTexto, tipo === t && styles.tipoTextoActivo]}>{t}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-          <Switch
-            value={isActive}
-            onValueChange={setIsActive}
-            trackColor={{ true: COLORS.navy, false: COLORS.gray5 }}
-            thumbColor={COLORS.white}
+
+          <Text style={styles.label}>Título principal</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ej: Nueva versión 2.0.1"
+            value={titulo}
+            onChangeText={setTitulo}
+            placeholderTextColor={COLORS.gray4}
           />
+
+          <Text style={styles.label}>Cuerpo del mensaje</Text>
+          <TextInput
+            style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+            placeholder="Escribe el mensaje aquí..."
+            value={mensaje}
+            onChangeText={setMensaje}
+            multiline
+            placeholderTextColor={COLORS.gray4}
+          />
+
+          <View style={styles.switchRow}>
+            <Text style={styles.labelSwitch}>Publicar inmediatamente</Text>
+            <Switch
+              value={isActive}
+              onValueChange={setIsActive}
+              trackColor={{ false: COLORS.border, true: COLORS.green + '80' }}
+              thumbColor={isActive ? COLORS.green : COLORS.gray4}
+            />
+          </View>
+
+          {!isActive && (
+            <>
+              <Text style={styles.label}>Programar para (ISO 8601)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="2026-10-15T14:30:00Z"
+                value={fechaEnvio}
+                onChangeText={setFechaEnvio}
+                placeholderTextColor={COLORS.gray4}
+              />
+            </>
+          )}
+
+          <TouchableOpacity style={[styles.btnAction, loading && { opacity: 0.7 }]} onPress={enviar} disabled={loading} activeOpacity={0.8}>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnActionText}>Enviar Comunicado</Text>}
+          </TouchableOpacity>
         </View>
 
-        {/* Campo de fecha — solo visible cuando NO es inmediato */}
-        {!isActive && (
-          <View style={styles.dateSection}>
-            <Text style={styles.label}>Fecha y Hora Programada</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="AAAA-MM-DDTHH:MM  (ej: 2026-09-25T09:00)"
-              placeholderTextColor={COLORS.gray4}
-              value={scheduledDateStr}
-              onChangeText={setScheduledDateStr}
-              keyboardType="default"
-              autoCapitalize="none"
-            />
-            <Text style={styles.dateHint}>
-              Formato ISO: Año-Mes-DíaTHora:Minutos. Ejemplo: 2026-09-25T09:00
-            </Text>
-          </View>
-        )}
-
-        <TouchableOpacity style={styles.sendBtn} onPress={saveComunicado} disabled={loading} activeOpacity={0.8}>
-          {loading
-            ? <ActivityIndicator color={COLORS.white} />
-            : <Text style={styles.sendBtnText}>Guardar y Publicar</Text>
-          }
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.white },
+  safe: { flex: 1, backgroundColor: COLORS.bg },
   topbar: {
     backgroundColor: COLORS.white,
     paddingHorizontal: 20,
@@ -202,49 +170,49 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 10 : 44,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
   topBorder: { height: 1, backgroundColor: COLORS.border },
-  topTitle: { fontFamily: FONTS.headingBold, fontSize: 22, color: COLORS.navy, textTransform: 'uppercase' },
-  backBtn: { width: 80 },
-  backBtnText: { fontFamily: FONTS.bodySemi, fontSize: 16, color: COLORS.green },
-  content: { padding: 16, paddingBottom: 48 },
-  helper: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, marginBottom: 20 },
-  label: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.gray3, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.inputBorder,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 15,
-    fontFamily: FONTS.body,
-    color: COLORS.gray1,
+  logoAnimado: { width: 100, height: 40 },
+  titulo: { fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, textAlign: 'center', marginTop: 20, marginBottom: 4 },
+  
+  content: { padding: 20, paddingBottom: 60 },
+  card: {
     backgroundColor: COLORS.white,
-    marginBottom: 16,
+    borderRadius: 12,
+    padding: 20,
   },
-  textArea: { height: 110, marginBottom: 16 },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  label: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy, marginBottom: 8, marginTop: 12 },
+  input: {
     backgroundColor: COLORS.bg,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: FONTS.body,
+    fontSize: 14,
+    color: COLORS.navy,
   },
-  pillActive: { backgroundColor: COLORS.navy, borderColor: COLORS.navy },
-  pillText: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.gray3 },
-  pillTextActive: { color: COLORS.white },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  tipoContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+  tipoBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  tipoBadgeActivo: {
+    backgroundColor: COLORS.green + '18',
+    borderColor: COLORS.green,
+  },
+  tipoTexto: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.gray4 },
+  tipoTextoActivo: { color: COLORS.green },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingVertical: 8, borderTopWidth: 1, borderTopColor: COLORS.bg },
+  labelSwitch: { fontFamily: FONTS.bodySemi, fontSize: 14, color: COLORS.navy },
+  
+  btnAction: {
+    backgroundColor: COLORS.green,
     paddingVertical: 14,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    marginBottom: 8,
-  },
-  switchDesc: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, marginTop: 2 },
   dateSection: { marginBottom: 16 },
   dateHint: { fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4, marginTop: -10, marginBottom: 16 },
   sendBtn: {
