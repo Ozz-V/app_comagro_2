@@ -88,6 +88,6 @@ const styles = StyleSheet.create({
   empty: { color: '#999', fontStyle: 'italic', fontSize: 14 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
   skuText: { fontSize: 15, color: '#333' },
-  badge: { backgroundColor: COLORS.gold, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  badge: { backgroundColor: '#FFD700', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   badgeText: { fontSize: 12, color: COLORS.navy, fontWeight: 'bold' }
 });

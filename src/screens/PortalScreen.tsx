@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, Modal, DeviceEventEmitter, FlatList } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { MaterialIcons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/useAuthStore';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
