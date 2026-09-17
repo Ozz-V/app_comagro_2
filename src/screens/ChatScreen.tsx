@@ -56,7 +56,9 @@ export default function ChatScreen({ navigation }: { navigation: { goBack: () =>
             setProfName(profileData.full_name);
           }
         }
-      } catch (e) {}
+      } catch (e) {
+  console.warn('No se pudo leer @user_profile_cache', e);
+}
 
       if (localName) {
         setChatHistory([{
