@@ -7,11 +7,13 @@ import { supabase } from '../supabase';
 import { SvgXml } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
+import { useAuthStore } from '../store/useAuthStore';
 import { COLORS, FONTS } from '../theme';
 import LottieView from 'lottie-react-native';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
 const CACHE_KEY = '@admin_users_cache';
+const PROFILE_CACHE_KEY = '@user_profile_cache';
 
 const IconAdmin = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.green}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
 const IconUser  = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.celeste}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
@@ -29,6 +31,7 @@ interface UserProfile {
 export default function AdminUsersScreen() {
   const navigation = useNavigation();
   const { showAlert } = useCustomAlert();
+  const { session, setIsAdmin } = useAuthStore();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,6 +67,35 @@ export default function AdminUsersScreen() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
+  // Sincroniza el store global y el caché de perfil cuando el propio admin
+  // se cambia el rol a sí mismo, y lo saca del panel si perdió el acceso.
+  const syncSelfRoleChange = useCallback(async (targetUserId: string, newRole: string) => {
+    if (!session?.user?.id || targetUserId !== session.user.id) return;
+
+    const isStillAdmin = newRole === 'admin';
+    setIsAdmin(isStillAdmin);
+
+    try {
+      const cached = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
+      if (cached) {
+        const data = JSON.parse(cached);
+        data.role = newRole;
+        await AsyncStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(data));
+      }
+    } catch (e) {
+      // Ignorar errores de cache
+    }
+
+    if (!isStillAdmin) {
+      // Ya no tiene permiso de estar en esta sección: lo regresamos al Portal.
+      showAlert(
+        'Rol actualizado',
+        'Ya no tienes permisos de administrador. Se cerrará el Panel de Control.',
+        [{ text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Portal' as never }] }) }]
+      );
+    }
+  }, [session, setIsAdmin, navigation, showAlert]);
+
   const changeRole = (userId: string, newRole: string) => {
     const isDemotion = newRole === 'staff';
     showAlert(
@@ -75,8 +107,12 @@ export default function AdminUsersScreen() {
           text: 'SÍ',
           onPress: async () => {
             const { error } = await supabase.rpc('admin_set_role', { target_user_id: userId, new_role: newRole });
-            if (error) showAlert('Error', error.message);
-            else { loadUsers(true); }
+            if (error) {
+              showAlert('Error', error.message);
+            } else {
+              loadUsers(true);
+              await syncSelfRoleChange(userId, newRole);
+            }
           }
         }
       ]
