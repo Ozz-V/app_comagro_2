@@ -18,6 +18,7 @@ import UserProfileModal from '../components/UserProfileModal';
 import * as Sentry from '@sentry/react-native';
 import { useOfflineSync } from '../contexts/OfflineSyncContext';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
+import { useAuthStore } from '../store/useAuthStore';
 import OfflineSyncModal from '../components/OfflineSyncModal';
 import UpdateModal from '../components/UpdateModal';
 import ProfileSection from '../components/config/ProfileSection';
@@ -61,7 +62,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
   const [phone, setPhone] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { isAdmin } = useAuthStore();
   const [isEditing, setIsEditing] = useState(false);
 
   const { showAlert, showToast } = useCustomAlert();
@@ -275,7 +276,17 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
             onPress={() => setShowDirectoryModal(true)}
           />
 
-          {isAdmin && <SystemHealthMonitor />}
+          {isAdmin && (
+            <>
+              <MenuCard 
+                iconName="config"
+                title="Centro de Mando"
+                subtitle="Administrar usuarios y sistema"
+                onPress={() => navigation.navigate('AdminDashboard')}
+              />
+              <SystemHealthMonitor />
+            </>
+          )}
 
           <MenuCard 
             iconNode={<LottieView source={ANIMATION_ISO} autoPlay loop style={{ width: 34, height: 34 }} resizeMode="contain" />}
