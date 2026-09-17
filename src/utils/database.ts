@@ -537,9 +537,9 @@ export async function fetchMissingProductFromCloud(sku: string): Promise<ParsedP
   }
 }
 
-export async function getAllProducts(): Promise<ParsedProduct[]> {
+export async function getAllProducts(limit: number = 50): Promise<ParsedProduct[]> {
   const db = await initDB();
-  const results = await db.getAllAsync<ProductRow>('SELECT * FROM productos ORDER BY marca ASC, sku ASC');
+  const results = await db.getAllAsync<ProductRow>(`SELECT * FROM productos ORDER BY marca ASC, sku ASC LIMIT ${limit}`);
   return results.map(r => ({
     modelo: r.sku,
     marca: r.marca,
