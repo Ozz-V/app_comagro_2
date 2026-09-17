@@ -7,5 +7,4 @@
 -- la app (src/) la referencia ni la usa. Se confirma con el equipo que
 -- no está en uso y se elimina.
 
-DROP POLICY IF EXISTS "Only admins manage super_users" ON public.super_users;
-DROP TABLE IF EXISTS public.super_users;
+DROP TABLE IF EXISTS public.super_users CASCADE;
