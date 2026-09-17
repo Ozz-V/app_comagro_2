@@ -198,7 +198,15 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
         await db.execAsync('ALTER TABLE productos ADD COLUMN search_text TEXT;');
       }
       if (!hasSalesPitchColumn) {
-        await db.execAsync('ALTER TABLE productos ADD COLUMN sales_pitch TEXT, precio_web REAL;');
+        // FIX (auditoría): SQLite NO soporta agregar más de una columna en
+        // una sola sentencia ALTER TABLE ... ADD COLUMN (a diferencia de
+        // Postgres/MySQL). La sentencia anterior con dos columnas separadas
+        // por coma lanzaba "syntax error near ','" en cualquier dispositivo
+        // que tuviera la tabla vieja sin `sales_pitch` -- es decir, rompía
+        // la migración incremental para usuarios existentes. Cada columna
+        // nueva necesita su propia sentencia ALTER TABLE.
+        await db.execAsync('ALTER TABLE productos ADD COLUMN sales_pitch TEXT;');
+        await db.execAsync('ALTER TABLE productos ADD COLUMN precio_web REAL;');
       }
       if (!hasImagenesJsonColumn) {
         await db.execAsync('ALTER TABLE productos ADD COLUMN imagenes_json TEXT;');
