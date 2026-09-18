@@ -215,8 +215,7 @@ export default function ProductDetailModal({
                   </View>
                   <View style={styles.greenLineFull} />
 
-                  <View style={[styles.productBox, { position: 'relative' }]}>
-                    {modalProd?.modelo && <FavoriteToggle sku={modalProd.modelo} />}
+                  <View style={styles.productBox}>
                     <View 
                       style={styles.productImgContainer} 
                       onLayout={(e) => setImgWidth(e.nativeEvent.layout.width)}
@@ -255,10 +254,19 @@ export default function ProductDetailModal({
                         </View>
                       )}
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ alignItems: "flex-end", marginBottom: 12 }}>
-                        <ProductPriceBadge price={modalProd?.precio_web} />
+                    <View style={{ flex: 1, gap: 10 }}>
+                      {/* Orden fijo, apilado normal (sin position:absolute): estrella
+                          arriba a la derecha, precio debajo con separación flexible
+                          (gap), y la info del producto al final. Así nunca se pisan,
+                          sin importar el tamaño de la imagen o el largo del nombre. */}
+                      <View style={{ alignItems: 'flex-end' }}>
+                        {modalProd?.modelo && <FavoriteToggle sku={modalProd.modelo} />}
                       </View>
+                      {modalProd?.precio_web ? (
+                        <View style={{ alignItems: "flex-end" }}>
+                          <ProductPriceBadge price={modalProd.precio_web} />
+                        </View>
+                      ) : null}
                       <View style={[styles.productInfoContainer, { flex: 0 }]}>
                         <View style={styles.productInfoGreenBar} />
                         <View style={{ flex: 1 }}>
