@@ -12,11 +12,11 @@ export interface PdfTemplate {
 
 /**
  * Templates por defecto, incorporados a la app (bundle). Se usan si:
- *  - no hay conexiÃ³n,
- *  - todavÃ­a no se cacheÃ³ ninguna versiÃ³n remota,
- *  - o la fila remota vino invÃ¡lida (ver isValidTemplate).
- * Mantenerlos siempre como una versiÃ³n funcional conocida â€” es la red de
- * seguridad para que un template remoto roto nunca tumbe la generaciÃ³n de PDF.
+ *  - no hay conexión,
+ *  - todavía no se cacheó ninguna versión remota,
+ *  - o la fila remota vino inválida (ver isValidTemplate).
+ * Mantenerlos siempre como una versión funcional conocida â€” es la red de
+ * seguridad para que un template remoto roto nunca tumbe la generación de PDF.
  */
 export const DEFAULT_TEMPLATES: Record<TemplateId, PdfTemplate> = {
   product_sheet: {
@@ -281,7 +281,7 @@ export async function fetchRemoteTemplate(id: TemplateId): Promise<PdfTemplate |
     if (error || !data) return null;
 
     if (!isValidTemplate(id, data.html)) {
-      console.warn(`Template remoto "${id}" invÃ¡lido (faltan placeholders requeridos), se ignora`);
+      console.warn(`Template remoto "${id}" inválido (faltan placeholders requeridos), se ignora`);
       return null;
     }
 
@@ -305,8 +305,8 @@ export async function getTemplate(id: TemplateId): Promise<PdfTemplate> {
 }
 
 /**
- * Reemplazo simple {{clave}} -> valor. A propÃ³sito no soporta condicionales
- * ni loops: esas decisiones (quÃ© card mostrar, cuÃ¡ntos Ã­tems, etc.) se
+ * Reemplazo simple {{clave}} -> valor. A propósito no soporta condicionales
+ * ni loops: esas decisiones (qué card mostrar, cuántos ítems, etc.) se
  * resuelven en JS y se pasan ya armadas como HTML dentro de una sola clave
  * (ej. "listsGridHtml"). Mantiene el motor de templates trivial de auditar.
  */

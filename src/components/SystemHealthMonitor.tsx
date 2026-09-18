@@ -120,7 +120,7 @@ export default function SystemHealthMonitor() {
         <AnimatedWaveform status={plytixHealth.status} color="#1c9f4b" />
         <View style={s.info}>
           <Text style={s.serviceName}>{plytixHealth.service}</Text>
-          <Text style={s.subText}>Ãšltimo ping: {plytixHealth.lastPing || '...'}</Text>
+          <Text style={s.subText}>Último ping: {plytixHealth.lastPing || '...'}</Text>
           {plytixHealth.details && <Text style={s.errorText}>{plytixHealth.details}</Text>}
         </View>
       </View>
@@ -131,7 +131,7 @@ export default function SystemHealthMonitor() {
         <AnimatedWaveform status={aiHealth.status} color="#2196F3" />
         <View style={s.info}>
           <Text style={s.serviceName}>{aiHealth.service}</Text>
-          <Text style={s.subText}>Ãšltimo ping: {aiHealth.lastPing || '...'}</Text>
+          <Text style={s.subText}>Último ping: {aiHealth.lastPing || '...'}</Text>
           {aiHealth.details && <Text style={s.detailText}>{aiHealth.details}</Text>}
         </View>
       </View>

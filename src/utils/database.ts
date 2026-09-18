@@ -19,7 +19,7 @@ export interface ProductRow {
   precio_web?: number;
 }
 
-// Singleton: una sola conexiÃ³n compartida por todas las funciones.
+// Singleton: una sola conexión compartida por todas las funciones.
 // Esto evita errores "database is locked" cuando hay transacciones concurrentes.
 let _db: SQLite.SQLiteDatabase | null = null;
 export let ftsAvailable = false;
@@ -27,12 +27,12 @@ export let ftsAvailable = false;
 // IMPORTANTE: guardamos la PROMESA de apertura, no solo el resultado ya
 // resuelto. useProducts.ts y OfflineSyncContext.tsx pueden llamar a
 // initDB()/getDB() casi al mismo tiempo al arrancar la app (uno al montar
-// la pantalla, otro al empezar la sync en background). Con el patrÃ³n viejo
-// (chequear "if (!_db)" y reciÃ©n ahÃ­ asignar tras el await), dos llamadas
-// simultÃ¡neas ven _db como null ANTES de que la primera termine de abrir,
+// la pantalla, otro al empezar la sync en background). Con el patrón viejo
+// (chequear "if (!_db)" y recién ahí asignar tras el await), dos llamadas
+// simultáneas ven _db como null ANTES de que la primera termine de abrir,
 // y cada una dispara su propio SQLite.openDatabaseAsync() â€” dos handles
-// nativos pisÃ¡ndose, lo que producÃ­a el NullPointerException dentro de
-// NativeDatabase.execAsync que reportÃ³ Sentry. Cacheando la promesa, la
+// nativos pisándose, lo que producía el NullPointerException dentro de
+// NativeDatabase.execAsync que reportó Sentry. Cacheando la promesa, la
 // segunda llamada concurrente espera el mismo openDatabaseAsync() en vez
 // de arrancar el suyo.
 let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -43,19 +43,19 @@ async function getDB(): Promise<SQLite.SQLiteDatabase> {
   if (!_dbPromise) {
     _dbPromise = (async () => {
       const db = await SQLite.openDatabaseAsync(DB_NAME);
-      // WAL (Write-Ahead Logging) es mucho mÃ¡s resistente que el modo rollback
-      // por defecto ante cierres forzosos / cortes de baterÃ­a / que el sistema
+      // WAL (Write-Ahead Logging) es mucho más resistente que el modo rollback
+      // por defecto ante cierres forzosos / cortes de batería / que el sistema
       // mate el proceso a mitad de una escritura: los cambios se anexan a un
       // archivo -wal aparte y solo se "commitean" a la base principal cuando
-      // corresponde, asÃ­ que un corte a mitad de camino no deja la base
+      // corresponde, así que un corte a mitad de camino no deja la base
       // principal en un estado a medio escribir.
       await db.execAsync('PRAGMA journal_mode = WAL;');
       await db.execAsync('PRAGMA synchronous = NORMAL;');
       _db = db;
       return db;
     })().catch((e) => {
-      // Si fallÃ³ la apertura, no dejamos la promesa cacheada colgada:
-      // el prÃ³ximo llamador debe poder reintentar desde cero.
+      // Si falló la apertura, no dejamos la promesa cacheada colgada:
+      // el próximo llamador debe poder reintentar desde cero.
       _dbPromise = null;
       throw e;
     });
@@ -65,12 +65,12 @@ async function getDB(): Promise<SQLite.SQLiteDatabase> {
 }
 
 /**
- * Si la base local quedÃ³ corrupta (poco frecuente, pero puede pasar por
+ * Si la base local quedó corrupta (poco frecuente, pero puede pasar por
  * cierres forzosos, quedarse sin espacio, o fallas de storage del equipo),
  * en vez de dejar la app inutilizable, la borramos y la recreamos desde
- * cero. Como esto es solo un CACHE del catÃ¡logo (se puede volver a
+ * cero. Como esto es solo un CACHE del catálogo (se puede volver a
  * descargar de Supabase), perder este archivo no pierde datos del usuario
- * â€” el prÃ³ximo sync lo repuebla solo.
+ * â€” el próximo sync lo repuebla solo.
  */
 async function resetCorruptDatabase(): Promise<void> {
   try {
@@ -84,8 +84,8 @@ async function resetCorruptDatabase(): Promise<void> {
   try {
     await SQLite.deleteDatabaseAsync(DB_NAME);
   } catch (e: unknown) {
-    // Si ni siquiera se puede borrar el archivo, no hay mucho mÃ¡s para
-    // intentar automÃ¡ticamente â€” se deja que el llamador decida quÃ© mostrar.
+    // Si ni siquiera se puede borrar el archivo, no hay mucho más para
+    // intentar automáticamente â€” se deja que el llamador decida qué mostrar.
     Sentry.captureException(e);
   }
 }
@@ -109,21 +109,21 @@ export async function initDB(): Promise<SQLite.SQLiteDatabase> {
   } catch (e: unknown) {
     if (!pareceCorrupcion(e)) {
       Sentry.captureException(e, { tags: { context: 'initDB_non_corruption_error' } });
-      throw e; // Error no relacionado a corrupciÃ³n: no tiene sentido borrar el cachÃ©, que se propague tal cual
+      throw e; // Error no relacionado a corrupción: no tiene sentido borrar el caché, que se propague tal cual
     }
 
-    // Reintento automÃ¡tico: si la base estÃ¡ corrupta, la borramos y
-    // arrancamos de cero UNA vez. Si esto tambiÃ©n falla, ahÃ­ sÃ­ se lo
-    // dejamos ver al usuario â€” pero esto cubre el caso comÃºn de corrupciÃ³n
+    // Reintento automático: si la base está corrupta, la borramos y
+    // arrancamos de cero UNA vez. Si esto también falla, ahí sí se lo
+    // dejamos ver al usuario â€” pero esto cubre el caso común de corrupción
     // por cierre forzoso sin que el usuario tenga que hacer nada.
     // eslint-disable-next-line no-console
-    console.log('initDB detectÃ³ base corrupta, reparando automÃ¡ticamente', String(e));
+    console.log('initDB detectó base corrupta, reparando automáticamente', String(e));
     Sentry.captureMessage('initDB: base local corrupta, auto-reparando', { level: 'warning', extra: { originalError: String(e) } });
     await resetCorruptDatabase();
     try {
       return await initDBInternal();
     } catch (e2: unknown) {
-      // La auto-reparaciÃ³n tambiÃ©n fallÃ³: esto sÃ­ es serio y hay que verlo en Sentry.
+      // La auto-reparación también falló: esto sí es serio y hay que verlo en Sentry.
       Sentry.captureException(e2, { tags: { context: 'initDB_repair_failed' } });
       throw e2;
     }
@@ -137,15 +137,15 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
   const SYNC_CACHE = 'graceful_sync_v6_limpieza_specs';
   const yaSincronizado = await AsyncStorage.getItem(SYNC_CACHE);
   if (!yaSincronizado) {
-    // Borramos la fecha de Ãºltima sincronizaciÃ³n. Esto forzarÃ¡ al sistema
-    // a descargar el catÃ¡logo entero por detrÃ¡s y hacer un INSERT OR REPLACE,
+    // Borramos la fecha de última sincronización. Esto forzará al sistema
+    // a descargar el catálogo entero por detrás y hacer un INSERT OR REPLACE,
     // sobrescribiendo la basura vieja SIN vaciarle la pantalla al usuario.
     try { await AsyncStorage.removeItem('comagro_productos_fecha_v3'); } catch {}
     await AsyncStorage.setItem(SYNC_CACHE, '1');
   }
   // -----------------------------------------------------------------
 
-  // Crear la tabla base si no existe (la base serÃ¡ la versiÃ³n actual completa)
+  // Crear la tabla base si no existe (la base será la versión actual completa)
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS productos (
       sku TEXT PRIMARY KEY,
@@ -173,7 +173,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
     const hasImagenesJsonColumn = tableInfo.some((col: { name: string }) => col.name === 'imagenes_json');
 
     if (!hasSkuColumn) {
-      // Si no tiene sku, es versiÃ³n v1 (obsoleta), borrarla
+      // Si no tiene sku, es versión v1 (obsoleta), borrarla
       await db.execAsync('DROP TABLE IF EXISTS productos;');
       await db.execAsync('DROP TABLE IF EXISTS productos_fts;');
       try { await AsyncStorage.removeItem('comagro_productos_fecha_v3'); } catch {}
@@ -198,12 +198,12 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
         await db.execAsync('ALTER TABLE productos ADD COLUMN search_text TEXT;');
       }
       if (!hasSalesPitchColumn) {
-        // FIX (auditorÃ­a): SQLite NO soporta agregar mÃ¡s de una columna en
+        // FIX (auditoría): SQLite NO soporta agregar más de una columna en
         // una sola sentencia ALTER TABLE ... ADD COLUMN (a diferencia de
         // Postgres/MySQL). La sentencia anterior con dos columnas separadas
         // por coma lanzaba "syntax error near ','" en cualquier dispositivo
-        // que tuviera la tabla vieja sin `sales_pitch` -- es decir, rompÃ­a
-        // la migraciÃ³n incremental para usuarios existentes. Cada columna
+        // que tuviera la tabla vieja sin `sales_pitch` -- es decir, rompía
+        // la migración incremental para usuarios existentes. Cada columna
         // nueva necesita su propia sentencia ALTER TABLE.
         await db.execAsync('ALTER TABLE productos ADD COLUMN sales_pitch TEXT;');
         await db.execAsync('ALTER TABLE productos ADD COLUMN precio_web REAL;');
@@ -214,7 +214,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
     }
   }
 
-  // â”€â”€â”€ Ãndice FTS5 para bÃºsqueda de texto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€â”€ Ãndice FTS5 para búsqueda de texto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   
   // MIGRACIÃ“N: Agregar precio_web si no existe
   try {
@@ -224,7 +224,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
       await db.execAsync('ALTER TABLE productos ADD COLUMN precio_web REAL;');
     }
   } catch (e) {
-    console.warn('Error en migraciÃ³n precio_web', e);
+    console.warn('Error en migración precio_web', e);
   }
 
   try {
@@ -278,13 +278,13 @@ export async function clearProducts(): Promise<void> {
 export async function insertProductsBatch(productosArray: Product[], manifest: Record<string, string> | null, isDelta = false): Promise<void> {
   const db = await initDB();
 
-  // NOTA: ya NO se borra la tabla acÃ¡. Antes se hacÃ­a DELETE FROM productos
-  // en la primera pÃ¡gina de cada sync "completo", lo que causaba que si el
-  // usuario salÃ­a de la pantalla y volvÃ­a a entrar antes de que terminara
-  // de descargar todo el catÃ¡logo, se reiniciaba la sync y se borraba todo
-  // lo que ya se habÃ­a descargado (las marcas "desaparecÃ­an"). Ahora
+  // NOTA: ya NO se borra la tabla acá. Antes se hacía DELETE FROM productos
+  // en la primera página de cada sync "completo", lo que causaba que si el
+  // usuario salía de la pantalla y volvía a entrar antes de que terminara
+  // de descargar todo el catálogo, se reiniciaba la sync y se borraba todo
+  // lo que ya se había descargado (las marcas "desaparecían"). Ahora
   // siempre se hace upsert, y la limpieza de productos obsoletos se hace
-  // aparte, solo al final de una sincronizaciÃ³n completa exitosa
+  // aparte, solo al final de una sincronización completa exitosa
   // (ver pruneStaleProducts).
   await db.withTransactionAsync(async () => {
     for (const p of productosArray) {
@@ -314,7 +314,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         }
       }
       
-      // EXCEPCIÃ“N: Si no se encontrÃ³ NINGUNA foto principal, usamos solo 1 de las de reserva
+      // EXCEPCIÃ“N: Si no se encontró NINGUNA foto principal, usamos solo 1 de las de reserva
       if (rawImages.length === 0 && reserveImages.length > 0) {
         rawImages.push(reserveImages[0]);
       }
@@ -331,7 +331,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
       ]);
 
       const basura = ['n/a', 'na', 'n.a', 'n.a.', 'no aplica', 'sin dato', 'sin datos',
-        'no', 'no tiene', 'no disponible', 'pim', '-', '--', '---', 'st', 'sin informaciÃ³n',
+        'no', 'no tiene', 'no disponible', 'pim', '-', '--', '---', 'st', 'sin información',
         'no corresponde', 'sin especificar', 'sin info'];
 
       for (const [col, val] of Object.entries(p)) {
@@ -350,7 +350,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
                 const year = d.getFullYear();
                 const hours = String(d.getHours()).padStart(2, '0');
                 const minutes = String(d.getMinutes()).padStart(2, '0');
-                specs.push(['Actualizado Ãºltima vez', `${day}/${month}/${year} ${hours}:${minutes}`]);
+                specs.push(['Actualizado última vez', `${day}/${month}/${year} ${hours}:${minutes}`]);
               }
             } catch (e) {
               // Si falla el parseo, se ignora
@@ -359,11 +359,11 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
           continue;
         }
 
-        // 1. Filtro estricto para bloquear imÃ¡genes y links
+        // 1. Filtro estricto para bloquear imágenes y links
         const esColumnaImagen = kLower.includes('imagen') || kLower.includes('foto') || kLower.includes('img') || kLower.includes('manual');
         const tieneLink = sLower.includes('http://') || sLower.includes('https://') || sLower.includes('plytix.com');
         
-        // 2. Filtro estricto para bloquear sÃ­mbolos sueltos (., ", /, -)
+        // 2. Filtro estricto para bloquear símbolos sueltos (., ", /, -)
         const tieneContenidoReal = /[a-zA-Z0-9]/.test(s);
 
         if (!colsExcluidas.has(col) && !col.startsWith('_') && !esColumnaImagen && !tieneLink) {
@@ -387,12 +387,12 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
 
 /**
  * Borra de la base local los productos que YA NO vinieron en una
- * sincronizaciÃ³n completa (es decir, se eliminaron en el origen/Plytix).
- * Se debe llamar SOLO despuÃ©s de que el sync completo terminÃ³ con Ã©xito
- * (todas las pÃ¡ginas), nunca a mitad de camino ni en un sync delta.
+ * sincronización completa (es decir, se eliminaron en el origen/Plytix).
+ * Se debe llamar SOLO después de que el sync completo terminó con éxito
+ * (todas las páginas), nunca a mitad de camino ni en un sync delta.
  *
- * Por seguridad, si validSkus viene vacÃ­o no borra nada (evita vaciar
- * la tabla entera por un bug o una respuesta vacÃ­a inesperada).
+ * Por seguridad, si validSkus viene vacío no borra nada (evita vaciar
+ * la tabla entera por un bug o una respuesta vacía inesperada).
  */
 export async function pruneStaleProducts(validSkus: string[]): Promise<void> {
   if (!validSkus.length) return;
@@ -424,7 +424,7 @@ export async function searchProducts(marcaFiltro: string, subcatFiltro: string, 
   let query: string;
 
   if (terms.length > 0 && ftsAvailable) {
-    // Prefix-match por tÃ©rmino, unidos con espacio (AND implÃ­cito en FTS5)
+    // Prefix-match por término, unidos con espacio (AND implícito en FTS5)
     const ftsQuery = terms.map(t => `"${t.replace(/"/g, '""')}"*`).join(' ');
     query = `SELECT p.* FROM productos_fts JOIN productos p ON p.rowid = productos_fts.rowid WHERE productos_fts MATCH ?`;
     params.push(ftsQuery);
@@ -521,7 +521,7 @@ export async function fetchMissingProductFromCloud(sku: string): Promise<ParsedP
     if (!res.ok) return null;
     const all = await res.json();
 
-    // El edge ya deberÃ­a haber filtrado y devuelto solo ese producto (o un array con 1 elemento)
+    // El edge ya debería haber filtrado y devuelto solo ese producto (o un array con 1 elemento)
     const dataArray = Array.isArray(all) ? all : [all];
     const p = dataArray.find((x: Product) => String(x.SKU || x.sku).trim().toLowerCase() === String(sku).trim().toLowerCase());
     if (!p) return null;
@@ -532,7 +532,7 @@ export async function fetchMissingProductFromCloud(sku: string): Promise<ParsedP
     await insertProductsBatch([p], null, true);
     return await getProductBySku(sku);
   } catch (error) {
-    console.warn(`[fetchMissingProductFromCloud] fallÃ³ la sincronizaciÃ³n puntual para ${sku}:`, error);
+    console.warn(`[fetchMissingProductFromCloud] falló la sincronización puntual para ${sku}:`, error);
     return null;
   }
 }

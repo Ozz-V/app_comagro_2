@@ -78,8 +78,8 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
           <View style={[styles.modalContainer, { maxHeight: height * 0.85 }]}>
 
             <ScrollView bounces={false} contentContainerStyle={styles.scrollContent}>
-              {/* AnimaciÃ³n Lottie superior: se monta reciÃ©n cuando el modal ya terminÃ³
-                  su transiciÃ³n de apertura, para no competir por el layout inicial
+              {/* Animación Lottie superior: se monta recién cuando el modal ya terminó
+                  su transición de apertura, para no competir por el layout inicial
                   y evitar el "salto" visual del primer frame. */}
               <View style={{ alignItems: 'center', marginBottom: 16, width: 80, height: 80, alignSelf: 'center' }}>
                 {readyForLottie && (
@@ -93,7 +93,7 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
                 )}
               </View>
 
-              {/* TÃ­tulo */}
+              {/* Título */}
               <Text style={[styles.title, { textAlign: 'center' }]}>{comunicado.titulo}</Text>
 
               {/* Flyer (Si existe) */}
@@ -113,13 +113,13 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
                 </View>
               ) : null}
 
-              {/* VersiÃ³n centrada abajo */}
+              {/* Versión centrada abajo */}
               {comunicado.tipo.includes('actualizaciones') && (
-                <Text style={[styles.versionText, { textAlign: 'center', marginTop: 24 }]}>VersiÃ³n {versionApp}</Text>
+                <Text style={[styles.versionText, { textAlign: 'center', marginTop: 24 }]}>Versión {versionApp}</Text>
               )}
             </ScrollView>
 
-            {/* Footer / BotÃ³n */}
+            {/* Footer / Botón */}
             <View style={styles.footer}>
               <TouchableOpacity style={styles.button} onPress={onClose}>
                 <Text style={styles.buttonText}>{readOnly ? 'Cerrar' : 'Entendido'}</Text>

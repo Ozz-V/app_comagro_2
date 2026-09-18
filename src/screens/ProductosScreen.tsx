@@ -40,9 +40,9 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
   const [busquedaDebounced, setBusquedaDebounced] = useState('');
 
   // Espera un poco antes de disparar la consulta a SQLite. La consulta de
-  // "Productos"/"Accesorios" es mÃ¡s pesada (escanea search_text con varios
-  // LIKE) que la de "Todos", asÃ­ que sin este pequeÃ±o delay cada letra
-  // tipeada dispara una consulta nueva y pesada, apilando bÃºsquedas.
+  // "Productos"/"Accesorios" es más pesada (escanea search_text con varios
+  // LIKE) que la de "Todos", así que sin este pequeño delay cada letra
+  // tipeada dispara una consulta nueva y pesada, apilando búsquedas.
   useEffect(() => {
     const t = setTimeout(() => setBusquedaDebounced(busqueda), 300);
     return () => clearTimeout(t);
@@ -77,7 +77,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
   const [showCompareGrid, setShowCompareGrid] = useState(false);
   const [fromProductViewer, setFromProductViewer] = useState(false);
 
-  // PDF cachÃ©
+  // PDF caché
   const [pdfCache, setPdfCache] = useState<{ prodBase64: string; logoBase64: string }>({ prodBase64: '', logoBase64: '' });
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
   const numCols = width >= 600 ? 3 : 2;
   const cardW = (width - 32 - (numCols - 1) * 12) / numCols;
 
-  // El filtrado ahora ocurre en SQLite a travÃ©s de useProducts
+  // El filtrado ahora ocurre en SQLite a través de useProducts
   const activeSliderList = productosFiltrados;
 
   // Funciones de Modal
@@ -113,7 +113,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
     setModalProd(null);
   }, []);
 
-  // Restaurar lÃ³gica para abrir productos desde otras pantallas (miniatura)
+  // Restaurar lógica para abrir productos desde otras pantallas (miniatura)
   useEffect(() => {
     if (route?.params?.openProductSku) {
       const sku = route.params.openProductSku;
@@ -126,7 +126,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
     }
   }, [route?.params?.openProductSku, getProductBySkuSafe, handleOpenModal, navigation]);
 
-  // Recibir lista de comparaciÃ³n desde modal transparente (ProductViewerScreen)
+  // Recibir lista de comparación desde modal transparente (ProductViewerScreen)
   useEffect(() => {
     if (route?.params?.compareSkus) {
       const skus = route.params.compareSkus;
@@ -143,7 +143,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
     }
   }, [route?.params?.compareSkus, route?.params?.fromProductViewer, getProductBySkuSafe, navigation]);
 
-  // Manejar el botÃ³n "AtrÃ¡s" de hardware
+  // Manejar el botón "Atrás" de hardware
   useFocusEffect(
     useCallback(() => {
       const handleBackPress = () => {
