@@ -33,6 +33,7 @@ jest.mock('../src/supabase', () => ({
   supabase: {
     auth: { getSession: (...args: unknown[]) => mockGetSession(...args) },
     from: jest.fn(() => chainable()),
+    rpc: jest.fn().mockResolvedValue({ data: [], error: null }),
   },
 }));
 
@@ -156,12 +157,13 @@ describe('useDashboardAnalyticsLogic', () => {
           o.single = jest.fn().mockResolvedValue({ data: { role: 'admin' }, error: null });
           return o;
         }
-        // producto_analytics (propio y global usan la misma tabla)
+        // producto_analytics (propio); lo global ahora sale por RPC agregada
         const o: any = {};
         ['select', 'eq', 'order', 'limit', 'gte'].forEach(m => { o[m] = jest.fn(() => o); });
         o.then = (resolve: any) => resolve({ data: rowsFor([{}, {}]), error: null });
         return o;
       });
+      (supabase.rpc as jest.Mock).mockResolvedValue({ data: rowsFor([{}, {}]), error: null });
 
       const { result } = await renderHook(() => useDashboardAnalyticsLogic());
 
@@ -169,7 +171,7 @@ describe('useDashboardAnalyticsLogic', () => {
       await waitFor(() => expect(result.current.globalData.views).toBeGreaterThan(0));
     });
 
-    it('un usuario no-admin no dispara la consulta global', async () => {
+    it('un usuario no-admin también recibe los datos globales agregados (vía RPC, no admin-gate)', async () => {
       (supabase.from as jest.Mock).mockImplementation((table: string) => {
         if (table === 'profiles') {
           const o: any = { select: jest.fn(() => o), eq: jest.fn(() => o) };
@@ -181,12 +183,14 @@ describe('useDashboardAnalyticsLogic', () => {
         o.then = (resolve: any) => resolve({ data: rowsFor([{}]), error: null });
         return o;
       });
+      (supabase.rpc as jest.Mock).mockResolvedValue({ data: rowsFor([{}, {}]), error: null });
 
       const { result } = await renderHook(() => useDashboardAnalyticsLogic());
 
       await waitFor(() => expect(result.current.loading).toBe(false));
       expect(result.current.isAdmin).toBe(false);
-      expect(result.current.globalData.views).toBe(0);
+      expect(supabase.rpc).toHaveBeenCalledWith('get_global_analytics_rows', expect.anything());
+      expect(result.current.globalData.views).toBeGreaterThan(0);
     });
 
     it('muestra de inmediato los datos cacheados mientras espera la respuesta del servidor', async () => {
