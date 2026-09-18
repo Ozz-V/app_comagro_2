@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { supabase } from '../../supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useFeaturesStore } from '../../store/useFeaturesStore';
 import { SvgXml } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { COLORS, FONTS } from '../../theme';
 
 const StarFilled = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#FFC107" stroke="#FFC107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
 const StarOutline = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#B0B0B0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
@@ -80,15 +81,30 @@ export default function FavoriteToggle({ sku }: FavoriteToggleProps) {
     <TouchableOpacity 
       onPress={toggleFavorite} 
       activeOpacity={0.7}
-      style={{
-        position: 'absolute',
-        top: 8,
-        left: 8,
-        zIndex: 10,
-        padding: 4
-      }}
+      style={styles.container}
     >
       <SvgXml xml={isFavorite ? StarFilled : StarOutline} width={24} height={24} />
+      <Text style={styles.label} numberOfLines={1}>
+        {isFavorite ? 'En tus Favoritos' : 'Agregar a Favoritos'}
+      </Text>
     </TouchableOpacity>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 10,
+    padding: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  label: {
+    fontFamily: FONTS.body,
+    fontSize: 10,
+    color: COLORS.gray4,
+  },
+});
