@@ -272,7 +272,16 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         const gd = process(all, 10, 8);
         let currGlobal = all;
         if (pDate) currGlobal = all.filter((d: any) => d.created_at >= pDate);
-        gd.users = countByKey(currGlobal.filter((i: any) => i.user_email !== 'offline_user'), (i: any) => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
+
+        // Un usuario no-admin nunca debe ver a un admin listado en ningún
+        // ranking, tampoco en el top de "usuarios" de esta pestaña General.
+        let usersForRanking = currGlobal;
+        if (!currentIsAdmin) {
+          const { data: admins } = await supabase.from('profiles').select('email').eq('role', 'admin');
+          const adminEmails = new Set((admins || []).map((a: any) => a.email));
+          usersForRanking = currGlobal.filter((i: any) => !adminEmails.has(i.user_email));
+        }
+        gd.users = countByKey(usersForRanking.filter((i: any) => i.user_email !== 'offline_user'), (i: any) => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
         
         const globalMetrics = computeChartMetrics(currGlobal);
         if (isMounted.current) {
