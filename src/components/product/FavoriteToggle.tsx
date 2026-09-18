@@ -93,10 +93,6 @@ export default function FavoriteToggle({ sku }: FavoriteToggleProps) {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 10,
     padding: 4,
     flexDirection: 'row',
     alignItems: 'center',
