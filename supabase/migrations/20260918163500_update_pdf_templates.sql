@@ -63,7 +63,7 @@ SET
 WHERE id_template = 'stats_report';
 
 -- Insertar o actualizar la plantilla para el Reporte de Usuarios
-INSERT INTO public.pdf_templates (id_template, html, version, created_at, updated_at)
+INSERT INTO public.pdf_templates (id_template, html, version, updated_at)
 VALUES (
   'user_grid_report', 
   $$<!DOCTYPE html>
@@ -125,7 +125,6 @@ VALUES (
 </body>
 </html>$$, 
   '1.0', 
-  NOW(), 
   NOW()
 )
 ON CONFLICT (id_template) 
