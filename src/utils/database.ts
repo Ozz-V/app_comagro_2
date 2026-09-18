@@ -133,7 +133,7 @@ export async function initDB(): Promise<SQLite.SQLiteDatabase> {
 async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
   const db = await getDB();
 
-  // --- ACTUALIZACIÃ“N SILENCIOSA EN SEGUNDO PLANO (Graceful Sync) ---
+  // --- ACTUALIZACIÓN SILENCIOSA EN SEGUNDO PLANO (Graceful Sync) ---
   const SYNC_CACHE = 'graceful_sync_v6_limpieza_specs';
   const yaSincronizado = await AsyncStorage.getItem(SYNC_CACHE);
   if (!yaSincronizado) {
@@ -216,7 +216,7 @@ async function initDBInternal(): Promise<SQLite.SQLiteDatabase> {
 
   // â”€â”€â”€ Ãndice FTS5 para búsqueda de texto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   
-  // MIGRACIÃ“N: Agregar precio_web si no existe
+  // MIGRACIÓN: Agregar precio_web si no existe
   try {
     const tableInfo: any[] = await db.getAllAsync('PRAGMA table_info(productos)');
     const hasPrecioWeb = tableInfo.some(col => col.name === 'precio_web');
@@ -314,7 +314,7 @@ export async function insertProductsBatch(productosArray: Product[], manifest: R
         }
       }
       
-      // EXCEPCIÃ“N: Si no se encontró NINGUNA foto principal, usamos solo 1 de las de reserva
+      // EXCEPCIÓN: Si no se encontró NINGUNA foto principal, usamos solo 1 de las de reserva
       if (rawImages.length === 0 && reserveImages.length > 0) {
         rawImages.push(reserveImages[0]);
       }

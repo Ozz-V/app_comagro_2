@@ -298,7 +298,7 @@ export default function ProductosScreen({ navigation, route }: { navigation: any
         }}
       />
 
-      {/* MODAL DE COMPARACIÃ“N */}
+      {/* MODAL DE COMPARACIÓN */}
       <CompareModal
         visible={showCompareGrid}
         compareItems={compareItems}

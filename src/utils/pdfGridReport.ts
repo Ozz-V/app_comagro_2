@@ -69,9 +69,9 @@ export async function generateUserGridPdf(
   let pDate = new Date();
   if (periodLabel === 'Hoy') {
     pDate.setHours(0, 0, 0, 0);
-  } else if (periodLabel === 'Ultimos 7 dias' || periodLabel === 'ÃƒÅ¡ltimos 7 dÃƒÂ­as') {
+  } else if (periodLabel === 'Ultimos 7 dias' || periodLabel === 'Últimos 7 días') {
     pDate.setDate(pDate.getDate() - 7);
-  } else if (periodLabel === 'Ultimos 30 dias' || periodLabel === 'ÃƒÅ¡ltimos 30 dÃƒÂ­as') {
+  } else if (periodLabel === 'Ultimos 30 dias' || periodLabel === 'Últimos 30 días') {
     pDate.setDate(pDate.getDate() - 30);
   } else {
     pDate = new Date(0);
@@ -173,7 +173,7 @@ export async function generateUserGridPdf(
           </div>
           <div class="kpi-box details">
             <div class="kpi-val">${ud.stats.sharesImg}</div>
-            <div class="kpi-label">ImÃƒÂ¡genes Env.</div>
+            <div class="kpi-label">Imágenes Env.</div>
           </div>
         </div>
 
