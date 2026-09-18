@@ -98,7 +98,7 @@ AS $$
   WHERE created_at >= public.period_start(p_period)
     AND user_email != 'offline_user'
   GROUP BY user_email
-  ORDER BY (views + shares) DESC
+  ORDER BY (COUNT(*) FILTER (WHERE action = 'view') + COUNT(*) FILTER (WHERE action IN ('share_pdf','share_image'))) DESC
   LIMIT p_limit;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_top_users_by_period(text, int) TO authenticated;
