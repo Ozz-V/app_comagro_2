@@ -3,104 +3,12 @@ import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, useWindowD
 import { Image } from 'expo-image';
 import LottieView from 'lottie-react-native';
 import Constants from 'expo-constants';
+import { renderMarkdown } from '../utils/renderMarkdown';
 import { COLORS, FONTS } from '../theme';
 import { Comunicado } from '../hooks/useComunicados';
 
-// ---------------------------------------------------------------------------
-// Renderizador de Markdown basico
-// Soporta los marcadores generados por RichTextEditorModal:
-//   **texto**       => negrita
-//   _texto_         => italica
-//   __texto__       => subrayado
-//   - texto         => viñeta (al inicio de linea)
-//   [[center]]...[[/center]] => texto centrado
-// ---------------------------------------------------------------------------
-function renderMarkdown(raw: string, baseStyle: object): React.ReactNode {
-  // Dividir por lineas para manejar viñetas y centrado por bloque
-  const lines = raw.split('\n');
 
-  return lines.map((line, lineIdx) => {
-    const isBullet  = line.trimStart().startsWith('- ');
-    const isCentered = line.includes('[[center]]');
-    const cleanLine  = line
-      .replace(/\[\[center\]\]/g, '')
-      .replace(/\[\[\/center\]\]/g, '')
-      .replace(isBullet ? /^(\s*)-\s/ : '', '');
 
-    // Tokenizar inline (bold, italic, underline)
-    const tokens = tokenizeInline(cleanLine);
-
-    const inlineNodes = tokens.map((tok, tokIdx) => {
-      if (tok.type === 'bold') {
-        return (
-          <Text key={tokIdx} style={[baseStyle, { fontWeight: '700' }]}>
-            {tok.content}
-          </Text>
-        );
-      }
-      if (tok.type === 'italic') {
-        return (
-          <Text key={tokIdx} style={[baseStyle, { fontStyle: 'italic' }]}>
-            {tok.content}
-          </Text>
-        );
-      }
-      if (tok.type === 'underline') {
-        return (
-          <Text key={tokIdx} style={[baseStyle, { textDecorationLine: 'underline' }]}>
-            {tok.content}
-          </Text>
-        );
-      }
-      return <Text key={tokIdx} style={baseStyle}>{tok.content}</Text>;
-    });
-
-    const textAlign = isCentered ? 'center' : 'left';
-
-    return (
-      <View key={lineIdx} style={[{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 2 }, isCentered && { justifyContent: 'center' }]}>
-        {isBullet && (
-          <Text style={[baseStyle, { marginRight: 6 }]}>{'\u2022'}</Text>
-        )}
-        <Text style={[baseStyle, { textAlign, flexShrink: 1 }]}>{inlineNodes}</Text>
-      </View>
-    );
-  });
-}
-
-interface InlineToken {
-  type: 'text' | 'bold' | 'italic' | 'underline';
-  content: string;
-}
-
-/** Tokeniza marcadores inline en una sola linea. */
-function tokenizeInline(line: string): InlineToken[] {
-  const tokens: InlineToken[] = [];
-  // Orden importa: primero __underline__, luego **bold**, luego _italic_
-  const pattern = /(__(.+?)__|\*\*(.+?)\*\*|_(.+?)_)/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(line)) !== null) {
-    if (match.index > lastIndex) {
-      tokens.push({ type: 'text', content: line.slice(lastIndex, match.index) });
-    }
-    if (match[2] !== undefined) {
-      tokens.push({ type: 'underline', content: match[2] });
-    } else if (match[3] !== undefined) {
-      tokens.push({ type: 'bold', content: match[3] });
-    } else if (match[4] !== undefined) {
-      tokens.push({ type: 'italic', content: match[4] });
-    }
-    lastIndex = pattern.lastIndex;
-  }
-
-  if (lastIndex < line.length) {
-    tokens.push({ type: 'text', content: line.slice(lastIndex) });
-  }
-
-  return tokens.length > 0 ? tokens : [{ type: 'text', content: line }];
-}
 
 interface ComunicadoModalProps {
   visible: boolean;
@@ -170,8 +78,8 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
           <View style={[styles.modalContainer, { maxHeight: height * 0.85 }]}>
 
             <ScrollView bounces={false} contentContainerStyle={styles.scrollContent}>
-              {/* Animación Lottie superior: se monta recién cuando el modal ya terminó
-                  su transición de apertura, para no competir por el layout inicial
+              {/* AnimaciÃ³n Lottie superior: se monta reciÃ©n cuando el modal ya terminÃ³
+                  su transiciÃ³n de apertura, para no competir por el layout inicial
                   y evitar el "salto" visual del primer frame. */}
               <View style={{ alignItems: 'center', marginBottom: 16, width: 80, height: 80, alignSelf: 'center' }}>
                 {readyForLottie && (
@@ -185,7 +93,7 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
                 )}
               </View>
 
-              {/* Título */}
+              {/* TÃ­tulo */}
               <Text style={[styles.title, { textAlign: 'center' }]}>{comunicado.titulo}</Text>
 
               {/* Flyer (Si existe) */}
@@ -205,13 +113,13 @@ export default function ComunicadoModal({ visible, comunicado, onClose, readOnly
                 </View>
               ) : null}
 
-              {/* Versión centrada abajo */}
+              {/* VersiÃ³n centrada abajo */}
               {comunicado.tipo.includes('actualizaciones') && (
-                <Text style={[styles.versionText, { textAlign: 'center', marginTop: 24 }]}>Versión {versionApp}</Text>
+                <Text style={[styles.versionText, { textAlign: 'center', marginTop: 24 }]}>VersiÃ³n {versionApp}</Text>
               )}
             </ScrollView>
 
-            {/* Footer / Botón */}
+            {/* Footer / BotÃ³n */}
             <View style={styles.footer}>
               <TouchableOpacity style={styles.button} onPress={onClose}>
                 <Text style={styles.buttonText}>{readOnly ? 'Cerrar' : 'Entendido'}</Text>

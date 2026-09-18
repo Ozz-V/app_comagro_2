@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SvgXml } from 'react-native-svg';
 import { COLORS, FONTS } from '../theme';
+import { renderMarkdown } from '../utils/renderMarkdown';
 
 // ---------------------------------------------------------------------------
 // SVG icons para la toolbar (todos inline, sin dependencias externas)
@@ -93,11 +94,15 @@ export default function RichTextEditorModal({
 }: Props) {
   const [text, setText] = useState(initialValue);
   const [sel, setSel] = useState<Selection>({ start: 0, end: 0 });
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const inputRef = useRef<TextInput>(null);
 
   // Sincronizar el texto inicial cuando el modal abre con un valor distinto
   React.useEffect(() => {
-    if (visible) setText(initialValue);
+    if (visible) {
+      setText(initialValue);
+      setMode('edit');
+    }
   }, [visible, initialValue]);
 
   const handleSelectionChange = useCallback(
@@ -143,68 +148,107 @@ export default function RichTextEditorModal({
 
           <View style={styles.border} />
 
-          {/* Toolbar de formato */}
+          {/* Toolbar de formato + toggle Editar/Previsualizar */}
           <View style={styles.toolbar}>
-            <TouchableOpacity
-              style={styles.toolBtn}
-              onPress={() => applyFormat((t, s) => wrapSelection(t, s, '**', '**'))}
-              activeOpacity={0.6}
-            >
-              <SvgXml xml={IcBold} width={20} height={20} color={COLORS.navy} />
-            </TouchableOpacity>
+            {mode === 'edit' ? (
+              <>
+                <TouchableOpacity
+                  style={styles.toolBtn}
+                  onPress={() => applyFormat((t, s) => wrapSelection(t, s, '**', '**'))}
+                  activeOpacity={0.6}
+                >
+                  <SvgXml xml={IcBold} width={20} height={20} color={COLORS.navy} />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.toolBtn}
-              onPress={() => applyFormat((t, s) => wrapSelection(t, s, '_', '_'))}
-              activeOpacity={0.6}
-            >
-              <SvgXml xml={IcItalic} width={20} height={20} color={COLORS.navy} />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.toolBtn}
+                  onPress={() => applyFormat((t, s) => wrapSelection(t, s, '_', '_'))}
+                  activeOpacity={0.6}
+                >
+                  <SvgXml xml={IcItalic} width={20} height={20} color={COLORS.navy} />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.toolBtn}
-              onPress={() => applyFormat((t, s) => wrapSelection(t, s, '__', '__'))}
-              activeOpacity={0.6}
-            >
-              <SvgXml xml={IcUnderline} width={20} height={20} color={COLORS.navy} />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.toolBtn}
+                  onPress={() => applyFormat((t, s) => wrapSelection(t, s, '__', '__'))}
+                  activeOpacity={0.6}
+                >
+                  <SvgXml xml={IcUnderline} width={20} height={20} color={COLORS.navy} />
+                </TouchableOpacity>
 
-            <View style={styles.toolSep} />
+                <View style={styles.toolSep} />
 
-            <TouchableOpacity
-              style={styles.toolBtn}
-              onPress={() => applyFormat(applyBullet)}
-              activeOpacity={0.6}
-            >
-              <SvgXml xml={IcBullet} width={20} height={20} color={COLORS.navy} />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.toolBtn}
+                  onPress={() => applyFormat(applyBullet)}
+                  activeOpacity={0.6}
+                >
+                  <SvgXml xml={IcBullet} width={20} height={20} color={COLORS.navy} />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.toolBtn}
-              onPress={() => applyFormat(applyCenter)}
-              activeOpacity={0.6}
-            >
-              <SvgXml xml={IcCenter} width={20} height={20} color={COLORS.navy} />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.toolBtn}
+                  onPress={() => applyFormat(applyCenter)}
+                  activeOpacity={0.6}
+                >
+                  <SvgXml xml={IcCenter} width={20} height={20} color={COLORS.navy} />
+                </TouchableOpacity>
+
+                <View style={styles.toolSep} />
+              </>
+            ) : null}
+
+            {/* Toggle Editar / Vista Previa */}
+            <View style={styles.modeToggle}>
+              <TouchableOpacity
+                style={[styles.modeBtn, mode === 'edit' && styles.modeBtnActive]}
+                onPress={() => {
+                  setMode('edit');
+                  setTimeout(() => inputRef.current?.focus(), 80);
+                }}
+              >
+                <Text style={[styles.modeBtnText, mode === 'edit' && styles.modeBtnTextActive]}>
+                  ✏️ Editar
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeBtn, mode === 'preview' && styles.modeBtnActive]}
+                onPress={() => setMode('preview')}
+              >
+                <Text style={[styles.modeBtnText, mode === 'preview' && styles.modeBtnTextActive]}>
+                  👁 Vista Previa
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.border} />
 
-          {/* Area de texto — ocupa todo el espacio disponible */}
+          {/* Contenido: editor o preview */}
           <ScrollView style={styles.flex} keyboardShouldPersistTaps="handled">
-            <TextInput
-              ref={inputRef}
-              style={styles.textArea}
-              value={text}
-              onChangeText={setText}
-              onSelectionChange={handleSelectionChange}
-              multiline
-              autoFocus
-              placeholder={placeholder}
-              placeholderTextColor={COLORS.gray4}
-              textAlignVertical="top"
-              scrollEnabled={false}
-            />
+            {mode === 'edit' ? (
+              <TextInput
+                ref={inputRef}
+                style={styles.textArea}
+                value={text}
+                onChangeText={setText}
+                onSelectionChange={handleSelectionChange}
+                multiline
+                autoFocus
+                placeholder={placeholder}
+                placeholderTextColor={COLORS.gray4}
+                textAlignVertical="top"
+                scrollEnabled={false}
+              />
+            ) : (
+              <View style={styles.previewArea}>
+                {text.trim().length === 0 ? (
+                  <Text style={styles.previewEmpty}>El mensaje está vacío...</Text>
+                ) : (
+                  renderMarkdown(text, styles.previewText)
+                )}
+              </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -249,6 +293,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 4,
     backgroundColor: COLORS.white,
+    flexWrap: 'wrap',
   },
   toolBtn: {
     width: 38,
@@ -264,6 +309,34 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.border,
     marginHorizontal: 4,
   },
+  modeToggle: {
+    flexDirection: 'row',
+    marginLeft: 'auto',
+    backgroundColor: COLORS.bg,
+    borderRadius: 8,
+    padding: 2,
+  },
+  modeBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  modeBtnActive: {
+    backgroundColor: COLORS.white,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  modeBtnText: {
+    fontFamily: FONTS.body,
+    fontSize: 13,
+    color: COLORS.gray4,
+  },
+  modeBtnTextActive: {
+    color: COLORS.navy,
+    fontFamily: FONTS.bodySemi,
+  },
   textArea: {
     flex: 1,
     padding: 16,
@@ -272,5 +345,21 @@ const styles = StyleSheet.create({
     color: COLORS.navy,
     lineHeight: 24,
     minHeight: 300,
+  },
+  previewArea: {
+    padding: 16,
+    minHeight: 300,
+  },
+  previewText: {
+    fontFamily: FONTS.body,
+    fontSize: 15,
+    color: COLORS.navy,
+    lineHeight: 24,
+  },
+  previewEmpty: {
+    fontFamily: FONTS.body,
+    fontSize: 15,
+    color: COLORS.gray4,
+    fontStyle: 'italic',
   },
 });

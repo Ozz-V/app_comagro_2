@@ -15,6 +15,7 @@ import {
 import LottieView from 'lottie-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
+import { renderMarkdown } from '../utils/renderMarkdown';
 import { COLORS, FONTS } from '../theme';
 import SvgIcon from '../components/SvgIcon';
 import ForumModal from '../components/ForumModal';
@@ -411,7 +412,7 @@ export default function NotificationsScreen({
 
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardBody}>{item.body}</Text>
+                <View style={{ marginBottom: 6 }}>{renderMarkdown(item.body || '', styles.cardBody)}</View>
                 <Text style={styles.cardTime}>{timeAgo(item.sent_at)}</Text>
               </View>
             </TouchableOpacity>
