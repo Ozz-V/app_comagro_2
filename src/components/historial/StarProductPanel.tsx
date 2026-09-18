@@ -11,7 +11,7 @@ import { COLORS, FONTS } from '../../theme';
 
 const CACHE_KEY = '@historial_star_product_v2';
 
-const TrophyIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFC107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`;
+const TrophyIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFC107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`;
 const EyeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${COLORS.navy}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
 const ShareIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${COLORS.green}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`;
 
@@ -59,7 +59,12 @@ export default function StarProductPanel() {
   if (!isFeatureEnabled('producto_estrella')) return null;
 
   return (
-    <View style={styles.container}>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={starData ? 0.9 : 1}
+      disabled={!starData}
+      onPress={() => starData && navigation.navigate('ProductViewer', { sku: starData.sku })}
+    >
       <View style={styles.header}>
         <SvgXml xml={TrophyIcon} />
         <Text style={styles.title}>Producto Estrella</Text>
@@ -68,11 +73,7 @@ export default function StarProductPanel() {
       {!starData ? (
         <Text style={styles.empty}>Calculando tendencias...</Text>
       ) : (
-        <TouchableOpacity
-          style={styles.card}
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate('ProductViewer', { sku: starData.sku })}
-        >
+        <>
           {/* Grid de 2 columnas: foto/logo a la izquierda, datos a la derecha en 3 líneas.
               Evita repetir el SKU dos veces (antes salía como "nombre" grande y de nuevo abajo). */}
           <View style={styles.gridRow}>
@@ -103,32 +104,25 @@ export default function StarProductPanel() {
               <Text style={styles.statLabel}>Compartidos</Text>
             </View>
           </View>
-        </TouchableOpacity>
+        </>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
-  title: { fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: '#FFC107', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 },
-  empty: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, textAlign: 'center' },
   card: {
+    marginHorizontal: 16,
+    marginBottom: 12,
     backgroundColor: COLORS.white,
-    borderRadius: 16,
+    borderRadius: 12,
+    padding: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 14,
-    shadowColor: COLORS.navy,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
   },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  title: { fontFamily: FONTS.bodySemi, fontSize: 11, color: '#FFC107', textTransform: 'uppercase', letterSpacing: 0.5 },
+  empty: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, textAlign: 'center' },
   // Grid de 2 columnas invisible: columna izquierda (foto) + columna derecha (texto, 3 líneas)
   gridRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   imgWrapper: {
