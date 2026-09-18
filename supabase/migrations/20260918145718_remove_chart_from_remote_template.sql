@@ -1,6 +1,5 @@
 UPDATE public.pdf_templates
-SET html = $
-<!DOCTYPE html>
+SET html = $$<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -54,7 +53,6 @@ SET html = $
         <div class="footer">{{footerText}}</div>
     </div>
 </body>
-</html>
-html,
+</html>$$
 version = '1.1'
 WHERE id_template = 'stats_report';
