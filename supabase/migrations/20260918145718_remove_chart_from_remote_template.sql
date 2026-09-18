@@ -18,7 +18,7 @@ SET html = $$<!DOCTYPE html>
         .kpi-card { flex: 1; background: #F4F6F8; border-radius: 6px; padding: 8px; text-align: center; border: 1px solid #DFE1E6; }
         .kpi-title { font-size: 9px; font-weight: 600; color: #6B778C; text-transform: uppercase; margin-bottom: 4px; }
         .kpi-val { font-size: 22px; font-weight: 800; }
-                                                                        .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: 1; min-height: 0; }
+        .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: 1; min-height: 0; }
         .list-card { background: #FFFFFF; border: 1px solid #DFE1E6; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; }
         .list-title { font-size: 11px; font-weight: 700; color: #1A2530; border-bottom: 1px solid #DFE1E6; padding-bottom: 4px; margin-bottom: 6px; text-transform: uppercase; }
         .list-items { display: flex; flex-direction: column; gap: 4px; flex: 1; }
@@ -53,6 +53,6 @@ SET html = $$<!DOCTYPE html>
         <div class="footer">{{footerText}}</div>
     </div>
 </body>
-</html>$$
+</html>$$,
 version = '1.1'
 WHERE id_template = 'stats_report';
