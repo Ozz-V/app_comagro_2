@@ -20,17 +20,12 @@ export function DashboardHeader({ tab, setTab, period, setPeriod, isAdmin, loadi
     <>
       <View style={s.headerRow}>
         <View style={s.tabs}>
-           {isAdmin && (
-               <>
-                 <TouchableOpacity style={[s.tabBtn, tab === 'mine' && s.tabActive]} onPress={() => setTab('mine')}>
-                   <Text style={[s.tabText, tab === 'mine' && s.tabTextActive]}>Mi Actividad</Text>
-                 </TouchableOpacity>
-                 <TouchableOpacity style={[s.tabBtn, tab === 'general' && s.tabActive]} onPress={() => setTab('general')}>
-                   <Text style={[s.tabText, tab === 'general' && s.tabTextActive]}>General</Text>
-                 </TouchableOpacity>
-               </>
-           )}
-           {!isAdmin && <Text style={[s.tabText, s.tabTextActive, { padding: 6, textAlign: 'center' }]}>Mis Estadísticas Personales</Text>}
+           <TouchableOpacity style={[s.tabBtn, tab === 'mine' && s.tabActive]} onPress={() => setTab('mine')}>
+             <Text style={[s.tabText, tab === 'mine' && s.tabTextActive]}>Mi Actividad</Text>
+           </TouchableOpacity>
+           <TouchableOpacity style={[s.tabBtn, tab === 'general' && s.tabActive]} onPress={() => setTab('general')}>
+             <Text style={[s.tabText, tab === 'general' && s.tabTextActive]}>General</Text>
+           </TouchableOpacity>
         </View>
         <TouchableOpacity onPress={onPdfPress} style={[s.pdfBtn, { opacity: isGeneratingPdf ? 0.7 : 1 }]} disabled={isGeneratingPdf || loading}>
           {isGeneratingPdf ? (
