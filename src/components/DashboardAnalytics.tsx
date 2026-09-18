@@ -31,6 +31,7 @@ import { UserReportModal } from './UserReportModal';
 export default function DashboardAnalytics({ navigation, onUserClick, onTabChange, directoryUsers }: { navigation: any, onUserClick?: (email: string) => void, onTabChange?: (tab: 'mine' | 'general') => void, directoryUsers?: any[] }) {
   const [showUserReportModal, setShowUserReportModal] = React.useState(false);
   const [isGeneratingGrid, setIsGeneratingGrid] = React.useState(false);
+  const { showAlert } = useCustomAlert();
   const {
     tab, setTab, period, setPeriod, loading, expandedCard, setExpandedCard,
     isAdmin, isOnline, myData, globalData, globalRawData, myChartMetrics, globalChartMetrics,
