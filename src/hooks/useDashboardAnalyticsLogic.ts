@@ -260,12 +260,13 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
       // Fix: use period-specific cache key (bug was using @analytics_my_all always)
       AsyncStorage.setItem(`@analytics_my_${period}`, JSON.stringify(finalMyData));
 
-      if (currentIsAdmin) {
-        let qAll = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').order('created_at', { ascending: false }).limit(50000);
-        if (prevPDate) qAll = qAll.gte('created_at', prevPDate);
-        else if (pDate) qAll = qAll.gte('created_at', pDate);
-        
-        const { data: allData } = await qAll;
+      {
+        // Antes esto solo se pedía "if (currentIsAdmin)", así que cualquier
+        // usuario normal que entraba a la pestaña General/Contactos veía todo
+        // en 0. Ahora se pide para todos los usuarios a través de una función
+        // agregada (get_global_analytics_rows) que no depende de RLS por fila.
+        const sinceParam = prevPDate || pDate || null;
+        const { data: allData } = await supabase.rpc('get_global_analytics_rows', { p_since: sinceParam });
         const all = allData || [];
 
         const gd = process(all, 10, 8);
@@ -290,7 +291,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
   async function generatePdfReport() {
     setIsGeneratingPdf(true);
     try {
-      const d = tab === 'mine' || !isAdmin ? myData : globalData;
+      const d = tab === 'mine' ? myData : globalData;
       const pLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Últimos 7 días' : period === '30d' ? 'Últimos 30 días' : 'Todo el tiempo';
       
       const renderList = (items: any[], max: number, type: string) => {
@@ -331,7 +332,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
       const maxB = d.brands?.[0]?.count || 1;
       const maxU = d.users?.[0]?.count || 1;
 
-      const pdfMetrics = tab === 'mine' || !isAdmin ? myChartMetrics : globalChartMetrics;
+      const pdfMetrics = tab === 'mine' ? myChartMetrics : globalChartMetrics;
       const pPeriodLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Hace 7d' : period === '30d' ? 'Hace 30d' : 'Inicio (60d)';
 
       // Bloque de KPI de usuarios: solo aplica a la vista "general". Esta
