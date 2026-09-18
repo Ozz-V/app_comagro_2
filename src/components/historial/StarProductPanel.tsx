@@ -66,7 +66,7 @@ export default function StarProductPanel() {
             views,
             shares,
             marca: prod?.marca || 'Desconocida',
-            subcategory: prod?.sub_categoria || '',
+            subcategory: prod?.subcategoria || '',
             img: prod?.imagen || prod?.imagenOriginal || '',
           };
           setStarData(result);
