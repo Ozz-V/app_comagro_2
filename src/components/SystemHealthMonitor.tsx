@@ -115,11 +115,7 @@ export default function SystemHealthMonitor() {
   }
 
   return (
-    <View style={s.card}
-      
-      
-      
-    >
+    <View style={s.card}>
       <View style={s.row}>
         <AnimatedWaveform status={plytixHealth.status} color="#1c9f4b" />
         <View style={s.info}>

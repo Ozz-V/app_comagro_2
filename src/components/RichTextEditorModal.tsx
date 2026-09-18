@@ -60,7 +60,7 @@ function wrapSelection(text: string, sel: Selection, open: string, close: string
   return before + open + selected + close + after;
 }
 
-/** Agrega "- " al principio de cada linea seleccionada como viÃ±eta. */
+/** Agrega "- " al principio de cada linea seleccionada como viñeta. */
 function applyBullet(text: string, sel: Selection): string {
   const before = text.slice(0, sel.start);
   const selected = text.slice(sel.start, sel.end);
@@ -190,7 +190,7 @@ export default function RichTextEditorModal({
 
           <View style={styles.border} />
 
-          {/* Area de texto â€” ocupa todo el espacio disponible */}
+          {/* Area de texto — ocupa todo el espacio disponible */}
           <ScrollView style={styles.flex} keyboardShouldPersistTaps="handled">
             <TextInput
               ref={inputRef}

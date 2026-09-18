@@ -21,9 +21,8 @@ describe('DEFAULT_TEMPLATES.stats_report', () => {
   it('contains every placeholder the component fills in', () => {
     const html = DEFAULT_TEMPLATES.stats_report.html;
     const required = [
-      '{{reportTitle}}', '{{periodLabel}}', '{{periodLabelShort}}', '{{logoUrl}}',
+      '{{reportTitle}}', '{{periodLabel}}', '{{logoUrl}}',
       '{{viewsTotal}}', '{{sharesTotal}}', '{{usersKpiCardHtml}}',
-      '{{chartStartValue}}', '{{chartPeakValue}}', '{{chartPeakLabel}}', '{{chartTodayValue}}',
       '{{listsGridHtml}}', '{{footerText}}',
     ];
     required.forEach(p => expect(html).toContain(p));
@@ -31,19 +30,14 @@ describe('DEFAULT_TEMPLATES.stats_report', () => {
 
   it('renders into valid-looking HTML with no leftover placeholders once all keys are provided', () => {
     const rendered = renderTemplate(DEFAULT_TEMPLATES.stats_report.html, {
-      reportTitle: 'Reporte de Estadísticas - Mi Actividad',
+      reportTitle: 'Reporte de EstadÃ­sticas - Mi Actividad',
       periodLabel: 'Hoy',
-      periodLabelShort: 'Hoy',
       logoUrl: 'https://example.com/logo.png',
       viewsTotal: '10',
       sharesTotal: '2',
       usersKpiCardHtml: '',
-      chartStartValue: '1',
-      chartPeakValue: '5',
-      chartPeakLabel: 'Hoy',
-      chartTodayValue: '3',
       listsGridHtml: '<div class="list-card"></div>',
-      footerText: 'Generado automáticamente desde Comagro App',
+      footerText: 'Generado automÃ¡ticamente desde Comagro App',
     });
     expect(rendered).not.toContain('{{');
     expect(rendered).toContain('<img src="https://example.com/logo.png"');

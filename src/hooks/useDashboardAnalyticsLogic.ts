@@ -109,11 +109,11 @@ function countByKey<T>(items: T[], keyFn: (i: T) => string | undefined | null, l
 }
 
 export function getTrend(cur: number, prev: number): string {
-  if (prev === 0) return cur > 0 ? 'Ã¢â€ â€˜' : '';
+  if (prev === 0) return cur > 0 ? '↑' : '';
   const ch = ((cur - prev) / prev) * 100;
-  if (ch > 5) return `Ã¢â€ â€˜${Math.round(ch)}%`;
-  if (ch < -5) return `Ã¢â€ â€œ${Math.round(Math.abs(ch))}%`;
-  return 'Ã¢â€ â€™';
+  if (ch > 5) return `↑${Math.round(ch)}%`;
+  if (ch < -5) return `↓${Math.round(Math.abs(ch))}%`;
+  return '→';
 }
 
 
@@ -155,7 +155,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
 
   async function loadImages() {
     try {
-      // Pedir suficientes productos para que el mapa de imÃƒÂ¡genes cubra los mÃƒÂ¡s vistos
+      // Pedir suficientes productos para que el mapa de imágenes cubra los más vistos
       const rows = await getAllProducts(5000);
       const m: Record<string, string> = {};
       const bm: Record<string, string> = {};
@@ -262,9 +262,9 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
       AsyncStorage.setItem(`@analytics_my_${period}`, JSON.stringify(finalMyData));
 
       {
-        // Antes esto solo se pedÃƒÂ­a "if (currentIsAdmin)", asÃƒÂ­ que cualquier
-        // usuario normal que entraba a la pestaÃƒÂ±a General/Contactos veÃƒÂ­a todo
-        // en 0. Ahora se pide para todos los usuarios a travÃƒÂ©s de una funciÃƒÂ³n
+        // Antes esto solo se pedía "if (currentIsAdmin)", así que cualquier
+        // usuario normal que entraba a la pestaña General/Contactos veía todo
+        // en 0. Ahora se pide para todos los usuarios a través de una función
         // agregada (get_global_analytics_rows) que no depende de RLS por fila.
         const sinceParam = prevPDate || pDate || null;
         const { data: allData } = await supabase.rpc('get_global_analytics_rows', { p_since: sinceParam });
@@ -275,8 +275,8 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         let currGlobal = all;
         if (pDate) currGlobal = all.filter((d: any) => new Date(d.created_at).getTime() >= new Date(pDate).getTime());
 
-        // Un usuario no-admin nunca debe ver a un admin listado en ningÃƒÂºn
-        // ranking, tampoco en el top de "usuarios" de esta pestaÃƒÂ±a General.
+        // Un usuario no-admin nunca debe ver a un admin listado en ningún
+        // ranking, tampoco en el top de "usuarios" de esta pestaña General.
         let usersForRanking = currGlobal;
         if (!currentIsAdmin) {
           const { data: admins } = await supabase.from('profiles').select('email').eq('role', 'admin');
@@ -303,7 +303,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
     setIsGeneratingPdf(true);
     try {
       const d = tab === 'mine' ? myData : globalData;
-      const pLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'ÃƒÅ¡ltimos 7 dÃƒÂ­as' : period === '30d' ? 'ÃƒÅ¡ltimos 30 dÃƒÂ­as' : 'Todo el tiempo';
+      const pLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Últimos 7 días' : period === '30d' ? 'Últimos 30 días' : 'Todo el tiempo';
       
       const renderList = (items: any[], max: number, type: string) => {
          return (items || []).slice(0, 10).map((i: any, idx: number) => {
@@ -347,21 +347,21 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
       const pPeriodLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Hace 7d' : period === '30d' ? 'Hace 30d' : 'Inicio (60d)';
 
       // Bloque de KPI de usuarios: solo aplica a la vista "general". Esta
-      // decisiÃƒÂ³n (mostrar o no la card) es lÃƒÂ³gica de datos, no de diseÃƒÂ±o Ã¢â‚¬â€
-      // se resuelve acÃƒÂ¡ y se pasa ya armada al template.
+      // decisión (mostrar o no la card) es lógica de datos, no de diseño —
+      // se resuelve acá y se pasa ya armada al template.
       const usersKpiCardHtml = tab === 'general'
         ? `<div class="kpi-card"><div class="kpi-title">Usuarios Activos</div><div class="kpi-val" style="color: #6A1B9A;">${d.users?.length || 0}</div></div>`
         : '';
 
       const listsGridHtml = [
-        d.topV.length > 0 ? `<div class="list-card"><div class="list-title">Top Productos MÃƒÂ¡s Vistos</div><div class="list-items">${renderList(d.topV, maxV, 'vistas')}</div></div>` : '',
+        d.topV.length > 0 ? `<div class="list-card"><div class="list-title">Top Productos Más Vistos</div><div class="list-items">${renderList(d.topV, maxV, 'vistas')}</div></div>` : '',
         d.topSh.length > 0 ? `<div class="list-card"><div class="list-title">Top Productos Compartidos</div><div class="list-items">${renderList(d.topSh, maxSh, 'compartidos')}</div></div>` : '',
         d.brands && d.brands.length > 0 ? `<div class="list-card"><div class="list-title">Top Marcas</div><div class="list-items">${renderList(d.brands, maxB, 'marcas')}</div></div>` : '',
         tab === 'general' && d.users && d.users.length > 0 ? `<div class="list-card"><div class="list-title">Top Usuarios</div><div class="list-items">${renderList(d.users, maxU, 'usuarios')}</div></div>` : '',
       ].join('');
 
       const html = renderTemplate(statsTemplate.html, {
-        reportTitle: `Reporte de EstadÃƒÂ­sticas - ${tab === 'mine' ? 'Mi Actividad' : 'General'}`,
+        reportTitle: `Reporte de Estadísticas - ${tab === 'mine' ? 'Mi Actividad' : 'General'}`,
         periodLabel: pLabel,
         periodLabelShort: pPeriodLabel,
         logoUrl: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png',
@@ -373,7 +373,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         chartPeakLabel: String(pdfMetrics.peakLabel),
         chartTodayValue: String(pdfMetrics.today),
         listsGridHtml,
-        footerText: 'Generado automÃƒÂ¡ticamente desde Comagro App',
+        footerText: 'Generado automáticamente desde Comagro App',
       });
 
       const { uri } = await Print.printToFileAsync({ html, base64: false });

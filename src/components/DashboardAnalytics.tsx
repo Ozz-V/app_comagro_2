@@ -140,8 +140,8 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
           } catch (e) {
             console.error('Error al generar PDF de usuarios', e);
           } finally {
-          setIsGeneratingGrid(false);
-          setShowUserReportModal(false);
+            setIsGeneratingGrid(false);
+            setShowUserReportModal(false);
           }
         }}
       />
