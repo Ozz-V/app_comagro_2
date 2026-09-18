@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS, FONTS } from '../../theme';
 import { ParsedProduct } from '../../types';
@@ -33,7 +33,7 @@ export default function ProductSpecsTab({ modalProd }: Props) {
 }
 
 const st = StyleSheet.create({
-  tabContent: { padding: 16 },
+  tabContent: { padding: 0 },
   aiBodyText: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray1, lineHeight: 22 },
   specsWrap: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, overflow: 'hidden', marginTop: 10 },
   specRow: { flexDirection: 'row', padding: 12, borderTopWidth: 1, borderTopColor: '#edf1f5' },
