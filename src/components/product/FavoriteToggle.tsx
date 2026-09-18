@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONTS } from '../../theme';
 
 const StarFilled = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#FFC107" stroke="#FFC107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
-const StarOutline = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#B0B0B0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+const StarOutline = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#B0B0B0" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
 
 interface FavoriteToggleProps {
   sku: string;
@@ -83,7 +83,7 @@ export default function FavoriteToggle({ sku }: FavoriteToggleProps) {
       activeOpacity={0.7}
       style={styles.container}
     >
-      <SvgXml xml={isFavorite ? StarFilled : StarOutline} width={24} height={24} />
+      <SvgXml xml={isFavorite ? StarFilled : StarOutline} width={18} height={18} />
       <Text style={styles.label} numberOfLines={1}>
         {isFavorite ? 'En tus Favoritos' : 'Agregar a Favoritos'}
       </Text>

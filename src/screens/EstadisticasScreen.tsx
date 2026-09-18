@@ -119,7 +119,7 @@ export default function EstadisticasScreen({ navigation }: { navigation: { navig
       <Text style={styles.titulo}>Métricas de Negocio</Text>
 
       <View style={[styles.content, { flex: 1, paddingHorizontal: 0 }]}>
-        <DashboardAnalytics navigation={navigation} onUserClick={handleUserClick} onTabChange={setAnalyticsTab} />
+        <DashboardAnalytics navigation={navigation} onUserClick={handleUserClick} onTabChange={setAnalyticsTab} directoryUsers={directoryUsers} />
       </View>
 
       <UserProfileModal

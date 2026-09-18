@@ -23,15 +23,17 @@ const LOGO_BASE = APP_CONSTANTS.LOGO_BASE_BRANDS_2025;
 import { useDashboardAnalyticsLogic, getTrend } from '../hooks/useDashboardAnalyticsLogic';
 import { DashboardHeader } from './dashboard/DashboardHeader';
 import { DashboardKpiCards } from './dashboard/DashboardKpiCards';
-import { DashboardActivityChart } from './dashboard/DashboardActivityChart';
 import { DashboardRankingLists } from './dashboard/DashboardRankingLists';
 import { s } from './dashboard/DashboardStyles';
+import { UserReportModal } from './UserReportModal';
 
 
-export default function DashboardAnalytics({ navigation, onUserClick, onTabChange }: { navigation: any, onUserClick?: (email: string) => void, onTabChange?: (tab: 'mine' | 'general') => void }) {
+export default function DashboardAnalytics({ navigation, onUserClick, onTabChange, directoryUsers }: { navigation: any, onUserClick?: (email: string) => void, onTabChange?: (tab: 'mine' | 'general') => void, directoryUsers?: any[] }) {
+  const [showUserReportModal, setShowUserReportModal] = React.useState(false);
+  const [isGeneratingGrid, setIsGeneratingGrid] = React.useState(false);
   const {
     tab, setTab, period, setPeriod, loading, expandedCard, setExpandedCard,
-    isAdmin, isOnline, myData, globalData, myChartMetrics, globalChartMetrics,
+    isAdmin, isOnline, myData, globalData, globalRawData, myChartMetrics, globalChartMetrics,
     imageMap, productBrandMap, cleanText, generatePdfReport, isGeneratingPdf
   } = useDashboardAnalyticsLogic(onTabChange);
 
@@ -87,7 +89,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
         setPeriod={setPeriod} 
         isAdmin={isAdmin} 
         loading={loading} 
-        onPdfPress={generatePdfReport}
+        onPdfPress={() => { if (tab === 'general') setShowUserReportModal(true); else generatePdfReport(); }}
           isGeneratingPdf={isGeneratingPdf} 
       />
 
@@ -107,14 +109,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
             cleanText={cleanText} 
           />
 
-          <DashboardActivityChart 
-            views={data.views} 
-            period={period} 
-            chartMetrics={chartMetrics} 
-            cleanText={cleanText} 
-          />
-
-          <DashboardRankingLists 
+<DashboardRankingLists 
             tab={tab} 
             data={data} 
             renderListItem={renderListItem} 

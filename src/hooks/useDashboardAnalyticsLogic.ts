@@ -131,6 +131,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
   const [productBrandMap, setProductBrandMap] = useState<Record<string, string>>({});
   const [myData, setMyData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [] });
   const [globalData, setGlobalData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
+  const [globalRawData, setGlobalRawData] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [myChartMetrics, setMyChartMetrics] = useState<ChartMetrics>(EMPTY_CHART);
   const [globalChartMetrics, setGlobalChartMetrics] = useState<ChartMetrics>(EMPTY_CHART);
@@ -270,6 +271,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         const all = allData || [];
 
         const gd = process(all, 10, 8);
+        if (isMounted.current) setGlobalRawData(all);
         let currGlobal = all;
         if (pDate) currGlobal = all.filter((d: any) => d.created_at >= pDate);
 
@@ -393,7 +395,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
 
   return {
     tab, setTab, period, setPeriod, loading, expandedCard, setExpandedCard,
-    isAdmin, isOnline, myData, globalData, myChartMetrics, globalChartMetrics,
+    isAdmin, isOnline, myData, globalData, globalRawData, myChartMetrics, globalChartMetrics,
     imageMap, productBrandMap, cleanText, generatePdfReport, isGeneratingPdf
   };
 }

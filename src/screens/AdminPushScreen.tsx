@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, StatusBar, ScrollView, Switch, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,15 +9,20 @@ import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
 import { COLORS, FONTS } from '../theme';
+import RichTextEditorModal from '../components/RichTextEditorModal';
+import CustomDateTimePicker from '../components/CustomDateTimePicker';
+import { SvgXml } from 'react-native-svg';
 
 const ANIMATION_ISO = require('../../assets/iso.json');
+const CalendarIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.navy}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
 
 // Debe coincidir EXACTO con el enum public.tipo_comunicado en la base de datos.
 const TIPOS_COMUNICADO = [
-  '¡Nuevas actualizaciones!',
+  'Nuevas actualizaciones!',
   'Aviso Importante',
   'Problemas Conocidos / Mejoras',
-  'Saludos / Festividades (Otros)'
+  'Saludos / Festividades (Otros)',
+  'Imagen'
 ];
 
 export default function AdminPushScreen() {
@@ -27,53 +32,54 @@ export default function AdminPushScreen() {
   const [titulo, setTitulo] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [tipo, setTipo] = useState(TIPOS_COMUNICADO[0]);
+  const [imagenUrl, setImagenUrl] = useState('');
   const [isActive, setIsActive] = useState(true);
-  const [fechaEnvio, setFechaEnvio] = useState('');
-  
+  const [fechaEnvio, setFechaEnvio] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
+  const [richEditorVisible, setRichEditorVisible] = useState(false);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+
+  // Validacion reactiva para habilitar/deshabilitar el boton
+  const isFormValid = titulo.trim().length > 0 && 
+                      mensaje.trim().length > 0 && 
+                      (isActive || fechaEnvio !== null) && 
+                      (tipo !== 'Imagen' || imagenUrl.trim().length > 0);
+
+  const formatFecha = (d: Date | null) => {
+    if (!d) return 'Seleccionar fecha y hora...';
+    return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
 
   const enviar = async () => {
-    if (!titulo.trim() || !mensaje.trim()) {
-      showAlert('Error', 'El título y mensaje son obligatorios.');
-      return;
-    }
-
-    if (!isActive && !fechaEnvio) {
-      showAlert('Error', 'Para programar un comunicado debes indicar una fecha y hora.');
-      return;
-    }
+    if (!isFormValid) return;
 
     showAlert(
       'Confirmar',
-      `¿Enviar este comunicado a todos los usuarios?`,
+      'Enviar este comunicado a todos los usuarios?',
       [
         { text: 'NO', style: 'cancel' },
-        { 
-          text: 'SÍ',
+        {
+          text: 'Si',
           onPress: async () => {
             setLoading(true);
             try {
-              // La tabla real es "app_comunicados" (no "comunicados"), y sus columnas
-              // son tipo/titulo/contenido/imagen_url/is_active/created_at.
-              // No existe una columna de "fecha programada": usamos created_at como
-              // fecha efectiva de publicación (hoy si es inmediato, o la fecha elegida
-              // si se programó), y app_comunicados solo se marca visible cuando esa
-              // fecha ya se cumplió (ver useComunicados.ts).
               const bodyInsert = {
                 tipo,
                 titulo: titulo.trim(),
                 contenido: mensaje.trim(),
+                imagen_url: tipo === 'Imagen' ? imagenUrl.trim() : null,
                 is_active: true,
-                created_at: isActive ? new Date().toISOString() : fechaEnvio
+                created_at: isActive ? new Date().toISOString() : fechaEnvio?.toISOString()
               };
 
               const { error } = await supabase.from('app_comunicados').insert([bodyInsert]);
               if (error) throw error;
-              
-              showAlert('Éxito', 'Comunicado creado correctamente.');
+
+              showAlert('Exito', 'Comunicado creado correctamente.');
               navigation.goBack();
-            } catch (err: any) {
-              showAlert('Error', err.message || 'No se pudo crear el comunicado.');
+            } catch (err: unknown) {
+              const errorMessage = err instanceof Error ? err.message : 'No se pudo crear el comunicado.';
+              showAlert('Error', errorMessage);
             } finally {
               setLoading(false);
             }
@@ -99,8 +105,8 @@ export default function AdminPushScreen() {
       <View style={styles.topBorder} />
       <Text style={styles.titulo}>Nuevo Comunicado</Text>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
         <View style={styles.card}>
           <Text style={styles.label}>Tipo de Comunicado</Text>
           <View style={styles.tipoContainer}>
@@ -116,24 +122,42 @@ export default function AdminPushScreen() {
             ))}
           </View>
 
-          <Text style={styles.label}>Título principal</Text>
+          {tipo === 'Imagen' && (
+            <View style={styles.imagenUrlContainer}>
+              <Text style={styles.label}>Enlace de la Imagen (URL)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="https://ejemplo.com/flyer.jpg"
+                value={imagenUrl}
+                onChangeText={setImagenUrl}
+                placeholderTextColor={COLORS.gray4}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+            </View>
+          )}
+
+          <Text style={styles.label}>Titulo principal</Text>
           <TextInput
             style={styles.input}
-            placeholder="Ej: Nueva versión 2.0.1"
+            placeholder="Ej: Nueva version 2.0.1"
             value={titulo}
             onChangeText={setTitulo}
             placeholderTextColor={COLORS.gray4}
           />
 
           <Text style={styles.label}>Cuerpo del mensaje</Text>
-          <TextInput
-            style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
-            placeholder="Escribe el mensaje aquí..."
-            value={mensaje}
-            onChangeText={setMensaje}
-            multiline
-            placeholderTextColor={COLORS.gray4}
-          />
+          <TouchableOpacity
+            style={styles.mensajePreview}
+            onPress={() => setRichEditorVisible(true)}
+            activeOpacity={0.7}
+          >
+            {mensaje ? (
+              <Text style={styles.mensajeTexto} numberOfLines={4}>{mensaje}</Text>
+            ) : (
+              <Text style={styles.mensajePlaceholder}>Toca para escribir el mensaje...</Text>
+            )}
+          </TouchableOpacity>
 
           <View style={styles.switchRow}>
             <Text style={styles.labelSwitch}>Publicar inmediatamente</Text>
@@ -146,24 +170,51 @@ export default function AdminPushScreen() {
           </View>
 
           {!isActive && (
-            <>
-              <Text style={styles.label}>Programar para (ISO 8601)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="2026-10-15T14:30:00Z"
-                value={fechaEnvio}
-                onChangeText={setFechaEnvio}
-                placeholderTextColor={COLORS.gray4}
-              />
-            </>
+            <View style={styles.dateContainer}>
+              <Text style={styles.label}>Fecha programada</Text>
+              <TouchableOpacity style={styles.datePickerBtn} onPress={() => setDatePickerVisible(true)}>
+                <View style={styles.datePickerIcon}><SvgXml xml={CalendarIcon} /></View>
+                <Text style={[styles.datePickerText, !fechaEnvio && { color: COLORS.gray4 }]}>
+                  {formatFecha(fechaEnvio)}
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
 
-          <TouchableOpacity style={[styles.btnAction, loading && { opacity: 0.7 }]} onPress={enviar} disabled={loading} activeOpacity={0.8}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnActionText}>Enviar Comunicado</Text>}
+          <TouchableOpacity
+            style={[styles.btnAction, (!isFormValid || loading) && { opacity: 0.5, backgroundColor: COLORS.gray4 }]}
+            onPress={enviar}
+            disabled={!isFormValid || loading}
+            activeOpacity={0.8}
+          >
+            {loading
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.btnActionText}>Enviar Comunicado</Text>
+            }
           </TouchableOpacity>
         </View>
 
       </ScrollView>
+
+      <RichTextEditorModal
+        visible={richEditorVisible}
+        initialValue={mensaje}
+        placeholder="Escribe el mensaje aqui... Selecciona texto y usa la toolbar para aplicar formato."
+        onConfirm={(text) => {
+          setMensaje(text);
+          setRichEditorVisible(false);
+        }}
+        onCancel={() => setRichEditorVisible(false)}
+      />
+
+      <CustomDateTimePicker
+        visible={datePickerVisible}
+        onClose={() => setDatePickerVisible(false)}
+        onConfirm={(date) => {
+          setFechaEnvio(date);
+          setDatePickerVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -182,7 +233,7 @@ const styles = StyleSheet.create({
   topBorder: { height: 1, backgroundColor: COLORS.border },
   logoAnimado: { width: 100, height: 40 },
   titulo: { fontFamily: FONTS.heading, fontSize: 22, fontWeight: '700', color: COLORS.navy, textAlign: 'center', marginTop: 20, marginBottom: 4 },
-  
+
   content: { padding: 20, paddingBottom: 60 },
   card: {
     backgroundColor: COLORS.white,
@@ -199,6 +250,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.navy,
   },
+  imagenUrlContainer: {
+    backgroundColor: '#F0FDF4',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: COLORS.green + '40',
+  },
+  mensajePreview: {
+    backgroundColor: COLORS.bg,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 100,
+    justifyContent: 'flex-start',
+  },
+  mensajeTexto: {
+    fontFamily: FONTS.body,
+    fontSize: 14,
+    color: COLORS.navy,
+    lineHeight: 22,
+  },
+  mensajePlaceholder: {
+    fontFamily: FONTS.body,
+    fontSize: 14,
+    color: COLORS.gray4,
+  },
   tipoContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   tipoBadge: {
     paddingHorizontal: 12,
@@ -214,9 +292,22 @@ const styles = StyleSheet.create({
   },
   tipoTexto: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.gray4 },
   tipoTextoActivo: { color: COLORS.green },
+  
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingVertical: 8, borderTopWidth: 1, borderTopColor: COLORS.bg },
   labelSwitch: { fontFamily: FONTS.bodySemi, fontSize: 14, color: COLORS.navy },
   
+  dateContainer: { marginTop: 8 },
+  datePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.bg,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  datePickerIcon: { marginRight: 10 },
+  datePickerText: { fontFamily: FONTS.bodySemi, fontSize: 14, color: COLORS.navy },
+
   btnAction: {
     backgroundColor: COLORS.green,
     paddingVertical: 14,

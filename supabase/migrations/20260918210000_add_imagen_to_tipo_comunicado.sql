@@ -1,0 +1,1 @@
+ALTER TYPE public.tipo_comunicado ADD VALUE IF NOT EXISTS 'Imagen';

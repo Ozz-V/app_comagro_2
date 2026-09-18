@@ -1,276 +1,120 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, FlatList, LayoutAnimation, Platform, UIManager } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../supabase';
-import { useAuthStore } from '../../store/useAuthStore';
 import { useFeaturesStore } from '../../store/useFeaturesStore';
 import { getProductBySku } from '../../utils/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SvgXml } from 'react-native-svg';
 import { COLORS, FONTS } from '../../theme';
 
-const StarIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="#FFC107" stroke="#FFC107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
-const SearchIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.gray4}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
-const CloseIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${COLORS.navy}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const CACHE_KEY = '@historial_star_product_v2';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+const TrophyIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFC107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`;
+const EyeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${COLORS.navy}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const ShareIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${COLORS.green}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`;
 
-const FAVORITES_ORDER_CACHE_KEY = '@user_favorites_order_cache';
-
-interface FavItem {
-  sku: string;
-  name: string;
-  marca: string;
-  img: string;
-}
-
-export default function FavoritesPanel() {
-  const { session } = useAuthStore();
+export default function StarProductPanel() {
   const { isFeatureEnabled } = useFeaturesStore();
   const navigation = useNavigation<any>();
+  const [starData, setStarData] = useState<{
+    sku: string;
+    marca: string;
+    subcategory: string;
+    img: string;
+    views: number;
+    shares: number;
+  } | null>(null);
 
-  const [favorites, setFavorites] = useState<FavItem[]>([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  // Recuerda si el usuario venía del modal "Ver todos" al entrar a un producto,
-  // para reabrirlo automáticamente al volver (en vez de quedar en Mi Historial).
-  const reabrirModalAlVolver = useRef(false);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const cached = await AsyncStorage.getItem(CACHE_KEY);
+        if (cached) setStarData(JSON.parse(cached));
+      } catch (_e) {}
 
-  const enrich = async (skus: string[]): Promise<FavItem[]> =>
-    Promise.all(
-      skus.map(async (sku) => {
-        const prod = await getProductBySku(sku);
-        return {
-          sku,
-          name: prod ? prod.modelo : sku,
-          marca: prod?.marca || '',
-          img: prod?.imagen || prod?.imagenOriginal || '',
-        };
-      })
-    );
+      const { data, error } = await supabase.rpc('get_global_top_skus', { p_limit: 1 });
 
-  const fetchFaves = async () => {
-    if (!session?.user?.id) return;
-    
-    let activeFavs: string[] = [];
+      if (!error && data && data.length > 0) {
+        const top = data[0];
+        const starSku = top?.sku;
 
-    // 1. Render inmediato desde cache (Offline First)
-    //    Importante: el orden se lee de un ARRAY guardado aparte
-    //    (FAVORITES_ORDER_CACHE_KEY), no de Object.keys() del mapa de
-    //    booleanos. Los SKUs son numéricos, y JavaScript reordena
-    //    automáticamente (ascendente) las claves de un objeto que
-    //    parecen números, sin importar el orden real de inserción —
-    //    por eso la lista "se reordenaba sola" al entrar: primero se
-    //    veía en ese orden numérico erróneo, y después saltaba al
-    //    orden correcto que trae el fetch a Supabase.
-    try {
-      const orderCache = await AsyncStorage.getItem(FAVORITES_ORDER_CACHE_KEY);
-      const cache = await AsyncStorage.getItem('@user_favorites_cache');
-
-      if (orderCache && cache) {
-        const favsMap = JSON.parse(cache);
-        const order: string[] = JSON.parse(orderCache);
-        activeFavs = order.filter(sku => favsMap[sku]);
-
-        if (activeFavs.length > 0) {
-          const enriched = await enrich(activeFavs);
-          setFavorites(enriched);
-        } else {
-          setFavorites([]);
-        }
-      } else if (cache) {
-        // Compatibilidad con cachés viejas que todavía no tienen el
-        // array de orden guardado: se usa Object.keys() como venía
-        // antes, solo por esta vez, hasta que el fetch de abajo
-        // guarde ya el orden correcto.
-        const favsMap = JSON.parse(cache);
-        activeFavs = Object.keys(favsMap).filter(sku => favsMap[sku]);
-        if (activeFavs.length > 0) {
-          const enriched = await enrich(activeFavs);
-          setFavorites(enriched);
-        } else {
-          setFavorites([]);
+        if (starSku) {
+          const prod = await getProductBySku(starSku);
+          const result = {
+            sku: starSku,
+            views: Number(top.views || 0),
+            shares: Number(top.shares || 0),
+            marca: prod?.marca || starSku,
+            subcategory: prod?.subcategoria || '',
+            img: prod?.imagen || prod?.imagenOriginal || '',
+          };
+          setStarData(result);
+          AsyncStorage.setItem(CACHE_KEY, JSON.stringify(result));
         }
       }
-    } catch (e) {}
+    };
+    load();
+  }, []);
 
-    // 2. Fetch silencioso a Supabase para sincronizar
-    const { data } = await supabase
-      .from('user_favorites')
-      .select('sku')
-      .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false });
-
-    if (data) {
-      const dbFavs = data.map(r => r.sku);
-      
-      // Si hay diferencia entre cache y DB, actualizamos
-      if (dbFavs.join(',') !== activeFavs.join(',')) {
-        const enriched = await enrich(dbFavs);
-        setFavorites(enriched);
-        const map: Record<string, boolean> = {};
-        dbFavs.forEach(sku => { map[sku] = true; });
-        AsyncStorage.setItem('@user_favorites_cache', JSON.stringify(map));
-        AsyncStorage.setItem(FAVORITES_ORDER_CACHE_KEY, JSON.stringify(dbFavs));
-      }
-    }
-  };
-
-  // useFocusEffect asegura que al regresar de ProductViewer (si quitó el fav), se actualice instantáneamente.
-  // Si veníamos del modal "Ver todos", lo reabrimos para que el "atrás" del producto
-  // regrese a esa lista en vez de a la pantalla principal de Historial.
-  useFocusEffect(
-    useCallback(() => {
-      fetchFaves();
-      if (reabrirModalAlVolver.current) {
-        reabrirModalAlVolver.current = false;
-        setModalVisible(true);
-      }
-    }, [session?.user?.id])
-  );
-
-  // Quita un favorito directamente desde la lista "Ver todos" (tocando la
-  // estrella), sin abrir la ficha del producto. Así el usuario puede vaciar
-  // varios favoritos rápido en vez de entrar producto por producto.
-  const removeFavorite = async (sku: string) => {
-    if (!session?.user?.id) return;
-
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setFavorites(prev => prev.filter(f => f.sku !== sku));
-
-    try {
-      const cache = await AsyncStorage.getItem('@user_favorites_cache');
-      const map = cache ? JSON.parse(cache) : {};
-      delete map[sku];
-      await AsyncStorage.setItem('@user_favorites_cache', JSON.stringify(map));
-
-      const orderCache = await AsyncStorage.getItem(FAVORITES_ORDER_CACHE_KEY);
-      if (orderCache) {
-        const order: string[] = JSON.parse(orderCache).filter((s: string) => s !== sku);
-        await AsyncStorage.setItem(FAVORITES_ORDER_CACHE_KEY, JSON.stringify(order));
-      }
-    } catch (e) {}
-
-    await supabase
-      .from('user_favorites')
-      .delete()
-      .eq('user_id', session.user.id)
-      .eq('sku', sku);
-  };
-
-  if (!isFeatureEnabled('favoritos')) return null;
-
-  const displayFavorites = favorites.slice(0, 8); // Solo mostrar maximo 8 horizontal
-  const filteredFavorites = favorites.filter(f => 
-    f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    f.sku.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    f.marca.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  if (!isFeatureEnabled('producto_estrella')) return null;
 
   return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <SvgXml xml={StarIcon} />
-          <Text style={styles.cardTitle}>Mis Favoritos</Text>
-        </View>
-        {favorites.length > 0 && (
-          <TouchableOpacity onPress={() => setModalVisible(true)}>
-            <Text style={styles.verTodos}>Ver todos ({favorites.length})</Text>
-          </TouchableOpacity>
-        )}
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={starData ? 0.9 : 1}
+      disabled={!starData}
+      onPress={() => starData && navigation.navigate('ProductViewer', { sku: starData.sku })}
+    >
+      <View style={styles.header}>
+        <SvgXml xml={TrophyIcon} />
+        <Text style={styles.title}>Producto Estrella</Text>
       </View>
 
-      {favorites.length === 0 ? (
-        <Text style={styles.empty}>Aún no guardaste ningún favorito.</Text>
+      {!starData ? (
+        <Text style={styles.empty}>Calculando tendencias...</Text>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroller}>
-          {displayFavorites.map((item) => {
-            const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sku.substring(0, 2))}&background=E8ECF0&color=1A2530`;
-            return (
-              <TouchableOpacity
-                key={item.sku}
-                style={styles.favCard}
-                activeOpacity={0.7}
-                onPress={() => navigation.navigate('ProductViewer', { sku: item.sku })}
-              >
-                <Image source={{ uri: item.img || fallback }} style={styles.favImg} contentFit="contain" />
-                <Text style={styles.favMarca} numberOfLines={1}>{item.marca}</Text>
-                <Text style={styles.favName} numberOfLines={2}>{item.name}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <>
+          <View style={styles.gridRow}>
+            <View style={styles.imgWrapper}>
+              <Image
+                source={{ uri: starData.img || `https://ui-avatars.com/api/?name=${encodeURIComponent(starData.sku.substring(0, 2))}&background=E8ECF0&color=1A2530` }}
+                style={styles.img}
+                contentFit="contain"
+              />
+            </View>
+
+            <View style={styles.content}>
+              {!!starData.subcategory && (
+                <Text style={styles.typeText} numberOfLines={1} ellipsizeMode="tail">
+                  {starData.subcategory}
+                </Text>
+              )}
+              <Text style={styles.name} numberOfLines={2} ellipsizeMode="tail">
+                {starData.marca}
+              </Text>
+              <Text style={styles.skuText} numberOfLines={1} ellipsizeMode="tail">
+                SKU: {starData.sku}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <SvgXml xml={EyeIcon} />
+              <Text style={styles.statValue}>{starData.views}</Text>
+              <Text style={styles.statLabel}>Vistas</Text>
+            </View>
+            <View style={styles.statBox}>
+              <SvgXml xml={ShareIcon} />
+              <Text style={styles.statValue}>{starData.shares}</Text>
+              <Text style={styles.statLabel}>Compartidos</Text>
+            </View>
+          </View>
+        </>
       )}
-
-      {/* MODAL VER TODOS */}
-      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
-        <SafeAreaView style={styles.modalContainer} edges={['top', 'left', 'right']}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Todos mis Favoritos</Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
-              <SvgXml xml={CloseIcon} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.searchBox}>
-            <SvgXml xml={SearchIcon} />
-            <TextInput 
-              style={styles.searchInput}
-              placeholder="Buscar por marca, modelo o SKU..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor={COLORS.gray4}
-            />
-          </View>
-
-          <FlatList 
-            data={filteredFavorites}
-            keyExtractor={item => item.sku}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => {
-              const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sku.substring(0, 2))}&background=E8ECF0&color=1A2530`;
-              return (
-                <View style={styles.listCard}>
-                  {/* Columna izquierda: tocar el producto abre la ficha */}
-                  <TouchableOpacity
-                    style={styles.listCardMain}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      reabrirModalAlVolver.current = true;
-                      setModalVisible(false);
-                      navigation.navigate('ProductViewer', { sku: item.sku });
-                    }}
-                  >
-                    <Image source={{ uri: item.img || fallback }} style={styles.listImg} contentFit="contain" />
-                    <View style={styles.listInfo}>
-                      <Text style={styles.listMarca}>{item.marca}</Text>
-                      <Text style={styles.listName}>{item.name}</Text>
-                      <Text style={styles.listSku}>SKU: {item.sku}</Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  {/* Columna derecha: tocar la estrella SOLO quita el favorito */}
-                  <TouchableOpacity
-                    style={styles.starBtn}
-                    activeOpacity={0.6}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    onPress={() => removeFavorite(item.sku)}
-                  >
-                    <SvgXml xml={StarIcon} width={22} height={22} />
-                  </TouchableOpacity>
-                </View>
-              )
-            }}
-            ListEmptyComponent={<Text style={styles.empty}>No se encontraron favoritos.</Text>}
-          />
-        </SafeAreaView>
-      </Modal>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -284,30 +128,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, textTransform: 'uppercase', letterSpacing: 0.5 },
-  verTodos: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.green },
-  empty: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, fontStyle: 'italic', textAlign: 'center', marginTop: 20 },
-  scroller: { gap: 12, paddingRight: 4 },
-  favCard: { width: 96, alignItems: 'center' },
-  favImg: { width: 80, height: 80, borderRadius: 10, backgroundColor: COLORS.bg, marginBottom: 6, borderWidth: 1, borderColor: COLORS.border },
-  favMarca: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4, textTransform: 'uppercase', textAlign: 'center' },
-  favName: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.navy, textAlign: 'center', marginTop: 2 },
-  
-  modalContainer: { flex: 1, backgroundColor: COLORS.bg },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  modalTitle: { fontFamily: FONTS.heading, fontSize: 20, fontWeight: '700', color: COLORS.navy },
-  closeBtn: { padding: 4 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, margin: 16, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, gap: 10 },
-  searchInput: { flex: 1, height: 44, fontFamily: FONTS.body, fontSize: 15, color: COLORS.navy },
-  listContent: { paddingHorizontal: 16, paddingBottom: 40, gap: 10 },
-  // Grid de 2 columnas: producto (abre ficha) | estrella (quita favorito)
-  listCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, padding: 12, gap: 8, borderWidth: 1, borderColor: COLORS.border },
-  listCardMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  starBtn: { paddingHorizontal: 6, paddingVertical: 6, flexShrink: 0 },
-  listImg: { width: 60, height: 60, borderRadius: 8, backgroundColor: COLORS.bg },
-  listInfo: { flex: 1 },
-  listMarca: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4, textTransform: 'uppercase' },
-  listName: { fontFamily: FONTS.bodySemi, fontSize: 15, color: COLORS.navy, marginVertical: 2 },
-  listSku: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  title: { fontFamily: FONTS.bodySemi, fontSize: 11, color: '#FFC107', textTransform: 'uppercase', letterSpacing: 0.5 },
+  empty: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, textAlign: 'center' },
+  gridRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  imgWrapper: {
+    width: 76,
+    height: 76,
+    borderRadius: 12,
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 8,
+    flexShrink: 0,
+  },
+  img: { width: '100%', height: '100%' },
+  content: { flex: 1, minWidth: 0 },
+  typeText: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  name: { fontFamily: FONTS.heading, fontSize: 17, fontWeight: '700', color: COLORS.navy, marginBottom: 2 },
+  skuText: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4 },
+  statsRow: { flexDirection: 'row', gap: 12, width: '100%' },
+  statBox: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+    borderRadius: 10,
+    paddingVertical: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  statValue: { fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: COLORS.navy },
+  statLabel: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4 },
 });

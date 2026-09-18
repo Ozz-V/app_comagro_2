@@ -19,6 +19,11 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+// Clave separada para guardar el ORDEN de los favoritos como array.
+// Los SKUs son numericos y JavaScript reordena Object.keys() automaticamente
+// en orden numerico ascendente, por eso se guardaba el orden en un array aparte.
+const FAVORITES_ORDER_CACHE_KEY = '@user_favorites_order_cache';
+
 interface FavItem {
   sku: string;
   name: string;
@@ -34,8 +39,6 @@ export default function FavoritesPanel() {
   const [favorites, setFavorites] = useState<FavItem[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  // Recuerda si el usuario venía del modal "Ver todos" al entrar a un producto,
-  // para reabrirlo automáticamente al volver (en vez de quedar en Mi Historial).
   const reabrirModalAlVolver = useRef(false);
 
   const enrich = async (skus: string[]): Promise<FavItem[]> =>
@@ -53,13 +56,26 @@ export default function FavoritesPanel() {
 
   const fetchFaves = async () => {
     if (!session?.user?.id) return;
-    
+
     let activeFavs: string[] = [];
 
-    // 1. Render inmediato desde cache (Offline First)
+    // 1. Render inmediato desde cache usando el array de orden separado
     try {
+      const orderCache = await AsyncStorage.getItem(FAVORITES_ORDER_CACHE_KEY);
       const cache = await AsyncStorage.getItem('@user_favorites_cache');
-      if (cache) {
+
+      if (orderCache && cache) {
+        const favsMap = JSON.parse(cache);
+        const order: string[] = JSON.parse(orderCache);
+        activeFavs = order.filter(sku => favsMap[sku]);
+        if (activeFavs.length > 0) {
+          const enriched = await enrich(activeFavs);
+          setFavorites(enriched);
+        } else {
+          setFavorites([]);
+        }
+      } else if (cache) {
+        // Compatibilidad con caches viejas sin array de orden
         const favsMap = JSON.parse(cache);
         activeFavs = Object.keys(favsMap).filter(sku => favsMap[sku]);
         if (activeFavs.length > 0) {
@@ -69,7 +85,7 @@ export default function FavoritesPanel() {
           setFavorites([]);
         }
       }
-    } catch (e) {}
+    } catch (_e) {}
 
     // 2. Fetch silencioso a Supabase para sincronizar
     const { data } = await supabase
@@ -80,21 +96,18 @@ export default function FavoritesPanel() {
 
     if (data) {
       const dbFavs = data.map(r => r.sku);
-      
-      // Si hay diferencia entre cache y DB, actualizamos
+
       if (dbFavs.join(',') !== activeFavs.join(',')) {
         const enriched = await enrich(dbFavs);
         setFavorites(enriched);
         const map: Record<string, boolean> = {};
         dbFavs.forEach(sku => { map[sku] = true; });
         AsyncStorage.setItem('@user_favorites_cache', JSON.stringify(map));
+        AsyncStorage.setItem(FAVORITES_ORDER_CACHE_KEY, JSON.stringify(dbFavs));
       }
     }
   };
 
-  // useFocusEffect asegura que al regresar de ProductViewer (si quitó el fav), se actualice instantáneamente.
-  // Si veníamos del modal "Ver todos", lo reabrimos para que el "atrás" del producto
-  // regrese a esa lista en vez de a la pantalla principal de Historial.
   useFocusEffect(
     useCallback(() => {
       fetchFaves();
@@ -105,9 +118,6 @@ export default function FavoritesPanel() {
     }, [session?.user?.id])
   );
 
-  // Quita un favorito directamente desde la lista "Ver todos" (tocando la
-  // estrella), sin abrir la ficha del producto. Así el usuario puede vaciar
-  // varios favoritos rápido en vez de entrar producto por producto.
   const removeFavorite = async (sku: string) => {
     if (!session?.user?.id) return;
 
@@ -119,7 +129,13 @@ export default function FavoritesPanel() {
       const map = cache ? JSON.parse(cache) : {};
       delete map[sku];
       await AsyncStorage.setItem('@user_favorites_cache', JSON.stringify(map));
-    } catch (e) {}
+
+      const orderCache = await AsyncStorage.getItem(FAVORITES_ORDER_CACHE_KEY);
+      if (orderCache) {
+        const order: string[] = JSON.parse(orderCache).filter((s: string) => s !== sku);
+        await AsyncStorage.setItem(FAVORITES_ORDER_CACHE_KEY, JSON.stringify(order));
+      }
+    } catch (_e) {}
 
     await supabase
       .from('user_favorites')
@@ -130,10 +146,10 @@ export default function FavoritesPanel() {
 
   if (!isFeatureEnabled('favoritos')) return null;
 
-  const displayFavorites = favorites.slice(0, 8); // Solo mostrar maximo 8 horizontal
-  const filteredFavorites = favorites.filter(f => 
-    f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    f.sku.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const displayFavorites = favorites.slice(0, 8);
+  const filteredFavorites = favorites.filter(f =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    f.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
     f.marca.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -152,7 +168,7 @@ export default function FavoritesPanel() {
       </View>
 
       {favorites.length === 0 ? (
-        <Text style={styles.empty}>Aún no guardaste ningún favorito.</Text>
+        <Text style={styles.empty}>Aun no guardaste ningun favorito.</Text>
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroller}>
           {displayFavorites.map((item) => {
@@ -173,7 +189,6 @@ export default function FavoritesPanel() {
         </ScrollView>
       )}
 
-      {/* MODAL VER TODOS */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
         <SafeAreaView style={styles.modalContainer} edges={['top', 'left', 'right']}>
           <View style={styles.modalHeader}>
@@ -185,7 +200,7 @@ export default function FavoritesPanel() {
 
           <View style={styles.searchBox}>
             <SvgXml xml={SearchIcon} />
-            <TextInput 
+            <TextInput
               style={styles.searchInput}
               placeholder="Buscar por marca, modelo o SKU..."
               value={searchQuery}
@@ -194,7 +209,7 @@ export default function FavoritesPanel() {
             />
           </View>
 
-          <FlatList 
+          <FlatList
             data={filteredFavorites}
             keyExtractor={item => item.sku}
             contentContainerStyle={styles.listContent}
@@ -202,7 +217,6 @@ export default function FavoritesPanel() {
               const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sku.substring(0, 2))}&background=E8ECF0&color=1A2530`;
               return (
                 <View style={styles.listCard}>
-                  {/* Columna izquierda: tocar el producto abre la ficha */}
                   <TouchableOpacity
                     style={styles.listCardMain}
                     activeOpacity={0.7}
@@ -220,7 +234,6 @@ export default function FavoritesPanel() {
                     </View>
                   </TouchableOpacity>
 
-                  {/* Columna derecha: tocar la estrella SOLO quita el favorito */}
                   <TouchableOpacity
                     style={styles.starBtn}
                     activeOpacity={0.6}
@@ -230,7 +243,7 @@ export default function FavoritesPanel() {
                     <SvgXml xml={StarIcon} width={22} height={22} />
                   </TouchableOpacity>
                 </View>
-              )
+              );
             }}
             ListEmptyComponent={<Text style={styles.empty}>No se encontraron favoritos.</Text>}
           />
@@ -251,7 +264,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.gray4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  cardTitle: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4, textTransform: 'uppercase', letterSpacing: 0.5 },
   verTodos: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.green },
   empty: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, fontStyle: 'italic', textAlign: 'center', marginTop: 20 },
   scroller: { gap: 12, paddingRight: 4 },
@@ -259,7 +272,6 @@ const styles = StyleSheet.create({
   favImg: { width: 80, height: 80, borderRadius: 10, backgroundColor: COLORS.bg, marginBottom: 6, borderWidth: 1, borderColor: COLORS.border },
   favMarca: { fontFamily: FONTS.bodySemi, fontSize: 10, color: COLORS.gray4, textTransform: 'uppercase', textAlign: 'center' },
   favName: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.navy, textAlign: 'center', marginTop: 2 },
-  
   modalContainer: { flex: 1, backgroundColor: COLORS.bg },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   modalTitle: { fontFamily: FONTS.heading, fontSize: 20, fontWeight: '700', color: COLORS.navy },
@@ -267,7 +279,6 @@ const styles = StyleSheet.create({
   searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, margin: 16, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, gap: 10 },
   searchInput: { flex: 1, height: 44, fontFamily: FONTS.body, fontSize: 15, color: COLORS.navy },
   listContent: { paddingHorizontal: 16, paddingBottom: 40, gap: 10 },
-  // Grid de 2 columnas: producto (abre ficha) | estrella (quita favorito)
   listCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, padding: 12, gap: 8, borderWidth: 1, borderColor: COLORS.border },
   listCardMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
   starBtn: { paddingHorizontal: 6, paddingVertical: 6, flexShrink: 0 },
