@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput, FlatList, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -14,6 +14,10 @@ import { COLORS, FONTS } from '../../theme';
 const StarIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="#FFC107" stroke="#FFC107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
 const SearchIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.gray4}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
 const CloseIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${COLORS.navy}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface FavItem {
   sku: string;
@@ -101,6 +105,29 @@ export default function FavoritesPanel() {
     }, [session?.user?.id])
   );
 
+  // Quita un favorito directamente desde la lista "Ver todos" (tocando la
+  // estrella), sin abrir la ficha del producto. Así el usuario puede vaciar
+  // varios favoritos rápido en vez de entrar producto por producto.
+  const removeFavorite = async (sku: string) => {
+    if (!session?.user?.id) return;
+
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setFavorites(prev => prev.filter(f => f.sku !== sku));
+
+    try {
+      const cache = await AsyncStorage.getItem('@user_favorites_cache');
+      const map = cache ? JSON.parse(cache) : {};
+      delete map[sku];
+      await AsyncStorage.setItem('@user_favorites_cache', JSON.stringify(map));
+    } catch (e) {}
+
+    await supabase
+      .from('user_favorites')
+      .delete()
+      .eq('user_id', session.user.id)
+      .eq('sku', sku);
+  };
+
   if (!isFeatureEnabled('favoritos')) return null;
 
   const displayFavorites = favorites.slice(0, 8); // Solo mostrar maximo 8 horizontal
@@ -174,23 +201,35 @@ export default function FavoritesPanel() {
             renderItem={({ item }) => {
               const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sku.substring(0, 2))}&background=E8ECF0&color=1A2530`;
               return (
-                <TouchableOpacity
-                  style={styles.listCard}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    reabrirModalAlVolver.current = true;
-                    setModalVisible(false);
-                    navigation.navigate('ProductViewer', { sku: item.sku });
-                  }}
-                >
-                  <Image source={{ uri: item.img || fallback }} style={styles.listImg} contentFit="contain" />
-                  <View style={styles.listInfo}>
-                    <Text style={styles.listMarca}>{item.marca}</Text>
-                    <Text style={styles.listName}>{item.name}</Text>
-                    <Text style={styles.listSku}>SKU: {item.sku}</Text>
-                  </View>
-                  <SvgXml xml={StarIcon} />
-                </TouchableOpacity>
+                <View style={styles.listCard}>
+                  {/* Columna izquierda: tocar el producto abre la ficha */}
+                  <TouchableOpacity
+                    style={styles.listCardMain}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      reabrirModalAlVolver.current = true;
+                      setModalVisible(false);
+                      navigation.navigate('ProductViewer', { sku: item.sku });
+                    }}
+                  >
+                    <Image source={{ uri: item.img || fallback }} style={styles.listImg} contentFit="contain" />
+                    <View style={styles.listInfo}>
+                      <Text style={styles.listMarca}>{item.marca}</Text>
+                      <Text style={styles.listName}>{item.name}</Text>
+                      <Text style={styles.listSku}>SKU: {item.sku}</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Columna derecha: tocar la estrella SOLO quita el favorito */}
+                  <TouchableOpacity
+                    style={styles.starBtn}
+                    activeOpacity={0.6}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    onPress={() => removeFavorite(item.sku)}
+                  >
+                    <SvgXml xml={StarIcon} width={22} height={22} />
+                  </TouchableOpacity>
+                </View>
               )
             }}
             ListEmptyComponent={<Text style={styles.empty}>No se encontraron favoritos.</Text>}
@@ -228,7 +267,10 @@ const styles = StyleSheet.create({
   searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, margin: 16, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, gap: 10 },
   searchInput: { flex: 1, height: 44, fontFamily: FONTS.body, fontSize: 15, color: COLORS.navy },
   listContent: { paddingHorizontal: 16, paddingBottom: 40, gap: 10 },
-  listCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, padding: 12, gap: 12, borderWidth: 1, borderColor: COLORS.border },
+  // Grid de 2 columnas: producto (abre ficha) | estrella (quita favorito)
+  listCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 12, padding: 12, gap: 8, borderWidth: 1, borderColor: COLORS.border },
+  listCardMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  starBtn: { paddingHorizontal: 6, paddingVertical: 6, flexShrink: 0 },
   listImg: { width: 60, height: 60, borderRadius: 8, backgroundColor: COLORS.bg },
   listInfo: { flex: 1 },
   listMarca: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4, textTransform: 'uppercase' },

@@ -27,30 +27,22 @@ export default function StarProductPanel() {
         if (cached) setStarData(JSON.parse(cached));
       } catch (e) {}
 
-      const { data, error } = await supabase
-        .from('producto_analytics')
-        .select('sku, action')
-        .in('action', ['view', 'share_pdf', 'share_image'])
-        .limit(20000);
+      // RPC agregada: el ranking global (de TODOS los usuarios) ya no se puede
+      // calcular leyendo la tabla cruda desde el cliente, porque RLS solo deja
+      // ver las propias filas a quien no es admin. La función agrega en el
+      // servidor y devuelve solo el top de SKUs.
+      const { data, error } = await supabase.rpc('get_global_top_skus', { p_limit: 1 });
 
       if (!error && data && data.length > 0) {
-        const counts: Record<string, { views: number, shares: number }> = {};
-        data.forEach(row => {
-          if (!row.sku) return;
-          if (!counts[row.sku]) counts[row.sku] = { views: 0, shares: 0 };
-          if (row.action === 'view') counts[row.sku].views++;
-          else counts[row.sku].shares++;
-        });
+        const top = data[0];
+        const starSku = top?.sku;
 
-        // Producto estrella: el más visto
-        const starSku = Object.keys(counts).sort((a, b) => counts[b].views - counts[a].views)[0];
-        
         if (starSku) {
           const prod = await getProductBySku(starSku);
           const result = {
             sku: starSku,
-            views: counts[starSku].views,
-            shares: counts[starSku].shares,
+            views: Number(top.views || 0),
+            shares: Number(top.shares || 0),
             name: prod ? prod.modelo : starSku,
             marca: prod?.marca || '',
             subcategory: prod?.subcategoria || 'Sin subcategoría',
@@ -81,30 +73,34 @@ export default function StarProductPanel() {
           activeOpacity={0.9}
           onPress={() => navigation.navigate('ProductViewer', { sku: starData.sku })}
         >
-          <View style={styles.imgWrapper}>
-            <Image
-              source={{ uri: starData.img || `https://ui-avatars.com/api/?name=${encodeURIComponent(starData.sku.substring(0, 2))}&background=E8ECF0&color=1A2530` }}
-              style={styles.img}
-              contentFit="contain"
-            />
+          {/* Grid de 2 columnas: foto/logo a la izquierda, datos a la derecha en 3 líneas.
+              Evita repetir el SKU dos veces (antes salía como "nombre" grande y de nuevo abajo). */}
+          <View style={styles.gridRow}>
+            <View style={styles.imgWrapper}>
+              <Image
+                source={{ uri: starData.img || `https://ui-avatars.com/api/?name=${encodeURIComponent(starData.sku.substring(0, 2))}&background=E8ECF0&color=1A2530` }}
+                style={styles.img}
+                contentFit="contain"
+              />
+            </View>
+
+            <View style={styles.content}>
+              <Text style={styles.typeText} numberOfLines={1} ellipsizeMode="tail">{starData.subcategory}</Text>
+              <Text style={styles.name} numberOfLines={2} ellipsizeMode="tail">{starData.marca ? `${starData.marca} ` : ''}{starData.name}</Text>
+              <Text style={styles.skuText} numberOfLines={1} ellipsizeMode="tail">SKU: {starData.sku}</Text>
+            </View>
           </View>
-          
-          <View style={styles.content}>
-            <Text style={styles.brand}>{starData.marca}</Text>
-            <Text style={styles.name}>{starData.name}</Text>
-            <Text style={styles.subText}>{starData.subcategory} • SKU: {starData.sku}</Text>
-            
-            <View style={styles.statsRow}>
-              <View style={styles.statBox}>
-                <SvgXml xml={EyeIcon} />
-                <Text style={styles.statValue}>{starData.views}</Text>
-                <Text style={styles.statLabel}>Vistas</Text>
-              </View>
-              <View style={styles.statBox}>
-                <SvgXml xml={ShareIcon} />
-                <Text style={styles.statValue}>{starData.shares}</Text>
-                <Text style={styles.statLabel}>Compartidos</Text>
-              </View>
+
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <SvgXml xml={EyeIcon} />
+              <Text style={styles.statValue}>{starData.views}</Text>
+              <Text style={styles.statLabel}>Vistas</Text>
+            </View>
+            <View style={styles.statBox}>
+              <SvgXml xml={ShareIcon} />
+              <Text style={styles.statValue}>{starData.shares}</Text>
+              <Text style={styles.statLabel}>Compartidos</Text>
             </View>
           </View>
         </TouchableOpacity>
@@ -123,39 +119,44 @@ const styles = StyleSheet.create({
   empty: { fontFamily: FONTS.body, fontSize: 13, color: COLORS.gray4, textAlign: 'center' },
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
-    overflow: 'hidden',
+    padding: 14,
     shadowColor: COLORS.navy,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.05,
-    shadowRadius: 15,
-    elevation: 4,
+    shadowRadius: 10,
+    elevation: 3,
   },
+  // Grid de 2 columnas invisible: columna izquierda (foto) + columna derecha (texto, 3 líneas)
+  gridRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   imgWrapper: {
-    height: 180,
+    width: 76,
+    height: 76,
+    borderRadius: 12,
     backgroundColor: '#FAFAFA',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 8,
+    flexShrink: 0,
   },
   img: { width: '100%', height: '100%' },
-  content: { padding: 20, alignItems: 'center' },
-  brand: { fontFamily: FONTS.bodySemi, fontSize: 12, color: COLORS.gray4, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
-  name: { fontFamily: FONTS.heading, fontSize: 24, color: COLORS.navy, textAlign: 'center', marginBottom: 4 },
-  subText: { fontFamily: FONTS.body, fontSize: 14, color: COLORS.gray4, textAlign: 'center', marginBottom: 20 },
+  content: { flex: 1, minWidth: 0 },
+  typeText: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.gray4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  name: { fontFamily: FONTS.heading, fontSize: 17, fontWeight: '700', color: COLORS.navy, marginVertical: 2 },
+  skuText: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4 },
   statsRow: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
     width: '100%',
     justifyContent: 'center',
   },
   statBox: {
     flex: 1,
     backgroundColor: COLORS.bg,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingVertical: 8,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
