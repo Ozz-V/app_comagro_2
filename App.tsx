@@ -1,4 +1,4 @@
-// Build Trigger: Restauración versión estable 30-Abril
+// Build Trigger: RestauraciÃ³n versiÃ³n estable 30-Abril
 import React, { useEffect, useState } from 'react';
 import { View, Text, DeviceEventEmitter } from 'react-native';
 import { NavigationContainer, DefaultTheme, createNavigationContainerRef, StackActions } from '@react-navigation/native';
@@ -119,7 +119,7 @@ function AppWrapper() {
           Seguridad Comprometida
         </Text>
         <Text style={{ fontSize: 16, color: '#333333', textAlign: 'center' }}>
-          Esta aplicación no puede ejecutarse en dispositivos rooteados o modificados (Jailbreak). Por favor, utilice un dispositivo seguro.
+          Esta aplicaciÃ³n no puede ejecutarse en dispositivos rooteados o modificados (Jailbreak). Por favor, utilice un dispositivo seguro.
         </Text>
       </View>
     );
@@ -170,7 +170,7 @@ function App() {
       globalWithEU.ErrorUtils.setGlobalHandler((error: unknown, isFatal: boolean) => {
         showAlert(
           'Fallo del Sistema',
-          `Ocurrió un error inesperado${isFatal ? ' fatal' : ''}.\n\nDetalle: ${(error as Error)?.message || 'Desconocido'}\n\nEl sistema bloqueó el cierre forzoso, pero recomendamos reiniciar la app.`
+          `OcurriÃ³ un error inesperado${isFatal ? ' fatal' : ''}.\n\nDetalle: ${(error as Error)?.message || 'Desconocido'}\n\nEl sistema bloqueÃ³ el cierre forzoso, pero recomendamos reiniciar la app.`
         );
       });
     }
@@ -183,15 +183,15 @@ function App() {
 
   // --- OYENTE DE NOTIFICACIONES PUSH ---
   // Dos problemas reales que este bloque soluciona:
-  //  1) Android a veces vuelve a entregar el MISMO toque de notificación
-  //     cuando la app vuelve a primer plano (p.ej. después de apretar
-  //     "atrás"). Sin descartar duplicados, eso hacía que la app procesara
+  //  1) Android a veces vuelve a entregar el MISMO toque de notificaciÃ³n
+  //     cuando la app vuelve a primer plano (p.ej. despuÃ©s de apretar
+  //     "atrÃ¡s"). Sin descartar duplicados, eso hacÃ­a que la app procesara
   //     el mismo toque de nuevo y navegara otra vez sola.
-  //  2) navigationRef.navigate('Portal') podía, en ciertos casos, no
-  //     colapsar del todo la pila si había pantallas duplicadas encima
+  //  2) navigationRef.navigate('Portal') podÃ­a, en ciertos casos, no
+  //     colapsar del todo la pila si habÃ­a pantallas duplicadas encima
   //     (ver fix en PortalScreen/NotificationsScreen contra doble-toque).
-  //     Usar popToTop() es más robusto: sin importar cuántas pantallas haya
-  //     apiladas, siempre vuelve a la única instancia de Portal.
+  //     Usar popToTop() es mÃ¡s robusto: sin importar cuÃ¡ntas pantallas haya
+  //     apiladas, siempre vuelve a la Ãºnica instancia de Portal.
   const handledNotificationIds = React.useRef(new Set<string>());
 
   useEffect(() => {
@@ -203,7 +203,7 @@ function App() {
       if (notifId) {
         if (handledNotificationIds.current.has(notifId)) return;
         handledNotificationIds.current.add(notifId);
-        // Evita que este Set crezca sin límite en una sesión muy larga.
+        // Evita que este Set crezca sin lÃ­mite en una sesiÃ³n muy larga.
         if (handledNotificationIds.current.size > 50) {
           const first = handledNotificationIds.current.values().next().value;
           if (first) handledNotificationIds.current.delete(first);
@@ -234,20 +234,20 @@ function App() {
         });
       }
 
-      // Marca la notificación como "ya consumida" del lado nativo — evita
-      // que Android/expo-notifications la vuelvan a entregar más adelante
-      // (p.ej. si la persona sale de la app con el botón atrás y regresa).
+      // Marca la notificaciÃ³n como "ya consumida" del lado nativo â€” evita
+      // que Android/expo-notifications la vuelvan a entregar mÃ¡s adelante
+      // (p.ej. si la persona sale de la app con el botÃ³n atrÃ¡s y regresa).
       Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
     }
 
-    // Caso: la app estaba CERRADA y se abrió tocando la notificación.
-    Notifications.getLastNotificationResponseAsync().then((response) => {
+    // Caso: la app estaba CERRADA y se abriÃ³ tocando la notificaciÃ³n.
+    Notifications.getLastNotificationResponseAsync().then((response: { notification: { request: { content: { data: Record<string, unknown> }; identifier: string } } } | null) => {
       if (!response) return;
       handleNotificationTap(response.notification.request.content.data, response.notification.request.identifier);
     }).catch(() => {});
 
     // Caso: la app ya estaba abierta (foreground o background).
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+    const responseListener = Notifications.addNotificationResponseReceivedListener((response: { notification: { request: { content: { data: Record<string, unknown> }; identifier: string } } }) => {
       handleNotificationTap(response.notification.request.content.data, response.notification.request.identifier);
     });
 
@@ -273,7 +273,7 @@ function App() {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const cached = await AsyncStorage.getItem('@user_profile_cache');
 
-        // 1. Render inmediato desde caché (Offline First / respuesta instantánea).
+        // 1. Render inmediato desde cachÃ© (Offline First / respuesta instantÃ¡nea).
         if (cached) {
           const data = JSON.parse(cached);
           setIsAdmin(data.role === 'admin');
@@ -282,9 +282,9 @@ function App() {
           }
         }
 
-        // 2. SIEMPRE revalidamos contra la DB en segundo plano, incluso si el caché
-        //    ya parecía "completo". El rol puede haber cambiado desde el servidor
-        //    (Supabase Studio, otro admin, etc.) sin pasar por esta app, y el caché
+        // 2. SIEMPRE revalidamos contra la DB en segundo plano, incluso si el cachÃ©
+        //    ya parecÃ­a "completo". El rol puede haber cambiado desde el servidor
+        //    (Supabase Studio, otro admin, etc.) sin pasar por esta app, y el cachÃ©
         //    agresivo no debe dejarnos con un isAdmin desactualizado indefinidamente.
         const { data, error } = await supabase.from('profiles').select('full_name, telefono, role').eq('id', userId).single();
         if (error) {
