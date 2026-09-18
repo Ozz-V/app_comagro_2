@@ -12,11 +12,11 @@ export interface PdfTemplate {
 
 /**
  * Templates por defecto, incorporados a la app (bundle). Se usan si:
- *  - no hay conexiÃ³n,
- *  - todavÃ­a no se cacheÃ³ ninguna versiÃ³n remota,
- *  - o la fila remota vino invÃ¡lida (ver isValidTemplate).
- * Mantenerlos siempre como una versiÃ³n funcional conocida â€” es la red de
- * seguridad para que un template remoto roto nunca tumbe la generaciÃ³n de PDF.
+ *  - no hay conexiÃƒÆ’Ã‚Â³n,
+ *  - todavÃƒÆ’Ã‚Â­a no se cacheÃƒÆ’Ã‚Â³ ninguna versiÃƒÆ’Ã‚Â³n remota,
+ *  - o la fila remota vino invÃƒÆ’Ã‚Â¡lida (ver isValidTemplate).
+ * Mantenerlos siempre como una versiÃƒÆ’Ã‚Â³n funcional conocida ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â es la red de
+ * seguridad para que un template remoto roto nunca tumbe la generaciÃƒÆ’Ã‚Â³n de PDF.
  */
 export const DEFAULT_TEMPLATES: Record<TemplateId, PdfTemplate> = {
   product_sheet: {
@@ -150,15 +150,7 @@ export const DEFAULT_TEMPLATES: Record<TemplateId, PdfTemplate> = {
         .kpi-card { flex: 1; background: #F4F6F8; border-radius: 6px; padding: 8px; text-align: center; border: 1px solid #DFE1E6; }
         .kpi-title { font-size: 9px; font-weight: 600; color: #6B778C; text-transform: uppercase; margin-bottom: 4px; }
         .kpi-val { font-size: 22px; font-weight: 800; }
-        .chart-box { background: #F4F6F8; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; border: 1px solid #DFE1E6; }
-        .chart-header { font-size: 10px; font-weight: 700; color: #1A2530; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; }
-        .chart-svg { width: 100%; height: auto; max-height: 120px; margin: 4px 0; }
-        .chart-labels { display: flex; justify-content: space-between; margin-top: 4px; }
-        .chart-label { font-size: 8px; font-weight: 700; color: #1A2530; }
-        .chart-sublabel { font-size: 7px; color: #6B778C; }
-        .chart-label-center { text-align: center; }
-        .chart-label-right { text-align: right; }
-        .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: 1; min-height: 0; }
+                                                                        .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: 1; min-height: 0; }
         .list-card { background: #FFFFFF; border: 1px solid #DFE1E6; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; }
         .list-title { font-size: 11px; font-weight: 700; color: #1A2530; border-bottom: 1px solid #DFE1E6; padding-bottom: 4px; margin-bottom: 6px; text-transform: uppercase; }
         .list-items { display: flex; flex-direction: column; gap: 4px; flex: 1; }
@@ -186,41 +178,6 @@ export const DEFAULT_TEMPLATES: Record<TemplateId, PdfTemplate> = {
             <div class="kpi-card"><div class="kpi-title">Vistas Totales</div><div class="kpi-val" style="color: #007db8;">{{viewsTotal}}</div></div>
             <div class="kpi-card"><div class="kpi-title">Compartidos</div><div class="kpi-val" style="color: #0D8A39;">{{sharesTotal}}</div></div>
             {{usersKpiCardHtml}}
-        </div>
-        <div class="chart-box">
-          <div class="chart-header">
-            <span>Historial de Uso</span>
-            <span style="color:#007db8;">{{viewsTotal}} vistas totales</span>
-          </div>
-          <svg class="chart-svg" viewBox="-12 -16 324 82">
-            <defs>
-              <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#007DB8" stop-opacity="0.35"/>
-                <stop offset="100%" stop-color="#007DB8" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
-            <line x1="0" y1="12" x2="300" y2="12" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3"/>
-            <line x1="0" y1="32" x2="300" y2="32" stroke="#E8ECF0" stroke-width="1" stroke-dasharray="3,3"/>
-            <path d="M0,52 L0,35 Q40,15 80,25 T160,10 T240,22 T300,14 L300,52 Z" fill="url(#cg)"/>
-            <path d="M0,35 Q40,15 80,25 T160,10 T240,22 T300,14" fill="none" stroke="#007DB8" stroke-width="2.5" stroke-linecap="round"/>
-            <circle cx="0" cy="35" r="4" fill="#ffffff" stroke="#007DB8" stroke-width="2"/>
-            <circle cx="160" cy="10" r="4" fill="#ffffff" stroke="#007DB8" stroke-width="2"/>
-            <circle cx="300" cy="14" r="4" fill="#ffffff" stroke="#007DB8" stroke-width="2"/>
-          </svg>
-          <div class="chart-labels">
-            <div>
-              <div class="chart-label">{{chartStartValue}} vistas</div>
-              <div class="chart-sublabel">{{periodLabelShort}}</div>
-            </div>
-            <div class="chart-label-center">
-              <div class="chart-label">Pico: {{chartPeakValue}} vistas</div>
-              <div class="chart-sublabel">{{chartPeakLabel}}</div>
-            </div>
-            <div class="chart-label-right">
-              <div class="chart-label">{{chartTodayValue}} vistas</div>
-              <div class="chart-sublabel">Hoy</div>
-            </div>
-          </div>
         </div>
         <div class="grid-2x2">
             {{listsGridHtml}}
@@ -260,7 +217,7 @@ export async function fetchRemoteTemplate(id: TemplateId): Promise<PdfTemplate |
     if (error || !data) return null;
 
     if (!isValidTemplate(id, data.html)) {
-      console.warn(`Template remoto "${id}" invÃ¡lido (faltan placeholders requeridos), se ignora`);
+      console.warn(`Template remoto "${id}" invÃƒÆ’Ã‚Â¡lido (faltan placeholders requeridos), se ignora`);
       return null;
     }
 
@@ -284,8 +241,8 @@ export async function getTemplate(id: TemplateId): Promise<PdfTemplate> {
 }
 
 /**
- * Reemplazo simple {{clave}} -> valor. A propÃ³sito no soporta condicionales
- * ni loops: esas decisiones (quÃ© card mostrar, cuÃ¡ntos Ã­tems, etc.) se
+ * Reemplazo simple {{clave}} -> valor. A propÃƒÆ’Ã‚Â³sito no soporta condicionales
+ * ni loops: esas decisiones (quÃƒÆ’Ã‚Â© card mostrar, cuÃƒÆ’Ã‚Â¡ntos ÃƒÆ’Ã‚Â­tems, etc.) se
  * resuelven en JS y se pasan ya armadas como HTML dentro de una sola clave
  * (ej. "listsGridHtml"). Mantiene el motor de templates trivial de auditar.
  */

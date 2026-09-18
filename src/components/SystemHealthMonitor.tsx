@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
 import { COLORS, FONTS } from '../theme';
 import { supabase } from '../supabase';
-import CollapsibleSection from './CollapsibleSection';
+
 
 interface HealthStatus {
   service: string;
@@ -115,16 +115,16 @@ export default function SystemHealthMonitor() {
   }
 
   return (
-    <CollapsibleSection
-      title="Estado de Servidores"
-      iconName="server"
-      rightIndicator={isRefreshing ? <ActivityIndicator size="small" color={COLORS.gray4} style={{ marginRight: 8 }} /> : null}
+    <View style={s.card}
+      
+      
+      
     >
       <View style={s.row}>
         <AnimatedWaveform status={plytixHealth.status} color="#1c9f4b" />
         <View style={s.info}>
           <Text style={s.serviceName}>{plytixHealth.service}</Text>
-          <Text style={s.subText}>Último ping: {plytixHealth.lastPing || '...'}</Text>
+          <Text style={s.subText}>Ãšltimo ping: {plytixHealth.lastPing || '...'}</Text>
           {plytixHealth.details && <Text style={s.errorText}>{plytixHealth.details}</Text>}
         </View>
       </View>
@@ -135,7 +135,7 @@ export default function SystemHealthMonitor() {
         <AnimatedWaveform status={aiHealth.status} color="#2196F3" />
         <View style={s.info}>
           <Text style={s.serviceName}>{aiHealth.service}</Text>
-          <Text style={s.subText}>Último ping: {aiHealth.lastPing || '...'}</Text>
+          <Text style={s.subText}>Ãšltimo ping: {aiHealth.lastPing || '...'}</Text>
           {aiHealth.details && <Text style={s.detailText}>{aiHealth.details}</Text>}
         </View>
       </View>
@@ -143,11 +143,12 @@ export default function SystemHealthMonitor() {
       <TouchableOpacity style={s.refreshBtn} onPress={checkHealth}>
         <Text style={s.refreshTxt}>Actualizar Estado</Text>
       </TouchableOpacity>
-    </CollapsibleSection>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
+  card: { backgroundColor: COLORS.white, borderRadius: 12, padding: 16, marginHorizontal: 20, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   row: { flexDirection: 'row', alignItems: 'center', marginVertical: 8 },
   waveformContainer: { flexDirection: 'row', alignItems: 'flex-end', height: 18, width: 24, justifyContent: 'space-between', marginRight: 12, paddingBottom: 2 },
   waveformBar: { width: 4, borderRadius: 2 },

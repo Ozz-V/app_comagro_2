@@ -18,7 +18,7 @@ export default function AdminPlytixScreen() {
   const [errors, setErrors] = useState<any[]>([]);
 
   const loadErrors = useCallback(async () => {
-    // 1. Render inmediato desde caché
+    // 1. Render inmediato desde cachÃ©
     try {
       const cached = await AsyncStorage.getItem(CACHE_KEY);
       if (cached) setErrors(JSON.parse(cached));
@@ -52,10 +52,10 @@ export default function AdminPlytixScreen() {
         />
       </View>
       <View style={styles.topBorder} />
-      <Text style={styles.titulo}>Monitor Plytix</Text>
+      <Text style={styles.titulo}>Estado de Servidores</Text>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Estado de servidores — ahora vive aquí, no flotando en el Dashboard */}
+        {/* Estado de servidores â€” ahora vive aquÃ­, no flotando en el Dashboard */}
         <Text style={styles.sectionLabel}>Estado de Infraestructura</Text>
         <SystemHealthMonitor />
 
@@ -64,7 +64,7 @@ export default function AdminPlytixScreen() {
         {errors.length === 0 ? (
           <View style={styles.emptyBox}>
             <SvgXml xml={IconCheck} />
-            <Text style={styles.emptyText}>Sin errores de sincronización</Text>
+            <Text style={styles.emptyText}>Sin errores de sincronizaciÃ³n</Text>
           </View>
         ) : (
           errors.map((item) => (
@@ -72,7 +72,7 @@ export default function AdminPlytixScreen() {
               <Text style={styles.sku}>SKU: {item.sku}</Text>
               <Text style={styles.errorText}>{item.last_error || 'Error desconocido'}</Text>
               <Text style={styles.meta}>
-                Reintentos: {item.retry_count} · Último: {new Date(item.last_attempt).toLocaleString()}
+                Reintentos: {item.retry_count} Â· Ãšltimo: {new Date(item.last_attempt).toLocaleString()}
               </Text>
             </View>
           ))

@@ -38,7 +38,7 @@ export default function AdminUsersScreen() {
   const loadUsers = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      // 1. Render inmediato desde caché
+      // 1. Render inmediato desde cachÃ©
       const cached = await AsyncStorage.getItem(CACHE_KEY);
       if (cached) {
         setUsers(JSON.parse(cached));
@@ -67,8 +67,8 @@ export default function AdminUsersScreen() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
-  // Sincroniza el store global y el caché de perfil cuando el propio admin
-  // se cambia el rol a sí mismo, y lo saca del panel si perdió el acceso.
+  // Sincroniza el store global y el cachÃ© de perfil cuando el propio admin
+  // se cambia el rol a sÃ­ mismo, y lo saca del panel si perdiÃ³ el acceso.
   const syncSelfRoleChange = useCallback(async (targetUserId: string, newRole: string) => {
     if (!session?.user?.id || targetUserId !== session.user.id) return;
 
@@ -87,10 +87,10 @@ export default function AdminUsersScreen() {
     }
 
     if (!isStillAdmin) {
-      // Ya no tiene permiso de estar en esta sección: lo regresamos al Portal.
+      // Ya no tiene permiso de estar en esta secciÃ³n: lo regresamos al Portal.
       showAlert(
         'Rol actualizado',
-        'Ya no tienes permisos de administrador. Se cerrará el Panel de Control.',
+        'Ya no tienes permisos de administrador. Se cerrarÃ¡ el Panel de Control.',
         [{ text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Portal' as never }] }) }]
       );
     }
@@ -100,11 +100,11 @@ export default function AdminUsersScreen() {
     const isDemotion = newRole === 'staff';
     showAlert(
       'Cambiar Rol',
-      `¿Asignar el rol "${isDemotion ? 'Staff' : 'Administrador'}" a este usuario?`,
+      `Â¿Asignar el rol "${isDemotion ? 'Staff' : 'Administrador'}" a este usuario?`,
       [
         { text: 'NO', style: 'cancel' },
         {
-          text: 'SÍ',
+          text: 'SÃ',
           onPress: async () => {
             const { error } = await supabase.rpc('admin_set_role', { target_user_id: userId, new_role: newRole });
             if (error) {
@@ -122,11 +122,11 @@ export default function AdminUsersScreen() {
   const banUser = (userId: string, name: string) => {
     showAlert(
       'Banear Usuario',
-      `¿Bloquear el acceso a ${name}?`,
+      `Â¿Bloquear el acceso a ${name}?`,
       [
         { text: 'NO', style: 'cancel' },
         {
-          text: 'SÍ',
+          text: 'SÃ',
           style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.rpc('admin_ban_user', { target_user_id: userId });
@@ -152,7 +152,7 @@ export default function AdminUsersScreen() {
         />
       </View>
       <View style={styles.topBorder} />
-      <Text style={styles.titulo}>Gestión de Usuarios</Text>
+      <Text style={styles.titulo}>GestiÃ³n de Usuarios</Text>
 
       {loading ? (
         <ActivityIndicator size="large" color={COLORS.navy} style={{ marginTop: 50 }} />
@@ -179,14 +179,14 @@ export default function AdminUsersScreen() {
                   </View>
                 </View>
                 <View style={styles.actions}>
-                  <TouchableOpacity style={[styles.btn, { backgroundColor: COLORS.green + '18' }]} onPress={() => changeRole(item.id, 'admin')}>
-                    <SvgXml xml={IconAdmin} />
-                    <Text style={[styles.btnLabel, { color: COLORS.green }]}>Admin</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.btn, { backgroundColor: COLORS.celeste + '18' }]} onPress={() => changeRole(item.id, 'staff')}>
-                    <SvgXml xml={IconUser} />
-                    <Text style={[styles.btnLabel, { color: COLORS.celeste }]}>Staff</Text>
-                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.btn, { backgroundColor: item.role === 'admin' ? COLORS.bg : COLORS.green + '18' }]} onPress={() => changeRole(item.id, 'admin')} disabled={item.role === 'admin'}>
+                      <SvgXml xml={IconAdmin} />
+                      <Text style={[styles.btnLabel, { color: item.role === 'admin' ? COLORS.gray4 : COLORS.green }]}>Admin</Text>
+                    </TouchableOpacity>
+                  <TouchableOpacity style={[styles.btn, { backgroundColor: item.role === 'staff' ? COLORS.bg : COLORS.celeste + '18' }]} onPress={() => changeRole(item.id, 'staff')} disabled={item.role === 'staff'}>
+                      <SvgXml xml={IconUser} />
+                      <Text style={[styles.btnLabel, { color: item.role === 'staff' ? COLORS.gray4 : COLORS.celeste }]}>Staff</Text>
+                    </TouchableOpacity>
                   <TouchableOpacity style={[styles.btn, { backgroundColor: '#ffebee' }]} onPress={() => banUser(item.id, item.full_name)}>
                     <SvgXml xml={IconBan} />
                     <Text style={[styles.btnLabel, { color: '#c62828' }]}>Banear</Text>

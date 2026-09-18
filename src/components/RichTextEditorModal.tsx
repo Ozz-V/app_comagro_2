@@ -60,7 +60,7 @@ function wrapSelection(text: string, sel: Selection, open: string, close: string
   return before + open + selected + close + after;
 }
 
-/** Agrega "- " al principio de cada linea seleccionada como viñeta. */
+/** Agrega "- " al principio de cada linea seleccionada como viÃ±eta. */
 function applyBullet(text: string, sel: Selection): string {
   const before = text.slice(0, sel.start);
   const selected = text.slice(sel.start, sel.end);
@@ -127,7 +127,7 @@ export default function RichTextEditorModal({
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={0}
         >
           {/* Header */}
@@ -190,7 +190,7 @@ export default function RichTextEditorModal({
 
           <View style={styles.border} />
 
-          {/* Area de texto — ocupa todo el espacio disponible */}
+          {/* Area de texto â€” ocupa todo el espacio disponible */}
           <ScrollView style={styles.flex} keyboardShouldPersistTaps="handled">
             <TextInput
               ref={inputRef}

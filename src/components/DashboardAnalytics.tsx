@@ -117,6 +117,34 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
 
         </View>
       </ScrollView>
+
+      <UserReportModal
+        visible={showUserReportModal}
+        onClose={() => setShowUserReportModal(false)}
+        users={directoryUsers || []}
+        isGenerating={isGeneratingGrid}
+        onGenerateGlobal={() => {
+          setShowUserReportModal(false);
+          generatePdfReport();
+        }}
+        onGenerateGrid={async (emails) => {
+          setIsGeneratingGrid(true);
+          try {
+            const pLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Ultimos 7 dias' : period === '30d' ? 'Ultimos 30 dias' : 'Todo el tiempo';
+            const { generateUserGridPdf } = await import('../utils/pdfGridReport');
+            const uri = await generateUserGridPdf(emails, globalRawData, directoryUsers || [], pLabel);
+            const { isAvailableAsync, shareAsync } = await import('expo-sharing');
+            if (await isAvailableAsync()) {
+              await shareAsync(uri, { dialogTitle: 'Reporte Usuarios' });
+            }
+          } catch (e) {
+            console.error('Error al generar PDF de usuarios', e);
+          } finally {
+          setIsGeneratingGrid(false);
+          setShowUserReportModal(false);
+          }
+        }}
+      />
     </View>
   );
 }
