@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ScrollView, Platform, ActivityIndicator, TextInput, Modal, DeviceEventEmitter } from 'react-native';
 import LottieView from 'lottie-react-native';
 import Constants from 'expo-constants';
@@ -117,6 +117,12 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
   const [showDirectoryModal, setShowDirectoryModal] = useState(false);
   const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
   const [loadingDirectory, setLoadingDirectory] = useState(false);
+
+  // Un usuario no-admin nunca debe ver admins listados en Contactos.
+  const visibleDirectoryUsers = useMemo(
+    () => (isAdmin ? directoryUsers : directoryUsers.filter(u => u.role !== 'admin')),
+    [directoryUsers, isAdmin]
+  );
   
   const [showUserModal, setShowUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -135,7 +141,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
       const cachedDir = await AsyncStorage.getItem('@directory_cache');
       if (cachedDir && isMounted.current) setDirectoryUsers(JSON.parse(cachedDir));
       if (!isOnline && isMounted.current) return;
-      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url, email, telefono').order('full_name');
+      const { data, error } = await supabase.from('profiles').select('id, full_name, avatar_url, email, telefono, role').order('full_name');
       if (data && !error) {
         const valid = data.filter(u => u.full_name && u.full_name.trim() !== '');
         if (isMounted.current) setDirectoryUsers(valid);
@@ -360,7 +366,7 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
         </View>
       </Modal>
 
-      <DirectoryModal visible={showDirectoryModal} onClose={() => setShowDirectoryModal(false)} loadingDirectory={loadingDirectory} directoryUsers={directoryUsers} onUserClick={handleUserClick} />
+      <DirectoryModal visible={showDirectoryModal} onClose={() => setShowDirectoryModal(false)} loadingDirectory={loadingDirectory} directoryUsers={visibleDirectoryUsers} onUserClick={handleUserClick} />
       <UserProfileModal visible={showUserModal} onClose={() => setShowUserModal(false)} loadingUser={loadingUser} selectedUser={selectedUser} />
     </SafeAreaView>
   );
