@@ -75,7 +75,10 @@ export default function StarProductPanel() {
       ) : (
         <>
           {/* Grid de 2 columnas: foto/logo a la izquierda, datos a la derecha en 3 líneas.
-              Evita repetir el SKU dos veces (antes salía como "nombre" grande y de nuevo abajo). */}
+              Nota: en este modelo de datos "modelo" (starData.name) es el mismo
+              valor que el SKU (ver database.ts: modelo: r.sku), así que mostrarlo
+              acá repetía el SKU dos veces. Se muestra solo la marca, el SKU va
+              únicamente en skuText de abajo. */}
           <View style={styles.gridRow}>
             <View style={styles.imgWrapper}>
               <Image
@@ -87,7 +90,7 @@ export default function StarProductPanel() {
 
             <View style={styles.content}>
               <Text style={styles.typeText} numberOfLines={1} ellipsizeMode="tail">{starData.subcategory}</Text>
-              <Text style={styles.name} numberOfLines={2} ellipsizeMode="tail">{starData.marca ? `${starData.marca} ` : ''}{starData.name}</Text>
+              <Text style={styles.name} numberOfLines={2} ellipsizeMode="tail">{starData.marca || starData.name}</Text>
               <Text style={styles.skuText} numberOfLines={1} ellipsizeMode="tail">SKU: {starData.sku}</Text>
             </View>
           </View>
