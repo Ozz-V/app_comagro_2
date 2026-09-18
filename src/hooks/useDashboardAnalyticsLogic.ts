@@ -145,6 +145,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
   }, [tab, onTabChange]);
 
   const isMounted = React.useRef(true);
+  const fetchCounter = React.useRef(0);
   useEffect(() => {
     isMounted.current = true;
     return () => { isMounted.current = false; };
@@ -176,6 +177,8 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
 
   async function loadData() {
     if (!isMounted.current) return;
+    fetchCounter.current += 1;
+    const currentFetch = fetchCounter.current;
     setLoading(true);
     let currentIsAdmin = isAdmin;
     try {
@@ -185,9 +188,9 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
       const parsedMyData = cachedMyData ? JSON.parse(cachedMyData) : null;
       const parsedGlobalData = cachedGlobalData ? JSON.parse(cachedGlobalData) : null;
 
-      if (parsedMyData && isMounted.current) setMyData(parsedMyData);
-      if (parsedGlobalData && isMounted.current) setGlobalData(parsedGlobalData);
-      if (parsedMyData && parsedGlobalData && isMounted.current) {
+      if (parsedMyData && isMounted.current && currentFetch === fetchCounter.current) setMyData(parsedMyData);
+      if (parsedGlobalData && isMounted.current && currentFetch === fetchCounter.current) setGlobalData(parsedGlobalData);
+      if (parsedMyData && parsedGlobalData && isMounted.current && currentFetch === fetchCounter.current) {
         setLoading(false);
       }
 
@@ -256,7 +259,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         brands: countByKey(myRows, (i: any) => productBrandMap[i.sku || i.modelo] || i.marca, 5),
       };
       const myMetrics = computeChartMetrics(myRows);
-      if (isMounted.current) {
+      if (isMounted.current && currentFetch === fetchCounter.current) {
         setMyData(finalMyData);
         setMyChartMetrics(myMetrics);
         setGlobalRawData(myRows); // para el PDF de mi actividad
@@ -320,7 +323,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         users: topUsers,
       };
 
-      if (isMounted.current) {
+      if (isMounted.current && currentFetch === fetchCounter.current) {
         setGlobalData(gd);
         setGlobalChartMetrics(EMPTY_CHART);
       }

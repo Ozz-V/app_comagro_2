@@ -1,6 +1,6 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { documentDirectory, moveAsync } from 'expo-file-system';
+import { documentDirectory, moveAsync } from 'expo-file-system/legacy';
 import { APP_CONSTANTS } from '../config/constants';
 import { supabase } from '../supabase';
 import { getTemplate, renderTemplate } from '../services/templateService';

@@ -141,7 +141,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
             }
           } catch (e: any) {
               console.error('Error al generar PDF de usuarios', e);
-              alert("Error generando PDF: " + (e?.message || JSON.stringify(e)));
+              showAlert('Error de Generación', 'No se pudo generar el reporte: ' + (e?.message || JSON.stringify(e)));
             } finally {
             setIsGeneratingGrid(false);
           }
