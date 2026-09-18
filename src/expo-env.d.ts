@@ -23,3 +23,7 @@ declare module 'expo-notifications' {
   export function setNotificationChannelAsync(channelId: string, channel: any): Promise<void>;
   export const AndroidImportance: { MAX: number, HIGH: number, DEFAULT: number, LOW: number, MIN: number };
 }
+declare module 'expo-file-system' {
+  export const documentDirectory: string | null;
+  export function moveAsync(options: { from: string, to: string }): Promise<void>;
+}

@@ -132,7 +132,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
           try {
             const pLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Ultimos 7 dias' : period === '30d' ? 'Ultimos 30 dias' : 'Todo el tiempo';
             const { generateUserGridPdf } = await import('../utils/pdfGridReport');
-            const uri = await generateUserGridPdf(emails, globalRawData, directoryUsers || [], pLabel);
+            const uri = await generateUserGridPdf(emails, globalRawData, directoryUsers || [], pLabel, imageMap, productBrandMap);
             const { isAvailableAsync, shareAsync } = await import('expo-sharing');
             if (await isAvailableAsync()) {
               await shareAsync(uri, { dialogTitle: 'Reporte Usuarios' });
