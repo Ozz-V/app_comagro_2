@@ -68,7 +68,6 @@ export default function StarProductPanel() {
       onPress={() => starData && navigation.navigate('ProductViewer', { sku: starData.sku })}
     >
       <View style={styles.header}>
-        <SvgXml xml={TrophyIcon} />
         <Text style={styles.title}>Producto Estrella</Text>
       </View>
 
@@ -76,26 +75,28 @@ export default function StarProductPanel() {
         <Text style={styles.empty}>Calculando tendencias...</Text>
       ) : (
         <>
-          <View style={styles.gridRow}>
-            <View style={styles.imgWrapper}>
+          <View style={[styles.gridRow, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }]}>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <SvgXml xml={TrophyIcon} width="40" height="40" />
+            </View>
+            <View style={{ flex: 1, alignItems: 'center' }}>
               <Image
                 source={{ uri: starData.img || `https://ui-avatars.com/api/?name=${encodeURIComponent(starData.sku.substring(0, 2))}&background=E8ECF0&color=1A2530` }}
-                style={styles.img}
+                style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#E8ECF0' }}
                 contentFit="contain"
               />
             </View>
-
-            <View style={styles.content}>
+            <View style={{ flex: 1.5, alignItems: 'flex-start', paddingLeft: 10 }}>
               {!!starData.subcategory && (
                 <Text style={styles.typeText} numberOfLines={1} ellipsizeMode="tail">
                   {starData.subcategory}
                 </Text>
               )}
-              <Text style={styles.name} numberOfLines={2} ellipsizeMode="tail">
-                {starData.marca}
+              <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+                {starData.sku}
               </Text>
               <Text style={styles.skuText} numberOfLines={1} ellipsizeMode="tail">
-                SKU: {starData.sku}
+                {starData.marca}
               </Text>
             </View>
           </View>

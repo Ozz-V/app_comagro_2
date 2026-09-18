@@ -125,9 +125,11 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
         isGenerating={isGeneratingGrid}
         onGenerateGlobal={() => {
           setShowUserReportModal(false);
-          generatePdfReport();
+          setTimeout(() => { generatePdfReport(); }, 500);
         }}
         onGenerateGrid={async (emails) => {
+          setShowUserReportModal(false);
+          setTimeout(async () => {
           setIsGeneratingGrid(true);
           try {
             const pLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Ultimos 7 dias' : period === '30d' ? 'Ultimos 30 dias' : 'Todo el tiempo';
@@ -141,8 +143,8 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
             console.error('Error al generar PDF de usuarios', e);
           } finally {
             setIsGeneratingGrid(false);
-            setShowUserReportModal(false);
           }
+          }, 500);
         }}
       />
     </View>

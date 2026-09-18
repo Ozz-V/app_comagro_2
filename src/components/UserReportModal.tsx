@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity,
-  FlatList, TextInput, ActivityIndicator, SafeAreaView
+  Modal, View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, ActivityIndicator, Platform
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { SvgXml } from 'react-native-svg';
 import { COLORS, FONTS } from '../theme';
@@ -83,7 +83,7 @@ export function UserReportModal({ visible, onClose, users, onGenerateGlobal, onG
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { paddingTop: Platform.OS === 'android' ? 35 : 0 }]} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.headerBtn} disabled={isGenerating}>
             <Text style={styles.headerBtnText}>Cancelar</Text>
