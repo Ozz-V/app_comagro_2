@@ -163,7 +163,13 @@ describe('useDashboardAnalyticsLogic', () => {
         o.then = (resolve: any) => resolve({ data: rowsFor([{}, {}]), error: null });
         return o;
       });
-      (supabase.rpc as jest.Mock).mockResolvedValue({ data: rowsFor([{}, {}]), error: null });
+      (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+          if (rpcName === 'get_global_kpis') return Promise.resolve({ data: [{ views: 10, shares: 5, active_users: 2 }], error: null });
+          if (rpcName === 'get_top_products_by_period') return Promise.resolve({ data: [{ modelo: 'A', views: 5, shares: 2 }], error: null });
+          if (rpcName === 'get_top_brands_by_period') return Promise.resolve({ data: [{ marca: 'B', views: 5, shares: 2 }], error: null });
+          if (rpcName === 'get_top_users_by_period') return Promise.resolve({ data: [{ user_email: 'x@x.com', views: 5, shares: 2 }], error: null });
+          return Promise.resolve({ data: [], error: null });
+        });
 
       const { result } = await renderHook(() => useDashboardAnalyticsLogic());
 
@@ -183,13 +189,19 @@ describe('useDashboardAnalyticsLogic', () => {
         o.then = (resolve: any) => resolve({ data: rowsFor([{}]), error: null });
         return o;
       });
-      (supabase.rpc as jest.Mock).mockResolvedValue({ data: rowsFor([{}, {}]), error: null });
+      (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+          if (rpcName === 'get_global_kpis') return Promise.resolve({ data: [{ views: 10, shares: 5, active_users: 2 }], error: null });
+          if (rpcName === 'get_top_products_by_period') return Promise.resolve({ data: [{ modelo: 'A', views: 5, shares: 2 }], error: null });
+          if (rpcName === 'get_top_brands_by_period') return Promise.resolve({ data: [{ marca: 'B', views: 5, shares: 2 }], error: null });
+          if (rpcName === 'get_top_users_by_period') return Promise.resolve({ data: [{ user_email: 'x@x.com', views: 5, shares: 2 }], error: null });
+          return Promise.resolve({ data: [], error: null });
+        });
 
       const { result } = await renderHook(() => useDashboardAnalyticsLogic());
 
       await waitFor(() => expect(result.current.loading).toBe(false));
       expect(result.current.isAdmin).toBe(false);
-      expect(supabase.rpc).toHaveBeenCalledWith('get_global_analytics_rows', expect.anything());
+      expect(supabase.rpc).toHaveBeenCalledWith('get_global_kpis', expect.anything());
       expect(result.current.globalData.views).toBeGreaterThan(0);
     });
 

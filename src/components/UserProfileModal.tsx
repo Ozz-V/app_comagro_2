@@ -65,6 +65,9 @@ export default function UserProfileModal({ visible, onClose, loadingUser, select
                   <StatCard number={selectedUser.stats.views} label="Vistas" color={COLORS.navy} />
                   <StatCard number={selectedUser.stats.shares} label="Compartidos" color={COLORS.green} />
                 </View>
+                <Text style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.gray4, marginTop: 8, textAlign: 'center', opacity: 0.7 }}>
+                  Datos correspondientes a los últimos 30 días
+                </Text>
               </View>
             ) : null}
           </View>

@@ -2,6 +2,8 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { documentDirectory, moveAsync } from 'expo-file-system';
 import { APP_CONSTANTS } from '../config/constants';
+import { supabase } from '../supabase';
+import { getTemplate, renderTemplate } from '../services/templateService';
 
 function getPeakHour(rows: any[]) {
   if (!rows || rows.length === 0) return 'Sin actividad';
@@ -75,7 +77,25 @@ export async function generateUserGridPdf(
     pDate = new Date(0);
   }
   
-  const filteredData = globalRawData.filter(r => new Date(r.created_at).getTime() >= pDate.getTime());
+  // Fetch fresh data directly for these users
+  const chunkSize = 50;
+  let allRawData: any[] = [];
+  
+  for (let i = 0; i < selectedEmails.length; i += chunkSize) {
+    const chunk = selectedEmails.slice(i, i + chunkSize);
+    const { data, error } = await supabase
+      .from('producto_analytics')
+      .select('modelo,marca,sku,action,user_email,created_at')
+      .in('user_email', chunk)
+      .gte('created_at', pDate.toISOString())
+      .limit(20000); // safety limit per chunk
+      
+    if (!error && data) {
+      allRawData = allRawData.concat(data);
+    }
+  }
+  
+  const filteredData = allRawData;
 
   const usersData = selectedEmails.map(email => {
     const rows = filteredData.filter(r => r.user_email === email);
@@ -175,86 +195,15 @@ export async function generateUserGridPdf(
     `;
   });
 
-  const html = `
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <meta charset="utf-8" />
-    <style>
-      @page { size: A4 portrait; margin: 15mm; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #FAFBFC; color: #1A2530; }
-      
-      .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #0D8A39; padding-bottom: 15px; margin-bottom: 25px; }
-      .title-box h1 { margin: 0; font-size: 26px; color: #1A2530; font-weight: 800; letter-spacing: -0.5px; }
-      .title-box p { margin: 6px 0 0 0; font-size: 13px; color: #6B778C; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-      .logo { max-height: 40px; object-fit: contain; }
-      
-      .cards-container { display: flex; flex-direction: column; gap: 24px; }
-      
-      .card { background: #FFFFFF; border: 1px solid #DFE1E6; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(9, 30, 66, 0.05); page-break-inside: avoid; }
-      
-      .card-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; border-bottom: 1px solid #F4F5F7; padding-bottom: 16px; position: relative; }
-      .avatar { width: 44px; height: 44px; border-radius: 22px; background: #0D8A39; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; }
-      .user-info { flex: 1; min-width: 0; }
-      .card-name { font-size: 18px; font-weight: 800; color: #172B4D; margin-bottom: 3px; }
-      .card-email { font-size: 13px; color: #6B778C; }
-      
-      .peak-badge { display: flex; align-items: center; gap: 6px; background: #FFF9E6; border: 1px solid #FFE380; color: #42526E; font-size: 12px; padding: 6px 12px; border-radius: 20px; position: absolute; right: 0; top: 0; }
-      
-      .kpi-container { display: flex; gap: 16px; margin-bottom: 20px; }
-      .kpi-box { flex: 1; padding: 14px 10px; border-radius: 10px; text-align: center; }
-      .kpi-box.views { background: #E6F4FB; border: 1px solid #B3DDF2; }
-      .kpi-box.shares { background: #E8F5E9; border: 1px solid #C8E6C9; }
-      .kpi-box.details { background: #F4F5F7; border: 1px solid #DFE1E6; }
-      
-      .kpi-val { font-size: 24px; font-weight: 900; line-height: 1; margin-bottom: 6px; }
-      .kpi-box.views .kpi-val { color: #007DB8; }
-      .kpi-box.shares .kpi-val { color: #0D8A39; }
-      .kpi-box.details .kpi-val { color: #42526E; }
-      .kpi-label { font-size: 11px; font-weight: 800; color: #5E6C84; text-transform: uppercase; letter-spacing: 0.5px; }
-      
-      .lists-wrapper { display: flex; gap: 20px; }
-      .list-column { flex: 1; border: 1px solid #DFE1E6; border-radius: 10px; overflow: hidden; }
-      .list-header { background: #F4F5F7; font-size: 12px; font-weight: 800; color: #172B4D; text-transform: uppercase; padding: 10px 14px; border-bottom: 1px solid #DFE1E6; }
-      
-      .list-body { padding: 10px 14px; }
-      .list-item { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; border-bottom: 1px dashed #EBECF0; padding-bottom: 12px; }
-      .list-item:last-child { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
-      
-      .rank { font-size: 14px; font-weight: 900; color: #B3BAC5; width: 16px; text-align: center; }
-      .item-img { width: 36px; height: 36px; border-radius: 6px; object-fit: cover; border: 1px solid #DFE1E6; background: #fff; }
-      .brand-img { width: 44px; height: 28px; border-radius: 4px; object-fit: contain; background: #fff; padding: 2px; border: 1px solid #DFE1E6; }
-      
-      .item-text { flex: 1; min-width: 0; }
-      .item-name { font-size: 13px; font-weight: 800; color: #172B4D; margin-bottom: 2px; }
-      .item-sub { font-size: 11px; color: #6B778C; }
-      
-      .item-count-box { font-size: 12px; font-weight: 800; color: #0D8A39; background: #E8F5E9; padding: 4px 8px; border-radius: 6px; border: 1px solid #C8E6C9; }
-      
-      .empty-state { font-size: 12px; color: #A5ADBA; text-align: center; padding: 20px 0; font-style: italic; }
-      
-      .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #8993A4; border-top: 1px solid #DFE1E6; padding-top: 16px; }
-    </style>
-  </head>
-  <body>
-    <div class="header">
-      <div class="title-box">
-        <h1>Reporte de Actividad por Usuario</h1>
-        <p>Periodo Analizado: ${periodLabel}</p>
-      </div>
-      <img class="logo" src="https://comagro.com.bo/static/media/logo-comagro.84d53ed4.png" onerror="this.style.display='none'" />
-    </div>
-    
-    <div class="cards-container">
-      ${cardsHtml}
-    </div>
-    
-    <div class="footer">
-      Generado automÃƒÂ¡ticamente desde Comagro App | ${new Date().toLocaleString()}
-    </div>
-  </body>
-  </html>
-  `;
+  
+  const templateObj = await getTemplate('user_grid_report');
+  const html = renderTemplate(templateObj.html, {
+    reportTitle: 'Reporte de Usuarios',
+    periodLabel: periodLabel,
+    logoUrl: 'https://www.chacomer.com.py/media/wysiwyg/comagro/ISOLOGO_COMAGRO_COLOR.png',
+    cardsHtml: cardsHtml,
+    footerText: `Generado automáticamente desde Comagro App | ${new Date().toLocaleString()}`
+  });
 
   try {
     const { uri } = await Print.printToFileAsync({ html, base64: false });

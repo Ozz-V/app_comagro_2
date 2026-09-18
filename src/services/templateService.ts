@@ -3,7 +3,7 @@ import { supabase } from '../supabase';
 
 const CACHE_PREFIX = '@pdf_template_cache_v1_';
 
-export type TemplateId = 'stats_report' | 'product_sheet';
+export type TemplateId = 'stats_report' | 'product_sheet' | 'user_grid_report';
 
 export interface PdfTemplate {
   version: string;
@@ -129,6 +129,67 @@ export const DEFAULT_TEMPLATES: Record<TemplateId, PdfTemplate> = {
 </body>
 </html>`,
   },
+  user_grid_report: {
+    version: '1.0',
+    html: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page { size: A4 portrait; margin: 15mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #FAFBFC; color: #1A2530; }
+    .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #0D8A39; padding-bottom: 15px; margin-bottom: 25px; }
+    .title-box h1 { margin: 0; font-size: 26px; color: #1A2530; font-weight: 800; letter-spacing: -0.5px; }
+    .title-box p { margin: 6px 0 0 0; font-size: 13px; color: #6B778C; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .logo { max-height: 40px; object-fit: contain; }
+    .cards-container { display: flex; flex-direction: column; gap: 24px; }
+    .card { background: #FFFFFF; border: 1px solid #DFE1E6; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(9, 30, 66, 0.05); page-break-inside: avoid; }
+    .card-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; border-bottom: 1px solid #F4F5F7; padding-bottom: 16px; position: relative; }
+    .avatar { width: 44px; height: 44px; border-radius: 22px; background: #0D8A39; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; }
+    .user-info { flex: 1; min-width: 0; }
+    .card-name { font-size: 18px; font-weight: 800; color: #172B4D; margin-bottom: 3px; }
+    .card-email { font-size: 13px; color: #6B778C; }
+    .peak-badge { display: flex; align-items: center; gap: 6px; background: #FFF9E6; border: 1px solid #FFE380; color: #42526E; font-size: 12px; padding: 6px 12px; border-radius: 20px; position: absolute; right: 0; top: 0; }
+    .kpi-container { display: flex; gap: 16px; margin-bottom: 20px; }
+    .kpi-box { flex: 1; padding: 14px 10px; border-radius: 10px; text-align: center; }
+    .kpi-box.views { background: #E6F4FB; border: 1px solid #B3DDF2; }
+    .kpi-box.shares { background: #E8F5E9; border: 1px solid #C8E6C9; }
+    .kpi-box.details { background: #F4F5F7; border: 1px solid #DFE1E6; }
+    .kpi-val { font-size: 24px; font-weight: 800; color: #172B4D; margin-bottom: 4px; }
+    .kpi-label { font-size: 11px; font-weight: 700; color: #5E6C84; text-transform: uppercase; letter-spacing: 0.5px; }
+    .lists-container { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .list-section { background: #FAFBFC; border-radius: 8px; padding: 16px; border: 1px solid #F4F5F7; }
+    .list-title { font-size: 12px; font-weight: 700; color: #42526E; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #DFE1E6; padding-bottom: 8px; }
+    .list-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .list-item:last-child { margin-bottom: 0; }
+    .rank { font-size: 12px; font-weight: 800; color: #97A0AF; width: 14px; }
+    .item-img, .brand-img { width: 28px; height: 28px; border-radius: 4px; background: #FFF; border: 1px solid #DFE1E6; object-fit: contain; }
+    .brand-img { object-fit: contain; padding: 2px; }
+    .item-text { flex: 1; min-width: 0; }
+    .item-name { font-size: 12px; font-weight: 700; color: #172B4D; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-sub { font-size: 10px; color: #6B778C; margin-top: 2px; text-transform: uppercase; }
+    .item-count-box { font-size: 12px; font-weight: 700; color: #007DB8; background: #E6F4FB; padding: 4px 8px; border-radius: 12px; }
+    .empty-state { font-size: 12px; color: #8A94A5; font-style: italic; text-align: center; padding: 10px 0; }
+    .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #DFE1E6; font-size: 11px; color: #8A94A5; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title-box">
+      <h1>{{reportTitle}}</h1>
+      <p>Periodo: {{periodLabel}}</p>
+    </div>
+    <img class="logo" src="{{logoUrl}}" onerror="this.style.display='none'" />
+  </div>
+  <div class="cards-container">
+    {{cardsHtml}}
+  </div>
+  <div class="footer">
+    {{footerText}}
+  </div>
+</body>
+</html>`
+  },
   stats_report: {
     version: '1.0',
     html: `<!DOCTYPE html>
@@ -200,6 +261,9 @@ const REQUIRED_PLACEHOLDERS: Record<TemplateId, string[]> = {
     '{{reportTitle}}', '{{periodLabel}}', '{{logoUrl}}', '{{viewsTotal}}',
     '{{sharesTotal}}', '{{usersKpiCardHtml}}', '{{listsGridHtml}}', '{{footerText}}',
   ],
+  user_grid_report: [
+    '{{reportTitle}}', '{{periodLabel}}', '{{logoUrl}}', '{{cardsHtml}}', '{{footerText}}'
+  ]
 };
 
 function isValidTemplate(id: TemplateId, html: string): boolean {

@@ -184,7 +184,8 @@ export default function ConfigScreen({ navigation }: { navigation: { navigate: (
       // RPC agregada: cualquier usuario (admin o no) puede ver los totales de
       // vistas/compartidos de cualquier contacto, sin necesitar leer las filas
       // crudas de producto_analytics (bloqueadas por RLS para no-admins).
-      const { data: statsRows, error: errAnalytics } = await supabase.rpc('get_user_analytics_summary', { p_email: email });
+      // Siempre mostramos los ultimos 30 dias en Contactos para contexto relevante
+        const { data: statsRows, error: errAnalytics } = await supabase.rpc('get_user_analytics_summary_by_period', { p_email: email, p_period: '30d' });
 
       if (errProfile || errAnalytics) throw new Error('Network fail');
 

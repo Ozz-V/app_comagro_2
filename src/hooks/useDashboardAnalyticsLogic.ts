@@ -212,86 +212,121 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
       const user = session?.user;
       if (!user) return;
 
-      const pDate = getPeriodDate(period);
-      const prevPDate = getPrevPeriodDate(period);
+      // -----------------------------------------------------------------------
+      // Nueva arquitectura: el servidor agrupa y cuenta. El cliente solo muestra.
+      // Esto garantiza que "Hoy", "7d", "30d" y "Todo" siempre muestren datos
+      // reales independientemente del volumen historico de registros.
+      // -----------------------------------------------------------------------
 
-      let qMy = supabase.from('producto_analytics').select('modelo,marca,sku,action,user_email,created_at').eq('user_email', user.email).order('created_at', { ascending: false }).limit(50000);
-      if (prevPDate) qMy = qMy.gte('created_at', prevPDate);
-      else if (pDate) qMy = qMy.gte('created_at', pDate);
-      
-      const { data: myCur } = await qMy;
-      const my = myCur || [];
+      // KPIs personales del usuario actual
+      const [myKpisRes, myTopProdsRes, myTopBrandsRes] = await Promise.all([
+        supabase.rpc('get_global_kpis', { p_period: period === 'today' ? 'today' : period === '7d' ? '7d' : period === '30d' ? '30d' : 'all' })
+          .then(r => r),
+        supabase.rpc('get_top_products_by_period', { p_period: period === 'today' ? 'today' : period === '7d' ? '7d' : period === '30d' ? '30d' : 'all', p_limit: 10 }),
+        supabase.rpc('get_top_brands_by_period', { p_period: period === 'today' ? 'today' : period === '7d' ? '7d' : period === '30d' ? '30d' : 'all', p_limit: 8 }),
+      ]);
 
-      const process = (items: any[], limit: number, brandLimit: number = 5): DashboardData => {
-        let currItems = items;
-        let prevItems: any[] = [];
-        
-        if (pDate && prevPDate) {
-          currItems = items.filter(d => new Date(d.created_at).getTime() >= new Date(pDate).getTime());
-          prevItems = items.filter(d => new Date(d.created_at).getTime() >= new Date(prevPDate).getTime() && new Date(d.created_at).getTime() < new Date(pDate).getTime());
-        } else if (pDate) {
-          currItems = items.filter(d => new Date(d.created_at).getTime() >= new Date(pDate).getTime());
-        }
+      // Para "Mi Actividad": filtrar resultados por user_email del usuario actual
+      // usando get_global_analytics_rows con limite reducido (solo mis filas)
+      const myPeriodParam = period === 'today' ? 'today' : period;
+      const { data: myRaw } = await supabase
+        .from('producto_analytics')
+        .select('modelo,marca,sku,action,created_at')
+        .eq('user_email', user.email)
+        .gte('created_at', period === 'today'
+          ? new Date(new Date().setHours(0,0,0,0)).toISOString()
+          : period === '7d'
+            ? new Date(Date.now() - 7*24*60*60*1000).toISOString()
+            : period === '30d'
+              ? new Date(Date.now() - 30*24*60*60*1000).toISOString()
+              : '1970-01-01T00:00:00Z'
+        )
+        .order('created_at', { ascending: false })
+        .limit(10000);
 
-        const views = currItems.filter(d => d.action === 'view');
-        const shares = currItems.filter(d => d.action === 'share_pdf' || d.action === 'share_image');
-        const prevViews = prevItems.filter(d => d.action === 'view');
-        const prevShares = prevItems.filter(d => d.action === 'share_pdf' || d.action === 'share_image');
+      const myRows = myRaw || [];
+      const myViews = myRows.filter((d: any) => d.action === 'view');
+      const myShares = myRows.filter((d: any) => d.action === 'share_pdf' || d.action === 'share_image');
 
-        return {
-          views: views.length, 
-          shares: shares.length,
-          prevViews: prevViews.length,
-          prevShares: prevShares.length,
-          topV: countByKey(views, i => i.sku || i.modelo, limit),
-          topSh: countByKey(shares, i => i.sku || i.modelo, limit),
-          brands: countByKey(currItems, i => productBrandMap[i.sku || i.modelo] || i.marca, brandLimit)
-        };
+      const finalMyData: DashboardData = {
+        views: myViews.length,
+        shares: myShares.length,
+        topV: countByKey(myViews, (i: any) => i.sku || i.modelo, 5),
+        topSh: countByKey(myShares, (i: any) => i.sku || i.modelo, 5),
+        brands: countByKey(myRows, (i: any) => productBrandMap[i.sku || i.modelo] || i.marca, 5),
       };
-
-      const finalMyData = process(my, 5, 5);
-      // Compute chart metrics from the raw period-filtered rows (not the aggregate)
-      let myCurrItems = my;
-      if (pDate) myCurrItems = my.filter((d: any) => new Date(d.created_at).getTime() >= new Date(pDate).getTime());
-      const myMetrics = computeChartMetrics(myCurrItems);
+      const myMetrics = computeChartMetrics(myRows);
       if (isMounted.current) {
         setMyData(finalMyData);
         setMyChartMetrics(myMetrics);
+        setGlobalRawData(myRows); // para el PDF de mi actividad
       }
-      // Fix: use period-specific cache key (bug was using @analytics_my_all always)
       AsyncStorage.setItem(`@analytics_my_${period}`, JSON.stringify(finalMyData));
 
-      {
-        // Antes esto solo se pedía "if (currentIsAdmin)", así que cualquier
-        // usuario normal que entraba a la pestaña General/Contactos veía todo
-        // en 0. Ahora se pide para todos los usuarios a través de una función
-        // agregada (get_global_analytics_rows) que no depende de RLS por fila.
-        const sinceParam = prevPDate || pDate || null;
-        const { data: allData } = await supabase.rpc('get_global_analytics_rows', { p_since: sinceParam });
-        const all = allData || [];
+      // KPIs globales y tops desde el servidor (ya agrupados)
+      const topProds: AnalyticsRankItem[] = (myTopProdsRes.data || []).map((r: any) => ({
+        modelo: r.modelo,
+        marca: r.marca,
+        sku: r.sku,
+        count: Number(r.views) + Number(r.shares),
+        action: 'view',
+        user_email: '',
+        created_at: '',
+      }));
+      const topBrands: AnalyticsRankItem[] = (myTopBrandsRes.data || []).map((r: any) => ({
+        modelo: r.marca,
+        marca: r.marca,
+        sku: r.marca,
+        count: Number(r.views) + Number(r.shares),
+        action: 'view',
+        user_email: '',
+        created_at: '',
+      }));
 
-        const gd = process(all, 10, 8);
-        if (isMounted.current) setGlobalRawData(all);
-        let currGlobal = all;
-        if (pDate) currGlobal = all.filter((d: any) => new Date(d.created_at).getTime() >= new Date(pDate).getTime());
+      // Top usuarios
+      const { data: topUsersData } = await supabase.rpc('get_top_users_by_period', {
+        p_period: period === 'today' ? 'today' : period === '7d' ? '7d' : period === '30d' ? '30d' : 'all',
+        p_limit: 8,
+      });
 
-        // Un usuario no-admin nunca debe ver a un admin listado en ningún
-        // ranking, tampoco en el top de "usuarios" de esta pestaña General.
-        let usersForRanking = currGlobal;
-        if (!currentIsAdmin) {
-          const { data: admins } = await supabase.from('profiles').select('email').eq('role', 'admin');
-          const adminEmails = new Set((admins || []).map((a: any) => a.email));
-          usersForRanking = currGlobal.filter((i: any) => !adminEmails.has(i.user_email));
-        }
-        gd.users = countByKey(usersForRanking.filter((i: any) => i.user_email !== 'offline_user'), (i: any) => i.user_email, 8).map((u: any) => ({ ...u, user_email: u.user_email, modelo: u.user_email }));
-        
-        const globalMetrics = computeChartMetrics(currGlobal);
-        if (isMounted.current) {
-          setGlobalData(gd);
-          setGlobalChartMetrics(globalMetrics);
-        }
-        AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
+      let topUsers = (topUsersData || [])
+        .filter((u: any) => u.user_email !== 'offline_user')
+        .map((u: any) => ({
+          modelo: u.user_email,
+          marca: '',
+          sku: u.user_email,
+          user_email: u.user_email,
+          count: Number(u.views) + Number(u.shares),
+          action: 'view',
+          created_at: '',
+        }));
+
+      if (!currentIsAdmin) {
+        const { data: admins } = await supabase.from('profiles').select('email').eq('role', 'admin');
+        const adminEmails = new Set((admins || []).map((a: any) => a.email));
+        topUsers = topUsers.filter((u: any) => !adminEmails.has(u.user_email));
       }
+
+      const kpisRow = Array.isArray(myKpisRes.data) ? myKpisRes.data[0] : myKpisRes.data;
+      const globalViews = Number(kpisRow?.views || 0);
+      const globalShares = Number(kpisRow?.shares || 0);
+
+      const gd: DashboardData = {
+        views: globalViews,
+        shares: globalShares,
+        topV: topProds.slice(0, 10),
+        topSh: topProds.slice(0, 10),
+        brands: topBrands,
+        users: topUsers,
+      };
+
+      if (isMounted.current) {
+        setGlobalData(gd);
+        setGlobalChartMetrics(EMPTY_CHART);
+      }
+      AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
+
+      void myPeriodParam; // silence unused warning
     } catch (e: unknown) {
       Sentry.captureException(e);
     } finally {
@@ -360,7 +395,8 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         tab === 'general' && d.users && d.users.length > 0 ? `<div class="list-card"><div class="list-title">Top Usuarios</div><div class="list-items">${renderList(d.users, maxU, 'usuarios')}</div></div>` : '',
       ].join('');
 
-      const html = renderTemplate(statsTemplate.html, {
+      // Force remove chart-box from HTML string if it exists in the cached remote template
+            const html = renderTemplate(statsTemplate.html, {
         reportTitle: `Reporte de Estadísticas - ${tab === 'mine' ? 'Mi Actividad' : 'General'}`,
         periodLabel: pLabel,
         periodLabelShort: pPeriodLabel,
