@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { supabase } from '../../supabase';
 import { useFeaturesStore } from '../../store/useFeaturesStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SvgXml } from 'react-native-svg';
+import * as Sentry from '@sentry/react-native';
 import { COLORS, FONTS } from '../../theme';
+import UserProfileModal from '../UserProfileModal';
 
 const CACHE_KEY = '@historial_most_active_user_v1';
 
@@ -16,6 +18,7 @@ interface ActiveUser {
   email: string;
   full_name: string;
   avatar_url: string | null;
+  telefono?: string | null;
   views: number;
   shares: number;
 }
@@ -23,6 +26,12 @@ interface ActiveUser {
 export default function MostActiveUserPanel() {
   const { isFeatureEnabled } = useFeaturesStore();
   const [user, setUser] = useState<ActiveUser | null>(null);
+
+  // Estado para el modal de perfil: mismo flujo que al abrir un contacto
+  // desde el Directorio de Contactos (UserProfileModal + get_user_analytics_summary).
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [loadingUser, setLoadingUser] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -41,7 +50,7 @@ export default function MostActiveUserPanel() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, avatar_url')
+        .select('full_name, avatar_url, telefono')
         .eq('email', top.user_email)
         .maybeSingle();
 
@@ -49,6 +58,7 @@ export default function MostActiveUserPanel() {
         email: top.user_email,
         full_name: profile?.full_name || top.user_email,
         avatar_url: profile?.avatar_url || null,
+        telefono: profile?.telefono || null,
         views: Number(top.views || 0),
         shares: Number(top.shares || 0),
       };
@@ -58,6 +68,48 @@ export default function MostActiveUserPanel() {
     };
     load();
   }, []);
+
+  // Abre el mismo modal de perfil que se usa desde el Directorio de Contactos,
+  // con la misma fuente de datos (get_user_analytics_summary), para que
+  // tocar al usuario más activo se sienta idéntico a abrir ese contacto.
+  const handleOpenProfile = async () => {
+    if (!user) return;
+    setShowUserModal(true);
+    setLoadingUser(true);
+    setSelectedUser({
+      email: user.email,
+      full_name: user.full_name,
+      telefono: user.telefono || '',
+      avatar_url: user.avatar_url,
+      stats: { views: user.views, shares: user.shares }
+    });
+
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, telefono, email')
+        .eq('email', user.email)
+        .maybeSingle();
+
+      const { data: statsRows } = await supabase.rpc('get_user_analytics_summary', { p_email: user.email });
+      const statsRow = Array.isArray(statsRows) ? statsRows[0] : statsRows;
+
+      setSelectedUser({
+        email: user.email,
+        full_name: profile?.full_name || user.full_name,
+        telefono: profile?.telefono || '',
+        avatar_url: profile?.avatar_url || user.avatar_url,
+        stats: {
+          views: Number(statsRow?.views ?? user.views),
+          shares: Number(statsRow?.shares ?? user.shares),
+        }
+      });
+    } catch (e) {
+      Sentry.captureException(e);
+    } finally {
+      setLoadingUser(false);
+    }
+  };
 
   if (!isFeatureEnabled('usuario_mas_activo') || !user) return null;
 
@@ -70,7 +122,7 @@ export default function MostActiveUserPanel() {
         <Text style={styles.title}>Usuario Más Activo</Text>
       </View>
 
-      <View style={styles.row}>
+      <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={handleOpenProfile}>
         <Image source={{ uri: user.avatar_url || fallbackAvatar }} style={styles.avatar} />
         <View style={styles.info}>
           <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{user.full_name}</Text>
@@ -85,7 +137,15 @@ export default function MostActiveUserPanel() {
             </View>
           </View>
         </View>
-      </View>
+        <Text style={styles.chevron}>›</Text>
+      </TouchableOpacity>
+
+      <UserProfileModal
+        visible={showUserModal}
+        onClose={() => setShowUserModal(false)}
+        loadingUser={loadingUser}
+        selectedUser={selectedUser}
+      />
     </View>
   );
 }
@@ -109,4 +169,5 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   statChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.bg, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 8 },
   statText: { fontFamily: FONTS.bodySemi, fontSize: 11, color: COLORS.navy },
+  chevron: { fontSize: 20, color: COLORS.gray4, marginLeft: 4 },
 });
