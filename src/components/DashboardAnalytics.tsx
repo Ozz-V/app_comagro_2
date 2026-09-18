@@ -139,9 +139,10 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
             if (await isAvailableAsync()) {
               await shareAsync(uri, { dialogTitle: 'Reporte Usuarios' });
             }
-          } catch (e) {
-            console.error('Error al generar PDF de usuarios', e);
-          } finally {
+          } catch (e: any) {
+              console.error('Error al generar PDF de usuarios', e);
+              alert("Error generando PDF: " + (e?.message || JSON.stringify(e)));
+            } finally {
             setIsGeneratingGrid(false);
           }
           }, 500);
