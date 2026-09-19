@@ -452,9 +452,11 @@ const styles = StyleSheet.create({
   modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   modalTitle: { fontFamily: FONTS.heading, fontSize: 18, fontWeight: '700', color: COLORS.navy, flex: 1, letterSpacing: 0.5 },
   modalClose: { fontFamily: FONTS.bodySemi, fontSize: 13, color: COLORS.navy },
-  navBtnLeft: { position: 'absolute', left: 5, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 30 },
-  navBtnRight: { position: 'absolute', right: 5, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 30 },
-  navBtnText: { fontSize: 40, color: COLORS.white, fontWeight: 'bold' },
+  // Sin fondo ni sombra -- solo la flecha, en el azul de la marca, para que
+  // se vea sobre el fondo blanco del modal sin la caja gris que traía antes.
+  navBtnLeft: { position: 'absolute', left: 5, padding: 10 },
+  navBtnRight: { position: 'absolute', right: 5, padding: 10 },
+  navBtnText: { fontSize: 40, color: COLORS.navy, fontWeight: 'bold' },
 
   tabsWrap: { flexDirection: 'row', borderBottomWidth: 2, borderBottomColor: '#edf1f5', marginBottom: 0 },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center' },
