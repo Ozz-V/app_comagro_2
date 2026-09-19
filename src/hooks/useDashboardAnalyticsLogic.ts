@@ -218,12 +218,30 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         supabase.rpc('get_user_daily_views_by_period', { p_email: user.email, p_period: periodParam }),
       ]);
 
-      const mapProdRow = (r: any): AnalyticsRankItem => ({
+      // Dos mappers separados a propósito: "Top Vistos" debe mostrar la
+      // cantidad de VISTAS de cada producto, y "Top Compartidos" la
+      // cantidad de VECES COMPARTIDO -- no un número combinado de
+      // vistas+compartidos en ambas tarjetas (bug real detectado por el
+      // test "separa vistas y compartidos, y calcula el top de
+      // productos": un producto con 2 vistas y 2 compartidos debe mostrar
+      // count=2 en "Top Vistos", no 4).
+      const mapViewedRow = (r: any): AnalyticsRankItem => ({
         modelo: r.modelo,
         marca: r.marca,
         sku: r.sku,
-        count: Number(r.views) + Number(r.shares),
+        count: Number(r.views),
       });
+      const mapSharedRow = (r: any): AnalyticsRankItem => ({
+        modelo: r.modelo,
+        marca: r.marca,
+        sku: r.sku,
+        count: Number(r.shares),
+      });
+      // Las marcas sí muestran un total combinado (vistas+compartidos) a
+      // propósito: hay una sola sección "Top Marcas", no una separada por
+      // vistas y otra por compartidos, así que el número representa
+      // "interacción total" con esa marca -- mismo criterio que ya usaba
+      // esta pantalla antes de esta refactorización.
       const mapBrandRow = (r: any): AnalyticsRankItem => ({
         modelo: r.marca,
         marca: r.marca,
@@ -235,8 +253,8 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
       const finalMyData: DashboardData = {
         views: Number(myKpiRow?.views || 0),
         shares: Number(myKpiRow?.shares || 0),
-        topV: (myTopViewedRes.data || []).map(mapProdRow),
-        topSh: (myTopSharedRes.data || []).map(mapProdRow),
+        topV: (myTopViewedRes.data || []).map(mapViewedRow),
+        topSh: (myTopSharedRes.data || []).map(mapSharedRow),
         brands: (myTopBrandsRes.data || []).map(mapBrandRow),
       };
       const myMetrics = computeChartMetricsFromDaily(myDailyRes.data || []);
@@ -283,8 +301,8 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
       const gd: DashboardData = {
         views: globalViews,
         shares: globalShares,
-        topV: (topViewedRes.data || []).map(mapProdRow),
-        topSh: (topSharedRes.data || []).map(mapProdRow),
+        topV: (topViewedRes.data || []).map(mapViewedRow),
+        topSh: (topSharedRes.data || []).map(mapSharedRow),
         brands: (topBrandsRes.data || []).map(mapBrandRow),
         users: topUsers,
       };
