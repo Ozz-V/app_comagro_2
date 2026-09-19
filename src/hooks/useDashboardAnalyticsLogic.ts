@@ -223,18 +223,12 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         marca: r.marca,
         sku: r.sku,
         count: Number(r.views) + Number(r.shares),
-        action: 'view',
-        user_email: '',
-        created_at: '',
       });
       const mapBrandRow = (r: any): AnalyticsRankItem => ({
         modelo: r.marca,
         marca: r.marca,
         sku: r.marca,
         count: Number(r.views) + Number(r.shares),
-        action: 'view',
-        user_email: '',
-        created_at: '',
       });
 
       const myKpiRow = Array.isArray(myKpisRes.data) ? myKpisRes.data[0] : myKpisRes.data;
