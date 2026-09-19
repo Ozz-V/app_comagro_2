@@ -143,8 +143,8 @@ interface NotificationPayload {
   [key: string]: unknown;
 }
 
-// 2. Extracción dinámica del tipo directo de la API de Expo (Cero 'any', sin importaciones problemáticas)
-type ExpoNotificationResponse = Parameters<typeof Notifications.addNotificationResponseReceivedListener>[0];
+// 2. Extracción dinámica correcta: Obtenemos el tipo exacto que retorna getLastNotificationResponseAsync
+type ExpoNotificationResponse = NonNullable<Awaited<ReturnType<typeof Notifications.getLastNotificationResponseAsync>>>;
 
 function App() {
   const { session, isAuthenticated, isInitialized, setAuth, clearAuth, isAdmin, setIsAdmin } = useAuthStore();
