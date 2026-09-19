@@ -36,34 +36,28 @@ export default function TopProductsPanel() {
       } catch (e) {}
 
       // 2. Refresh silencioso en background
-      const { data, error } = await supabase
-        .from('producto_analytics')
-        .select('sku')
-        .eq('user_email', session.user.email)
-        .eq('action', 'view')
-        .order('created_at', { ascending: false })
-        .limit(200);
+      // Antes: traía las últimas 200 filas crudas y contaba en JS -- si el
+      // usuario tenía más de 200 vistas históricas, el top 5 real podía
+      // quedar mal (productos vistos antes de esas últimas 200 quedaban
+      // fuera del conteo). Ahora Postgres ya agrega el total real por SKU.
+      const { data, error } = await supabase.rpc('get_top_viewed_products_by_user_period', {
+        p_email: session.user.email,
+        p_period: 'all',
+        p_limit: 5,
+      });
 
       if (!error && data) {
-        const counts: Record<string, number> = {};
-        data.forEach(row => {
-          if (row.sku) counts[row.sku] = (counts[row.sku] || 0) + 1;
-        });
-
-        const topSkus = Object.keys(counts)
-          .sort((a, b) => counts[b] - counts[a])
-          .slice(0, 5);
-
         let max = 0;
         const enriched = await Promise.all(
-          topSkus.map(async (sku) => {
-            const c = counts[sku];
+          (data as any[]).map(async (row) => {
+            const sku = row.sku;
+            const c = Number(row.views);
             if (c > max) max = c;
             const prod = await getProductBySku(sku);
             return {
               sku,
               count: c,
-              name: prod ? `${prod.marca}  ${prod.modelo}` : sku,
+              name: prod ? `${prod.marca}  ${prod.modelo}` : (row.marca ? `${row.marca}  ${sku}` : sku),
               img: prod?.imagen || prod?.imagenOriginal || '',
             };
           })
