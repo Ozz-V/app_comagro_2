@@ -30,6 +30,7 @@ import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Sentry from '@sentry/react-native';
 import * as Notifications from 'expo-notifications';
+import type { NotificationResponse } from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import LoginScreen    from './src/screens/LoginScreen';
@@ -136,6 +137,13 @@ function AppWrapper() {
   );
 }
 
+// Interfaz estricta para el contenido que llega por push
+interface NotificationPayload {
+  type?: string;
+  action?: string;
+  [key: string]: unknown;
+}
+
 function App() {
   const { session, isAuthenticated, isInitialized, setAuth, clearAuth, isAdmin, setIsAdmin } = useAuthStore();
   const [showLottie, setShowLottie] = useState(true);
@@ -186,8 +194,7 @@ function App() {
   const handledNotificationIds = React.useRef(new Set<string>());
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function handleNotificationTap(data: any, notifId?: string | null) {
+    function handleNotificationTap(data: NotificationPayload | null | undefined, notifId?: string | null) {
       if (!data) return;
 
       if (notifId) {
@@ -222,7 +229,7 @@ function App() {
            });
         }
         
-        // 🚀 NUEVO: INTERCEPTOR DE ACTUALIZACIONES OTA
+        // 🚀 INTERCEPTOR DE ACTUALIZACIONES OTA
         if (data.type === 'update' || data.action === 'update') {
           DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE', { directDownload: true });
           Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
@@ -241,14 +248,16 @@ function App() {
     }
 
     // Caso: la app estaba CERRADA y se abrió tocando la notificación.
-    Notifications.getLastNotificationResponseAsync().then((response: any) => {
+    Notifications.getLastNotificationResponseAsync().then((response: NotificationResponse | null) => {
       if (!response) return;
-      handleNotificationTap(response.notification.request.content.data, response.notification.request.identifier);
+      const data = response.notification.request.content.data as NotificationPayload;
+      handleNotificationTap(data, response.notification.request.identifier);
     }).catch(() => {});
 
     // Caso: la app ya estaba abierta (foreground o background).
-    const responseListener = Notifications.addNotificationResponseReceivedListener((response: any) => {
-      handleNotificationTap(response.notification.request.content.data, response.notification.request.identifier);
+    const responseListener = Notifications.addNotificationResponseReceivedListener((response: NotificationResponse) => {
+      const data = response.notification.request.content.data as NotificationPayload;
+      handleNotificationTap(data, response.notification.request.identifier);
     });
 
     return () => {
