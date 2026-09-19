@@ -136,13 +136,6 @@ function AppWrapper() {
   );
 }
 
-// Interfaz para tipar correctamente los datos que vienen en la notificación
-interface NotificationData {
-  type?: string;
-  action?: string;
-  [key: string]: unknown;
-}
-
 function App() {
   const { session, isAuthenticated, isInitialized, setAuth, clearAuth, isAdmin, setIsAdmin } = useAuthStore();
   const [showLottie, setShowLottie] = useState(true);
@@ -193,7 +186,8 @@ function App() {
   const handledNotificationIds = React.useRef(new Set<string>());
 
   useEffect(() => {
-    function handleNotificationTap(data: NotificationData | undefined | null, notifId?: string | null) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function handleNotificationTap(data: any, notifId?: string | null) {
       if (!data) return;
 
       if (notifId) {
@@ -227,18 +221,17 @@ function App() {
               console.log("Error in background auto-sync:", err);
            });
         }
-
-        // 🚀 INTERCEPTOR DE ACTUALIZACIONES OTA
+        
+        // 🚀 NUEVO: INTERCEPTOR DE ACTUALIZACIONES OTA
         if (data.type === 'update' || data.action === 'update') {
           DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE', { directDownload: true });
           Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
-          return; // Aborta para que no navegue a 'Notificaciones'
+          return;
         }
 
         if (data.type === 'comunicado') {
           DeviceEventEmitter.emit('CHECK_COMUNICADOS');
         }
-        
         tryNavigate(() => {
           navigationRef.navigate('Notificaciones');
         });
@@ -247,15 +240,15 @@ function App() {
       Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
     }
 
-    Notifications.getLastNotificationResponseAsync().then((response: Notifications.NotificationResponse | null) => {
+    // Caso: la app estaba CERRADA y se abrió tocando la notificación.
+    Notifications.getLastNotificationResponseAsync().then((response: any) => {
       if (!response) return;
-      const data = response.notification.request.content.data as NotificationData;
-      handleNotificationTap(data, response.notification.request.identifier);
+      handleNotificationTap(response.notification.request.content.data, response.notification.request.identifier);
     }).catch(() => {});
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener((response: Notifications.NotificationResponse) => {
-      const data = response.notification.request.content.data as NotificationData;
-      handleNotificationTap(data, response.notification.request.identifier);
+    // Caso: la app ya estaba abierta (foreground o background).
+    const responseListener = Notifications.addNotificationResponseReceivedListener((response: any) => {
+      handleNotificationTap(response.notification.request.content.data, response.notification.request.identifier);
     });
 
     return () => {
