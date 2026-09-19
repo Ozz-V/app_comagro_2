@@ -165,7 +165,8 @@ describe('useDashboardAnalyticsLogic', () => {
       });
       (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
           if (rpcName === 'get_global_kpis') return Promise.resolve({ data: [{ views: 10, shares: 5, active_users: 2 }], error: null });
-          if (rpcName === 'get_top_products_by_period') return Promise.resolve({ data: [{ modelo: 'A', views: 5, shares: 2 }], error: null });
+          if (rpcName === 'get_top_viewed_products_by_period') return Promise.resolve({ data: [{ modelo: 'A', views: 5, shares: 2 }], error: null });
+          if (rpcName === 'get_top_shared_products_by_period') return Promise.resolve({ data: [{ modelo: 'A', views: 5, shares: 2 }], error: null });
           if (rpcName === 'get_top_brands_by_period') return Promise.resolve({ data: [{ marca: 'B', views: 5, shares: 2 }], error: null });
           if (rpcName === 'get_top_users_by_period') return Promise.resolve({ data: [{ user_email: 'x@x.com', views: 5, shares: 2 }], error: null });
           return Promise.resolve({ data: [], error: null });
@@ -191,7 +192,8 @@ describe('useDashboardAnalyticsLogic', () => {
       });
       (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
           if (rpcName === 'get_global_kpis') return Promise.resolve({ data: [{ views: 10, shares: 5, active_users: 2 }], error: null });
-          if (rpcName === 'get_top_products_by_period') return Promise.resolve({ data: [{ modelo: 'A', views: 5, shares: 2 }], error: null });
+          if (rpcName === 'get_top_viewed_products_by_period') return Promise.resolve({ data: [{ modelo: 'A', views: 5, shares: 2 }], error: null });
+          if (rpcName === 'get_top_shared_products_by_period') return Promise.resolve({ data: [{ modelo: 'A', views: 5, shares: 2 }], error: null });
           if (rpcName === 'get_top_brands_by_period') return Promise.resolve({ data: [{ marca: 'B', views: 5, shares: 2 }], error: null });
           if (rpcName === 'get_top_users_by_period') return Promise.resolve({ data: [{ user_email: 'x@x.com', views: 5, shares: 2 }], error: null });
           return Promise.resolve({ data: [], error: null });
@@ -228,24 +230,39 @@ describe('useDashboardAnalyticsLogic', () => {
     });
 
     it('separa vistas y compartidos, y calcula el top de productos', async () => {
-      const rows = [
-        { modelo: 'A', action: 'view' },
-        { modelo: 'A', action: 'view' },
-        { modelo: 'B', action: 'view' },
-        { modelo: 'A', action: 'share_pdf' },
-        { modelo: 'A', action: 'share_image' },
-      ];
-      (supabase.from as jest.Mock).mockImplementation((table: string) => {
-        const o: any = {};
-        ['select', 'eq', 'order', 'limit', 'gte'].forEach(m => { o[m] = jest.fn(() => o); });
-        o.then = (resolve: any) => resolve({ data: rowsFor(rows), error: null });
-        return o;
+      // "Mi Actividad" ahora se arma 100% vía RPCs agregadas en el
+      // servidor (antes traía filas crudas de producto_analytics y
+      // contaba en el cliente). Estos datos representan el mismo
+      // escenario que antes: producto A con 2 vistas y 2 compartidos
+      // (1 share_pdf + 1 share_image), producto B con 1 vista.
+      (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+        if (rpcName === 'get_user_analytics_summary_by_period') {
+          return Promise.resolve({ data: [{ views: 3, shares: 2 }], error: null });
+        }
+        if (rpcName === 'get_top_viewed_products_by_user_period') {
+          return Promise.resolve({
+            data: [
+              { modelo: 'A', marca: 'MarcaX', sku: 'A', views: 2, shares: 2 },
+              { modelo: 'B', marca: 'MarcaX', sku: 'B', views: 1, shares: 0 },
+            ],
+            error: null,
+          });
+        }
+        if (rpcName === 'get_top_shared_products_by_user_period') {
+          return Promise.resolve({
+            data: [{ modelo: 'A', marca: 'MarcaX', sku: 'A', views: 2, shares: 2 }],
+            error: null,
+          });
+        }
+        return Promise.resolve({ data: [], error: null });
       });
 
       const { result } = await renderHook(() => useDashboardAnalyticsLogic());
 
       await waitFor(() => expect(result.current.myData.views).toBe(3));
       expect(result.current.myData.shares).toBe(2);
+      // "Top Vistos" debe mostrar la cantidad de VISTAS (2), no
+      // vistas+compartidos combinado (4) -- ver fix en mapViewedRow.
       expect(result.current.myData.topV[0]).toMatchObject({ modelo: 'A', count: 2 });
     });
   });
