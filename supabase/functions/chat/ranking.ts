@@ -160,7 +160,18 @@ export function detectBlockSubmersible(lastMessage: string): boolean {
   return isMotorQuery && !hasWaterContext;
 }
 
-const ACCESSORY_REGEX = /\b(repuest|accesori|pieza|parte|impulsor|filtro|bujia|carburador|cable|aceite|arnes|arn[eé]s|chaleco|correa|funda|cintur[oó]n|ats\b|tablero de transferencia|panel de transferencia|transferencia automatica)\b/i;
+// BUG HISTORICO (corregido): antes esto usaba raices truncadas ("repuest",
+// "accesori") pensando que el \b final actuaria como comodin de sufijo.
+// \b exige una transicion letra/no-letra, no funciona como wildcard -- el
+// resultado real era que NINGUNA palabra completa matcheaba nunca
+// ("repuesto", "repuestos", "accesorio", "accesorios" daban SIEMPRE false),
+// y ademas el \b final rompia tambien el PLURAL de cualquier otra entrada ya
+// completa ("pieza" matcheaba pero "piezas" no, "filtro" si pero "filtros"
+// no, etc). isAccessoryRequest quedaba en false para el caso mas comun
+// (alguien pidiendo un repuesto con esa palabra tal cual), y el pedido
+// terminaba filtrado por el chequeo de tipo de producto en
+// dedupeAndFilterContext como si NO fuera un pedido de repuesto.
+const ACCESSORY_REGEX = /\b(repuestos?|accesorios?|piezas?|partes?|impulsor(?:es)?|filtros?|buj[ií]as?|carburador(?:es)?|cables?|aceites?|arn[eé]s(?:es)?|chalecos?|correas?|fundas?|cintur[oó]n(?:es)?|ats|tablero de transferencia|panel de transferencia|transferencia automatica)\b/i;
 
 // Contexto de reparación/rotura: única otra señal válida para permitir
 // repuestos/accesorios sin que el cliente use la palabra literal
