@@ -12,9 +12,9 @@ import { COLORS, FONTS } from '../../theme';
 
 const ShareIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${COLORS.gray4}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`;
 
-// Top de productos que el propio usuario más compartió. Usa la tabla
-// producto_analytics filtrada por su propio email: eso ya está permitido
-// por RLS para cualquier usuario (no necesita ser admin ni RPC).
+// Top de productos que el propio usuario más compartió. Agregado en el
+// servidor (get_top_shared_products_by_user_period) -- antes se traían las
+// últimas 200 filas crudas y se contaba en el cliente.
 export default function TopSharedPanel() {
   const { session } = useAuthStore();
   const { isFeatureEnabled } = useFeaturesStore();
@@ -37,34 +37,26 @@ export default function TopSharedPanel() {
         }
       } catch (e) {}
 
-      const { data, error } = await supabase
-        .from('producto_analytics')
-        .select('sku')
-        .eq('user_email', session.user.email)
-        .in('action', ['share_pdf', 'share_image'])
-        .order('created_at', { ascending: false })
-        .limit(200);
+      // Antes: últimas 200 filas crudas contadas en JS -- mismo riesgo que
+      // en TopProductsPanel si el usuario compartió más de 200 veces.
+      const { data, error } = await supabase.rpc('get_top_shared_products_by_user_period', {
+        p_email: session.user.email,
+        p_period: 'all',
+        p_limit: 5,
+      });
 
       if (!error && data) {
-        const counts: Record<string, number> = {};
-        data.forEach(row => {
-          if (row.sku) counts[row.sku] = (counts[row.sku] || 0) + 1;
-        });
-
-        const topSkus = Object.keys(counts)
-          .sort((a, b) => counts[b] - counts[a])
-          .slice(0, 5);
-
         let max = 0;
         const enriched = await Promise.all(
-          topSkus.map(async (sku) => {
-            const c = counts[sku];
+          (data as any[]).map(async (row) => {
+            const sku = row.sku;
+            const c = Number(row.shares);
             if (c > max) max = c;
             const prod = await getProductBySku(sku);
             return {
               sku,
               count: c,
-              name: prod ? `${prod.marca}  ${prod.modelo}` : sku,
+              name: prod ? `${prod.marca}  ${prod.modelo}` : (row.marca ? `${row.marca}  ${sku}` : sku),
               img: prod?.imagen || prod?.imagenOriginal || '',
             };
           })
