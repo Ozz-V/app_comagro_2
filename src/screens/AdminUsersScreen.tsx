@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, StatusBar, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { supabase } from '../supabase';
 import { SvgXml } from 'react-native-svg';
@@ -20,6 +20,11 @@ const IconUser  = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" s
 const IconBan   = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c62828" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>`;
 const IconSend  = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.navy}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
 
+type RootStackParamList = {
+  Portal: undefined;
+  AdminPush: { targetUser: { id: string; full_name: string } };
+};
+
 interface UserProfile {
   id: string;
   full_name: string;
@@ -32,7 +37,8 @@ interface UserProfile {
 }
 
 export default function AdminUsersScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  
   const { showAlert } = useCustomAlert();
   const { session, setIsAdmin } = useAuthStore();
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -41,14 +47,12 @@ export default function AdminUsersScreen() {
   const loadUsers = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      // 1. Render inmediato desde caché
       const cached = await AsyncStorage.getItem(CACHE_KEY);
       if (cached) {
         setUsers(JSON.parse(cached));
         setLoading(false);
       }
 
-      // 2. Fetch silencioso en background
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, email, telefono, role, avatar_url, installed_version_code, installed_version_name')
@@ -70,8 +74,6 @@ export default function AdminUsersScreen() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
-  // Sincroniza el store global y el caché de perfil cuando el propio admin
-  // se cambia el rol a sí mismo, y lo saca del panel si perdió el acceso.
   const syncSelfRoleChange = useCallback(async (targetUserId: string, newRole: string) => {
     if (!session?.user?.id || targetUserId !== session.user.id) return;
 
@@ -90,11 +92,10 @@ export default function AdminUsersScreen() {
     }
 
     if (!isStillAdmin) {
-      // Ya no tiene permiso de estar en esta sección: lo regresamos al Portal.
       showAlert(
         'Rol actualizado',
         'Ya no tienes permisos de administrador. Se cerrará el Panel de Control.',
-        [{ text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Portal' as never }] }) }]
+        [{ text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Portal' }] }) }]
       );
     }
   }, [session, setIsAdmin, navigation, showAlert]);
@@ -201,7 +202,7 @@ export default function AdminUsersScreen() {
                     </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.btn, { backgroundColor: COLORS.navy + '14' }]}
-                    onPress={() => navigation.navigate('AdminPush' as never, { targetUser: { id: item.id, full_name: item.full_name } } as never)}
+                    onPress={() => navigation.navigate('AdminPush', { targetUser: { id: item.id, full_name: item.full_name } })}
                   >
                     <SvgXml xml={IconSend} />
                     <Text style={[styles.btnLabel, { color: COLORS.navy }]}>Enviar</Text>
