@@ -9,9 +9,10 @@ import { COLORS, FONTS } from '../../theme';
 
 const TagIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${COLORS.gray4}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>`;
 
-// Top de marcas que el propio usuario más vio. Se agrega en el cliente sobre
-// sus propias filas de producto_analytics (columna "marca" ya viene en la
-// tabla), sin necesitar RPC porque RLS ya deja leer las filas propias.
+// Top de marcas que el propio usuario más vio/compartió. Agregado en el
+// servidor (get_top_brands_by_user_period) -- antes se traían las últimas
+// 200 filas crudas y se contaba en el cliente, lo que podía dar un ranking
+// incompleto para usuarios con mucha actividad.
 export default function TopBrandsPanel() {
   const { session } = useAuthStore();
   const { isFeatureEnabled } = useFeaturesStore();
@@ -33,25 +34,18 @@ export default function TopBrandsPanel() {
         }
       } catch (e) {}
 
-      const { data, error } = await supabase
-        .from('producto_analytics')
-        .select('marca')
-        .eq('user_email', session.user.email)
-        .eq('action', 'view')
-        .order('created_at', { ascending: false })
-        .limit(200);
+      // Antes: últimas 200 filas crudas contadas en JS. Ahora Postgres
+      // agrega el total real por marca (vistas + compartidos).
+      const { data, error } = await supabase.rpc('get_top_brands_by_user_period', {
+        p_email: session.user.email,
+        p_period: 'all',
+        p_limit: 5,
+      });
 
       if (!error && data) {
-        const counts: Record<string, number> = {};
-        data.forEach(row => {
-          const marca = (row.marca || '').trim();
-          if (marca) counts[marca] = (counts[marca] || 0) + 1;
-        });
-
-        const topBrands = Object.keys(counts)
-          .sort((a, b) => counts[b] - counts[a])
-          .slice(0, 5)
-          .map(marca => ({ marca, count: counts[marca] }));
+        const topBrands = (data as any[])
+          .map((row) => ({ marca: row.marca, count: Number(row.views) + Number(row.shares) }))
+          .filter((b) => !!b.marca);
 
         const max = topBrands.length > 0 ? topBrands[0].count : 0;
 
