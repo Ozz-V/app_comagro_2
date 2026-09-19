@@ -136,6 +136,13 @@ function AppWrapper() {
   );
 }
 
+// Interfaz para tipar correctamente los datos que vienen en la notificación
+interface NotificationData {
+  type?: string;
+  action?: string;
+  [key: string]: unknown;
+}
+
 function App() {
   const { session, isAuthenticated, isInitialized, setAuth, clearAuth, isAdmin, setIsAdmin } = useAuthStore();
   const [showLottie, setShowLottie] = useState(true);
@@ -183,29 +190,15 @@ function App() {
     };
   }, [showAlert]);
 
-  // --- OYENTE DE NOTIFICACIONES PUSH ---
-  // Dos problemas reales que este bloque soluciona:
-  //  1) Android a veces vuelve a entregar el MISMO toque de notificación
-  //     cuando la app vuelve a primer plano (p.ej. después de apretar
-  //     "atrás"). Sin descartar duplicados, eso hacía que la app procesara
-  //     el mismo toque de nuevo y navegara otra vez sola.
-  //  2) navigationRef.navigate('Portal') podía, en ciertos casos, no
-  //     colapsar del todo la pila si habÃ­a pantallas duplicadas encima
-  //     (ver fix en PortalScreen/NotificationsScreen contra doble-toque).
-  //     Usar popToTop() es más robusto: sin importar cuántas pantallas haya
-  //     apiladas, siempre vuelve a la única instancia de Portal.
   const handledNotificationIds = React.useRef(new Set<string>());
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function handleNotificationTap(data: any, notifId?: string | null) {
+    function handleNotificationTap(data: NotificationData | undefined | null, notifId?: string | null) {
       if (!data) return;
 
-      // Descarta re-entregas de un toque que ya procesamos.
       if (notifId) {
         if (handledNotificationIds.current.has(notifId)) return;
         handledNotificationIds.current.add(notifId);
-        // Evita que este Set crezca sin límite en una sesión muy larga.
         if (handledNotificationIds.current.size > 50) {
           const first = handledNotificationIds.current.values().next().value;
           if (first) handledNotificationIds.current.delete(first);
@@ -225,40 +218,44 @@ function App() {
         data.type === 'forum_comment' ||
         data.type === 'new_products' ||
         data.type === 'plytix' ||
-        data.type === 'comunicado'
+        data.type === 'comunicado' ||
+        data.type === 'update' ||
+        data.action === 'update'
       ) {
         if (data.type === 'new_products' || data.type === 'plytix') {
            ensureCatalogSynced({}, { skipVigenciaCheck: true }).catch(err => {
               console.log("Error in background auto-sync:", err);
            });
         }
+
+        // 🚀 INTERCEPTOR DE ACTUALIZACIONES OTA
+        if (data.type === 'update' || data.action === 'update') {
+          DeviceEventEmitter.emit('TRIGGER_OTA_UPDATE', { directDownload: true });
+          Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
+          return; // Aborta para que no navegue a 'Notificaciones'
+        }
+
         if (data.type === 'comunicado') {
-          // GlobalComunicadoHandler ya esta montado desde antes (sesion en
-          // curso) y solo revisa comunicados pendientes una vez al montarse,
-          // asi que si el comunicado nuevo llego mientras la app ya estaba
-          // abierta, forzamos una relectura para que el modal aparezca ahora.
           DeviceEventEmitter.emit('CHECK_COMUNICADOS');
         }
+        
         tryNavigate(() => {
           navigationRef.navigate('Notificaciones');
         });
       }
 
-      // Marca la notificación como "ya consumida" del lado nativo â€” evita
-      // que Android/expo-notifications la vuelvan a entregar más adelante
-      // (p.ej. si la persona sale de la app con el botón atrás y regresa).
       Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
     }
 
-    // Caso: la app estaba CERRADA y se abrió tocando la notificación.
-    Notifications.getLastNotificationResponseAsync().then((response: { notification: { request: { content: { data: Record<string, unknown> }; identifier: string } } } | null) => {
+    Notifications.getLastNotificationResponseAsync().then((response: Notifications.NotificationResponse | null) => {
       if (!response) return;
-      handleNotificationTap(response.notification.request.content.data, response.notification.request.identifier);
+      const data = response.notification.request.content.data as NotificationData;
+      handleNotificationTap(data, response.notification.request.identifier);
     }).catch(() => {});
 
-    // Caso: la app ya estaba abierta (foreground o background).
-    const responseListener = Notifications.addNotificationResponseReceivedListener((response: { notification: { request: { content: { data: Record<string, unknown> }; identifier: string } } }) => {
-      handleNotificationTap(response.notification.request.content.data, response.notification.request.identifier);
+    const responseListener = Notifications.addNotificationResponseReceivedListener((response: Notifications.NotificationResponse) => {
+      const data = response.notification.request.content.data as NotificationData;
+      handleNotificationTap(data, response.notification.request.identifier);
     });
 
     return () => {
@@ -271,11 +268,6 @@ function App() {
       try {
         const token = await registerForPushNotificationsAsync();
 
-        // Version instalada de este dispositivo puntual, mismo criterio que
-        // useOTAUpdate.ts usa para compararse contra version_apk. Se reporta
-        // siempre (no solo cuando hay token) para que el Panel de Control
-        // pueda ver la version aunque el usuario haya rechazado permisos de
-        // notificacion.
         const installedVersionCode = Application.nativeBuildVersion
           ? parseInt(Application.nativeBuildVersion, 10)
           : (Constants.expoConfig?.android?.versionCode || null);
@@ -300,7 +292,6 @@ function App() {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const cached = await AsyncStorage.getItem('@user_profile_cache');
 
-        // 1. Render inmediato desde caché (Offline First / respuesta instantánea).
         if (cached) {
           const data = JSON.parse(cached);
           setIsAdmin(data.role === 'admin');
@@ -309,10 +300,6 @@ function App() {
           }
         }
 
-        // 2. SIEMPRE revalidamos contra la DB en segundo plano, incluso si el caché
-        //    ya parecía "completo". El rol puede haber cambiado desde el servidor
-        //    (Supabase Studio, otro admin, etc.) sin pasar por esta app, y el caché
-        //    agresivo no debe dejarnos con un isAdmin desactualizado indefinidamente.
         const { data, error } = await supabase.from('profiles').select('full_name, telefono, role').eq('id', userId).single();
         if (error) {
           if (!cached) setProfileComplete(true);
@@ -417,7 +404,7 @@ function App() {
       subOta.remove();
     };
   }, []);
-  
+
   if (!fontsLoaded || !isInitialized) {
     return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
   }
