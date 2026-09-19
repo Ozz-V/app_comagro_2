@@ -1,110 +1,87 @@
 import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { documentDirectory, moveAsync } from 'expo-file-system/legacy';
-import { APP_CONSTANTS } from '../config/constants';
 import { supabase } from '../supabase';
 import { getTemplate, renderTemplate } from '../services/templateService';
 
-function getPeakHour(rows: any[]) {
-  if (!rows || rows.length === 0) return 'Sin actividad';
-  const hours = new Array(24).fill(0);
-  rows.forEach(r => {
-    if (r.created_at) {
-      const h = new Date(r.created_at).getHours();
-      hours[h]++;
-    }
-  });
-  let maxH = 0;
-  for (let i = 1; i < 24; i++) {
-    if (hours[i] > hours[maxH]) maxH = i;
-  }
-  if (hours[maxH] === 0) return 'Sin actividad';
-  const hEnd = (maxH + 1) % 24;
-  return `${maxH.toString().padStart(2, '0')}:00 - ${hEnd.toString().padStart(2, '0')}:00`;
+// ============================================================================
+// REESCRITO 2026-09-19: antes esta función traía TODOS los eventos crudos de
+// producto_analytics para los usuarios seleccionados (paginando del lado del
+// cliente) y calculaba vistas/compartidos/top productos/top marcas/hora pico
+// en JavaScript. Eso duplicaba lógica que ya existe en el servidor y fue la
+// causa de un bug real: un límite fijo compartido entre usuarios sin ORDER BY
+// hacía que, al seleccionar "Todos", algunos usuarios salieran en cero.
+//
+// Ahora todo el cálculo lo hace Postgres en una sola llamada RPC
+// (get_users_report_batch), que devuelve por cada usuario sus totales, top 5
+// productos, top 5 marcas y hora pico ya agregados. La app no vuelve a tocar
+// un evento crudo para armar este reporte.
+// ============================================================================
+
+interface UserReportRow {
+  user_email: string;
+  views: number;
+  shares_pdf: number;
+  shares_img: number;
+  top_products: { sku: string; marca: string; count: number }[];
+  top_brands: { marca: string; count: number }[];
+  peak_hour: string;
 }
 
-function processUserStats(rows: any[]) {
-  let views = 0;
-  let sharesPdf = 0;
-  let sharesImg = 0;
-  const prodMap: Record<string, { count: number; marca: string }> = {};
-  const brandMap: Record<string, number> = {};
-
-  rows.forEach(r => {
-    if (r.action === 'view') views++;
-    else if (r.action === 'share_pdf') sharesPdf++;
-    else if (r.action === 'share_image') sharesImg++;
-
-    const mSku = r.modelo || r.sku || r.marca;
-    if (mSku) {
-      if (!prodMap[mSku]) prodMap[mSku] = { count: 0, marca: r.marca || '' };
-      prodMap[mSku].count++;
-    }
-    if (r.marca) {
-      brandMap[r.marca] = (brandMap[r.marca] || 0) + 1;
-    }
-  });
-
-  const topProds = Object.entries(prodMap)
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 5)
-    .map(x => ({ sku: x[0], count: x[1].count, marca: x[1].marca }));
-
-  const topBrands = Object.entries(brandMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(x => ({ marca: x[0], count: x[1] }));
-
-  return { views, sharesPdf, sharesImg, sharesTotal: sharesPdf + sharesImg, topProds, topBrands, peak: getPeakHour(rows) };
+function periodLabelToCode(periodLabel: string): 'today' | '7d' | '30d' | 'all' {
+  if (periodLabel === 'Hoy') return 'today';
+  if (periodLabel === 'Ultimos 7 dias' || periodLabel === 'Últimos 7 días') return '7d';
+  if (periodLabel === 'Ultimos 30 dias' || periodLabel === 'Últimos 30 días') return '30d';
+  return 'all';
 }
 
 export async function generateUserGridPdf(
   selectedEmails: string[],
-  globalRawData: any[],
+  periodCode: 'today' | '7d' | '30d' | 'all' | undefined,
   directoryUsers: any[],
   periodLabel: string,
   imageMap: Record<string, string> = {},
   productBrandMap: Record<string, string> = {}
 ) {
-  let pDate = new Date();
-  if (periodLabel === 'Hoy') {
-    pDate.setHours(0, 0, 0, 0);
-  } else if (periodLabel === 'Ultimos 7 dias' || periodLabel === 'Últimos 7 días') {
-    pDate.setDate(pDate.getDate() - 7);
-  } else if (periodLabel === 'Ultimos 30 dias' || periodLabel === 'Últimos 30 días') {
-    pDate.setDate(pDate.getDate() - 30);
-  } else {
-    pDate = new Date(0);
-  }
-  
-  // Fetch fresh data directly for these users
-  const chunkSize = 50;
-  let allRawData: any[] = [];
-  
+  // Compatibilidad: si quien llama todavía no pasa el código de período
+  // explícito, lo derivamos del label legible (mismo comportamiento previo).
+  const p_period = periodCode || periodLabelToCode(periodLabel);
+
+  // Postgres soporta miles de emails en un ANY($1), pero se trocea igual
+  // por prolijidad/latencia de la llamada RPC individual.
+  const chunkSize = 200;
+  const rowsByEmail = new Map<string, UserReportRow>();
+
   for (let i = 0; i < selectedEmails.length; i += chunkSize) {
     const chunk = selectedEmails.slice(i, i + chunkSize);
-    const { data, error } = await supabase
-      .from('producto_analytics')
-      .select('modelo,marca,sku,action,user_email,created_at')
-      .in('user_email', chunk)
-      .gte('created_at', pDate.toISOString())
-      .limit(20000); // safety limit per chunk
-      
-    if (!error && data) {
-      allRawData = allRawData.concat(data);
+    const { data, error } = await supabase.rpc('get_users_report_batch', {
+      p_emails: chunk,
+      p_period,
+    });
+    if (error) {
+      console.error('Error en get_users_report_batch', error);
+      throw error;
     }
+    (data || []).forEach((row: UserReportRow) => rowsByEmail.set(row.user_email, row));
   }
-  
-  const filteredData = allRawData;
 
   const usersData = selectedEmails.map(email => {
-    const rows = filteredData.filter(r => r.user_email === email);
-    const stats = processUserStats(rows);
+    const row = rowsByEmail.get(email);
     const profile = directoryUsers.find(u => u.email === email);
+    const views = Number(row?.views || 0);
+    const sharesPdf = Number(row?.shares_pdf || 0);
+    const sharesImg = Number(row?.shares_img || 0);
     return {
       email,
       name: profile?.full_name || email.split('@')[0],
-      stats
+      stats: {
+        views,
+        sharesPdf,
+        sharesImg,
+        sharesTotal: sharesPdf + sharesImg,
+        topProds: (row?.top_products || []).map(p => ({ sku: p.sku, count: Number(p.count), marca: p.marca || '' })),
+        topBrands: (row?.top_brands || []).map(b => ({ marca: b.marca, count: Number(b.count) })),
+        peak: row?.peak_hour || 'Sin actividad',
+      },
     };
   });
 
@@ -114,7 +91,7 @@ export async function generateUserGridPdf(
   const fallbackImg = 'https://comagro.com.bo/static/media/logo-comagro.84d53ed4.png';
 
   usersData.forEach(ud => {
-    
+
     let prodsHtml = ud.stats.topProds.map((p, idx) => {
       const imgUrl = imageMap[p.sku] || fallbackImg;
       return `
@@ -157,7 +134,7 @@ export async function generateUserGridPdf(
             Pico: <strong>${ud.stats.peak}</strong>
           </div>
         </div>
-        
+
         <div class="kpi-container">
           <div class="kpi-box views">
             <div class="kpi-val">${ud.stats.views}</div>
@@ -195,7 +172,7 @@ export async function generateUserGridPdf(
     `;
   });
 
-  
+
   const templateObj = await getTemplate('user_grid_report');
   const html = renderTemplate(templateObj.html, {
     reportTitle: 'Reporte de Usuarios',
