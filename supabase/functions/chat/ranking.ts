@@ -186,6 +186,15 @@ export function detectAccessoryRequest(params: {
 // sumergibles cuando no corresponde, y (salvo pedido explícito de
 // repuesto/accesorio) cualquier candidato cuyo Tipo de Producto real sea
 // un repuesto/accesorio/ATS.
+// EXCEPCIÓN: los candidatos que llegaron por MARCA EXPLÍCITA (__groupIndex
+// <= -2, ver REGLA_DE_MARCA_EXPLICITA en index.ts) quedan EXENTOS del
+// filtro de repuesto/accesorio. Si el cliente nombró una marca puntual
+// ("tanque Nuair", "cable Prysmian"), ese match ya es lo más específico
+// que puede pedir -- no tiene sentido descartarlo después por cómo esté
+// categorizado internamente ese SKU en el catálogo. Antes de este fix,
+// el filtro de tipo se aplicaba por igual a todos los candidatos, lo cual
+// contradecía la garantía ya documentada de que "la marca pedida SIEMPRE
+// llega a la respuesta final".
 export function dedupeAndFilterContext(params: {
   // deno-lint-ignore no-explicit-any
   combinedContext: any[];
@@ -201,7 +210,9 @@ export function dedupeAndFilterContext(params: {
     if (/^TEST-|-DELETE-ME$/i.test(item.sku || '')) return false;
     if (blockSubmersible && item.sales_pitch?.toLowerCase().includes('sumergible')) return false;
 
-    if (!isAccessoryRequest) {
+    const isExplicitBrandMatch = typeof item.__groupIndex === 'number' && item.__groupIndex <= -2;
+
+    if (!isAccessoryRequest && !isExplicitBrandMatch) {
       const tipoReal = extractProductType(item.sales_pitch || '') || '';
       const tipoUpper = tipoReal.toUpperCase();
       if (tipoUpper.includes('REPUESTO') || tipoUpper.includes('ACCESORIO') || tipoUpper.includes('ATS PARA')) {
