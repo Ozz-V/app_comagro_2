@@ -30,7 +30,6 @@ import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Sentry from '@sentry/react-native';
 import * as Notifications from 'expo-notifications';
-import type { NotificationResponse } from 'expo-notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import LoginScreen    from './src/screens/LoginScreen';
@@ -137,12 +136,15 @@ function AppWrapper() {
   );
 }
 
-// Interfaz estricta para el contenido que llega por push
+// 1. Interfaz estricta para el contenido que llega por push
 interface NotificationPayload {
   type?: string;
   action?: string;
   [key: string]: unknown;
 }
+
+// 2. Extracción dinámica del tipo directo de la API de Expo (Cero 'any', sin importaciones problemáticas)
+type ExpoNotificationResponse = Parameters<typeof Notifications.addNotificationResponseReceivedListener>[0];
 
 function App() {
   const { session, isAuthenticated, isInitialized, setAuth, clearAuth, isAdmin, setIsAdmin } = useAuthStore();
@@ -248,14 +250,14 @@ function App() {
     }
 
     // Caso: la app estaba CERRADA y se abrió tocando la notificación.
-    Notifications.getLastNotificationResponseAsync().then((response: NotificationResponse | null) => {
+    Notifications.getLastNotificationResponseAsync().then((response: ExpoNotificationResponse | null) => {
       if (!response) return;
       const data = response.notification.request.content.data as NotificationPayload;
       handleNotificationTap(data, response.notification.request.identifier);
     }).catch(() => {});
 
     // Caso: la app ya estaba abierta (foreground o background).
-    const responseListener = Notifications.addNotificationResponseReceivedListener((response: NotificationResponse) => {
+    const responseListener = Notifications.addNotificationResponseReceivedListener((response: ExpoNotificationResponse) => {
       const data = response.notification.request.content.data as NotificationPayload;
       handleNotificationTap(data, response.notification.request.identifier);
     });
