@@ -18,6 +18,7 @@ const PROFILE_CACHE_KEY = '@user_profile_cache';
 const IconAdmin = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.green}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
 const IconUser  = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.celeste}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 const IconBan   = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c62828" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>`;
+const IconSend  = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${COLORS.navy}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
 
 interface UserProfile {
   id: string;
@@ -26,6 +27,8 @@ interface UserProfile {
   telefono?: string;
   role?: string;
   avatar_url?: string;
+  installed_version_code?: number | null;
+  installed_version_name?: string | null;
 }
 
 export default function AdminUsersScreen() {
@@ -48,7 +51,7 @@ export default function AdminUsersScreen() {
       // 2. Fetch silencioso en background
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, telefono, role, avatar_url')
+        .select('id, full_name, email, telefono, role, avatar_url, installed_version_code, installed_version_name')
         .not('full_name', 'is', null)
         .neq('full_name', '')
         .order('full_name');
@@ -174,8 +177,17 @@ export default function AdminUsersScreen() {
                   <Text style={styles.name} numberOfLines={1}>{item.full_name}</Text>
                   <Text style={styles.email} numberOfLines={1}>{item.email}</Text>
                   {item.telefono ? <Text style={styles.phone}>{item.telefono}</Text> : null}
-                  <View style={[styles.roleBadge, { backgroundColor: roleBadgeColor + '22' }]}>
-                    <Text style={[styles.roleText, { color: roleBadgeColor }]}>{roleLabel}</Text>
+                  <View style={styles.badgesRow}>
+                    <View style={[styles.roleBadge, { backgroundColor: roleBadgeColor + '22' }]}>
+                      <Text style={[styles.roleText, { color: roleBadgeColor }]}>{roleLabel}</Text>
+                    </View>
+                    <View style={[styles.roleBadge, { backgroundColor: COLORS.bg }]}>
+                      <Text style={[styles.roleText, { color: COLORS.gray4 }]}>
+                        {item.installed_version_code
+                          ? `V${item.installed_version_name || item.installed_version_code}`
+                          : 'Version desconocida'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
                 <View style={styles.actions}>
@@ -187,6 +199,13 @@ export default function AdminUsersScreen() {
                       <SvgXml xml={IconUser} />
                       <Text style={[styles.btnLabel, { color: item.role === 'staff' ? COLORS.gray4 : COLORS.celeste }]}>Staff</Text>
                     </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.btn, { backgroundColor: COLORS.navy + '14' }]}
+                    onPress={() => navigation.navigate('AdminPush' as never, { targetUser: { id: item.id, full_name: item.full_name } } as never)}
+                  >
+                    <SvgXml xml={IconSend} />
+                    <Text style={[styles.btnLabel, { color: COLORS.navy }]}>Enviar</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={[styles.btn, { backgroundColor: '#ffebee' }]} onPress={() => banUser(item.id, item.full_name)}>
                     <SvgXml xml={IconBan} />
                     <Text style={[styles.btnLabel, { color: '#c62828' }]}>Banear</Text>
@@ -234,6 +253,7 @@ const styles = StyleSheet.create({
   phone: { fontFamily: FONTS.body, fontSize: 12, color: COLORS.gray4, marginBottom: 4 },
   roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   roleText: { fontFamily: FONTS.bodySemi, fontSize: 11 },
+  badgesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   actions: { flexDirection: 'column', gap: 6 },
   btn: { width: 60, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingVertical: 4 },
   btnLabel: { fontFamily: FONTS.bodySemi, fontSize: 9, marginTop: 1 },

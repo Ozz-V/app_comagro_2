@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, StatusBar, ScrollView, Switch, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import LottieView from 'lottie-react-native';
 import { supabase } from '../supabase';
 import { useCustomAlert } from '../contexts/CustomAlertContext';
@@ -25,9 +25,26 @@ const TIPOS_COMUNICADO = [
   'Imagen'
 ];
 
+// El tipo "Nuevas actualizaciones!" siempre queda amarrado a la ultima
+// version publicada en version_apk: no tiene selector, se calcula solo.
+const TIPO_NUEVA_ACTUALIZACION = TIPOS_COMUNICADO[0];
+
+type TargetScope = 'all' | 'latest' | 'previous';
+
+interface LatestVersion {
+  version_code: number;
+  version_name: string | null;
+}
+
+type AdminPushRouteParams = {
+  AdminPush: { targetUser?: { id: string; full_name: string } } | undefined;
+};
+
 export default function AdminPushScreen() {
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<AdminPushRouteParams, 'AdminPush'>>();
   const { showAlert } = useCustomAlert();
+  const targetUser = route.params?.targetUser;
 
   const [titulo, setTitulo] = useState('');
   const [mensaje, setMensaje] = useState('');
@@ -38,6 +55,36 @@ export default function AdminPushScreen() {
   const [loading, setLoading] = useState(false);
   const [richEditorVisible, setRichEditorVisible] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [latestVersion, setLatestVersion] = useState<LatestVersion | null>(null);
+  const [targetScope, setTargetScope] = useState<TargetScope>('all');
+
+  const esNuevaActualizacion = tipo === TIPO_NUEVA_ACTUALIZACION;
+
+  // Trae la ultima version publicada en version_apk para poder:
+  //  1. Amarrar "Nuevas actualizaciones!" a ella automaticamente.
+  //  2. Mostrarle al admin el numero de version en el selector de segmentacion.
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('version_apk')
+        .select('version_code, version_name')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (data && data.version_code) setLatestVersion(data);
+    })();
+  }, []);
+
+  // "Nuevas actualizaciones!" siempre va segmentado a 'latest' sin que el
+  // admin tenga que elegir nada. Al cambiar a cualquier otro tipo, el
+  // selector vuelve a su default ('Todos') para no arrastrar el forzado.
+  useEffect(() => {
+    if (esNuevaActualizacion) {
+      setTargetScope('latest');
+    } else {
+      setTargetScope('all');
+    }
+  }, [esNuevaActualizacion]);
 
   // Validacion reactiva para habilitar/deshabilitar el boton
   const isFormValid = titulo.trim().length > 0 && 
@@ -53,9 +100,13 @@ export default function AdminPushScreen() {
   const enviar = async () => {
     if (!isFormValid) return;
 
+    const confirmMsg = targetUser
+      ? `Enviar este comunicado solo a ${targetUser.full_name}?`
+      : 'Enviar este comunicado a todos los usuarios?';
+
     showAlert(
       'Confirmar',
-      'Enviar este comunicado a todos los usuarios?',
+      confirmMsg,
       [
         { text: 'NO', style: 'cancel' },
         {
@@ -63,13 +114,20 @@ export default function AdminPushScreen() {
           onPress: async () => {
             setLoading(true);
             try {
+              // Un comunicado personalizado (targetUser) le llega a esa persona
+              // sin importar su version instalada, asi que ignora por completo
+              // la segmentacion por version_apk.
+              const scopeFinal: TargetScope = (!targetUser && latestVersion) ? targetScope : 'all';
               const bodyInsert = {
                 tipo,
                 titulo: titulo.trim(),
                 contenido: mensaje.trim(),
                 imagen_url: tipo === 'Imagen' ? imagenUrl.trim() : null,
                 is_active: true,
-                created_at: isActive ? new Date().toISOString() : fechaEnvio?.toISOString()
+                created_at: isActive ? new Date().toISOString() : fechaEnvio?.toISOString(),
+                target_scope: scopeFinal,
+                target_version_code: (!targetUser && scopeFinal !== 'all') ? latestVersion?.version_code : null,
+                target_user_ids: targetUser ? [targetUser.id] : null
               };
 
               const { error } = await supabase.from('app_comunicados').insert([bodyInsert]);
@@ -103,11 +161,19 @@ export default function AdminPushScreen() {
         />
       </View>
       <View style={styles.topBorder} />
-      <Text style={styles.titulo}>Nuevo Comunicado</Text>
+      <Text style={styles.titulo}>{targetUser ? 'Comunicado Personalizado' : 'Nuevo Comunicado'}</Text>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
         <View style={styles.card}>
+          {targetUser && (
+            <View style={styles.targetUserBox}>
+              <Text style={styles.targetUserTexto}>
+                Destinatario: <Text style={styles.targetUserNombre}>{targetUser.full_name}</Text> (solo esta persona lo vera, sin importar su version).
+              </Text>
+            </View>
+          )}
+
           <Text style={styles.label}>Tipo de Comunicado</Text>
           <View style={styles.tipoContainer}>
             {TIPOS_COMUNICADO.map(t => (
@@ -121,6 +187,49 @@ export default function AdminPushScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {targetUser ? null : esNuevaActualizacion ? (
+            <View style={styles.segmentInfoBox}>
+              <Text style={styles.segmentInfoTexto}>
+                {latestVersion
+                  ? `Se enviara solo a usuarios en la ultima version instalada (V${latestVersion.version_name || latestVersion.version_code}).`
+                  : 'Aun no hay ninguna version registrada en version_apk: por ahora se enviara a todos.'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.segmentContainer}>
+              <Text style={styles.label}>Enviar a</Text>
+              <View style={styles.tipoContainer}>
+                <TouchableOpacity
+                  style={[styles.tipoBadge, targetScope === 'all' && styles.tipoBadgeActivo]}
+                  onPress={() => setTargetScope('all')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.tipoTexto, targetScope === 'all' && styles.tipoTextoActivo]}>Todos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tipoBadge, targetScope === 'latest' && styles.tipoBadgeActivo, !latestVersion && { opacity: 0.5 }]}
+                  onPress={() => latestVersion && setTargetScope('latest')}
+                  activeOpacity={0.7}
+                  disabled={!latestVersion}
+                >
+                  <Text style={[styles.tipoTexto, targetScope === 'latest' && styles.tipoTextoActivo]}>
+                    Ultima version{latestVersion ? ` (V${latestVersion.version_name || latestVersion.version_code})` : ''}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tipoBadge, targetScope === 'previous' && styles.tipoBadgeActivo, !latestVersion && { opacity: 0.5 }]}
+                  onPress={() => latestVersion && setTargetScope('previous')}
+                  activeOpacity={0.7}
+                  disabled={!latestVersion}
+                >
+                  <Text style={[styles.tipoTexto, targetScope === 'previous' && styles.tipoTextoActivo]}>
+                    Versiones anteriores{latestVersion ? ` (< V${latestVersion.version_name || latestVersion.version_code})` : ''}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {tipo === 'Imagen' && (
             <View style={styles.imagenUrlContainer}>
@@ -250,6 +359,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.navy,
   },
+  targetUserBox: {
+    backgroundColor: '#FFF7ED',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F59E0B40',
+  },
+  targetUserTexto: {
+    fontFamily: FONTS.body,
+    fontSize: 13,
+    color: COLORS.navy,
+    lineHeight: 18,
+  },
+  targetUserNombre: {
+    fontFamily: FONTS.bodySemi,
+  },
+  segmentInfoBox: {
+    backgroundColor: '#EFF6FF',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: COLORS.navy + '30',
+  },
+  segmentInfoTexto: {
+    fontFamily: FONTS.body,
+    fontSize: 13,
+    color: COLORS.navy,
+    lineHeight: 18,
+  },
+  segmentContainer: { marginTop: 4 },
   imagenUrlContainer: {
     backgroundColor: '#F0FDF4',
     padding: 12,

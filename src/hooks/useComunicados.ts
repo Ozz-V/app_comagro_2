@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
+import { DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 import * as Sentry from '@sentry/react-native';
+import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 
 export interface Comunicado {
   id: string;
@@ -10,6 +13,29 @@ export interface Comunicado {
   contenido: string;
   imagen_url: string | null;
   created_at: string;
+  target_scope?: 'all' | 'latest' | 'previous' | null;
+  target_version_code?: number | null;
+  target_user_ids?: string[] | null;
+}
+
+// Mismo criterio que useOTAUpdate.ts para saber que version tiene instalada
+// este dispositivo puntual (no se guarda en el servidor, se lee del propio
+// dispositivo cada vez).
+function getInstalledVersionCode(): number {
+  return Application.nativeBuildVersion
+    ? parseInt(Application.nativeBuildVersion, 10)
+    : (Constants.expoConfig?.android?.versionCode || 1);
+}
+
+// Un comunicado segmentado ('latest' o 'previous') solo es visible si el
+// version_code de este dispositivo cae del lado correcto de target_version_code.
+// Sin target_scope, o con 'all', se muestra a todos (compatibilidad con filas viejas).
+function esVisibleParaEstaVersion(c: Comunicado, installedCode: number): boolean {
+  if (!c.target_scope || c.target_scope === 'all') return true;
+  if (c.target_version_code == null) return true;
+  if (c.target_scope === 'latest') return installedCode >= c.target_version_code;
+  if (c.target_scope === 'previous') return installedCode < c.target_version_code;
+  return true;
 }
 
 export function useComunicados() {
@@ -33,8 +59,14 @@ export function useComunicados() {
 
       if (error || !data) return;
 
-      // 3. Buscar el primero que no esté en la lista de vistos
-      const noVisto = data.find(c => !vistos.includes(c.id));
+      // 3. Filtrar por segmentacion de version (Nuevas actualizaciones! y
+      //    cualquier otro comunicado que el admin haya limitado a "Ultima
+      //    version" o "Versiones anteriores").
+      const installedCode = getInstalledVersionCode();
+      const visibles = data.filter(c => esVisibleParaEstaVersion(c, installedCode));
+
+      // 4. Buscar el primero que no esté en la lista de vistos
+      const noVisto = visibles.find(c => !vistos.includes(c.id));
       
       if (noVisto) {
         setComunicadoPendiente(noVisto);
@@ -77,6 +109,10 @@ export function useComunicados() {
 
   useEffect(() => {
     checkComunicados();
+    // Se re-consulta cuando App.tsx detecta que se tocó una notificación de
+    // tipo 'comunicado' con la app ya abierta (ver handleNotificationTap).
+    const sub = DeviceEventEmitter.addListener('CHECK_COMUNICADOS', checkComunicados);
+    return () => sub.remove();
   }, [checkComunicados]);
 
   return { comunicadoPendiente, marcarComoVisto, checkComunicados };

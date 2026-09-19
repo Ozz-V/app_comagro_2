@@ -25,6 +25,8 @@ import { supabase, SUPABASE_STORAGE_KEY } from './src/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { useAuthStore } from './src/store/useAuthStore';
 import * as Device from 'expo-device';
+import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Sentry from '@sentry/react-native';
 import * as Notifications from 'expo-notifications';
@@ -77,7 +79,7 @@ type RootStackParamList = {
   AdminDashboard: undefined;
   AdminUsers: undefined;
   AdminPlytix: undefined;
-  AdminPush: undefined;
+  AdminPush: { targetUser?: { id: string; full_name: string } } | undefined;
   ProductViewer: { sku?: string; contextSkus?: string[]; notificationId?: number };
   ProductosActualizados: { skus?: string[]; notificationId?: number };
 };
@@ -222,12 +224,20 @@ function App() {
         data.type === 'forum_topic' ||
         data.type === 'forum_comment' ||
         data.type === 'new_products' ||
-        data.type === 'plytix'
+        data.type === 'plytix' ||
+        data.type === 'comunicado'
       ) {
         if (data.type === 'new_products' || data.type === 'plytix') {
            ensureCatalogSynced({}, { skipVigenciaCheck: true }).catch(err => {
               console.log("Error in background auto-sync:", err);
            });
+        }
+        if (data.type === 'comunicado') {
+          // GlobalComunicadoHandler ya esta montado desde antes (sesion en
+          // curso) y solo revisa comunicados pendientes una vez al montarse,
+          // asi que si el comunicado nuevo llego mientras la app ya estaba
+          // abierta, forzamos una relectura para que el modal aparezca ahora.
+          DeviceEventEmitter.emit('CHECK_COMUNICADOS');
         }
         tryNavigate(() => {
           navigationRef.navigate('Notificaciones');
@@ -260,9 +270,26 @@ function App() {
     async function registerAndSaveToken(userId: string) {
       try {
         const token = await registerForPushNotificationsAsync();
-        if (token) {
-          await supabase.from('profiles').upsert({ id: userId, expo_push_token: token }, { onConflict: 'id' });
-        }
+
+        // Version instalada de este dispositivo puntual, mismo criterio que
+        // useOTAUpdate.ts usa para compararse contra version_apk. Se reporta
+        // siempre (no solo cuando hay token) para que el Panel de Control
+        // pueda ver la version aunque el usuario haya rechazado permisos de
+        // notificacion.
+        const installedVersionCode = Application.nativeBuildVersion
+          ? parseInt(Application.nativeBuildVersion, 10)
+          : (Constants.expoConfig?.android?.versionCode || null);
+        const installedVersionName = Application.nativeApplicationVersion || Constants.expoConfig?.version || null;
+
+        const profileUpdate: Record<string, unknown> = {
+          id: userId,
+          installed_version_code: installedVersionCode,
+          installed_version_name: installedVersionName,
+          version_updated_at: new Date().toISOString(),
+        };
+        if (token) profileUpdate.expo_push_token = token;
+
+        await supabase.from('profiles').upsert(profileUpdate, { onConflict: 'id' });
       } catch(e) {
         Sentry.captureException(e, { tags: { context: 'registerAndSaveToken' } });
       }
