@@ -36,37 +36,33 @@ export interface ChartMetrics {
 
 const EMPTY_CHART: ChartMetrics = { start: 0, peak: 0, peakLabel: '-', today: 0 };
 
-function computeChartMetrics(items: any[]): ChartMetrics {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const views = items.filter((d: any) => d.action === 'view');
+// Antes operaba sobre miles de eventos crudos del usuario (computeChartMetrics
+// original). Ahora recibe directamente lo que devuelve
+// get_user_daily_views_by_period: un renglón por día ({ day, views }), ya
+// agregado en Postgres -- el cálculo de "inicio de período" / "pico" / "hoy"
+// pasa a operar sobre unos pocos renglones (días), nunca sobre el volumen
+// crudo de eventos, sin importar cuánta actividad tenga el usuario.
+function computeChartMetricsFromDaily(dailyRows: { day: string; views: number | string }[]): ChartMetrics {
+  if (!dailyRows || dailyRows.length === 0) return EMPTY_CHART;
 
-  // Views today only
-  const todayIso = todayStart.toISOString();
-  const today = views.filter((d: any) => new Date(d.created_at).getTime() >= new Date(todayIso).getTime()).length;
+  const days = [...dailyRows]
+    .map(d => ({ day: String(d.day).substring(0, 10), views: Number(d.views) }))
+    .sort((a, b) => a.day.localeCompare(b.day));
 
-  // Group by day
-  const byDay: Record<string, number> = {};
-  views.forEach((d: any) => {
-    const day = String(d.created_at).substring(0, 10);
-    byDay[day] = (byDay[day] || 0) + 1;
-  });
-  const days = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b));
+  const todayStr = new Date().toISOString().substring(0, 10);
+  const today = days.find(d => d.day === todayStr)?.views || 0;
 
-  if (days.length === 0) return { start: 0, peak: 0, peakLabel: '-', today };
-
-  // Start: sum of oldest third of days
+  // Inicio: suma del primer tercio de los días con actividad
   const startSlice = days.slice(0, Math.max(1, Math.floor(days.length / 3)));
-  const start = startSlice.reduce((s, [, c]) => s + c, 0);
+  const start = startSlice.reduce((s, d) => s + d.views, 0);
 
-  // Peak: the day with most views
-  const peakEntry = days.reduce((best, cur) => cur[1] > best[1] ? cur : best, ['', 0]);
-  const peak = peakEntry[1];
+  // Pico: el día con más vistas
+  const peakEntry = days.reduce((best, cur) => (cur.views > best.views ? cur : best), days[0]);
+  const peak = peakEntry.views;
 
-  // Convert peak date to relative label
   let peakLabel = '-';
-  if (peakEntry[0]) {
-    const diffMs = Date.now() - new Date(peakEntry[0]).getTime();
+  if (peak > 0) {
+    const diffMs = Date.now() - new Date(peakEntry.day).getTime();
     const diffDays = Math.round(diffMs / 86400000);
     peakLabel = diffDays === 0 ? 'Hoy' : `Hace ${diffDays}d`;
   }
@@ -97,17 +93,6 @@ function getPrevPeriodDate(p: string): string | null {
   return null;
 }
 
-function countByKey<T>(items: T[], keyFn: (i: T) => string | undefined | null, limit: number): AnalyticsRankItem[] {
-  const m: Record<string, AnalyticsRankItem & T> = {};
-  items.forEach(i => {
-    const k = keyFn(i);
-    if (!k) return;
-    if (!m[k]) m[k] = { ...i, count: 0 };
-    m[k].count++;
-  });
-  return Object.values(m).sort((a, b) => b.count - a.count).slice(0, limit);
-}
-
 export function getTrend(cur: number, prev: number): string {
   if (prev === 0) return cur > 0 ? '↑' : '';
   const ch = ((cur - prev) / prev) * 100;
@@ -131,7 +116,6 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
   const [productBrandMap, setProductBrandMap] = useState<Record<string, string>>({});
   const [myData, setMyData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [] });
   const [globalData, setGlobalData] = useState<DashboardData>({ views: 0, shares: 0, topV: [], topSh: [], brands: [], users: [] });
-  const [globalRawData, setGlobalRawData] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [myChartMetrics, setMyChartMetrics] = useState<ChartMetrics>(EMPTY_CHART);
   const [globalChartMetrics, setGlobalChartMetrics] = useState<ChartMetrics>(EMPTY_CHART);
@@ -216,58 +200,25 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
       if (!user) return;
 
       // -----------------------------------------------------------------------
-      // Nueva arquitectura: el servidor agrupa y cuenta. El cliente solo muestra.
+      // Arquitectura: el servidor agrupa y cuenta, el cliente solo muestra.
       // Esto garantiza que "Hoy", "7d", "30d" y "Todo" siempre muestren datos
-      // reales independientemente del volumen historico de registros.
+      // reales independientemente del volumen historico de registros, TANTO
+      // para "General" como para "Mi Actividad" (antes "Mi Actividad" traía
+      // hasta 10000 filas crudas del usuario y las agregaba en JS -- ya no).
       // -----------------------------------------------------------------------
+      const periodParam: 'today' | '7d' | '30d' | 'all' =
+        period === 'today' ? 'today' : period === '7d' ? '7d' : period === '30d' ? '30d' : 'all';
 
-      // KPIs personales del usuario actual
-      const [myKpisRes, myTopProdsRes, myTopBrandsRes] = await Promise.all([
-        supabase.rpc('get_global_kpis', { p_period: period === 'today' ? 'today' : period === '7d' ? '7d' : period === '30d' ? '30d' : 'all' })
-          .then(r => r),
-        supabase.rpc('get_top_products_by_period', { p_period: period === 'today' ? 'today' : period === '7d' ? '7d' : period === '30d' ? '30d' : 'all', p_limit: 10 }),
-        supabase.rpc('get_top_brands_by_period', { p_period: period === 'today' ? 'today' : period === '7d' ? '7d' : period === '30d' ? '30d' : 'all', p_limit: 8 }),
+      // ── Mi Actividad: todo agregado server-side para el usuario actual ──
+      const [myKpisRes, myTopViewedRes, myTopSharedRes, myTopBrandsRes, myDailyRes] = await Promise.all([
+        supabase.rpc('get_user_analytics_summary_by_period', { p_email: user.email, p_period: periodParam }),
+        supabase.rpc('get_top_viewed_products_by_user_period', { p_email: user.email, p_period: periodParam, p_limit: 5 }),
+        supabase.rpc('get_top_shared_products_by_user_period', { p_email: user.email, p_period: periodParam, p_limit: 5 }),
+        supabase.rpc('get_top_brands_by_user_period', { p_email: user.email, p_period: periodParam, p_limit: 5 }),
+        supabase.rpc('get_user_daily_views_by_period', { p_email: user.email, p_period: periodParam }),
       ]);
 
-      // Para "Mi Actividad": filtrar resultados por user_email del usuario actual
-      // usando get_global_analytics_rows con limite reducido (solo mis filas)
-      const myPeriodParam = period === 'today' ? 'today' : period;
-      const { data: myRaw } = await supabase
-        .from('producto_analytics')
-        .select('modelo,marca,sku,action,created_at')
-        .eq('user_email', user.email)
-        .gte('created_at', period === 'today'
-          ? new Date(new Date().setHours(0,0,0,0)).toISOString()
-          : period === '7d'
-            ? new Date(Date.now() - 7*24*60*60*1000).toISOString()
-            : period === '30d'
-              ? new Date(Date.now() - 30*24*60*60*1000).toISOString()
-              : '1970-01-01T00:00:00Z'
-        )
-        .order('created_at', { ascending: false })
-        .limit(10000);
-
-      const myRows = myRaw || [];
-      const myViews = myRows.filter((d: any) => d.action === 'view');
-      const myShares = myRows.filter((d: any) => d.action === 'share_pdf' || d.action === 'share_image');
-
-      const finalMyData: DashboardData = {
-        views: myViews.length,
-        shares: myShares.length,
-        topV: countByKey(myViews, (i: any) => i.sku || i.modelo, 5),
-        topSh: countByKey(myShares, (i: any) => i.sku || i.modelo, 5),
-        brands: countByKey(myRows, (i: any) => productBrandMap[i.sku || i.modelo] || i.marca, 5),
-      };
-      const myMetrics = computeChartMetrics(myRows);
-      if (isMounted.current && currentFetch === fetchCounter.current) {
-        setMyData(finalMyData);
-        setMyChartMetrics(myMetrics);
-        setGlobalRawData(myRows); // para el PDF de mi actividad
-      }
-      AsyncStorage.setItem(`@analytics_my_${period}`, JSON.stringify(finalMyData));
-
-      // KPIs globales y tops desde el servidor (ya agrupados)
-      const topProds: AnalyticsRankItem[] = (myTopProdsRes.data || []).map((r: any) => ({
+      const mapProdRow = (r: any): AnalyticsRankItem => ({
         modelo: r.modelo,
         marca: r.marca,
         sku: r.sku,
@@ -275,8 +226,8 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         action: 'view',
         user_email: '',
         created_at: '',
-      }));
-      const topBrands: AnalyticsRankItem[] = (myTopBrandsRes.data || []).map((r: any) => ({
+      });
+      const mapBrandRow = (r: any): AnalyticsRankItem => ({
         modelo: r.marca,
         marca: r.marca,
         sku: r.marca,
@@ -284,15 +235,36 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         action: 'view',
         user_email: '',
         created_at: '',
-      }));
-
-      // Top usuarios
-      const { data: topUsersData } = await supabase.rpc('get_top_users_by_period', {
-        p_period: period === 'today' ? 'today' : period === '7d' ? '7d' : period === '30d' ? '30d' : 'all',
-        p_limit: 8,
       });
 
-      let topUsers = (topUsersData || [])
+      const myKpiRow = Array.isArray(myKpisRes.data) ? myKpisRes.data[0] : myKpisRes.data;
+      const finalMyData: DashboardData = {
+        views: Number(myKpiRow?.views || 0),
+        shares: Number(myKpiRow?.shares || 0),
+        topV: (myTopViewedRes.data || []).map(mapProdRow),
+        topSh: (myTopSharedRes.data || []).map(mapProdRow),
+        brands: (myTopBrandsRes.data || []).map(mapBrandRow),
+      };
+      const myMetrics = computeChartMetricsFromDaily(myDailyRes.data || []);
+      if (isMounted.current && currentFetch === fetchCounter.current) {
+        setMyData(finalMyData);
+        setMyChartMetrics(myMetrics);
+      }
+      AsyncStorage.setItem(`@analytics_my_${period}`, JSON.stringify(finalMyData));
+
+      // ── General: KPIs, top vistos y top compartidos POR SEPARADO ──
+      // (antes usaba la misma lista, ordenada por vistas+compartidos
+      // combinado, para ambas secciones -- "Top Vistos" y "Top
+      // Compartidos" mostraban exactamente lo mismo).
+      const [myKpisGlobalRes, topViewedRes, topSharedRes, topBrandsRes, topUsersRes] = await Promise.all([
+        supabase.rpc('get_global_kpis', { p_period: periodParam }),
+        supabase.rpc('get_top_viewed_products_by_period', { p_period: periodParam, p_limit: 10 }),
+        supabase.rpc('get_top_shared_products_by_period', { p_period: periodParam, p_limit: 10 }),
+        supabase.rpc('get_top_brands_by_period', { p_period: periodParam, p_limit: 8 }),
+        supabase.rpc('get_top_users_by_period', { p_period: periodParam, p_limit: 8 }),
+      ]);
+
+      let topUsers = (topUsersRes.data || [])
         .filter((u: any) => u.user_email !== 'offline_user')
         .map((u: any) => ({
           modelo: u.user_email,
@@ -310,16 +282,16 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         topUsers = topUsers.filter((u: any) => !adminEmails.has(u.user_email));
       }
 
-      const kpisRow = Array.isArray(myKpisRes.data) ? myKpisRes.data[0] : myKpisRes.data;
+      const kpisRow = Array.isArray(myKpisGlobalRes.data) ? myKpisGlobalRes.data[0] : myKpisGlobalRes.data;
       const globalViews = Number(kpisRow?.views || 0);
       const globalShares = Number(kpisRow?.shares || 0);
 
       const gd: DashboardData = {
         views: globalViews,
         shares: globalShares,
-        topV: topProds.slice(0, 10),
-        topSh: topProds.slice(0, 10),
-        brands: topBrands,
+        topV: (topViewedRes.data || []).map(mapProdRow),
+        topSh: (topSharedRes.data || []).map(mapProdRow),
+        brands: (topBrandsRes.data || []).map(mapBrandRow),
         users: topUsers,
       };
 
@@ -328,8 +300,6 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
         setGlobalChartMetrics(EMPTY_CHART);
       }
       AsyncStorage.setItem(`@analytics_global_${period}`, JSON.stringify(gd));
-
-      void myPeriodParam; // silence unused warning
     } catch (e: unknown) {
       Sentry.captureException(e);
     } finally {
@@ -434,7 +404,7 @@ export function useDashboardAnalyticsLogic(onTabChange?: (tab: 'mine' | 'general
 
   return {
     tab, setTab, period, setPeriod, loading, expandedCard, setExpandedCard,
-    isAdmin, isOnline, myData, globalData, globalRawData, myChartMetrics, globalChartMetrics,
+    isAdmin, isOnline, myData, globalData, myChartMetrics, globalChartMetrics,
     imageMap, productBrandMap, cleanText, generatePdfReport, isGeneratingPdf
   };
 }
