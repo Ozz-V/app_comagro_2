@@ -34,7 +34,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
   const { showAlert } = useCustomAlert();
   const {
     tab, setTab, period, setPeriod, loading, expandedCard, setExpandedCard,
-    isAdmin, isOnline, myData, globalData, globalRawData, myChartMetrics, globalChartMetrics,
+    isAdmin, isOnline, myData, globalData, myChartMetrics, globalChartMetrics,
     imageMap, productBrandMap, cleanText, generatePdfReport, isGeneratingPdf
   } = useDashboardAnalyticsLogic(onTabChange);
 
@@ -135,7 +135,7 @@ export default function DashboardAnalytics({ navigation, onUserClick, onTabChang
           try {
             const pLabel = period === 'today' ? 'Hoy' : period === '7d' ? 'Ultimos 7 dias' : period === '30d' ? 'Ultimos 30 dias' : 'Todo el tiempo';
             const { generateUserGridPdf } = await import('../utils/pdfGridReport');
-            const uri = await generateUserGridPdf(emails, globalRawData, directoryUsers || [], pLabel, imageMap, productBrandMap);
+            const uri = await generateUserGridPdf(emails, period as any, directoryUsers || [], pLabel, imageMap, productBrandMap);
             const { isAvailableAsync, shareAsync } = await import('expo-sharing');
             if (await isAvailableAsync()) {
               await shareAsync(uri, { dialogTitle: 'Reporte Usuarios' });
