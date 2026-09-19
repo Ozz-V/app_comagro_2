@@ -25,6 +25,10 @@ const IcItalic    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const IcUnderline = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" y1="20" x2="20" y2="20"/></svg>`;
 const IcBullet    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>`;
 const IcCenter    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>`;
+// Mismos paths que 'edit' y 'ojo' en SvgIcon.tsx, para mantener consistencia
+// con el resto de la app (no usar emojis genericos aca).
+const IcEdit      = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`;
+const IcEye       = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -207,17 +211,33 @@ export default function RichTextEditorModal({
                   setTimeout(() => inputRef.current?.focus(), 80);
                 }}
               >
-                <Text style={[styles.modeBtnText, mode === 'edit' && styles.modeBtnTextActive]}>
-                  ✏️ Editar
-                </Text>
+                <View style={styles.modeBtnRow}>
+                  <SvgXml
+                    xml={IcEdit}
+                    width={14}
+                    height={14}
+                    color={mode === 'edit' ? COLORS.navy : COLORS.gray4}
+                  />
+                  <Text style={[styles.modeBtnText, mode === 'edit' && styles.modeBtnTextActive]}>
+                    Editar
+                  </Text>
+                </View>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modeBtn, mode === 'preview' && styles.modeBtnActive]}
                 onPress={() => setMode('preview')}
               >
-                <Text style={[styles.modeBtnText, mode === 'preview' && styles.modeBtnTextActive]}>
-                  👁 Vista Previa
-                </Text>
+                <View style={styles.modeBtnRow}>
+                  <SvgXml
+                    xml={IcEye}
+                    width={14}
+                    height={14}
+                    color={mode === 'preview' ? COLORS.navy : COLORS.gray4}
+                  />
+                  <Text style={[styles.modeBtnText, mode === 'preview' && styles.modeBtnTextActive]}>
+                    Vista Previa
+                  </Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -320,6 +340,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
+  },
+  modeBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   modeBtnActive: {
     backgroundColor: COLORS.white,
