@@ -144,20 +144,7 @@ Deno.serve(async (req: Request) => {
 
     const title = record.titulo;
     const body = truncate(stripMarkdown(record.contenido || ''), 150);
-    
-    // Detectamos si el comunicado es de actualización
-    const isUpdate = record.tipo === 'update' || 
-                     record.tipo === 'actualizacion' || 
-                     record.titulo.toLowerCase().includes('actualizaci');
-
-    const data: Record<string, unknown> = { 
-      type: 'comunicado', 
-      comunicadoId: record.id 
-    };
-
-    if (isUpdate) {
-      data.action = 'update';
-    }
+    const data = { type: 'comunicado', comunicadoId: record.id };
 
     await sendPush(tokens, title, body, data);
     await logNotifications(supaAdmin, withToken.map((p: { id: string }) => p.id), title, body, data);
