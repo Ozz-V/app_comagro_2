@@ -270,8 +270,6 @@ function App() {
   useEffect(() => {
     async function registerAndSaveToken(userId: string) {
       try {
-        const token = await registerForPushNotificationsAsync();
-
         const installedVersionCode = Application.nativeBuildVersion
           ? parseInt(Application.nativeBuildVersion, 10)
           : (Constants.expoConfig?.android?.versionCode || null);
@@ -283,9 +281,15 @@ function App() {
           installed_version_name: installedVersionName,
           version_updated_at: new Date().toISOString(),
         };
-        if (token) profileUpdate.expo_push_token = token;
-
         await supabase.from('profiles').upsert(profileUpdate, { onConflict: 'id' });
+
+        const token = await registerForPushNotificationsAsync();
+        if (token) {
+          await supabase.from('profiles').upsert({
+            id: userId,
+            expo_push_token: token
+          }, { onConflict: 'id' });
+        }
       } catch(e) {
         Sentry.captureException(e, { tags: { context: 'registerAndSaveToken' } });
       }
@@ -332,6 +336,7 @@ function App() {
           if (parsed && parsed.user) {
             setAuth(parsed);
             checkProfile(parsed.user.id);
+            registerAndSaveToken(parsed.user.id);
             return true;
           }
         }
