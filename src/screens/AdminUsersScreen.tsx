@@ -185,7 +185,7 @@ export default function AdminUsersScreen() {
                     <View style={[styles.roleBadge, { backgroundColor: COLORS.bg }]}>
                       <Text style={[styles.roleText, { color: COLORS.gray4 }]}>
                         {item.installed_version_code
-                          ? `V${item.installed_version_name || item.installed_version_code}`
+                          ? `V${item.installed_version_name || '?'} (Build ${item.installed_version_code})`
                           : 'Version desconocida'}
                       </Text>
                     </View>
