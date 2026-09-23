@@ -50,7 +50,8 @@ serve(async (req) => {
       const now = new Date().toISOString();
       let precioFinal = null;
       
-      const url = `https://www.comagro.com.py/catalogsearch/result/?q=${prod.sku}`;
+      // 1. CODIFICACIÓN SEGURA: Permite buscar SKUs con barras, espacios o guiones
+      const url = `https://www.comagro.com.py/catalogsearch/result/?q=${encodeURIComponent(prod.sku)}`;
       try {
         const res = await fetch(url, {
           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
@@ -59,15 +60,15 @@ serve(async (req) => {
         const html = await res.text();
         const $ = cheerio.load(html);
         
-        const exactForm = $(`form[data-product-sku="${prod.sku}"]`);
+        // 2. BUSQUEDA SEGURA: Evitamos que comillas rompan el selector
+        const safeSku = prod.sku.replace(/"/g, '\\"');
+        const exactForm = $(`form[data-product-sku="${safeSku}"]`);
         let priceString;
         
         if (exactForm.length > 0) {
            priceString = exactForm.closest('.product-item').find('[data-price-amount]').first().attr('data-price-amount');
         } else {
            // EXTREMADAMENTE IMPORTANTE: Si no hay match EXACTO, no hacemos fallback al primer elemento.
-           // Magento puede devolver productos similares (ej. repuestos GAEH50/122/SP al buscar GAEH50).
-           // Tomar el primer resultado a ciegas causa que se asigne el precio de un repuesto a la motobomba.
            priceString = null;
         }
         
@@ -84,8 +85,6 @@ serve(async (req) => {
           }).eq('sku', prod.sku);
           
           // 2. BUMP MAGICO: Le avisa a la tabla de Plytix que este producto se "actualizó".
-          // Así, cuando la App pregunte "¿qué cambió hoy?" (Sincronización Inteligente),
-          // el servidor le enviará este producto y la App descargará el nuevo precio al instante.
           await supabaseClient.from('plytix_queue').update({
             updated_at: now
           }).eq('sku', prod.sku);
@@ -93,16 +92,11 @@ serve(async (req) => {
           actualizados++;
           detalles.push({ sku: prod.sku, precio: precioFinal });
         } else {
-          // Si NO encontró precio (o ya no existe en la web), lo borramos de la BD
-          // y actualizamos la huella para que no se tranque la cola.
+          // REGLA DE PROTECCIÓN: Si NO encontró el precio de forma explícita 
+          // (falta de stock, bloqueos, empujado a pág 2), NO BORRAMOS NADA.
+          // Solo marcamos que ya lo revisamos hoy para que la cola avance.
           await supabaseClient.from('productos_ai_data').update({ 
-            precio_web: null,
             precio_actualizado_en: now
-          }).eq('sku', prod.sku);
-
-          // También avisamos a la app que este producto cambió (para que borre el precio en los teléfonos)
-          await supabaseClient.from('plytix_queue').update({
-            updated_at: now
           }).eq('sku', prod.sku);
         }
 
